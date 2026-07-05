@@ -1,0 +1,267 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  runtime      = "nodejs"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  ADMIN
+  STAFF
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         UserRole @default(STAFF)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  inventoryCounts InventoryCount[]
+  salesOrders     SalesOrder[]
+}
+
+model Warehouse {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  address   String?
+  createdAt DateTime @default(now())
+
+  stockImports    StockImport[]
+  stockExports    StockExport[]
+  salesOrders     SalesOrder[]
+  inventoryCounts InventoryCount[]
+}
+
+model ProductGroup {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  createdAt DateTime @default(now())
+
+  products Product[]
+}
+
+model Unit {
+  id   String @id @default(cuid())
+  code String @unique
+  name String
+
+  products Product[]
+}
+
+model Product {
+  id             String   @id @default(cuid())
+  code           String   @unique
+  name           String
+  unitId         String
+  unit           Unit         @relation(fields: [unitId], references: [id])
+  productGroupId String
+  productGroup   ProductGroup @relation(fields: [productGroupId], references: [id])
+  costPrice      Decimal      @default(0) @db.Decimal(18, 2)
+  note           String?
+  createdAt      DateTime     @default(now())
+
+  stockImportItems    StockImportItem[]
+  stockExportItems    StockExportItem[]
+  inventoryCountItems InventoryCountItem[]
+  salesOrderItems     SalesOrderItem[]
+}
+
+model Supplier {
+  id      String  @id @default(cuid())
+  code    String  @unique
+  name    String
+  phone   String?
+  address String?
+
+  stockImports StockImport[]
+  stockExports StockExport[]
+}
+
+model Customer {
+  id      String  @id @default(cuid())
+  code    String  @unique
+  name    String
+  phone   String?
+  address String?
+
+  stockImports StockImport[]
+  stockExports StockExport[]
+}
+
+enum StockTransactionStatus {
+  DRAFT
+  COMPLETED
+  CANCELLED
+}
+
+enum StockImportType {
+  PURCHASE
+  CUSTOMER_RETURN
+  TRANSFER_IN
+  OTHER
+}
+
+enum StockExportType {
+  SALE
+  SUPPLIER_RETURN
+  TRANSFER_OUT
+  DAMAGE
+  OTHER
+}
+
+enum TransactionForm {
+  CASH
+  BANK_TRANSFER
+  DEBT
+  OTHER
+}
+
+model StockImport {
+  id            String                  @id @default(cuid())
+  code          String                  @unique
+  type          StockImportType         @default(PURCHASE)
+  transactionAt DateTime
+  form          TransactionForm         @default(CASH)
+  status        StockTransactionStatus  @default(COMPLETED)
+  note          String?
+  warehouseId   String
+  warehouse     Warehouse               @relation(fields: [warehouseId], references: [id])
+  supplierId    String?
+  supplier      Supplier?               @relation(fields: [supplierId], references: [id])
+  customerId    String?
+  customer      Customer?               @relation(fields: [customerId], references: [id])
+  createdById   String?
+  createdAt     DateTime                @default(now())
+
+  items StockImportItem[]
+
+  @@index([warehouseId, transactionAt])
+}
+
+model StockImportItem {
+  id            String      @id @default(cuid())
+  stockImportId String
+  stockImport   StockImport @relation(fields: [stockImportId], references: [id], onDelete: Cascade)
+  productId     String
+  product       Product     @relation(fields: [productId], references: [id])
+  quantity      Decimal     @db.Decimal(18, 3)
+  costPrice     Decimal     @db.Decimal(18, 2)
+  costAmount    Decimal     @db.Decimal(18, 2)
+  note          String?
+
+  @@index([productId])
+}
+
+model StockExport {
+  id            String                 @id @default(cuid())
+  code          String                 @unique
+  type          StockExportType        @default(SALE)
+  transactionAt DateTime
+  form          TransactionForm        @default(CASH)
+  status        StockTransactionStatus @default(COMPLETED)
+  note          String?
+  warehouseId   String
+  warehouse     Warehouse              @relation(fields: [warehouseId], references: [id])
+  supplierId    String?
+  supplier      Supplier?              @relation(fields: [supplierId], references: [id])
+  customerId    String?
+  customer      Customer?              @relation(fields: [customerId], references: [id])
+  salesOrderId  String?                @unique
+  salesOrder    SalesOrder?            @relation(fields: [salesOrderId], references: [id])
+  createdById   String?
+  createdAt     DateTime               @default(now())
+
+  items StockExportItem[]
+
+  @@index([warehouseId, transactionAt])
+}
+
+model StockExportItem {
+  id            String      @id @default(cuid())
+  stockExportId String
+  stockExport   StockExport @relation(fields: [stockExportId], references: [id], onDelete: Cascade)
+  productId     String
+  product       Product     @relation(fields: [productId], references: [id])
+  quantity      Decimal     @db.Decimal(18, 3)
+  costPrice     Decimal     @db.Decimal(18, 2)
+  costAmount    Decimal     @db.Decimal(18, 2)
+  note          String?
+
+  @@index([productId])
+}
+
+enum SalesOrderStatus {
+  DRAFT
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+model SalesOrder {
+  id          String           @id @default(cuid())
+  code        String           @unique
+  warehouseId String
+  warehouse   Warehouse        @relation(fields: [warehouseId], references: [id])
+  orderDate   DateTime         @default(now())
+  status      SalesOrderStatus @default(DRAFT)
+  note        String?
+  createdById String?
+  createdBy   User?            @relation(fields: [createdById], references: [id])
+  createdAt   DateTime         @default(now())
+
+  items       SalesOrderItem[]
+  stockExport StockExport?
+}
+
+model SalesOrderItem {
+  id           String     @id @default(cuid())
+  salesOrderId String
+  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product    @relation(fields: [productId], references: [id])
+  quantity     Decimal    @db.Decimal(18, 3)
+}
+
+enum InventoryCountStatus {
+  DRAFT
+  COMPLETED
+  CANCELLED
+}
+
+model InventoryCount {
+  id          String               @id @default(cuid())
+  code        String               @unique
+  warehouseId String
+  warehouse   Warehouse            @relation(fields: [warehouseId], references: [id])
+  countDate   DateTime
+  status      InventoryCountStatus @default(DRAFT)
+  note        String?
+  createdById String?
+  createdBy   User?                @relation(fields: [createdById], references: [id])
+  createdAt   DateTime             @default(now())
+
+  items InventoryCountItem[]
+
+  @@index([warehouseId, countDate])
+}
+
+model InventoryCountItem {
+  id               String         @id @default(cuid())
+  inventoryCountId String
+  inventoryCount   InventoryCount @relation(fields: [inventoryCountId], references: [id], onDelete: Cascade)
+  productId        String
+  product          Product        @relation(fields: [productId], references: [id])
+  actualQuantity   Decimal        @db.Decimal(18, 3)
+  note             String?
+
+  @@unique([inventoryCountId, productId])
+}
