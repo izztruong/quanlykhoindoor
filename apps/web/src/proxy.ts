@@ -1,25 +1,16 @@
 import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
 
-const COOKIE_NAME = "kho_token";
-const PUBLIC_PATHS = ["/login"];
-
-// Optimistic auth check only (presence of the cookie) — the API is the real
-// authority and rejects invalid/expired tokens with 401 on every request.
-export function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-  const hasToken = Boolean(request.cookies.get(COOKIE_NAME)?.value);
-  const isPublicPath = PUBLIC_PATHS.some((path) => pathname.startsWith(path));
-
-  if (!hasToken && !isPublicPath) {
-    const loginUrl = new URL("/login", request.url);
-    return NextResponse.redirect(loginUrl);
-  }
-
-  if (hasToken && isPublicPath) {
-    return NextResponse.redirect(new URL("/", request.url));
-  }
-
+// This used to redirect based on the auth cookie's presence, but that only
+// works when the frontend and API share a domain. In production the API
+// lives on a different domain (e.g. Render vs Vercel), so the auth cookie is
+// scoped to the API's domain and is never visible to this middleware — it
+// would always see "no cookie" and bounce every request back to /login, even
+// right after a successful login. Real enforcement already happens
+// client-side in (app)/layout.tsx via a genuine `/api/auth/me` call (which
+// does carry the cross-domain cookie, since that's a normal fetch with
+// credentials rather than a same-site cookie read), so this middleware is
+// now just a pass-through.
+export function proxy() {
   return NextResponse.next();
 }
 
