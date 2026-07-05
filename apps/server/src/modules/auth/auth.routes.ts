@@ -21,9 +21,14 @@ const changePasswordSchema = z.object({
 
 function setAuthCookie(res: import("express").Response, user: AuthUser) {
   const token = jwt.sign(user, env.jwtSecret, { expiresIn: env.jwtExpiresIn as any });
+  // Frontend and API live on different domains in production (e.g. Vercel +
+  // Render), so the cookie must be SameSite=None to survive cross-site
+  // fetch — which browsers only allow when Secure is also set. Locally
+  // they're same-site over http, where None+non-secure would be rejected,
+  // so "lax" without Secure is used instead.
   res.cookie(env.cookieName, token, {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: env.nodeEnv === "production" ? "none" : "lax",
     secure: env.nodeEnv === "production",
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
@@ -44,7 +49,11 @@ authRouter.post("/login", async (req, res) => {
 });
 
 authRouter.post("/logout", (_req, res) => {
-  res.clearCookie(env.cookieName);
+  res.clearCookie(env.cookieName, {
+    httpOnly: true,
+    sameSite: env.nodeEnv === "production" ? "none" : "lax",
+    secure: env.nodeEnv === "production",
+  });
   res.status(204).send();
 });
 
