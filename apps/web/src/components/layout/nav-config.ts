@@ -39,6 +39,7 @@ export const navSections: NavSection[] = [
     icon: Warehouse,
     adminOnly: true,
     items: [
+      { label: "Tồn kho hiện tại", href: "/stock/current" },
       { label: "Phiếu nhập kho", href: "/stock/imports" },
       { label: "Phiếu xuất kho", href: "/stock/exports" },
       { label: "Phiếu kiểm kê", href: "/stock/inventory-counts" },
