@@ -24,6 +24,9 @@ export default function UsersPage() {
 
   const [form, setForm] = useState({ email: "", password: "", name: "", role: "STAFF" as "ADMIN" | "STAFF" });
   const [error, setError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const adminCount = users.filter((u) => u.role === "ADMIN").length;
 
   const columns = useMemo<ColumnDef<ManagedUser>[]>(
     () => [
@@ -40,13 +43,25 @@ export default function UsersPage() {
         id: "actions",
         cell: ({ row }) => {
           const isSelf = row.original.id === currentUser?.id;
+          const isLastAdmin = row.original.role === "ADMIN" && adminCount <= 1;
+          const disabled = isSelf || isLastAdmin || deleteUser.isPending;
+          const title = isSelf
+            ? "Không thể tự xoá tài khoản của chính mình"
+            : isLastAdmin
+              ? "Không thể xoá quản trị viên cuối cùng"
+              : "Xoá tài khoản";
           return (
             <button
               type="button"
-              disabled={isSelf || deleteUser.isPending}
-              title={isSelf ? "Không thể tự xoá tài khoản của chính mình" : "Xoá tài khoản"}
+              disabled={disabled}
+              title={title}
               onClick={() => {
-                if (confirm(`Xoá tài khoản ${row.original.email}?`)) deleteUser.mutate(row.original.id);
+                setDeleteError(null);
+                if (confirm(`Xoá tài khoản ${row.original.email}?`)) {
+                  deleteUser.mutate(row.original.id, {
+                    onError: (err) => setDeleteError(err instanceof ApiError ? err.message : "Xoá tài khoản thất bại"),
+                  });
+                }
               }}
               className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-30"
             >
@@ -56,7 +71,7 @@ export default function UsersPage() {
         },
       },
     ],
-    [currentUser?.id, deleteUser],
+    [currentUser?.id, deleteUser, adminCount],
   );
 
   function handleSubmit(e: React.FormEvent) {
@@ -130,6 +145,7 @@ export default function UsersPage() {
         <CardBody className="p-0">
           <DataTable columns={columns} data={users} isLoading={isLoading} />
         </CardBody>
+        {deleteError && <p className="px-4 pb-4 text-sm text-red-600">{deleteError}</p>}
       </Card>
     </div>
   );
