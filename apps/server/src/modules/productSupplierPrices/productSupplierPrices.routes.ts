@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { prisma } from "../../config/db";
+import type { Prisma } from "../../generated/prisma/client";
 import { productSupplierPricesPutSchema } from "./productSupplierPrices.schemas";
 
 export const productSupplierPricesRouter = Router();
@@ -26,19 +27,32 @@ productSupplierPricesRouter.get("/", async (req, res) => {
 productSupplierPricesRouter.put("/", async (req, res) => {
   const { supplierId, items } = productSupplierPricesPutSchema.parse(req.body);
 
-  await prisma.$transaction(async (tx) => {
-    for (const it of items) {
-      if (it.importPrice == null || it.exportPrice == null) {
-        await tx.productSupplierPrice.deleteMany({ where: { supplierId, productId: it.productId } });
-      } else {
-        await tx.productSupplierPrice.upsert({
-          where: { productId_supplierId: { productId: it.productId, supplierId } },
-          create: { supplierId, productId: it.productId, importPrice: it.importPrice, exportPrice: it.exportPrice },
-          update: { importPrice: it.importPrice, exportPrice: it.exportPrice },
-        });
-      }
-    }
-  });
+  // Same fix as reorder-thresholds: the page submits every product every
+  // save, so hundreds of one-row-at-a-time deletes/upserts inside a single
+  // interactive transaction blew past Prisma's 5s timeout over Neon. Batch
+  // the delete side into one query and run everything in one non-interactive
+  // transaction (single connection) instead of one round trip per row.
+  const toDelete = items.filter((it) => it.importPrice == null || it.exportPrice == null);
+  const toUpsert = items.filter((it) => it.importPrice != null && it.exportPrice != null);
+
+  const operations: Prisma.PrismaPromise<unknown>[] = [];
+  if (toDelete.length > 0) {
+    operations.push(
+      prisma.productSupplierPrice.deleteMany({
+        where: { supplierId, productId: { in: toDelete.map((it) => it.productId) } },
+      }),
+    );
+  }
+  for (const it of toUpsert) {
+    operations.push(
+      prisma.productSupplierPrice.upsert({
+        where: { productId_supplierId: { productId: it.productId, supplierId } },
+        create: { supplierId, productId: it.productId, importPrice: it.importPrice!, exportPrice: it.exportPrice! },
+        update: { importPrice: it.importPrice!, exportPrice: it.exportPrice! },
+      }),
+    );
+  }
+  if (operations.length > 0) await prisma.$transaction(operations, { timeout: 30000 });
 
   const result = await prisma.productSupplierPrice.findMany({ where: { supplierId }, include: priceInclude });
   res.json({ items: result });
