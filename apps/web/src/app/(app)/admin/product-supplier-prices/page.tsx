@@ -77,15 +77,29 @@ export default function ProductSupplierPricesPage() {
     if (!supplierId) return;
     setError(null);
     setSaved(false);
-    const items = products.map((p) => {
-      const importPrice = valueFor(p.id, "importPrice").trim();
-      const exportPrice = valueFor(p.id, "exportPrice").trim();
-      return {
-        productId: p.id,
-        importPrice: importPrice ? Number(importPrice) : null,
-        exportPrice: exportPrice ? Number(exportPrice) : null,
-      };
-    });
+
+    // Only send rows actually touched this session (see overrides above) -
+    // re-sending every product's already-saved value was redundant and, at
+    // full catalog size, slow enough to blow past the save timeout.
+    const validProductIds = new Set(products.map((p) => p.id));
+    const items = Object.keys(overrides)
+      .filter((productId) => validProductIds.has(productId))
+      .map((productId) => {
+        const importPrice = valueFor(productId, "importPrice").trim();
+        const exportPrice = valueFor(productId, "exportPrice").trim();
+        return {
+          productId,
+          importPrice: importPrice ? Number(importPrice) : null,
+          exportPrice: exportPrice ? Number(exportPrice) : null,
+        };
+      });
+
+    if (items.length === 0) {
+      setSaved(true);
+      setOverrides({});
+      return;
+    }
+
     savePrices.mutate(
       { supplierId, items },
       {

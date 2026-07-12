@@ -78,11 +78,25 @@ export default function ReorderThresholdsPage() {
     if (!userId) return;
     setError(null);
     setSaved(false);
-    const items = products.map((p) => {
-      const min = valueFor(p.id, "min").trim();
-      const max = valueFor(p.id, "max").trim();
-      return { productId: p.id, minQuantity: min ? Number(min) : null, maxQuantity: max ? Number(max) : null };
-    });
+
+    // Only send rows actually touched this session (see overrides above) -
+    // re-sending every product's already-saved value was redundant and, at
+    // full catalog size, slow enough to blow past the save timeout.
+    const validProductIds = new Set(products.map((p) => p.id));
+    const items = Object.keys(overrides)
+      .filter((productId) => validProductIds.has(productId))
+      .map((productId) => {
+        const min = valueFor(productId, "min").trim();
+        const max = valueFor(productId, "max").trim();
+        return { productId, minQuantity: min ? Number(min) : null, maxQuantity: max ? Number(max) : null };
+      });
+
+    if (items.length === 0) {
+      setSaved(true);
+      setOverrides({});
+      return;
+    }
+
     saveThresholds.mutate(
       { userId, items },
       {
