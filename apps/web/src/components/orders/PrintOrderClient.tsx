@@ -126,7 +126,7 @@ export function PrintOrderClient({ id }: { id: string }) {
       </div>
 
       <div className="mt-2 grid grid-cols-4 gap-4 text-center">
-        {["Người lập", "Người giao", "Người nhận", "Giám đốc"].map((label) => (
+        {["Người lập", "Người giao", "Người nhận"].map((label) => (
           <div key={label}>
             <div className="font-semibold">{label}</div>
             <div className="text-xs italic text-slate-500">(Ký, họ tên)</div>

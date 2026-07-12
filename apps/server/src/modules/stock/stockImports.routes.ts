@@ -49,6 +49,18 @@ stockImportsRouter.get("/:id", async (req, res) => {
 stockImportsRouter.post("/", async (req, res) => {
   const data = stockImportCreateSchema.parse(req.body);
 
+  if (data.supplierId) {
+    const prices = await prisma.productSupplierPrice.findMany({
+      where: { supplierId: data.supplierId, productId: { in: data.items.map((it) => it.productId) } },
+      include: { product: true },
+    });
+    const pricedProductIds = new Set(prices.map((p) => p.productId));
+    const missing = data.items.filter((it) => !pricedProductIds.has(it.productId));
+    if (missing.length > 0) {
+      throw new HttpError(400, "Có hàng hoá chưa được thiết lập giá cho nhà cung cấp này");
+    }
+  }
+
   const item = await prisma.stockImport.create({
     data: {
       code: generateCode("PN"),

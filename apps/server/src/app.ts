@@ -6,11 +6,16 @@ import { requireAuth, requireRole } from "./middleware/auth";
 import { errorHandler, notFoundHandler } from "./middleware/error";
 import { authRouter } from "./modules/auth/auth.routes";
 import { customersRouter } from "./modules/customers/customers.routes";
+import { finishedGoodItemsRouter } from "./modules/finishedGoodItems/finishedGoodItems.routes";
 import { inventoryCountsRouter } from "./modules/inventoryCounts/inventoryCounts.routes";
 import { productGroupsRouter } from "./modules/productGroups/productGroups.routes";
+import { productStockRouter } from "./modules/products/productStock.routes";
 import { productsRouter } from "./modules/products/products.routes";
+import { productSupplierPricesRouter } from "./modules/productSupplierPrices/productSupplierPrices.routes";
+import { reorderThresholdsRouter } from "./modules/reorderThresholds/reorderThresholds.routes";
 import { reportsRouter } from "./modules/reports/reports.routes";
 import { salesOrdersRouter } from "./modules/salesOrders/salesOrders.routes";
+import { stockChecksRouter } from "./modules/stockChecks/stockChecks.routes";
 import { stockExportsRouter } from "./modules/stock/stockExports.routes";
 import { stockImportsRouter } from "./modules/stock/stockImports.routes";
 import { suppliersRouter } from "./modules/suppliers/suppliers.routes";
@@ -37,6 +42,14 @@ app.use("/api", requireAuth);
 app.use("/api/warehouses", warehousesRouter);
 app.use("/api/customers", customersRouter);
 app.use("/api/products", productsRouter);
+app.use("/api/product-stock", productStockRouter);
+app.use("/api/finished-good-items", finishedGoodItemsRouter);
+// Read is self-scoped (or any user for admin) inside the router; write is admin-only inside the router.
+app.use("/api/reorder-thresholds", reorderThresholdsRouter);
+
+// Sales orders and phiếu kiểm (stock checks): open to both roles, ownership-scoped for staff inside the router.
+app.use("/api/sales-orders", salesOrdersRouter);
+app.use("/api/stock-checks", stockChecksRouter);
 
 // Staff has no use for these at all — admin only, both read and write.
 app.use("/api/product-groups", requireRole("ADMIN"), productGroupsRouter);
@@ -44,12 +57,10 @@ app.use("/api/units", requireRole("ADMIN"), unitsRouter);
 app.use("/api/suppliers", requireRole("ADMIN"), suppliersRouter);
 app.use("/api/stock-imports", requireRole("ADMIN"), stockImportsRouter);
 app.use("/api/stock-exports", requireRole("ADMIN"), stockExportsRouter);
+app.use("/api/product-supplier-prices", requireRole("ADMIN"), productSupplierPricesRouter);
 app.use("/api/inventory-counts", requireRole("ADMIN"), inventoryCountsRouter);
 app.use("/api/reports", requireRole("ADMIN"), reportsRouter);
 app.use("/api/users", requireRole("ADMIN"), usersRouter);
-
-// Sales orders: open to both roles, ownership-scoped for staff inside the router.
-app.use("/api/sales-orders", salesOrdersRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

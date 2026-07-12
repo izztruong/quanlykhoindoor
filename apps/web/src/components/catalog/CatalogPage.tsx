@@ -45,7 +45,11 @@ function buildPayload(fields: CatalogFieldConfig[], values: Record<string, strin
   const payload: Record<string, unknown> = {};
   for (const field of fields) {
     const raw = values[field.name] ?? "";
-    payload[field.name] = field.type === "number" ? Number(raw || 0) : raw || undefined;
+    if (field.type === "number") {
+      payload[field.name] = raw === "" ? (field.required ? 0 : undefined) : Number(raw);
+    } else {
+      payload[field.name] = raw || undefined;
+    }
   }
   return payload;
 }

@@ -5,6 +5,7 @@ import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { useCustomers, useProducts, useSuppliers, useWarehouses } from "@/hooks/useCatalog";
+import { useProductSupplierPrices } from "@/hooks/useProductSupplierPrices";
 import type { StockTransactionInput } from "@/hooks/useStockTransactions";
 import { ApiError } from "@/lib/api-client";
 import { formatCurrency } from "@/lib/format";
@@ -13,7 +14,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import type { UseMutationResult } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -32,6 +33,7 @@ const formSchema = z.object({
         productId: z.string().min(1, "Chọn hàng hoá"),
         quantity: z.number().positive("Số lượng phải > 0"),
         costPrice: z.number().nonnegative(),
+        supplierId: z.string().optional(),
       }),
     )
     .min(1, "Cần ít nhất 1 hàng hoá"),
@@ -45,6 +47,9 @@ interface StockTransactionFormProps {
   typeOptions: { value: string; label: string }[];
   useCreate: () => UseMutationResult<StockTransaction, unknown, StockTransactionInput>;
   redirectBase: string;
+  /** import: header nhà cung cấp restricts which hàng hoá can be added.
+   *  export: each dòng picks its own nhà cung cấp (không giới hạn hàng hoá). */
+  variant: "import" | "export";
 }
 
 const formOptions = [
@@ -60,12 +65,13 @@ const statusOptions = [
   { value: "CANCELLED", label: "Đã huỷ" },
 ];
 
-export function StockTransactionForm({ title, description, typeOptions, useCreate, redirectBase }: StockTransactionFormProps) {
+export function StockTransactionForm({ title, description, typeOptions, useCreate, redirectBase, variant }: StockTransactionFormProps) {
   const router = useRouter();
   const { data: warehouses = [] } = useWarehouses();
   const { data: suppliers = [] } = useSuppliers();
   const { data: customers = [] } = useCustomers();
   const { data: products = [] } = useProducts();
+  const { data: prices = [] } = useProductSupplierPrices();
   const createTransaction = useCreate();
   const [error, setError] = useState<string | null>(null);
 
@@ -74,6 +80,7 @@ export function StockTransactionForm({ title, description, typeOptions, useCreat
     control,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -86,13 +93,32 @@ export function StockTransactionForm({ title, description, typeOptions, useCreat
       supplierId: "",
       customerId: "",
       note: "",
-      items: [{ productId: "", quantity: 1, costPrice: 0 }],
+      items: [{ productId: "", quantity: 1, costPrice: 0, supplierId: "" }],
     },
   });
 
   const { fields, append, remove } = useFieldArray({ control, name: "items" });
   const items = watch("items");
+  const headerSupplierId = watch("supplierId");
   const total = items.reduce((sum, it) => sum + (Number(it.quantity) || 0) * (Number(it.costPrice) || 0), 0);
+
+  // import: header nhà cung cấp restricts which hàng hoá show up in the picker.
+  const importAllowedProductIds = useMemo(() => {
+    if (variant !== "import" || !headerSupplierId) return null;
+    return new Set(prices.filter((p) => p.supplierId === headerSupplierId).map((p) => p.productId));
+  }, [variant, headerSupplierId, prices]);
+
+  function productOptionsFor() {
+    if (!importAllowedProductIds) return products;
+    return products.filter((p) => importAllowedProductIds.has(p.id));
+  }
+
+  // export: each dòng's nhà cung cấp options are just the suppliers priced for that dòng's hàng hoá.
+  function suppliersForProduct(productId: string) {
+    if (!productId) return [];
+    const supplierIds = new Set(prices.filter((p) => p.productId === productId).map((p) => p.supplierId));
+    return suppliers.filter((s) => supplierIds.has(s.id));
+  }
 
   function onSubmit(values: FormValues) {
     setError(null);
@@ -101,6 +127,7 @@ export function StockTransactionForm({ title, description, typeOptions, useCreat
         ...values,
         supplierId: values.supplierId || undefined,
         customerId: values.customerId || undefined,
+        items: values.items.map((it) => ({ ...it, supplierId: variant === "export" ? it.supplierId || undefined : undefined })),
       },
       {
         onSuccess: () => router.replace(redirectBase),
@@ -148,17 +175,20 @@ export function StockTransactionForm({ title, description, typeOptions, useCreat
               <Input type="date" {...register("transactionAt")} />
             </div>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-slate-600">Nhà cung cấp</label>
-              <Select {...register("supplierId")}>
-                <option value="">Không có</option>
-                {suppliers.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </Select>
-            </div>
+            {variant === "import" && (
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-slate-600">Nhà cung cấp</label>
+                <Select {...register("supplierId")}>
+                  <option value="">Không có</option>
+                  {suppliers.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </Select>
+                {headerSupplierId && <p className="text-xs text-slate-400">Chỉ hiện hàng hoá đã có giá thiết lập cho NCC này.</p>}
+              </div>
+            )}
 
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium text-slate-600">Khách hàng</label>
@@ -208,44 +238,85 @@ export function StockTransactionForm({ title, description, typeOptions, useCreat
               type="button"
               variant="secondary"
               size="sm"
-              onClick={() => append({ productId: "", quantity: 1, costPrice: 0 })}
+              onClick={() => append({ productId: "", quantity: 1, costPrice: 0, supplierId: "" })}
             >
               <Plus size={14} />
               Thêm dòng
             </Button>
           </CardHeader>
           <CardBody className="flex flex-col gap-3">
-            {fields.map((field, index) => (
-              <div key={field.id} className="grid grid-cols-1 items-end gap-3 md:grid-cols-[1fr_140px_160px_40px]">
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-medium text-slate-500">Hàng hoá</label>
-                  <Select {...register(`items.${index}.productId` as const)}>
-                    <option value="">Chọn hàng hoá</option>
-                    {products.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} ({formatCurrency(p.costPrice)})
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-medium text-slate-500">Số lượng</label>
-                  <Input type="number" step="0.01" {...register(`items.${index}.quantity` as const, { valueAsNumber: true })} />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-medium text-slate-500">Giá vốn</label>
-                  <Input type="number" step="0.01" {...register(`items.${index}.costPrice` as const, { valueAsNumber: true })} />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => remove(index)}
-                  disabled={fields.length <= 1}
-                  className="mb-1 rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-30"
+            {fields.map((field, index) => {
+              const productRegister = register(`items.${index}.productId` as const);
+              const supplierRegister = register(`items.${index}.supplierId` as const);
+              const rowProductId = items[index]?.productId;
+              return (
+                <div
+                  key={field.id}
+                  className={`grid grid-cols-1 items-end gap-3 ${variant === "export" ? "md:grid-cols-[1fr_1fr_120px_140px_40px]" : "md:grid-cols-[1fr_140px_160px_40px]"}`}
                 >
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            ))}
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-slate-500">Hàng hoá</label>
+                    <Select
+                      {...productRegister}
+                      onChange={(e) => {
+                        productRegister.onChange(e);
+                        if (variant === "import" && headerSupplierId) {
+                          const price = prices.find((p) => p.productId === e.target.value && p.supplierId === headerSupplierId);
+                          if (price) setValue(`items.${index}.costPrice`, Number(price.importPrice));
+                        }
+                        if (variant === "export") {
+                          setValue(`items.${index}.supplierId`, "");
+                        }
+                      }}
+                    >
+                      <option value="">Chọn hàng hoá</option>
+                      {productOptionsFor().map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} ({formatCurrency(p.costPrice)})
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                  {variant === "export" && (
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-medium text-slate-500">Nhà cung cấp</label>
+                      <Select
+                        {...supplierRegister}
+                        disabled={!rowProductId}
+                        onChange={(e) => {
+                          supplierRegister.onChange(e);
+                          const price = prices.find((p) => p.productId === rowProductId && p.supplierId === e.target.value);
+                          if (price) setValue(`items.${index}.costPrice`, Number(price.exportPrice));
+                        }}
+                      >
+                        <option value="">Không chọn</option>
+                        {suppliersForProduct(rowProductId).map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+                  )}
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-slate-500">Số lượng</label>
+                    <Input type="number" step="0.01" {...register(`items.${index}.quantity` as const, { valueAsNumber: true })} />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-slate-500">Giá vốn</label>
+                    <Input type="number" step="0.01" {...register(`items.${index}.costPrice` as const, { valueAsNumber: true })} />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => remove(index)}
+                    disabled={fields.length <= 1}
+                    className="mb-1 rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-30"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              );
+            })}
             {errors.items?.message && <p className="text-xs text-red-600">{errors.items.message}</p>}
 
             <div className="flex justify-end border-t border-slate-100 pt-3 text-sm font-semibold text-slate-700">

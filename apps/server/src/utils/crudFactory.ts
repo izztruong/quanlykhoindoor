@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { prisma } from "../config/db";
 import { requireRole, type AuthUser } from "../middleware/auth";
 import { HttpError } from "./httpError";
 import { parsePagination } from "./pagination";
@@ -104,11 +105,18 @@ export function createCrudRouter(delegate: Delegate, options: CrudOptions): Rout
       const toCreate = dedupedItems.filter((item: any) => !existingKeys.has(item[key]));
       const toUpdate = dedupedItems.filter((item: any) => existingKeys.has(item[key]));
 
+      // Batched into one transaction on a single connection instead of firing
+      // one independent update per row: keeps a large import atomic (all rows
+      // land or none do) and avoids saturating the connection pool.
+      const operations: Promise<unknown>[] = [];
       if (toCreate.length > 0) {
         if (!delegate.createMany) throw new HttpError(500, "Bulk import không được hỗ trợ cho tài nguyên này");
-        await delegate.createMany({ data: toCreate });
+        operations.push(delegate.createMany({ data: toCreate }));
       }
-      await Promise.all(toUpdate.map((item: any) => delegate.update({ where: { [key]: item[key] }, data: item })));
+      for (const item of toUpdate) {
+        operations.push(delegate.update({ where: { [key]: item[key] }, data: item }));
+      }
+      if (operations.length > 0) await prisma.$transaction(operations as any);
 
       res.json({ created: toCreate.length, updated: toUpdate.length });
     });

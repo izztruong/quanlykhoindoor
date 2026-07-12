@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Boxes, ClipboardCheck, ShieldCheck, ShoppingCart, Warehouse } from "lucide-react";
+import { Boxes, ClipboardCheck, ClipboardList, ShieldCheck, ShoppingCart, Warehouse } from "lucide-react";
 
 export interface NavItem {
   label: string;
@@ -32,6 +32,7 @@ export const navSections: NavSection[] = [
     items: [
       { label: "Danh sách đơn hàng", href: "/orders" },
       { label: "Tạo đơn hàng", href: "/orders/new" },
+      { label: "Order nhanh", href: "/orders/quick" },
     ],
   },
   {
@@ -39,11 +40,15 @@ export const navSections: NavSection[] = [
     icon: Warehouse,
     adminOnly: true,
     items: [
-      { label: "Tồn kho hiện tại", href: "/stock/current" },
       { label: "Phiếu nhập kho", href: "/stock/imports" },
       { label: "Phiếu xuất kho", href: "/stock/exports" },
       { label: "Phiếu kiểm kê", href: "/stock/inventory-counts" },
     ],
+  },
+  {
+    label: "Kiểm kê quán",
+    icon: ClipboardList,
+    items: [{ label: "Phiếu kiểm kê", href: "/stock-checks" }],
   },
   {
     label: "Danh mục",
@@ -56,12 +61,17 @@ export const navSections: NavSection[] = [
       { label: "Kho hàng", href: "/catalog/warehouses" },
       { label: "Nhà cung cấp", href: "/catalog/suppliers" },
       { label: "Khách hàng", href: "/catalog/customers" },
+      { label: "Đồ thành phẩm", href: "/catalog/finished-goods" },
     ],
   },
   {
     label: "Quản trị",
     icon: ShieldCheck,
     adminOnly: true,
-    items: [{ label: "Tài khoản người dùng", href: "/admin/users" }],
+    items: [
+      { label: "Tài khoản người dùng", href: "/admin/users" },
+      { label: "Định lượng Order nhanh", href: "/admin/reorder-thresholds" },
+      { label: "Giá theo Nhà cung cấp", href: "/admin/product-supplier-prices" },
+    ],
   },
 ];

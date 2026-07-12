@@ -4,20 +4,20 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
-import { useProducts, useWarehouses } from "@/hooks/useCatalog";
+import { useProducts, useProductStock, useWarehouses } from "@/hooks/useCatalog";
 import { useCreateSalesOrder } from "@/hooks/useSalesOrders";
 import { ApiError } from "@/lib/api-client";
 import { useCurrentUser } from "@/lib/auth";
+import { formatNumber } from "@/lib/format";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 
 const formSchema = z.object({
   warehouseId: z.string().min(1, "Chọn kho hàng"),
-  orderDate: z.string().min(1),
   note: z.string().optional(),
   items: z
     .array(
@@ -49,7 +49,6 @@ export default function NewOrderPage() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       warehouseId: "",
-      orderDate: new Date().toISOString().slice(0, 10),
       note: "",
       items: [{ productId: "", quantity: 1 }],
     },
@@ -57,13 +56,31 @@ export default function NewOrderPage() {
 
   const { fields, append, remove } = useFieldArray({ control, name: "items" });
   const items = watch("items");
+  const warehouseId = watch("warehouseId");
+
+  const { data: stockLevels = [] } = useProductStock(warehouseId);
+  const stockByProductId = useMemo(() => new Map(stockLevels.map((s) => [s.productId, s.quantity])), [stockLevels]);
 
   function productUnitLabel(productId: string) {
     return products.find((p) => p.id === productId)?.unit?.name ?? "-";
   }
 
+  function stockExceededMessage(productId: string, quantity: number): string | null {
+    if (!warehouseId || !productId || !quantity) return null;
+    const available = stockByProductId.get(productId) ?? 0;
+    if (quantity > available) return `Còn ${formatNumber(available)}`;
+    return null;
+  }
+
   function onSubmit(values: FormValues) {
     setError(null);
+
+    const exceeded = values.items.find((it) => stockExceededMessage(it.productId, it.quantity));
+    if (exceeded) {
+      setError("Có hàng hoá vượt quá số lượng tồn kho, vui lòng kiểm tra lại.");
+      return;
+    }
+
     createOrder.mutate(values, {
       onSuccess: (order) => router.replace(`/orders/${order.id}`),
       onError: (err) => setError(err instanceof ApiError ? err.message : "Tạo đơn hàng thất bại"),
@@ -79,7 +96,7 @@ export default function NewOrderPage() {
 
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
         <Card>
-          <CardBody className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <CardBody className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium text-slate-600">Tài khoản</label>
               <div className="flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-600">
@@ -100,12 +117,7 @@ export default function NewOrderPage() {
               {errors.warehouseId && <p className="text-xs text-red-600">{errors.warehouseId.message}</p>}
             </div>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-slate-600">Ngày đặt</label>
-              <Input type="date" {...register("orderDate")} />
-            </div>
-
-            <div className="flex flex-col gap-1 md:col-span-3">
+            <div className="flex flex-col gap-1 md:col-span-2">
               <label className="text-sm font-medium text-slate-600">Ghi chú</label>
               <Input {...register("note")} placeholder="Ghi chú đơn hàng (không bắt buộc)" />
             </div>
@@ -135,7 +147,19 @@ export default function NewOrderPage() {
                   </Select>
                 </div>
                 <div className="flex flex-col gap-1">
-                  <label className="text-xs font-medium text-slate-500">Số lượng</label>
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="text-xs font-medium text-slate-500">Số lượng</label>
+                    {(() => {
+                      const productId = items[index]?.productId;
+                      const quantity = items[index]?.quantity;
+                      const exceededMessage = stockExceededMessage(productId, quantity);
+                      if (exceededMessage) return <span className="text-xs font-medium text-red-600">{exceededMessage}</span>;
+                      if (warehouseId && productId) {
+                        return <span className="text-xs text-slate-400">Tồn kho: {formatNumber(stockByProductId.get(productId) ?? 0)}</span>;
+                      }
+                      return null;
+                    })()}
+                  </div>
                   <Input
                     type="number"
                     step="1"

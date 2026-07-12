@@ -12,6 +12,13 @@ export const stockItemSchema = z.object({
   note: z.string().optional(),
 });
 
+// Export lines each pick their own supplier (a single export can cover
+// products normally sourced from different suppliers), unlike an import
+// which is one delivery from the one supplier picked on the header.
+export const stockExportItemSchema = stockItemSchema.extend({
+  supplierId: z.string().min(1).optional(),
+});
+
 const baseHeaderSchema = {
   transactionAt: z.coerce.date(),
   form: transactionFormEnum.default("CASH"),
@@ -20,17 +27,18 @@ const baseHeaderSchema = {
   warehouseId: z.string().min(1),
   supplierId: z.string().min(1).optional(),
   customerId: z.string().min(1).optional(),
-  items: z.array(stockItemSchema).min(1, "Cần ít nhất 1 hàng hoá"),
 };
 
 export const stockImportCreateSchema = z.object({
   type: stockImportTypeEnum.default("PURCHASE"),
   ...baseHeaderSchema,
+  items: z.array(stockItemSchema).min(1, "Cần ít nhất 1 hàng hoá"),
 });
 
 export const stockExportCreateSchema = z.object({
   type: stockExportTypeEnum.default("SALE"),
   ...baseHeaderSchema,
+  items: z.array(stockExportItemSchema).min(1, "Cần ít nhất 1 hàng hoá"),
 });
 
 export type StockImportInput = z.infer<typeof stockImportCreateSchema>;

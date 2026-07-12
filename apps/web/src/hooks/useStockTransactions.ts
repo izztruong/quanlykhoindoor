@@ -7,6 +7,8 @@ export interface StockTransactionItemInput {
   quantity: number;
   costPrice: number;
   note?: string;
+  /** Export lines only — which supplier's price this line's costPrice came from. */
+  supplierId?: string;
 }
 
 export interface StockTransactionInput {
@@ -22,7 +24,7 @@ export interface StockTransactionInput {
 }
 
 export function createStockTransactionHooks(endpoint: string, queryKey: string) {
-  function useList(filter: { warehouseId?: string; status?: string } = {}) {
+  function useList(filter: { warehouseId?: string; status?: string; from?: string; to?: string } = {}) {
     return useQuery({
       queryKey: [queryKey, filter],
       queryFn: () => api.get<PagedResult<StockTransaction>>(endpoint, { ...filter, pageSize: 50 }),

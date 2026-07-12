@@ -1,8 +1,11 @@
 "use client";
 
 import { CatalogPage } from "@/components/catalog/CatalogPage";
+import { SupplierExcelImport } from "@/components/catalog/SupplierExcelImport";
+import { useSuppliers } from "@/hooks/useCatalog";
 import type { Supplier } from "@/types";
 import type { ColumnDef } from "@tanstack/react-table";
+import { useState } from "react";
 
 const columns: ColumnDef<Supplier>[] = [
   { header: "Mã NCC", accessorKey: "code" },
@@ -12,6 +15,9 @@ const columns: ColumnDef<Supplier>[] = [
 ];
 
 export default function SuppliersPage() {
+  const { data: suppliers = [] } = useSuppliers();
+  const [search, setSearch] = useState("");
+
   return (
     <CatalogPage<Supplier>
       title="Nhà cung cấp"
@@ -25,6 +31,9 @@ export default function SuppliersPage() {
         { name: "phone", label: "Điện thoại" },
         { name: "address", label: "Địa chỉ" },
       ]}
+      search={search}
+      onSearchChange={setSearch}
+      headerExtra={<SupplierExcelImport items={suppliers} search={search} />}
     />
   );
 }

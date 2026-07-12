@@ -9,15 +9,24 @@ export interface SalesOrderItemInput {
 
 export interface SalesOrderInput {
   warehouseId: string;
-  orderDate: string;
+  /** Omit to let the server stamp the moment the order is created. */
+  orderDate?: string;
   note?: string;
   items: SalesOrderItemInput[];
+  /** Temporary: lets Order nhanh opt out of the stock-sufficiency check. */
+  skipStockCheck?: boolean;
 }
 
-export function useSalesOrders(filter: { status?: string }) {
+export function useSalesOrders(filter: { status?: string; from?: string; to?: string }) {
   return useQuery({
     queryKey: ["sales-orders", filter],
-    queryFn: () => api.get<PagedResult<SalesOrder>>("/sales-orders", { status: filter.status, pageSize: 100 }),
+    queryFn: () =>
+      api.get<PagedResult<SalesOrder>>("/sales-orders", {
+        status: filter.status,
+        from: filter.from,
+        to: filter.to,
+        pageSize: 100,
+      }),
   });
 }
 
@@ -41,6 +50,41 @@ export function useUpdateSalesOrderStatus(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (status: SalesOrderStatus) => api.patch<SalesOrder>(`/sales-orders/${id}/status`, { status }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sales-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["sales-orders", id] });
+    },
+  });
+}
+
+export interface SalesOrderReceivingItemInput {
+  itemId: string;
+  received: boolean;
+  receivedQuantity?: number;
+}
+
+export function useCompleteSalesOrderReceiving(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (items: SalesOrderReceivingItemInput[]) => api.patch<SalesOrder>(`/sales-orders/${id}/receiving`, { items }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sales-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["sales-orders", id] });
+    },
+  });
+}
+
+export interface SalesOrderConfirmItemInput {
+  itemId: string;
+  supplierId?: string;
+  costPrice: number;
+  quantity: number;
+}
+
+export function useConfirmSalesOrderWithExport(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (items: SalesOrderConfirmItemInput[]) => api.patch<SalesOrder>(`/sales-orders/${id}/confirm`, { items }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sales-orders"] });
       queryClient.invalidateQueries({ queryKey: ["sales-orders", id] });

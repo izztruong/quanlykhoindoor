@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
-import type { Customer, PagedResult, Product, ProductGroup, Supplier, Unit, Warehouse } from "@/types";
+import type { Customer, FinishedGoodItem, PagedResult, Product, ProductGroup, Supplier, Unit, Warehouse } from "@/types";
 
 function useList<T>(key: string, path: string) {
   return useQuery({
@@ -15,3 +15,17 @@ export const useUnits = () => useList<Unit>("units", "/units");
 export const useSuppliers = () => useList<Supplier>("suppliers", "/suppliers");
 export const useCustomers = () => useList<Customer>("customers", "/customers");
 export const useProducts = () => useList<Product>("products", "/products");
+export const useFinishedGoodItems = () => useList<FinishedGoodItem>("finished-good-items", "/finished-good-items");
+
+export interface ProductStockLevel {
+  productId: string;
+  quantity: number;
+}
+
+export function useProductStock(warehouseId: string) {
+  return useQuery({
+    queryKey: ["product-stock", warehouseId],
+    queryFn: () => api.get<{ items: ProductStockLevel[] }>("/product-stock", { warehouseId }).then((r) => r.items),
+    enabled: Boolean(warehouseId),
+  });
+}

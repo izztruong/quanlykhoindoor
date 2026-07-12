@@ -23,8 +23,10 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  inventoryCounts InventoryCount[]
-  salesOrders     SalesOrder[]
+  inventoryCounts   InventoryCount[]
+  salesOrders       SalesOrder[]
+  reorderThresholds ProductReorderThreshold[]
+  stockChecks       StockCheck[]
 }
 
 model Warehouse {
@@ -54,12 +56,27 @@ model Unit {
   code String @unique
   name String
 
-  products Product[]
+  products          Product[]
+  finishedGoodItems FinishedGoodItem[]
+}
+
+// Catalog of "đồ thành phẩm" (prepared/finished items and supplies checked
+// alongside raw materials in a phiếu kiểm kê) — independent of Product, since
+// many of these (cups, straws, lids, brewed liquids) aren't raw-material SKUs.
+model FinishedGoodItem {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  unitId    String
+  unit      Unit     @relation(fields: [unitId], references: [id])
+  createdAt DateTime @default(now())
+
+  stockCheckFinishedItems StockCheckFinishedItem[]
 }
 
 model Product {
-  id             String   @id @default(cuid())
-  code           String   @unique
+  id             String       @id @default(cuid())
+  code           String       @unique
   name           String
   unitId         String
   unit           Unit         @relation(fields: [unitId], references: [id])
@@ -73,6 +90,41 @@ model Product {
   stockExportItems    StockExportItem[]
   inventoryCountItems InventoryCountItem[]
   salesOrderItems     SalesOrderItem[]
+  reorderThresholds   ProductReorderThreshold[]
+  stockCheckItems     StockCheckItem[]
+  supplierPrices      ProductSupplierPrice[]
+}
+
+// Per-supplier price list: the same product can be sourced from more than
+// one supplier at different import/export prices. Optional — a product with
+// no rows here just falls back to Product.costPrice everywhere.
+model ProductSupplierPrice {
+  id          String   @id @default(cuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  supplierId  String
+  supplier    Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  importPrice Decimal  @db.Decimal(18, 2)
+  exportPrice Decimal  @db.Decimal(18, 2)
+  createdAt   DateTime @default(now())
+
+  @@unique([productId, supplierId])
+}
+
+// Per-user reorder thresholds for "Order nhanh": each user has their own
+// min/max per product (e.g. different counters/staff restock to different
+// levels), so this is scoped by user, not a global Product setting.
+model ProductReorderThreshold {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  minQuantity Decimal  @db.Decimal(18, 3)
+  maxQuantity Decimal  @db.Decimal(18, 3)
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, productId])
 }
 
 model Supplier {
@@ -82,8 +134,10 @@ model Supplier {
   phone   String?
   address String?
 
-  stockImports StockImport[]
-  stockExports StockExport[]
+  stockImports     StockImport[]
+  stockExports     StockExport[]
+  productPrices    ProductSupplierPrice[]
+  stockExportItems StockExportItem[]
 }
 
 model Customer {
@@ -126,21 +180,21 @@ enum TransactionForm {
 }
 
 model StockImport {
-  id            String                  @id @default(cuid())
-  code          String                  @unique
-  type          StockImportType         @default(PURCHASE)
+  id            String                 @id @default(cuid())
+  code          String                 @unique
+  type          StockImportType        @default(PURCHASE)
   transactionAt DateTime
-  form          TransactionForm         @default(CASH)
-  status        StockTransactionStatus  @default(COMPLETED)
+  form          TransactionForm        @default(CASH)
+  status        StockTransactionStatus @default(COMPLETED)
   note          String?
   warehouseId   String
-  warehouse     Warehouse               @relation(fields: [warehouseId], references: [id])
+  warehouse     Warehouse              @relation(fields: [warehouseId], references: [id])
   supplierId    String?
-  supplier      Supplier?               @relation(fields: [supplierId], references: [id])
+  supplier      Supplier?              @relation(fields: [supplierId], references: [id])
   customerId    String?
-  customer      Customer?               @relation(fields: [customerId], references: [id])
+  customer      Customer?              @relation(fields: [customerId], references: [id])
   createdById   String?
-  createdAt     DateTime                @default(now())
+  createdAt     DateTime               @default(now())
 
   items StockImportItem[]
 
@@ -195,6 +249,11 @@ model StockExportItem {
   costPrice     Decimal     @db.Decimal(18, 2)
   costAmount    Decimal     @db.Decimal(18, 2)
   note          String?
+  // Which supplier this line's cost price came from — picked per line since
+  // a single export can cover products normally sourced from different
+  // suppliers, unlike an import which is one delivery from one supplier.
+  supplierId    String?
+  supplier      Supplier?   @relation(fields: [supplierId], references: [id])
 
   @@index([productId])
 }
@@ -202,6 +261,7 @@ model StockExportItem {
 enum SalesOrderStatus {
   DRAFT
   CONFIRMED
+  SHORT
   COMPLETED
   CANCELLED
 }
@@ -223,12 +283,16 @@ model SalesOrder {
 }
 
 model SalesOrderItem {
-  id           String     @id @default(cuid())
-  salesOrderId String
-  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
-  productId    String
-  product      Product    @relation(fields: [productId], references: [id])
-  quantity     Decimal    @db.Decimal(18, 3)
+  id               String     @id @default(cuid())
+  salesOrderId     String
+  salesOrder       SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  productId        String
+  product          Product    @relation(fields: [productId], references: [id])
+  quantity         Decimal    @db.Decimal(18, 3)
+  // Receiving checklist: staff ticks each line once received in full; a
+  // partially received line can log how much actually arrived instead.
+  received         Boolean    @default(false)
+  receivedQuantity Decimal?   @db.Decimal(18, 3)
 }
 
 enum InventoryCountStatus {
@@ -264,4 +328,49 @@ model InventoryCountItem {
   note             String?
 
   @@unique([inventoryCountId, productId])
+}
+
+// Simple stock check for staff: just "what's on hand right now" per product,
+// no warehouse and no system-vs-actual comparison (that's the separate,
+// admin-only InventoryCount feature above). A permanent one-shot log entry —
+// no draft/complete workflow, no editing after creation.
+model StockCheck {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  note        String?
+  createdById String?
+  createdBy   User?    @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  items         StockCheckItem[]
+  finishedItems StockCheckFinishedItem[]
+}
+
+// Nguyên liệu line: tồn chẵn (theo đơn vị chính của hàng hoá) + tồn lẻ (luôn
+// tính bằng gam), tách riêng vì đơn vị khác nhau.
+model StockCheckItem {
+  id            String     @id @default(cuid())
+  stockCheckId  String
+  stockCheck    StockCheck @relation(fields: [stockCheckId], references: [id], onDelete: Cascade)
+  productId     String
+  product       Product    @relation(fields: [productId], references: [id])
+  wholeQuantity Decimal?   @db.Decimal(18, 3)
+  looseQuantity Decimal?   @db.Decimal(18, 3)
+  note          String?
+
+  @@unique([stockCheckId, productId])
+}
+
+// Đồ thành phẩm line: danh sách độc lập với nguyên liệu (không phải mỗi
+// nguyên liệu có 1 đồ thành phẩm tương ứng).
+model StockCheckFinishedItem {
+  id                 String           @id @default(cuid())
+  stockCheckId       String
+  stockCheck         StockCheck       @relation(fields: [stockCheckId], references: [id], onDelete: Cascade)
+  finishedGoodItemId String
+  finishedGoodItem   FinishedGoodItem @relation(fields: [finishedGoodItemId], references: [id])
+  quantity           Decimal          @db.Decimal(18, 3)
+  note               String?
+
+  @@unique([stockCheckId, finishedGoodItemId])
 }

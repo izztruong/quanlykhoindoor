@@ -2,9 +2,11 @@ import { Router } from "express";
 import { prisma } from "../../config/db";
 import { HttpError } from "../../utils/httpError";
 import { parseDateRange, parsePagination } from "../../utils/pagination";
-import { salesOrderCreateSchema, salesOrderStatusSchema } from "./salesOrders.schemas";
+import { salesOrderConfirmSchema, salesOrderCreateSchema, salesOrderReceivingSchema, salesOrderStatusSchema } from "./salesOrders.schemas";
 import {
   assertOwnership,
+  completeSalesOrderReceiving,
+  confirmSalesOrderWithExport,
   createSalesOrder,
   replaceSalesOrderItems,
   salesOrderDetailInclude,
@@ -62,5 +64,17 @@ salesOrdersRouter.put("/:id", async (req, res) => {
 salesOrdersRouter.patch("/:id/status", async (req, res) => {
   const { status } = salesOrderStatusSchema.parse(req.body);
   const item = await updateSalesOrderStatus(req.params.id, status, req.user);
+  res.json(item);
+});
+
+salesOrdersRouter.patch("/:id/receiving", async (req, res) => {
+  const data = salesOrderReceivingSchema.parse(req.body);
+  const item = await completeSalesOrderReceiving(req.params.id, data, req.user);
+  res.json(item);
+});
+
+salesOrdersRouter.patch("/:id/confirm", async (req, res) => {
+  const data = salesOrderConfirmSchema.parse(req.body);
+  const item = await confirmSalesOrderWithExport(req.params.id, data, req.user);
   res.json(item);
 });

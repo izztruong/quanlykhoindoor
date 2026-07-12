@@ -2,7 +2,7 @@ import { z } from "zod";
 import { prisma } from "../../config/db";
 import { createCrudRouter } from "../../utils/crudFactory";
 
-const createSchema = z.object({
+const schema = z.object({
   code: z.string().min(1),
   name: z.string().min(1),
   unitId: z.string().min(1),
@@ -12,8 +12,8 @@ const createSchema = z.object({
 });
 
 export const productsRouter = createCrudRouter(prisma.product, {
-  createSchema,
-  updateSchema: createSchema.partial(),
+  createSchema: schema,
+  updateSchema: schema.partial(),
   searchFields: ["code", "name"],
   include: { unit: true, productGroup: true },
   writeRoles: ["ADMIN"],

@@ -10,8 +10,39 @@ export const salesOrderCreateSchema = z.object({
   orderDate: z.coerce.date().default(() => new Date()),
   note: z.string().optional(),
   items: z.array(salesOrderItemSchema).min(1, "Cần ít nhất 1 hàng hoá"),
+  // Temporary: lets Order nhanh opt out of the stock-sufficiency check, since
+  // its whole point is to request more than what's currently on hand.
+  skipStockCheck: z.boolean().optional().default(false),
 });
 
 export const salesOrderStatusSchema = z.object({
-  status: z.enum(["DRAFT", "CONFIRMED", "COMPLETED", "CANCELLED"]),
+  status: z.enum(["DRAFT", "CONFIRMED", "SHORT", "COMPLETED", "CANCELLED"]),
+});
+
+export const salesOrderReceivingSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        itemId: z.string().min(1),
+        received: z.boolean(),
+        receivedQuantity: z.coerce.number().nonnegative().optional(),
+      }),
+    )
+    .min(1),
+});
+
+// A dòng đơn hàng can be split across more than one entry here (each with its
+// own supplier/price/quantity) — quantities for the same itemId must sum to
+// exactly that line's ordered quantity (checked in confirmSalesOrderWithExport).
+export const salesOrderConfirmSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        itemId: z.string().min(1),
+        supplierId: z.string().min(1).optional(),
+        costPrice: z.coerce.number().nonnegative(),
+        quantity: z.coerce.number().positive(),
+      }),
+    )
+    .min(1),
 });

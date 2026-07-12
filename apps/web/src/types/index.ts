@@ -36,12 +36,31 @@ export interface Product {
   note?: string | null;
 }
 
+export interface ReorderThreshold {
+  id: string;
+  userId: string;
+  productId: string;
+  product: Product;
+  minQuantity: string | number;
+  maxQuantity: string | number;
+}
+
 export interface Supplier {
   id: string;
   code: string;
   name: string;
   phone?: string | null;
   address?: string | null;
+}
+
+export interface ProductSupplierPrice {
+  id: string;
+  productId: string;
+  product: Product;
+  supplierId: string;
+  supplier: Supplier;
+  importPrice: string | number;
+  exportPrice: string | number;
 }
 
 export interface Customer {
@@ -78,19 +97,24 @@ export interface StockItem {
   costPrice: string | number;
   costAmount: string | number;
   note?: string | null;
+  /** Export lines only — which supplier's price this line's costPrice came from. */
+  supplierId?: string | null;
+  supplier?: Supplier | null;
 }
 
 export interface StockTransaction extends StockHeader {
   items: StockItem[];
 }
 
-export type SalesOrderStatus = "DRAFT" | "CONFIRMED" | "COMPLETED" | "CANCELLED";
+export type SalesOrderStatus = "DRAFT" | "CONFIRMED" | "SHORT" | "COMPLETED" | "CANCELLED";
 
 export interface SalesOrderItem {
   id: string;
   productId: string;
   product: Product;
   quantity: string | number;
+  received: boolean;
+  receivedQuantity?: string | number | null;
 }
 
 export interface SalesOrder {
@@ -104,7 +128,7 @@ export interface SalesOrder {
   createdAt: string;
   createdBy?: { id: string; name: string; email: string } | null;
   items: SalesOrderItem[];
-  stockExport?: { id: string; code: string; transactionAt: string } | null;
+  stockExport?: StockTransaction | null;
 }
 
 export interface PagedResult<T> {
@@ -172,4 +196,39 @@ export interface InventoryCount {
   note?: string | null;
   createdBy?: { id: string; name: string } | null;
   items?: InventoryCountItemRow[];
+}
+
+export interface FinishedGoodItem {
+  id: string;
+  code: string;
+  name: string;
+  unitId: string;
+  unit: Unit;
+}
+
+export interface StockCheckItemRow {
+  id: string;
+  productId: string;
+  product: Product;
+  wholeQuantity?: string | number | null;
+  looseQuantity?: string | number | null;
+  note?: string | null;
+}
+
+export interface StockCheckFinishedItemRow {
+  id: string;
+  finishedGoodItemId: string;
+  finishedGoodItem: FinishedGoodItem;
+  quantity: string | number;
+  note?: string | null;
+}
+
+export interface StockCheck {
+  id: string;
+  code: string;
+  createdAt: string;
+  note?: string | null;
+  createdBy?: { id: string; name: string } | null;
+  items?: StockCheckItemRow[];
+  finishedItems?: StockCheckFinishedItemRow[];
 }

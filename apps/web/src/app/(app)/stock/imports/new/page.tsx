@@ -18,6 +18,7 @@ export default function NewStockImportPage() {
       typeOptions={typeOptions}
       useCreate={stockImportHooks.useCreate}
       redirectBase="/stock/imports"
+      variant="import"
     />
   );
 }

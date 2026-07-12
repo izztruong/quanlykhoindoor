@@ -1,6 +1,7 @@
 "use client";
 
 import { DataTable } from "@/components/data-table/DataTable";
+import { DateRangeFilter } from "@/components/filters/DateRangeFilter";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -22,14 +23,19 @@ const statusTone: Record<string, "gray" | "green" | "red" | "yellow" | "blue"> =
 interface StockTransactionListProps {
   title: string;
   description: string;
-  useList: (filter: { status?: string }) => UseQueryResult<PagedResult<StockTransaction>>;
+  useList: (filter: { status?: string; from?: string; to?: string }) => UseQueryResult<PagedResult<StockTransaction>>;
   newHref: string;
   typeLabel: (v: string) => string;
 }
 
 export function StockTransactionList({ title, description, useList, newHref, typeLabel }: StockTransactionListProps) {
   const [status, setStatus] = useState("");
-  const { data, isLoading } = useList({ status: status || undefined });
+  const [dateRange, setDateRange] = useState({ from: "", to: "" });
+  const { data, isLoading } = useList({
+    status: status || undefined,
+    from: dateRange.from || undefined,
+    to: dateRange.to || undefined,
+  });
 
   const columns = useMemo<ColumnDef<StockTransaction>[]>(
     () => [
@@ -69,15 +75,19 @@ export function StockTransactionList({ title, description, useList, newHref, typ
       </div>
 
       <Card>
-        <CardBody className="flex items-center gap-3">
-          <div className="w-48">
-            <Select value={status} onChange={(e) => setStatus(e.target.value)}>
-              <option value="">Tất cả trạng thái</option>
-              <option value="DRAFT">Nháp</option>
-              <option value="COMPLETED">Hoàn thành</option>
-              <option value="CANCELLED">Đã huỷ</option>
-            </Select>
+        <CardBody className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-slate-500">Trạng thái</label>
+            <div className="w-48">
+              <Select value={status} onChange={(e) => setStatus(e.target.value)}>
+                <option value="">Tất cả trạng thái</option>
+                <option value="DRAFT">Nháp</option>
+                <option value="COMPLETED">Hoàn thành</option>
+                <option value="CANCELLED">Đã huỷ</option>
+              </Select>
+            </div>
           </div>
+          <DateRangeFilter value={dateRange} onChange={setDateRange} />
         </CardBody>
       </Card>
 

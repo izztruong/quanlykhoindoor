@@ -12,7 +12,7 @@ const detailInclude = {
   supplier: true,
   customer: true,
   salesOrder: true,
-  items: { include: { product: { include: { unit: true, productGroup: true } } } },
+  items: { include: { product: { include: { unit: true, productGroup: true } }, supplier: true } },
 };
 
 stockExportsRouter.get("/", async (req, res) => {
@@ -50,6 +50,20 @@ stockExportsRouter.get("/:id", async (req, res) => {
 stockExportsRouter.post("/", async (req, res) => {
   const data = stockExportCreateSchema.parse(req.body);
 
+  const lineSuppliers = data.items.filter((it): it is typeof it & { supplierId: string } => Boolean(it.supplierId));
+  if (lineSuppliers.length > 0) {
+    const prices = await prisma.productSupplierPrice.findMany({
+      where: {
+        OR: lineSuppliers.map((it) => ({ productId: it.productId, supplierId: it.supplierId })),
+      },
+    });
+    const pricedPairs = new Set(prices.map((p) => `${p.productId}:${p.supplierId}`));
+    const missing = lineSuppliers.filter((it) => !pricedPairs.has(`${it.productId}:${it.supplierId}`));
+    if (missing.length > 0) {
+      throw new HttpError(400, "Có hàng hoá chưa được thiết lập giá cho nhà cung cấp đã chọn ở dòng đó");
+    }
+  }
+
   const item = await prisma.stockExport.create({
     data: {
       code: generateCode("PX"),
@@ -69,6 +83,7 @@ stockExportsRouter.post("/", async (req, res) => {
           costPrice: it.costPrice,
           costAmount: it.quantity * it.costPrice,
           note: it.note,
+          supplierId: it.supplierId,
         })),
       },
     },

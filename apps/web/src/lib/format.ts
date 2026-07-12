@@ -49,8 +49,9 @@ const stockExportTypeLabel: Record<string, string> = {
 };
 
 const salesOrderStatusLabel: Record<string, string> = {
-  DRAFT: "Nháp",
+  DRAFT: "Chưa xác nhận",
   CONFIRMED: "Đã xác nhận",
+  SHORT: "Thiếu",
   COMPLETED: "Hoàn thành",
   CANCELLED: "Đã huỷ",
 };

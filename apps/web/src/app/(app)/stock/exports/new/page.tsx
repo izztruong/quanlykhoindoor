@@ -19,6 +19,7 @@ export default function NewStockExportPage() {
       typeOptions={typeOptions}
       useCreate={stockExportHooks.useCreate}
       redirectBase="/stock/exports"
+      variant="export"
     />
   );
 }
