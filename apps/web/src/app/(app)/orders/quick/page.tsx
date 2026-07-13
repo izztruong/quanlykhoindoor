@@ -49,7 +49,7 @@ export default function QuickOrderPage() {
       if (!Number.isFinite(current)) return 0;
       const min = Number(threshold.minQuantity);
       const max = Number(threshold.maxQuantity);
-      if (current < min) return Math.ceil(max - current);
+      if (current < min) return Math.round((max - current) * 1000) / 1000;
       return 0;
     },
     [stockInputs],
@@ -256,7 +256,7 @@ export default function QuickOrderPage() {
                       <td className="py-2 pr-3">
                         <Input
                           type="number"
-                          step="1"
+                          step="0.01"
                           min="0"
                           className="w-28"
                           value={stockInputs[t.productId] ?? ""}

@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const salesOrderItemSchema = z.object({
   productId: z.string().min(1),
-  quantity: z.coerce.number().int("Số lượng phải là số nguyên").positive(),
+  quantity: z.coerce.number().positive(),
 });
 
 export const salesOrderCreateSchema = z.object({

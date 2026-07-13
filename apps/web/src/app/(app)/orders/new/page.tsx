@@ -26,7 +26,7 @@ const formSchema = z.object({
     .array(
       z.object({
         productId: z.string().min(1, "Chọn hàng hoá"),
-        quantity: z.number().int("Số lượng phải là số nguyên").positive("Số lượng phải > 0"),
+        quantity: z.number().positive("Số lượng phải > 0"),
       }),
     )
     .min(1, "Cần ít nhất 1 hàng hoá"),
@@ -131,7 +131,7 @@ export default function NewOrderPage() {
         }
 
         const quantity = Number(qtyRaw);
-        if (!Number.isInteger(quantity) || quantity <= 0) {
+        if (!Number.isFinite(quantity) || quantity <= 0) {
           errors.push(`Dòng ${rowNumber}: số lượng không hợp lệ`);
           return;
         }
@@ -282,8 +282,8 @@ export default function NewOrderPage() {
                   </div>
                   <Input
                     type="number"
-                    step="1"
-                    min="1"
+                    step="0.01"
+                    min="0.01"
                     {...register(`items.${index}.quantity` as const, { valueAsNumber: true })}
                   />
                 </div>
