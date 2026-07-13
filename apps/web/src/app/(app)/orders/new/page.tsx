@@ -172,17 +172,13 @@ export default function NewOrderPage() {
 
   function onSubmit(values: FormValues) {
     setError(null);
-
-    const exceeded = values.items.find((it) => stockExceededMessage(it.productId, it.quantity));
-    if (exceeded) {
-      setError("Có hàng hoá vượt quá số lượng tồn kho, vui lòng kiểm tra lại.");
-      return;
-    }
-
-    createOrder.mutate(values, {
-      onSuccess: (order) => router.replace(`/orders/${order.id}`),
-      onError: (err) => setError(err instanceof ApiError ? err.message : "Tạo đơn hàng thất bại"),
-    });
+    createOrder.mutate(
+      { ...values, skipStockCheck: true },
+      {
+        onSuccess: (order) => router.replace(`/orders/${order.id}`),
+        onError: (err) => setError(err instanceof ApiError ? err.message : "Tạo đơn hàng thất bại"),
+      },
+    );
   }
 
   return (
