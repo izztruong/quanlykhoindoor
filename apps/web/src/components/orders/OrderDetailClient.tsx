@@ -49,11 +49,6 @@ function getAvailableActions(status: SalesOrderStatus, role?: AuthUser["role"]):
   return [];
 }
 
-interface ReceivingOverride {
-  received?: boolean;
-  receivedQuantity?: string;
-}
-
 export function OrderDetailClient({ id }: { id: string }) {
   const { data: order, isLoading } = useSalesOrder(id);
   const { data: currentUser } = useCurrentUser();
@@ -61,7 +56,10 @@ export function OrderDetailClient({ id }: { id: string }) {
   const completeReceiving = useCompleteSalesOrderReceiving(id);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
-  const [overrides, setOverrides] = useState<Record<string, ReceivingOverride>>({});
+  // Only holds rows the user has actually touched this session; untouched
+  // rows fall back to what was saved from an earlier pass, or the ordered
+  // quantity as a starting point (see receivedQuantityFor).
+  const [overrides, setOverrides] = useState<Record<string, string>>({});
 
   if (isLoading || !order) {
     return <p className="text-slate-400">Đang tải...</p>;
@@ -70,30 +68,22 @@ export function OrderDetailClient({ id }: { id: string }) {
   const actions = getAvailableActions(order.status, currentUser?.role);
   const canReceive = order.status === "CONFIRMED" || order.status === "SHORT";
 
-  function receivedFor(item: SalesOrderItem): boolean {
-    return overrides[item.id]?.received ?? item.received;
-  }
-
   function receivedQuantityFor(item: SalesOrderItem): string {
-    const override = overrides[item.id]?.receivedQuantity;
+    const override = overrides[item.id];
     if (override !== undefined) return override;
-    return item.receivedQuantity != null ? String(item.receivedQuantity) : "";
-  }
-
-  function setReceived(itemId: string, received: boolean) {
-    setError(null);
-    setOverrides((prev) => ({ ...prev, [itemId]: { ...prev[itemId], received } }));
+    if (item.receivedQuantity != null) return String(item.receivedQuantity);
+    return String(item.quantity);
   }
 
   function setReceivedQuantity(itemId: string, receivedQuantity: string) {
     setError(null);
-    setOverrides((prev) => ({ ...prev, [itemId]: { ...prev[itemId], receivedQuantity } }));
+    setOverrides((prev) => ({ ...prev, [itemId]: receivedQuantity }));
   }
 
-  function toggleAllReceived(checked: boolean) {
+  function fillAllWithOrdered() {
     setError(null);
-    const next: Record<string, ReceivingOverride> = {};
-    for (const item of order!.items) next[item.id] = { received: checked };
+    const next: Record<string, string> = {};
+    for (const item of order!.items) next[item.id] = String(item.quantity);
     setOverrides(next);
   }
 
@@ -106,15 +96,10 @@ export function OrderDetailClient({ id }: { id: string }) {
 
   function handleComplete() {
     setError(null);
-    const items = order!.items.map((item) => {
-      const received = receivedFor(item);
-      const rawQty = receivedQuantityFor(item);
-      return {
-        itemId: item.id,
-        received,
-        receivedQuantity: !received && rawQty !== "" ? Number(rawQty) : undefined,
-      };
-    });
+    const items = order!.items.map((item) => ({
+      itemId: item.id,
+      receivedQuantity: Number(receivedQuantityFor(item)) || 0,
+    }));
 
     completeReceiving.mutate(items, {
       onSuccess: () => setOverrides({}),
@@ -187,67 +172,45 @@ export function OrderDetailClient({ id }: { id: string }) {
       <Card>
         <CardHeader>
           <CardTitle>Hàng hoá</CardTitle>
+          {canReceive && (
+            <Button variant="secondary" size="sm" onClick={fillAllWithOrdered}>
+              Điền theo số đặt
+            </Button>
+          )}
         </CardHeader>
         <CardBody className="overflow-x-auto p-0">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-4 py-2 text-left">Hàng hoá</th>
-                <th className="px-4 py-2 text-right">Số lượng</th>
+                <th className="px-4 py-2 text-right">Số lượng đặt</th>
                 <th className="px-4 py-2 text-left">Đơn vị</th>
-                {canReceive && (
-                  <th className="px-4 py-2 text-center">
-                    <div className="flex items-center justify-center gap-1.5">
-                      <span>Đã nhận</span>
-                      <input
-                        type="checkbox"
-                        checked={order.items.every((item) => receivedFor(item))}
-                        onChange={(e) => toggleAllReceived(e.target.checked)}
-                        className="h-4 w-4"
-                        title="Tích/bỏ tích tất cả"
-                      />
-                    </div>
-                  </th>
-                )}
-                {order.status === "COMPLETED" && <th className="px-4 py-2 text-center">Đã nhận</th>}
-                {canReceive && <th className="px-4 py-2 text-left">SL đã nhận</th>}
+                {(canReceive || order.status === "COMPLETED") && <th className="px-4 py-2 text-left">SL thực nhận</th>}
               </tr>
             </thead>
             <tbody>
               {order.items.map((item) => {
-                const received = receivedFor(item);
+                const receivedQty = Number(receivedQuantityFor(item));
+                const differsFromOrdered = canReceive && Math.abs(receivedQty - Number(item.quantity)) > 1e-6;
                 return (
                   <tr key={item.id} className="border-t border-slate-100">
                     <td className="px-4 py-2">{item.product.name}</td>
                     <td className="px-4 py-2 text-right">{item.quantity}</td>
                     <td className="px-4 py-2">{item.product.unit?.name ?? "-"}</td>
                     {canReceive && (
-                      <td className="px-4 py-2 text-center">
-                        <input
-                          type="checkbox"
-                          checked={received}
-                          onChange={(e) => setReceived(item.id, e.target.checked)}
-                          className="h-4 w-4"
+                      <td className="px-4 py-2">
+                        <Input
+                          type="number"
+                          step="0.001"
+                          min="0"
+                          className={`h-8 w-28 ${differsFromOrdered ? "border-amber-400 text-amber-700" : ""}`}
+                          value={receivedQuantityFor(item)}
+                          onChange={(e) => setReceivedQuantity(item.id, e.target.value)}
                         />
                       </td>
                     )}
-                    {order.status === "COMPLETED" && (
-                      <td className="px-4 py-2 text-center">{item.received ? "✓" : "-"}</td>
-                    )}
-                    {canReceive && (
-                      <td className="px-4 py-2">
-                        {!received && (
-                          <Input
-                            type="number"
-                            step="0.001"
-                            min="0"
-                            max={Number(item.quantity)}
-                            className="h-8 w-28"
-                            value={receivedQuantityFor(item)}
-                            onChange={(e) => setReceivedQuantity(item.id, e.target.value)}
-                          />
-                        )}
-                      </td>
+                    {!canReceive && order.status === "COMPLETED" && (
+                      <td className="px-4 py-2">{item.receivedQuantity != null ? String(item.receivedQuantity) : item.quantity}</td>
                     )}
                   </tr>
                 );

@@ -123,10 +123,15 @@ function assertStatusTransitionAllowed(order: { status: string }, status: string
 interface OrderWithItemsForExport {
   id: string;
   warehouseId: string;
-  items: { productId: string; quantity: Prisma.Decimal; product: { costPrice: Prisma.Decimal } }[];
+  items: {
+    productId: string;
+    quantity: Prisma.Decimal;
+    receivedQuantity?: number | Prisma.Decimal | null;
+    product: { costPrice: Prisma.Decimal };
+  }[];
 }
 
-/** Exports at the originally ordered quantities — completing means everything ordered was received. */
+/** Exports at the actual received quantity where known, falling back to the ordered quantity otherwise. */
 async function createStockExportForOrder(tx: Prisma.TransactionClient, order: OrderWithItemsForExport, actingUserId?: string) {
   await tx.stockExport.create({
     data: {
@@ -139,15 +144,57 @@ async function createStockExportForOrder(tx: Prisma.TransactionClient, order: Or
       salesOrderId: order.id,
       createdById: actingUserId,
       items: {
-        create: order.items.map((it) => ({
-          productId: it.productId,
-          quantity: it.quantity,
-          costPrice: it.product.costPrice,
-          costAmount: Number(it.quantity) * Number(it.product.costPrice),
-        })),
+        create: order.items.map((it) => {
+          const qty = it.receivedQuantity != null ? Number(it.receivedQuantity) : Number(it.quantity);
+          return {
+            productId: it.productId,
+            quantity: qty,
+            costPrice: it.product.costPrice,
+            costAmount: qty * Number(it.product.costPrice),
+          };
+        }),
       },
     },
   });
+}
+
+/**
+ * Once an order is confirmed, its stock export already exists (created in
+ * confirmSalesOrderWithExport at the ordered quantities, possibly split
+ * across suppliers). When the actual received quantity for a product turns
+ * out to differ, scale every export line for that product proportionally so
+ * the export's total matches reality while keeping each supplier's relative
+ * share intact.
+ */
+async function reconcileStockExportForOrder(
+  tx: Prisma.TransactionClient,
+  stockExportId: string,
+  targets: { productId: string; receivedQuantity: number }[],
+) {
+  const exportItems = await tx.stockExportItem.findMany({ where: { stockExportId } });
+  const linesByProduct = new Map<string, typeof exportItems>();
+  for (const line of exportItems) {
+    const list = linesByProduct.get(line.productId) ?? [];
+    list.push(line);
+    linesByProduct.set(line.productId, list);
+  }
+
+  for (const target of targets) {
+    const lines = linesByProduct.get(target.productId);
+    if (!lines || lines.length === 0) continue;
+
+    const currentTotal = lines.reduce((sum, l) => sum + Number(l.quantity), 0);
+    if (currentTotal <= 0 || Math.abs(currentTotal - target.receivedQuantity) < 1e-6) continue;
+
+    const scale = target.receivedQuantity / currentTotal;
+    for (const line of lines) {
+      const newQty = Number(line.quantity) * scale;
+      await tx.stockExportItem.update({
+        where: { id: line.id },
+        data: { quantity: newQty, costAmount: newQty * Number(line.costPrice) },
+      });
+    }
+  }
 }
 
 export async function updateSalesOrderStatus(orderId: string, status: string, actingUser?: AuthUser) {
@@ -176,17 +223,19 @@ export async function updateSalesOrderStatus(orderId: string, status: string, ac
 }
 
 /**
- * Staff (or admin) tick off which items have been received, once the order
- * is CONFIRMED (or already SHORT from a prior partial pass). If every item
- * ends up received, the order closes out as COMPLETED and exports stock at
- * the originally ordered quantities; otherwise it lands on SHORT and stays
- * editable so the checklist can be finished later.
+ * Staff (or admin) record how much of each line actually arrived, once the
+ * order is CONFIRMED (or already SHORT from a prior partial pass) - this can
+ * be less than, equal to, or more than what was ordered. If every item ends
+ * up with at least its ordered quantity, the order closes out as COMPLETED;
+ * otherwise it lands on SHORT and stays editable so the checklist can be
+ * finished later. Either way, the linked stock export (created at confirm
+ * time) is kept in sync with the actual received quantities.
  */
 export async function completeSalesOrderReceiving(orderId: string, data: SalesOrderReceivingInput, actingUser?: AuthUser) {
   return prisma.$transaction(async (tx) => {
     const order = await tx.salesOrder.findUnique({
       where: { id: orderId },
-      include: { items: { include: { product: true } }, stockExport: true },
+      include: { items: { include: { product: true } }, stockExport: { include: { items: true } } },
     });
     if (!order) throw new HttpError(404, "Không tìm thấy đơn hàng");
     assertOwnership(order, actingUser);
@@ -195,28 +244,54 @@ export async function completeSalesOrderReceiving(orderId: string, data: SalesOr
     }
 
     const itemById = new Map(order.items.map((it) => [it.id, it]));
+    const updateByItemId = new Map(data.items.map((it) => [it.itemId, it]));
+
+    // Effective received quantity per line: this submission's value where
+    // touched, otherwise whatever was already saved from an earlier pass.
+    const receivedByItemId = new Map<string, number>();
+    for (const orderItem of order.items) {
+      const update = updateByItemId.get(orderItem.id);
+      const qty = update ? update.receivedQuantity : orderItem.receivedQuantity != null ? Number(orderItem.receivedQuantity) : 0;
+      receivedByItemId.set(orderItem.id, qty);
+    }
+
     for (const update of data.items) {
       const orderItem = itemById.get(update.itemId);
       if (!orderItem) throw new HttpError(400, "Dòng hàng hoá không thuộc đơn hàng này");
-      if (update.receivedQuantity !== undefined && update.receivedQuantity > Number(orderItem.quantity)) {
-        throw new HttpError(400, `Số lượng đã nhận cho "${orderItem.product.name}" vượt quá số lượng đặt`);
-      }
 
       await tx.salesOrderItem.update({
         where: { id: update.itemId },
         data: {
-          received: update.received,
-          receivedQuantity: update.received ? null : (update.receivedQuantity ?? null),
+          receivedQuantity: update.receivedQuantity,
+          received: update.receivedQuantity >= Number(orderItem.quantity),
         },
       });
     }
 
-    const updateByItemId = new Map(data.items.map((it) => [it.itemId, it]));
-    const allReceived = order.items.every((it) => updateByItemId.get(it.id)?.received ?? it.received);
+    const allReceived = order.items.every((it) => (receivedByItemId.get(it.id) ?? 0) >= Number(it.quantity));
     const newStatus = allReceived ? "COMPLETED" : "SHORT";
 
-    if (newStatus === "COMPLETED" && !order.stockExport) {
-      await createStockExportForOrder(tx, order, actingUser?.id);
+    if (order.stockExport) {
+      await reconcileStockExportForOrder(
+        tx,
+        order.stockExport.id,
+        order.items.map((it) => ({ productId: it.productId, receivedQuantity: receivedByItemId.get(it.id)! })),
+      );
+    } else if (newStatus === "COMPLETED") {
+      await createStockExportForOrder(
+        tx,
+        {
+          id: order.id,
+          warehouseId: order.warehouseId,
+          items: order.items.map((it) => ({
+            productId: it.productId,
+            quantity: it.quantity,
+            receivedQuantity: receivedByItemId.get(it.id)!,
+            product: it.product,
+          })),
+        },
+        actingUser?.id,
+      );
     }
 
     return tx.salesOrder.update({

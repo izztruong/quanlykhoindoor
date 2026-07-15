@@ -59,8 +59,7 @@ export function useUpdateSalesOrderStatus(id: string) {
 
 export interface SalesOrderReceivingItemInput {
   itemId: string;
-  received: boolean;
-  receivedQuantity?: number;
+  receivedQuantity: number;
 }
 
 export function useCompleteSalesOrderReceiving(id: string) {

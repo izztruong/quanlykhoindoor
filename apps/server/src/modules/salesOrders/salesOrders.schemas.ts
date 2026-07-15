@@ -19,13 +19,15 @@ export const salesOrderStatusSchema = z.object({
   status: z.enum(["DRAFT", "CONFIRMED", "SHORT", "COMPLETED", "CANCELLED"]),
 });
 
+// "received" is no longer sent by the client - whether a line counts as
+// fully received is derived by comparing receivedQuantity to the ordered
+// quantity, which also allows receiving more than was ordered.
 export const salesOrderReceivingSchema = z.object({
   items: z
     .array(
       z.object({
         itemId: z.string().min(1),
-        received: z.boolean(),
-        receivedQuantity: z.coerce.number().nonnegative().optional(),
+        receivedQuantity: z.coerce.number().nonnegative(),
       }),
     )
     .min(1),
