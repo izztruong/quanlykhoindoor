@@ -106,7 +106,7 @@ export interface StockTransaction extends StockHeader {
   items: StockItem[];
 }
 
-export type SalesOrderStatus = "DRAFT" | "CONFIRMED" | "SHORT" | "COMPLETED" | "CANCELLED";
+export type SalesOrderStatus = "DRAFT" | "PENDING_CONFIRM" | "CONFIRMED" | "SHORT" | "COMPLETED" | "CANCELLED";
 
 export interface SalesOrderItem {
   id: string;

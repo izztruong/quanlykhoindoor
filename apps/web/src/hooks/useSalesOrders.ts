@@ -73,6 +73,17 @@ export function useCompleteSalesOrderReceiving(id: string) {
   });
 }
 
+export function useConfirmOrderReportedQuantities(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.patch<SalesOrder>(`/sales-orders/${id}/confirm-quantities`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sales-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["sales-orders", id] });
+    },
+  });
+}
+
 export interface SalesOrderConfirmItemInput {
   itemId: string;
   supplierId?: string;

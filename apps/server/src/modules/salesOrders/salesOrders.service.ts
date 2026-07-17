@@ -303,16 +303,19 @@ export async function completeSalesOrderReceiving(orderId: string, data: SalesOr
 }
 
 /**
- * The only way an order reaches CONFIRMED: admin fills in a supplier + price
- * per line and that creates the linked phiếu xuất kho and flips the status in
- * one transaction. Once this has run, completing the order later never needs
- * to auto-generate a separate export (see the `!order.stockExport` guards
- * above).
+ * Admin fills in a supplier + price per line (what was actually ordered from
+ * the NCC) and that creates the linked phiếu xuất kho in one transaction. The
+ * order lands on PENDING_CONFIRM rather than CONFIRMED — the reported
+ * quantity still needs the ordering nhân viên to acknowledge it (see
+ * confirmOrderReportedQuantities) before it becomes the order's official
+ * quantity and the order is CONFIRMED. Once this has run, completing the
+ * order later never needs to auto-generate a separate export (see the
+ * `!order.stockExport` guards above).
  *
  * A dòng đơn hàng may be split across more than one entry (different
  * suppliers for part of the same line) — each entry becomes its own
- * StockExportItem, and every order line's entries must sum to exactly that
- * line's ordered quantity.
+ * StockExportItem. Entries no longer need to sum to the originally ordered
+ * quantity: admin reports whatever was actually obtained from suppliers.
  */
 export async function confirmSalesOrderWithExport(orderId: string, data: SalesOrderConfirmInput, actingUser?: AuthUser) {
   if (actingUser?.role !== "ADMIN") {
@@ -340,13 +343,6 @@ export async function confirmSalesOrderWithExport(orderId: string, data: SalesOr
       const entries = entriesByItemId.get(orderItem.id);
       if (!entries || entries.length === 0) {
         throw new HttpError(400, `Thiếu thông tin phân bổ nhà cung cấp cho "${orderItem.product.name}"`);
-      }
-      const allocated = entries.reduce((sum, e) => sum + e.quantity, 0);
-      if (Math.abs(allocated - Number(orderItem.quantity)) > 1e-6) {
-        throw new HttpError(
-          400,
-          `Tổng số lượng phân bổ cho "${orderItem.product.name}" (${allocated}) phải bằng số lượng đặt (${orderItem.quantity})`,
-        );
       }
     }
 
@@ -386,6 +382,46 @@ export async function confirmSalesOrderWithExport(orderId: string, data: SalesOr
         },
       },
     });
+
+    return tx.salesOrder.update({
+      where: { id: orderId },
+      data: { status: "PENDING_CONFIRM" },
+      include: salesOrderDetailInclude,
+    });
+  });
+}
+
+/**
+ * The nhân viên who placed the order reviews the quantity admin actually
+ * obtained from suppliers (reported via confirmSalesOrderWithExport, summed
+ * per product across the export's lines) and acknowledges it. That reported
+ * quantity replaces each line's originally-ordered quantity outright, then
+ * the order moves to CONFIRMED so it can proceed through the existing
+ * receiving checklist (completeSalesOrderReceiving) unchanged.
+ */
+export async function confirmOrderReportedQuantities(orderId: string, actingUser?: AuthUser) {
+  return prisma.$transaction(async (tx) => {
+    const order = await tx.salesOrder.findUnique({
+      where: { id: orderId },
+      include: { items: true, stockExport: { include: { items: true } } },
+    });
+    if (!order) throw new HttpError(404, "Không tìm thấy đơn hàng");
+    assertOwnership(order, actingUser);
+    if (order.status !== "PENDING_CONFIRM") {
+      throw new HttpError(409, "Đơn hàng không ở trạng thái chờ xác nhận");
+    }
+
+    const reportedByProductId = new Map<string, number>();
+    for (const line of order.stockExport?.items ?? []) {
+      reportedByProductId.set(line.productId, (reportedByProductId.get(line.productId) ?? 0) + Number(line.quantity));
+    }
+
+    for (const item of order.items) {
+      await tx.salesOrderItem.update({
+        where: { id: item.id },
+        data: { quantity: reportedByProductId.get(item.productId) ?? 0 },
+      });
+    }
 
     return tx.salesOrder.update({
       where: { id: orderId },

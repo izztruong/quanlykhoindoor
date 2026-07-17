@@ -105,17 +105,8 @@ export function OrderConfirmClient({ id }: { id: string }) {
     return linesFor(item).reduce((sum, l) => sum + (Number(l.quantity) || 0), 0);
   }
 
-  function isBalanced(item: SalesOrderItem): boolean {
-    return Math.abs(allocatedFor(item) - Number(item.quantity)) < 1e-6;
-  }
-
   function handleSubmit() {
     setError(null);
-    const unbalanced = order!.items.find((item) => !isBalanced(item));
-    if (unbalanced) {
-      setError(`Tổng số lượng phân bổ cho "${unbalanced.product.name}" chưa khớp với số lượng đặt.`);
-      return;
-    }
 
     const items = order!.items.flatMap((item) =>
       linesFor(item)
@@ -142,8 +133,9 @@ export function OrderConfirmClient({ id }: { id: string }) {
         </Link>
         <h1 className="mt-2 text-xl font-semibold text-slate-800">Xác nhận đơn & tạo phiếu xuất kho</h1>
         <p className="text-sm text-slate-500">
-          Chọn nhà cung cấp và xác nhận giá xuất cho từng hàng hoá — bấm <Plus className="inline" size={14} /> để chia 1 hàng
-          hoá cho nhiều nhà cung cấp khác nhau. Xác nhận xong sẽ tự động tạo phiếu xuất kho gắn với đơn hàng này.
+          Chọn nhà cung cấp và xác nhận giá xuất, số lượng thực tế đặt được từ mỗi NCC cho từng hàng hoá (không cần khớp đúng
+          số lượng đặt) — bấm <Plus className="inline" size={14} /> để chia 1 hàng hoá cho nhiều nhà cung cấp khác nhau. Xác
+          nhận xong sẽ tự động tạo phiếu xuất kho gắn với đơn hàng này và chờ nhân viên xác nhận lại số lượng.
         </p>
       </div>
 
@@ -164,7 +156,6 @@ export function OrderConfirmClient({ id }: { id: string }) {
           {order.items.map((item) => {
             const lines = linesFor(item);
             const allocated = allocatedFor(item);
-            const balanced = isBalanced(item);
             const options = suppliersForProduct(item.productId);
             return (
               <div key={item.id} className="rounded-lg border border-slate-200 p-3">
@@ -238,8 +229,8 @@ export function OrderConfirmClient({ id }: { id: string }) {
                   ))}
                 </div>
 
-                <p className={`mt-2 text-xs font-medium ${balanced ? "text-emerald-600" : "text-red-600"}`}>
-                  Đã phân bổ: {formatNumber(allocated)}/{formatNumber(item.quantity)}
+                <p className="mt-2 text-xs font-medium text-slate-500">
+                  Tổng số lượng đã nhập: {formatNumber(allocated)} (số lượng đặt ban đầu: {formatNumber(item.quantity)})
                 </p>
               </div>
             );

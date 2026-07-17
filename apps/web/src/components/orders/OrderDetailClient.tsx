@@ -4,11 +4,16 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
-import { useCompleteSalesOrderReceiving, useSalesOrder, useUpdateSalesOrderStatus } from "@/hooks/useSalesOrders";
+import {
+  useCompleteSalesOrderReceiving,
+  useConfirmOrderReportedQuantities,
+  useSalesOrder,
+  useUpdateSalesOrderStatus,
+} from "@/hooks/useSalesOrders";
 import { ApiError } from "@/lib/api-client";
 import { useCurrentUser } from "@/lib/auth";
 import { exportOrderToExcel } from "@/lib/exportOrderExcel";
-import { formatDateTime, labels } from "@/lib/format";
+import { formatDateTime, formatNumber, labels } from "@/lib/format";
 import type { AuthUser, SalesOrderItem, SalesOrderStatus } from "@/types";
 import { FileSpreadsheet, Printer } from "lucide-react";
 import Link from "next/link";
@@ -16,6 +21,7 @@ import { useState } from "react";
 
 const statusTone: Record<string, "gray" | "green" | "red" | "yellow" | "blue"> = {
   DRAFT: "gray",
+  PENDING_CONFIRM: "yellow",
   CONFIRMED: "blue",
   SHORT: "yellow",
   COMPLETED: "green",
@@ -37,7 +43,7 @@ interface StatusAction {
  */
 function getAvailableActions(status: SalesOrderStatus, role?: AuthUser["role"]): StatusAction[] {
   if (role === "ADMIN") {
-    if (status === "DRAFT" || status === "CONFIRMED" || status === "SHORT") {
+    if (status === "DRAFT" || status === "PENDING_CONFIRM" || status === "CONFIRMED" || status === "SHORT") {
       return [{ status: "CANCELLED", label: "Huỷ đơn", variant: "danger" }];
     }
     return [];
@@ -54,6 +60,7 @@ export function OrderDetailClient({ id }: { id: string }) {
   const { data: currentUser } = useCurrentUser();
   const updateStatus = useUpdateSalesOrderStatus(id);
   const completeReceiving = useCompleteSalesOrderReceiving(id);
+  const confirmQuantities = useConfirmOrderReportedQuantities(id);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   // Only holds rows the user has actually touched this session; untouched
@@ -87,7 +94,22 @@ export function OrderDetailClient({ id }: { id: string }) {
     setOverrides(next);
   }
 
+  /** Sum of the linked stock export's lines for this product — what admin reported getting from suppliers. */
+  function reportedQuantityFor(item: SalesOrderItem): number {
+    return (order!.stockExport?.items ?? [])
+      .filter((line) => line.productId === item.productId)
+      .reduce((sum, line) => sum + Number(line.quantity), 0);
+  }
+
+  function handleConfirmQuantities() {
+    setError(null);
+    confirmQuantities.mutate(undefined, {
+      onError: (err) => setError(err instanceof ApiError ? err.message : "Xác nhận thất bại"),
+    });
+  }
+
   function handleStatusChange(status: SalesOrderStatus) {
+    if (status === "CANCELLED" && !confirm("Bạn có chắc muốn huỷ đơn hàng này?")) return;
     setError(null);
     updateStatus.mutate(status, {
       onError: (err) => setError(err instanceof ApiError ? err.message : "Cập nhật trạng thái thất bại"),
@@ -185,6 +207,7 @@ export function OrderDetailClient({ id }: { id: string }) {
                 <th className="px-4 py-2 text-left">Hàng hoá</th>
                 <th className="px-4 py-2 text-right">Số lượng đặt</th>
                 <th className="px-4 py-2 text-left">Đơn vị</th>
+                {order.status === "PENDING_CONFIRM" && <th className="px-4 py-2 text-left">SL nhận</th>}
                 {(canReceive || order.status === "COMPLETED") && <th className="px-4 py-2 text-left">SL thực nhận</th>}
               </tr>
             </thead>
@@ -192,6 +215,13 @@ export function OrderDetailClient({ id }: { id: string }) {
               {order.items.map((item) => {
                 const receivedQty = Number(receivedQuantityFor(item));
                 const differsFromOrdered = canReceive && Math.abs(receivedQty - Number(item.quantity)) > 1e-6;
+                const reportedQty = reportedQuantityFor(item);
+                const reportedTone =
+                  reportedQty < Number(item.quantity)
+                    ? "text-red-600"
+                    : reportedQty > Number(item.quantity)
+                      ? "text-emerald-600"
+                      : "";
                 return (
                   <tr key={item.id} className="border-t border-slate-100">
                     <td className="px-4 py-2">{item.product.name}</td>
@@ -212,6 +242,9 @@ export function OrderDetailClient({ id }: { id: string }) {
                     {!canReceive && order.status === "COMPLETED" && (
                       <td className="px-4 py-2">{item.receivedQuantity != null ? String(item.receivedQuantity) : item.quantity}</td>
                     )}
+                    {order.status === "PENDING_CONFIRM" && (
+                      <td className={`px-4 py-2 font-medium ${reportedTone}`}>{formatNumber(reportedQty)}</td>
+                    )}
                   </tr>
                 );
               })}
@@ -227,6 +260,11 @@ export function OrderDetailClient({ id }: { id: string }) {
           <Link href={`/orders/${id}/confirm`}>
             <Button>Xác nhận đơn</Button>
           </Link>
+        )}
+        {order.status === "PENDING_CONFIRM" && (
+          <Button onClick={handleConfirmQuantities} disabled={confirmQuantities.isPending}>
+            {confirmQuantities.isPending ? "Đang lưu..." : "Xác nhận"}
+          </Button>
         )}
         {canReceive && (
           <Button onClick={handleComplete} disabled={completeReceiving.isPending}>

@@ -18,6 +18,7 @@ import { useMemo, useState } from "react";
 
 const statusTone: Record<string, "gray" | "green" | "red" | "yellow" | "blue"> = {
   DRAFT: "gray",
+  PENDING_CONFIRM: "yellow",
   CONFIRMED: "blue",
   SHORT: "yellow",
   COMPLETED: "green",
@@ -131,7 +132,7 @@ export default function OrdersPage() {
         header: "",
         id: "select",
         cell: ({ row }) =>
-          row.original.status === "CONFIRMED" ? (
+          row.original.status === "PENDING_CONFIRM" || row.original.status === "CONFIRMED" ? (
             <input
               type="checkbox"
               checked={selected.has(row.original.id)}
@@ -174,8 +175,8 @@ export default function OrdersPage() {
 
       {isAdmin && selectMode && (
         <p className="text-sm text-slate-500">
-          Chỉ chọn được đơn hàng ở trạng thái &quot;Đã xác nhận&quot;. Chọn xong bấm &quot;Xác nhận&quot; để xuất file Excel
-          gộp hàng hoá theo nhà cung cấp.
+          Chỉ chọn được đơn hàng ở trạng thái &quot;Chờ xác nhận&quot; hoặc &quot;Đã xác nhận&quot;. Chọn xong bấm &quot;Xác
+          nhận&quot; để xuất file Excel gộp hàng hoá theo nhà cung cấp.
         </p>
       )}
 
@@ -187,6 +188,7 @@ export default function OrdersPage() {
               <Select value={status} onChange={(e) => setStatus(e.target.value)}>
                 <option value="">Tất cả trạng thái</option>
                 <option value="DRAFT">Chưa xác nhận</option>
+                <option value="PENDING_CONFIRM">Chờ xác nhận</option>
                 <option value="CONFIRMED">Đã xác nhận</option>
                 <option value="SHORT">Thiếu</option>
                 <option value="COMPLETED">Hoàn thành</option>

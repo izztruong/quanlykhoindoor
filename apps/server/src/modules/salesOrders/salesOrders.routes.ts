@@ -6,6 +6,7 @@ import { salesOrderConfirmSchema, salesOrderCreateSchema, salesOrderReceivingSch
 import {
   assertOwnership,
   completeSalesOrderReceiving,
+  confirmOrderReportedQuantities,
   confirmSalesOrderWithExport,
   createSalesOrder,
   replaceSalesOrderItems,
@@ -76,5 +77,10 @@ salesOrdersRouter.patch("/:id/receiving", async (req, res) => {
 salesOrdersRouter.patch("/:id/confirm", async (req, res) => {
   const data = salesOrderConfirmSchema.parse(req.body);
   const item = await confirmSalesOrderWithExport(req.params.id, data, req.user);
+  res.json(item);
+});
+
+salesOrdersRouter.patch("/:id/confirm-quantities", async (req, res) => {
+  const item = await confirmOrderReportedQuantities(req.params.id, req.user);
   res.json(item);
 });
