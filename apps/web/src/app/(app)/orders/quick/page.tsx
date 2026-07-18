@@ -49,7 +49,7 @@ export default function QuickOrderPage() {
       if (!Number.isFinite(current)) return 0;
       const min = Number(threshold.minQuantity);
       const max = Number(threshold.maxQuantity);
-      if (current < min) return Math.round((max - current) * 1000) / 1000;
+      if (current < min) return Math.round((max - min) * 1000) / 1000;
       return 0;
     },
     [stockInputs],
