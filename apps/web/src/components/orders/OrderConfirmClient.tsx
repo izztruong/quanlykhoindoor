@@ -37,6 +37,7 @@ export function OrderConfirmClient({ id }: { id: string }) {
   const { data: prices = [] } = useProductSupplierPrices();
   const confirmOrder = useConfirmSalesOrderWithExport(id);
   const [linesByItemId, setLinesByItemId] = useState<Record<string, SplitLine[]>>({});
+  const [notesByItemId, setNotesByItemId] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
 
   if (currentUser && currentUser.role !== "ADMIN") {
@@ -105,22 +106,37 @@ export function OrderConfirmClient({ id }: { id: string }) {
     return linesFor(item).reduce((sum, l) => sum + (Number(l.quantity) || 0), 0);
   }
 
+  function noteFor(item: SalesOrderItem): string {
+    return notesByItemId[item.id] ?? "";
+  }
+
+  function setNote(item: SalesOrderItem, note: string) {
+    setError(null);
+    setNotesByItemId((prev) => ({ ...prev, [item.id]: note }));
+  }
+
   function handleSubmit() {
     setError(null);
 
-    const items = order!.items.flatMap((item) =>
-      // Giữ lại các dòng người dùng đã thực sự nhập số lượng (kể cả 0 — nghĩa là
-      // không đặt được hàng hoá đó từ NCC nào), chỉ bỏ những dòng chia thêm mà
-      // chưa ai điền gì.
-      linesFor(item)
-        .filter((line) => line.quantity.trim() !== "")
-        .map((line) => ({
-          itemId: item.id,
-          supplierId: line.supplierId || undefined,
-          costPrice: line.costPrice.trim() === "" ? 0 : Number(line.costPrice),
-          quantity: Number(line.quantity),
-        })),
-    );
+    const items = order!.items.flatMap((item) => {
+      // Theo từng hàng hoá, không theo từng dòng NCC tách nhỏ — gắn note vào mọi dòng
+      // của item đó, backend chỉ cần lấy 1 lần.
+      const note = noteFor(item).trim() || undefined;
+      return (
+        linesFor(item)
+          // Giữ lại các dòng người dùng đã thực sự nhập số lượng (kể cả 0 — nghĩa là
+          // không đặt được hàng hoá đó từ NCC nào), chỉ bỏ những dòng chia thêm mà
+          // chưa ai điền gì.
+          .filter((line) => line.quantity.trim() !== "")
+          .map((line) => ({
+            itemId: item.id,
+            supplierId: line.supplierId || undefined,
+            costPrice: line.costPrice.trim() === "" ? 0 : Number(line.costPrice),
+            quantity: Number(line.quantity),
+            note,
+          }))
+      );
+    });
 
     confirmOrder.mutate(items, {
       onSuccess: () => router.replace(`/orders/${id}`),
@@ -235,6 +251,15 @@ export function OrderConfirmClient({ id }: { id: string }) {
                 <p className="mt-2 text-xs font-medium text-slate-500">
                   Tổng số lượng đã nhập: {formatNumber(allocated)} (số lượng đặt ban đầu: {formatNumber(item.quantity)})
                 </p>
+
+                <div className="mt-2 flex flex-col gap-1">
+                  <label className="text-xs font-medium text-slate-500">Ghi chú (lý do thay đổi số lượng, nếu có)</label>
+                  <Input
+                    value={noteFor(item)}
+                    onChange={(e) => setNote(item, e.target.value)}
+                    placeholder="Ví dụ: NCC hết hàng, chỉ đặt được một phần..."
+                  />
+                </div>
               </div>
             );
           })}

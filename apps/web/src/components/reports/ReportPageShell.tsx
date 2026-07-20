@@ -57,7 +57,7 @@ export function ReportPageShell<T extends object>({
   const [filter, setFilter] = useState<ReportFilterValues>(defaultFilter);
   const [appliedFilter, setAppliedFilter] = useState<ReportFilterValues>(filter);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const [pageSize, setPageSize] = useState(20);
   const [exporting, setExporting] = useState(false);
 
   const { data: warehouses = [] } = useWarehouses();

@@ -31,6 +31,8 @@ interface CrudOptions {
    * hundreds of rows.
    */
   bulkImportKey?: string;
+  /** Exact-match query filters allowed via ?field=value (e.g. productGroupId, type). */
+  filterFields?: string[];
 }
 
 /**
@@ -46,12 +48,17 @@ export function createCrudRouter(delegate: Delegate, options: CrudOptions): Rout
   const writeGuard = options.writeRoles ? [requireRole(...options.writeRoles)] : [];
 
   router.get("/", async (req, res) => {
-    const { search } = req.query as Record<string, string>;
+    const { search, ...queryFields } = req.query as Record<string, string>;
     const { skip, take, page, pageSize } = parsePagination(req, 100);
-    const where =
+    const searchWhere =
       search && options.searchFields?.length
         ? { OR: options.searchFields.map((field) => ({ [field]: { contains: search, mode: "insensitive" } })) }
         : {};
+    const filterWhere: Record<string, string> = {};
+    for (const field of options.filterFields ?? []) {
+      if (queryFields[field]) filterWhere[field] = queryFields[field];
+    }
+    const where = { ...searchWhere, ...filterWhere };
 
     const [items, total] = await Promise.all([
       delegate.findMany({ where, orderBy, skip, take, include: options.include }),

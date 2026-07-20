@@ -45,6 +45,9 @@ export const salesOrderConfirmSchema = z.object({
         costPrice: z.coerce.number().nonnegative(),
         // 0 là hợp lệ — nghĩa là không đặt được hàng hoá đó từ nhà cung cấp nào trong đợt này.
         quantity: z.coerce.number().nonnegative(),
+        // Theo từng hàng hoá (itemId), không theo từng dòng NCC tách nhỏ — nếu 1 itemId có
+        // nhiều dòng, chỉ cần 1 dòng mang note là đủ, các dòng còn lại có thể bỏ trống.
+        note: z.string().optional(),
       }),
     )
     .min(1),

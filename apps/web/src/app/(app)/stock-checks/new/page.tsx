@@ -7,29 +7,45 @@ import { Modal } from "@/components/ui/Modal";
 import { useFinishedGoodItems, useProducts } from "@/hooks/useCatalog";
 import { useCreateStockCheck } from "@/hooks/useStockChecks";
 import { ApiError } from "@/lib/api-client";
-import type { FinishedGoodItem, Product } from "@/types";
+import type { FinishedGoodItem, Product, ProductType } from "@/types";
 import ExcelJS from "exceljs";
-import { ChevronDown, Download, Trash2 } from "lucide-react";
+import { ChevronDown, Download } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-interface MaterialRow {
-  productId: string;
-  product: Product;
+interface MaterialEntry {
   wholeQuantity: string;
   looseQuantity: string;
   note: string;
 }
 
-interface FinishedRow {
-  finishedGoodItemId: string;
-  item: FinishedGoodItem;
+interface FinishedEntry {
   quantity: string;
   note: string;
 }
 
-const TEMPLATE_HEADER = ["Tên NL*", "Đơn vị", "SL chẵn", "SL lẻ (gam)", "Tên đồ thành phẩm*", "Đơn vị kiểm", "Số lượng"];
+const PRODUCT_TYPE_GROUPS: { key: ProductType; label: string }[] = [
+  { key: "NVL", label: "Nguyên vật liệu" },
+  { key: "COC_TAKE", label: "Cốc & ống hút" },
+  { key: "BANH", label: "Bánh" },
+  { key: "DUNG_CU", label: "Dụng cụ" },
+  { key: "KHAC", label: "Khác" },
+];
+
+const TEMPLATE_HEADER = ["Tên NL*", "Đơn vị", "SL chẵn", "SL lẻ (theo đơn vị công thức)", "Tên đồ thành phẩm*", "Đơn vị kiểm", "Số lượng"];
+
+function nowForDatetimeLocal(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function matchesQuery(name: string, code: string, query: string): boolean {
+  if (!query.trim()) return true;
+  const q = query.trim().toLowerCase();
+  return name.toLowerCase().includes(q) || code.toLowerCase().includes(q);
+}
 
 export default function NewStockCheckPage() {
   const router = useRouter();
@@ -37,11 +53,11 @@ export default function NewStockCheckPage() {
   const { data: finishedGoodItems = [] } = useFinishedGoodItems();
   const createCheck = useCreateStockCheck();
 
+  const [checkedAt, setCheckedAt] = useState(nowForDatetimeLocal);
   const [note, setNote] = useState("");
-  const [materialRows, setMaterialRows] = useState<MaterialRow[]>([]);
-  const [finishedRows, setFinishedRows] = useState<FinishedRow[]>([]);
-  const [materialSearch, setMaterialSearch] = useState("");
-  const [finishedSearch, setFinishedSearch] = useState("");
+  const [materialEntries, setMaterialEntries] = useState<Record<string, MaterialEntry>>({});
+  const [finishedEntries, setFinishedEntries] = useState<Record<string, FinishedEntry>>({});
+  const [groupFilters, setGroupFilters] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
 
   const [excelMenuOpen, setExcelMenuOpen] = useState(false);
@@ -59,91 +75,67 @@ export default function NewStockCheckPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [excelMenuOpen]);
 
-  const materialRowIds = useMemo(() => new Set(materialRows.map((r) => r.productId)), [materialRows]);
-  const materialSuggestions = useMemo(() => {
-    if (!materialSearch.trim()) return [];
-    const q = materialSearch.trim().toLowerCase();
-    return products
-      .filter((p) => !materialRowIds.has(p.id) && (p.code.toLowerCase().includes(q) || p.name.toLowerCase().includes(q)))
-      .slice(0, 8);
-  }, [materialSearch, products, materialRowIds]);
-
-  const finishedRowIds = useMemo(() => new Set(finishedRows.map((r) => r.finishedGoodItemId)), [finishedRows]);
-  const finishedSuggestions = useMemo(() => {
-    if (!finishedSearch.trim()) return [];
-    const q = finishedSearch.trim().toLowerCase();
-    return finishedGoodItems
-      .filter((f) => !finishedRowIds.has(f.id) && (f.code.toLowerCase().includes(q) || f.name.toLowerCase().includes(q)))
-      .slice(0, 8);
-  }, [finishedSearch, finishedGoodItems, finishedRowIds]);
-
-  function addMaterialRow(product: Product) {
-    setMaterialRows((prev) =>
-      prev.some((r) => r.productId === product.id)
-        ? prev
-        : [...prev, { productId: product.id, product, wholeQuantity: "", looseQuantity: "", note: "" }],
-    );
-  }
-
-  function updateMaterialRow(productId: string, patch: Partial<MaterialRow>) {
-    setMaterialRows((prev) => prev.map((r) => (r.productId === productId ? { ...r, ...patch } : r)));
-  }
-
-  function removeMaterialRow(productId: string) {
-    setMaterialRows((prev) => prev.filter((r) => r.productId !== productId));
-  }
-
-  function addFinishedRow(item: FinishedGoodItem) {
-    setFinishedRows((prev) =>
-      prev.some((r) => r.finishedGoodItemId === item.id) ? prev : [...prev, { finishedGoodItemId: item.id, item, quantity: "", note: "" }],
-    );
-  }
-
-  function updateFinishedRow(finishedGoodItemId: string, patch: Partial<FinishedRow>) {
-    setFinishedRows((prev) => prev.map((r) => (r.finishedGoodItemId === finishedGoodItemId ? { ...r, ...patch } : r)));
-  }
-
-  function removeFinishedRow(finishedGoodItemId: string) {
-    setFinishedRows((prev) => prev.filter((r) => r.finishedGoodItemId !== finishedGoodItemId));
-  }
-
-  function handleMaterialSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter" && materialSuggestions.length > 0) {
-      e.preventDefault();
-      addMaterialRow(materialSuggestions[0]);
-      setMaterialSearch("");
+  const productsByType = useMemo(() => {
+    const map = new Map<string, Product[]>();
+    for (const p of products) {
+      const list = map.get(p.type) ?? [];
+      list.push(p);
+      map.set(p.type, list);
     }
+    for (const list of map.values()) list.sort((a, b) => a.name.localeCompare(b.name));
+    return map;
+  }, [products]);
+
+  const thanhPhamItems = useMemo(
+    () => finishedGoodItems.filter((f) => f.category === "THANH_PHAM").sort((a, b) => a.name.localeCompare(b.name)),
+    [finishedGoodItems],
+  );
+
+  function materialEntryFor(productId: string): MaterialEntry {
+    return materialEntries[productId] ?? { wholeQuantity: "", looseQuantity: "", note: "" };
   }
 
-  function handleFinishedSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter" && finishedSuggestions.length > 0) {
-      e.preventDefault();
-      addFinishedRow(finishedSuggestions[0]);
-      setFinishedSearch("");
-    }
+  function updateMaterialEntry(productId: string, patch: Partial<MaterialEntry>) {
+    setMaterialEntries((prev) => ({ ...prev, [productId]: { ...materialEntryFor(productId), ...patch } }));
+  }
+
+  function finishedEntryFor(itemId: string): FinishedEntry {
+    return finishedEntries[itemId] ?? { quantity: "", note: "" };
+  }
+
+  function updateFinishedEntry(itemId: string, patch: Partial<FinishedEntry>) {
+    setFinishedEntries((prev) => ({ ...prev, [itemId]: { ...finishedEntryFor(itemId), ...patch } }));
+  }
+
+  function groupFilterFor(key: string): string {
+    return groupFilters[key] ?? "";
+  }
+
+  function setGroupFilter(key: string, value: string) {
+    setGroupFilters((prev) => ({ ...prev, [key]: value }));
   }
 
   function handleSubmit() {
     setError(null);
-    const items = materialRows
-      .filter((r) => r.wholeQuantity !== "" || r.looseQuantity !== "")
-      .map((r) => ({
-        productId: r.productId,
-        wholeQuantity: r.wholeQuantity !== "" ? Number(r.wholeQuantity) : undefined,
-        looseQuantity: r.looseQuantity !== "" ? Number(r.looseQuantity) : undefined,
-        note: r.note || undefined,
+    const items = Object.entries(materialEntries)
+      .filter(([, entry]) => entry.wholeQuantity !== "" || entry.looseQuantity !== "")
+      .map(([productId, entry]) => ({
+        productId,
+        wholeQuantity: entry.wholeQuantity !== "" ? Number(entry.wholeQuantity) : undefined,
+        looseQuantity: entry.looseQuantity !== "" ? Number(entry.looseQuantity) : undefined,
+        note: entry.note || undefined,
       }));
-    const finishedItems = finishedRows
-      .filter((r) => r.quantity !== "" && !Number.isNaN(Number(r.quantity)))
-      .map((r) => ({ finishedGoodItemId: r.finishedGoodItemId, quantity: Number(r.quantity), note: r.note || undefined }));
+    const finishedItems = Object.entries(finishedEntries)
+      .filter(([, entry]) => entry.quantity !== "" && !Number.isNaN(Number(entry.quantity)))
+      .map(([finishedGoodItemId, entry]) => ({ finishedGoodItemId, quantity: Number(entry.quantity), note: entry.note || undefined }));
 
     if (items.length === 0 && finishedItems.length === 0) {
-      setError("Vui lòng thêm ít nhất 1 dòng nguyên liệu hoặc đồ thành phẩm.");
+      setError("Vui lòng nhập số lượng cho ít nhất 1 nguyên liệu hoặc đồ thành phẩm.");
       return;
     }
 
     createCheck.mutate(
-      { note: note || undefined, items, finishedItems },
+      { checkedAt: checkedAt ? new Date(checkedAt).toISOString() : undefined, note: note || undefined, items, finishedItems },
       {
         onSuccess: (created) => router.push(`/stock-checks/${created.id}`),
         onError: (err) => setError(err instanceof ApiError ? err.message : "Lưu phiếu kiểm thất bại"),
@@ -174,8 +166,8 @@ export default function NewStockCheckPage() {
       products[0]?.unit?.name ?? "",
       5,
       900,
-      finishedGoodItems[0]?.name ?? "Tên đồ thành phẩm mẫu",
-      finishedGoodItems[0]?.unit?.name ?? "",
+      thanhPhamItems[0]?.name ?? "Tên đồ thành phẩm mẫu",
+      thanhPhamItems[0]?.unit?.name ?? "",
       700,
     ]);
     await downloadWorkbook(workbook, "mau-phieu-kiem-ke.xlsx");
@@ -199,15 +191,10 @@ export default function NewStockCheckPage() {
       }
 
       const productByName = new Map(products.map((p) => [p.name.trim().toLowerCase(), p]));
-      const finishedByName = new Map(finishedGoodItems.map((f) => [f.name.trim().toLowerCase(), f]));
+      const finishedByName = new Map(thanhPhamItems.map((f) => [f.name.trim().toLowerCase(), f]));
       const errors: string[] = [];
       let updated = 0;
       let added = 0;
-
-      const nextMaterialRows = [...materialRows];
-      const materialIndexById = new Map(nextMaterialRows.map((r, index) => [r.productId, index]));
-      const nextFinishedRows = [...finishedRows];
-      const finishedIndexById = new Map(nextFinishedRows.map((r, index) => [r.finishedGoodItemId, index]));
 
       sheet.eachRow((row, rowNumber) => {
         if (rowNumber === 1) return;
@@ -222,15 +209,10 @@ export default function NewStockCheckPage() {
           } else {
             const wholeQuantity = wholeRaw === null || wholeRaw === undefined || wholeRaw === "" ? "" : String(Number(wholeRaw));
             const looseQuantity = looseRaw === null || looseRaw === undefined || looseRaw === "" ? "" : String(Number(looseRaw));
-            const existingIndex = materialIndexById.get(product.id);
-            if (existingIndex !== undefined) {
-              nextMaterialRows[existingIndex] = { ...nextMaterialRows[existingIndex], wholeQuantity, looseQuantity };
-              updated++;
-            } else {
-              nextMaterialRows.push({ productId: product.id, product, wholeQuantity, looseQuantity, note: "" });
-              materialIndexById.set(product.id, nextMaterialRows.length - 1);
-              added++;
-            }
+            const existed = Boolean(materialEntries[product.id]);
+            updateMaterialEntry(product.id, { wholeQuantity, looseQuantity });
+            if (existed) updated++;
+            else added++;
           }
         }
 
@@ -239,26 +221,19 @@ export default function NewStockCheckPage() {
         if (finishedName) {
           const finishedItem = finishedByName.get(finishedName.toLowerCase());
           if (!finishedItem) {
-            errors.push(`Dòng ${rowNumber}: không tìm thấy đồ thành phẩm có tên "${finishedName}"`);
+            errors.push(`Dòng ${rowNumber}: không tìm thấy đồ thành phẩm có tên "${finishedName}" trong nhóm Đồ thành phẩm`);
           } else if (finishedQtyRaw !== null && finishedQtyRaw !== undefined && finishedQtyRaw !== "" && Number.isNaN(Number(finishedQtyRaw))) {
             errors.push(`Dòng ${rowNumber}: số lượng đồ thành phẩm không hợp lệ`);
           } else {
             const quantity = finishedQtyRaw === null || finishedQtyRaw === undefined || finishedQtyRaw === "" ? "" : String(Number(finishedQtyRaw));
-            const existingIndex = finishedIndexById.get(finishedItem.id);
-            if (existingIndex !== undefined) {
-              nextFinishedRows[existingIndex] = { ...nextFinishedRows[existingIndex], quantity };
-              updated++;
-            } else {
-              nextFinishedRows.push({ finishedGoodItemId: finishedItem.id, item: finishedItem, quantity, note: "" });
-              finishedIndexById.set(finishedItem.id, nextFinishedRows.length - 1);
-              added++;
-            }
+            const existed = Boolean(finishedEntries[finishedItem.id]);
+            updateFinishedEntry(finishedItem.id, { quantity });
+            if (existed) updated++;
+            else added++;
           }
         }
       });
 
-      setMaterialRows(nextMaterialRows);
-      setFinishedRows(nextFinishedRows);
       setImportResult({ updated, added, errors });
     } catch {
       setImportResult({ updated: 0, added: 0, errors: ["Đọc file thất bại. Vui lòng kiểm tra định dạng file."] });
@@ -273,21 +248,173 @@ export default function NewStockCheckPage() {
     const sheet = workbook.addWorksheet("Kiểm kê");
     sheet.columns = TEMPLATE_HEADER.map((header) => ({ header: header.replace("*", ""), width: 22 }));
     sheet.getRow(1).font = { bold: true };
-    const rowCount = Math.max(materialRows.length, finishedRows.length);
+    const allProducts = PRODUCT_TYPE_GROUPS.flatMap((g) => productsByType.get(g.key) ?? []);
+    const rowCount = Math.max(allProducts.length, thanhPhamItems.length);
     for (let i = 0; i < rowCount; i++) {
-      const m = materialRows[i];
-      const f = finishedRows[i];
-      sheet.addRow([
-        m?.product.name ?? "",
-        m?.product.unit?.name ?? "",
-        m?.wholeQuantity ?? "",
-        m?.looseQuantity ?? "",
-        f?.item.name ?? "",
-        f?.item.unit?.name ?? "",
-        f?.quantity ?? "",
-      ]);
+      const p = allProducts[i];
+      const f = thanhPhamItems[i];
+      const m = p ? materialEntryFor(p.id) : undefined;
+      const fe = f ? finishedEntryFor(f.id) : undefined;
+      sheet.addRow([p?.name ?? "", p?.unit?.name ?? "", m?.wholeQuantity ?? "", m?.looseQuantity ?? "", f?.name ?? "", f?.unit?.name ?? "", fe?.quantity ?? ""]);
     }
     await downloadWorkbook(workbook, "phieu-kiem-ke.xlsx");
+  }
+
+  function MaterialGroupTable({ groupKey, label, items }: { groupKey: string; label: string; items: Product[] }) {
+    const filtered = items.filter((p) => matchesQuery(p.name, p.code, groupFilterFor(groupKey)));
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>{label}</CardTitle>
+        </CardHeader>
+        <CardBody className="flex flex-col gap-3">
+          <Input
+            placeholder="Lọc theo tên/mã..."
+            value={groupFilterFor(groupKey)}
+            onChange={(e) => setGroupFilter(groupKey, e.target.value)}
+            className="w-64"
+          />
+          {items.length === 0 ? (
+            <p className="text-sm text-slate-400">Không có hàng hoá nào trong nhóm này.</p>
+          ) : (
+            <div className="max-h-[500px] overflow-auto">
+              <table className="w-full border-collapse text-sm">
+                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th className="sticky top-0 z-10 border border-slate-200 bg-slate-50 px-3 py-2 text-left">Tên NL</th>
+                    <th className="sticky top-0 z-10 border border-slate-200 bg-slate-50 px-3 py-2 text-left">Đơn vị</th>
+                    <th className="sticky top-0 z-10 border border-slate-200 bg-slate-50 px-3 py-2 text-left">SL chẵn</th>
+                    <th className="sticky top-0 z-10 border border-slate-200 bg-slate-50 px-3 py-2 text-left">SL lẻ</th>
+                    <th className="sticky top-0 z-10 border border-slate-200 bg-slate-50 px-3 py-2 text-left">Ghi chú</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((product) => {
+                    const entry = materialEntryFor(product.id);
+                    return (
+                      <tr key={product.id}>
+                        <td className="border border-slate-200 px-3 py-2">{product.name}</td>
+                        <td className="border border-slate-200 px-3 py-2">{product.unit?.name}</td>
+                        <td className="border border-slate-200 px-3 py-2">
+                          <Input
+                            type="number"
+                            step="0.001"
+                            min="0"
+                            className="h-8 w-24"
+                            value={entry.wholeQuantity}
+                            onChange={(e) => updateMaterialEntry(product.id, { wholeQuantity: e.target.value })}
+                          />
+                        </td>
+                        <td className="border border-slate-200 px-3 py-2">
+                          <div className="flex items-center gap-1">
+                            <Input
+                              type="number"
+                              step="0.001"
+                              min="0"
+                              className="h-8 w-24"
+                              value={entry.looseQuantity}
+                              onChange={(e) => updateMaterialEntry(product.id, { looseQuantity: e.target.value })}
+                            />
+                            {product.recipeUnit?.name && <span className="text-xs text-slate-400">{product.recipeUnit.name}</span>}
+                          </div>
+                        </td>
+                        <td className="border border-slate-200 px-3 py-2">
+                          <Input
+                            className="h-8 w-40"
+                            value={entry.note}
+                            onChange={(e) => updateMaterialEntry(product.id, { note: e.target.value })}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {filtered.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="border border-slate-200 px-3 py-4 text-center text-slate-400">
+                        Không tìm thấy hàng hoá khớp bộ lọc.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardBody>
+      </Card>
+    );
+  }
+
+  function FinishedGroupTable({ items }: { items: FinishedGoodItem[] }) {
+    const groupKey = "THANH_PHAM";
+    const filtered = items.filter((f) => matchesQuery(f.name, f.code, groupFilterFor(groupKey)));
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Đồ thành phẩm</CardTitle>
+        </CardHeader>
+        <CardBody className="flex flex-col gap-3">
+          <Input
+            placeholder="Lọc theo tên/mã..."
+            value={groupFilterFor(groupKey)}
+            onChange={(e) => setGroupFilter(groupKey, e.target.value)}
+            className="w-64"
+          />
+          {items.length === 0 ? (
+            <p className="text-sm text-slate-400">
+              Chưa có đồ thành phẩm nào được gán nhóm &quot;Đồ thành phẩm&quot;. Vào Danh mục → Đồ thành phẩm để gán nhóm.
+            </p>
+          ) : (
+            <div className="max-h-[500px] overflow-auto">
+              <table className="w-full border-collapse text-sm">
+                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th className="sticky top-0 z-10 border border-slate-200 bg-slate-50 px-3 py-2 text-left">Tên đồ thành phẩm</th>
+                    <th className="sticky top-0 z-10 border border-slate-200 bg-slate-50 px-3 py-2 text-left">Đơn vị kiểm</th>
+                    <th className="sticky top-0 z-10 border border-slate-200 bg-slate-50 px-3 py-2 text-left">Số lượng</th>
+                    <th className="sticky top-0 z-10 border border-slate-200 bg-slate-50 px-3 py-2 text-left">Ghi chú</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((item) => {
+                    const entry = finishedEntryFor(item.id);
+                    return (
+                      <tr key={item.id}>
+                        <td className="border border-slate-200 px-3 py-2">{item.name}</td>
+                        <td className="border border-slate-200 px-3 py-2">{item.unit?.name}</td>
+                        <td className="border border-slate-200 px-3 py-2">
+                          <Input
+                            type="number"
+                            step="0.001"
+                            min="0"
+                            className="h-8 w-28"
+                            value={entry.quantity}
+                            onChange={(e) => updateFinishedEntry(item.id, { quantity: e.target.value })}
+                          />
+                        </td>
+                        <td className="border border-slate-200 px-3 py-2">
+                          <Input
+                            className="h-8 w-40"
+                            value={entry.note}
+                            onChange={(e) => updateFinishedEntry(item.id, { note: e.target.value })}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {filtered.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="border border-slate-200 px-3 py-4 text-center text-slate-400">
+                        Không tìm thấy đồ thành phẩm khớp bộ lọc.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardBody>
+      </Card>
+    );
   }
 
   return (
@@ -298,7 +425,8 @@ export default function NewStockCheckPage() {
         </Link>
         <h1 className="mt-2 text-xl font-semibold text-slate-800">Tạo phiếu kiểm kê</h1>
         <p className="text-sm text-slate-500">
-          Kiểm tồn kho hiện có, không cần chọn kho hàng. Thời gian kiểm được lấy tự động theo lúc lưu phiếu.
+          Kiểm tồn kho hiện có, không cần chọn kho hàng. Danh sách đã liệt kê sẵn theo từng nhóm — chỉ cần nhập số lượng cho
+          hàng hoá đang kiểm.
         </p>
       </div>
 
@@ -330,190 +458,23 @@ export default function NewStockCheckPage() {
             )}
           </div>
         </CardHeader>
-        <CardBody className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-slate-600">Ghi chú</label>
-          <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ghi chú (không bắt buộc)" />
-        </CardBody>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Nguyên liệu</CardTitle>
-        </CardHeader>
-        <CardBody className="flex flex-col gap-3">
-          <div className="relative w-72">
-            <Input
-              placeholder="Nhập mã/tên và ấn Enter"
-              value={materialSearch}
-              onChange={(e) => setMaterialSearch(e.target.value)}
-              onKeyDown={handleMaterialSearchKeyDown}
-            />
-            {materialSuggestions.length > 0 && (
-              <div className="absolute z-10 mt-1 w-full rounded-lg border border-slate-200 bg-white shadow-lg">
-                {materialSuggestions.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => {
-                      addMaterialRow(p);
-                      setMaterialSearch("");
-                    }}
-                    className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-slate-50"
-                  >
-                    <span className="text-slate-700">{p.name}</span>
-                    <span className="text-xs text-slate-400">{p.code}</span>
-                  </button>
-                ))}
-              </div>
-            )}
+        <CardBody className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-slate-600">Thời gian kiểm</label>
+            <Input type="datetime-local" value={checkedAt} onChange={(e) => setCheckedAt(e.target.value)} />
           </div>
-
-          {materialRows.length === 0 ? (
-            <p className="text-sm text-slate-400">Chưa có nguyên liệu nào được chọn</p>
-          ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase text-slate-500">
-                  <th className="py-2 pr-3">Tên NL</th>
-                  <th className="py-2 pr-3">Đơn vị</th>
-                  <th className="py-2 pr-3">SL chẵn</th>
-                  <th className="py-2 pr-3">SL lẻ (gam)</th>
-                  <th className="py-2 pr-3">Ghi chú</th>
-                  <th className="py-2 pr-3" />
-                </tr>
-              </thead>
-              <tbody>
-                {materialRows.map((row) => (
-                  <tr key={row.productId} className="border-b border-slate-100">
-                    <td className="py-2 pr-3">{row.product.name}</td>
-                    <td className="py-2 pr-3">{row.product.unit?.name}</td>
-                    <td className="py-2 pr-3">
-                      <Input
-                        type="number"
-                        step="0.001"
-                        min="0"
-                        className="h-8 w-24"
-                        value={row.wholeQuantity}
-                        onChange={(e) => updateMaterialRow(row.productId, { wholeQuantity: e.target.value })}
-                      />
-                    </td>
-                    <td className="py-2 pr-3">
-                      <Input
-                        type="number"
-                        step="0.001"
-                        min="0"
-                        className="h-8 w-24"
-                        value={row.looseQuantity}
-                        onChange={(e) => updateMaterialRow(row.productId, { looseQuantity: e.target.value })}
-                      />
-                    </td>
-                    <td className="py-2 pr-3">
-                      <Input
-                        className="h-8 w-40"
-                        value={row.note}
-                        onChange={(e) => updateMaterialRow(row.productId, { note: e.target.value })}
-                      />
-                    </td>
-                    <td className="py-2 pr-3">
-                      <button
-                        type="button"
-                        onClick={() => removeMaterialRow(row.productId)}
-                        className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </CardBody>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Đồ thành phẩm</CardTitle>
-        </CardHeader>
-        <CardBody className="flex flex-col gap-3">
-          <div className="relative w-72">
-            <Input
-              placeholder="Nhập mã/tên và ấn Enter"
-              value={finishedSearch}
-              onChange={(e) => setFinishedSearch(e.target.value)}
-              onKeyDown={handleFinishedSearchKeyDown}
-            />
-            {finishedSuggestions.length > 0 && (
-              <div className="absolute z-10 mt-1 w-full rounded-lg border border-slate-200 bg-white shadow-lg">
-                {finishedSuggestions.map((f) => (
-                  <button
-                    key={f.id}
-                    type="button"
-                    onClick={() => {
-                      addFinishedRow(f);
-                      setFinishedSearch("");
-                    }}
-                    className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-slate-50"
-                  >
-                    <span className="text-slate-700">{f.name}</span>
-                    <span className="text-xs text-slate-400">{f.code}</span>
-                  </button>
-                ))}
-              </div>
-            )}
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-slate-600">Ghi chú</label>
+            <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ghi chú (không bắt buộc)" />
           </div>
-
-          {finishedRows.length === 0 ? (
-            <p className="text-sm text-slate-400">Chưa có đồ thành phẩm nào được chọn</p>
-          ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase text-slate-500">
-                  <th className="py-2 pr-3">Tên đồ thành phẩm</th>
-                  <th className="py-2 pr-3">Đơn vị kiểm</th>
-                  <th className="py-2 pr-3">Số lượng</th>
-                  <th className="py-2 pr-3">Ghi chú</th>
-                  <th className="py-2 pr-3" />
-                </tr>
-              </thead>
-              <tbody>
-                {finishedRows.map((row) => (
-                  <tr key={row.finishedGoodItemId} className="border-b border-slate-100">
-                    <td className="py-2 pr-3">{row.item.name}</td>
-                    <td className="py-2 pr-3">{row.item.unit?.name}</td>
-                    <td className="py-2 pr-3">
-                      <Input
-                        type="number"
-                        step="0.001"
-                        min="0"
-                        className="h-8 w-28"
-                        value={row.quantity}
-                        onChange={(e) => updateFinishedRow(row.finishedGoodItemId, { quantity: e.target.value })}
-                      />
-                    </td>
-                    <td className="py-2 pr-3">
-                      <Input
-                        className="h-8 w-40"
-                        value={row.note}
-                        onChange={(e) => updateFinishedRow(row.finishedGoodItemId, { note: e.target.value })}
-                      />
-                    </td>
-                    <td className="py-2 pr-3">
-                      <button
-                        type="button"
-                        onClick={() => removeFinishedRow(row.finishedGoodItemId)}
-                        className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
         </CardBody>
       </Card>
+
+      {PRODUCT_TYPE_GROUPS.map((group) => (
+        <MaterialGroupTable key={group.key} groupKey={group.key} label={group.label} items={productsByType.get(group.key) ?? []} />
+      ))}
+
+      <FinishedGroupTable items={thanhPhamItems} />
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
@@ -527,10 +488,10 @@ export default function NewStockCheckPage() {
         <Modal title="Nhập số liệu kiểm kê từ Excel" onClose={() => setImportOpen(false)}>
           <div className="flex flex-col gap-3">
             <p className="text-sm text-slate-600">
-              Chọn file Excel theo đúng thứ tự cột trong file mẫu: Tên NL, Đơn vị (chỉ để tham khảo), SL chẵn, SL lẻ (gam), Tên
-              đồ thành phẩm, Đơn vị kiểm (chỉ để tham khảo), Số lượng. Mỗi dòng có thể chỉ điền phần nguyên liệu, chỉ phần đồ
-              thành phẩm, hoặc cả hai — 2 danh sách độc lập với nhau. Dữ liệu đã có trong bảng sẽ được cập nhật; chưa có sẽ tự
-              động thêm vào.
+              Chọn file Excel theo đúng thứ tự cột trong file mẫu: Tên NL, Đơn vị (chỉ để tham khảo), SL chẵn, SL lẻ (theo đơn
+              vị công thức của từng NL), Tên đồ thành phẩm (phải thuộc nhóm &quot;Đồ thành phẩm&quot;), Đơn vị kiểm (chỉ để
+              tham khảo), Số lượng. Mỗi dòng có thể chỉ điền phần nguyên liệu, chỉ phần đồ thành phẩm, hoặc cả hai — 2 danh
+              sách độc lập với nhau. Số lượng nhập vào sẽ điền thẳng vào đúng dòng của hàng hoá đó trong danh sách bên dưới.
             </p>
             <Button type="button" variant="secondary" size="sm" className="self-start" onClick={downloadTemplate}>
               <Download size={14} />

@@ -296,7 +296,7 @@ export async function completeSalesOrderReceiving(orderId: string, data: SalesOr
 
     return tx.salesOrder.update({
       where: { id: orderId },
-      data: { status: newStatus },
+      data: { status: newStatus, completedAt: new Date() },
       include: salesOrderDetailInclude,
     });
   });
@@ -382,6 +382,15 @@ export async function confirmSalesOrderWithExport(orderId: string, data: SalesOr
         },
       },
     });
+
+    // Ghi chú theo từng hàng hoá (itemId), không theo từng dòng NCC tách nhỏ — lấy dòng
+    // đầu tiên có note trong số các dòng cùng itemId.
+    for (const [itemId, entries] of entriesByItemId) {
+      const note = entries.find((entry) => entry.note?.trim())?.note?.trim();
+      if (note) {
+        await tx.salesOrderItem.update({ where: { id: itemId }, data: { note } });
+      }
+    }
 
     return tx.salesOrder.update({
       where: { id: orderId },

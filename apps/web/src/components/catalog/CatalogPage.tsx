@@ -22,6 +22,12 @@ export interface CatalogFieldConfig {
   options?: { value: string; label: string }[];
 }
 
+export interface CatalogFilterConfig {
+  name: string;
+  label: string;
+  options: { value: string; label: string }[];
+}
+
 interface CatalogPageProps<T extends { id: string }> {
   title: string;
   description: string;
@@ -39,6 +45,8 @@ interface CatalogPageProps<T extends { id: string }> {
    */
   search?: string;
   onSearchChange?: (value: string) => void;
+  /** Exact-match dropdown filters (e.g. lọc theo nhóm, theo loại) rendered next to search. */
+  filters?: CatalogFilterConfig[];
 }
 
 function buildPayload(fields: CatalogFieldConfig[], values: Record<string, string>) {
@@ -65,11 +73,13 @@ export function CatalogPage<T extends { id: string }>({
   headerExtra,
   search: controlledSearch,
   onSearchChange,
+  filters,
 }: CatalogPageProps<T>) {
   const queryClient = useQueryClient();
   const [internalSearch, setInternalSearch] = useState("");
   const search = controlledSearch ?? internalSearch;
   const setSearch = onSearchChange ?? setInternalSearch;
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [modalItem, setModalItem] = useState<T | "new" | null>(null);
@@ -77,8 +87,8 @@ export function CatalogPage<T extends { id: string }>({
   const [error, setError] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["catalog", queryKey, search, page, pageSize],
-    queryFn: () => api.get<PagedResult<T>>(endpoint, { search, page, pageSize }),
+    queryKey: ["catalog", queryKey, search, filterValues, page, pageSize],
+    queryFn: () => api.get<PagedResult<T>>(endpoint, { search, page, pageSize, ...filterValues }),
   });
 
   function invalidate() {
@@ -182,16 +192,39 @@ export function CatalogPage<T extends { id: string }>({
       </div>
 
       <Card>
-        <CardBody>
-          <Input
-            placeholder="Tìm kiếm..."
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-            className="max-w-sm"
-          />
+        <CardBody className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-slate-500">Tìm kiếm</label>
+            <Input
+              placeholder="Tìm kiếm..."
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              className="w-64"
+            />
+          </div>
+          {filters?.map((filter) => (
+            <div key={filter.name} className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-500">{filter.label}</label>
+              <Select
+                className="w-52"
+                value={filterValues[filter.name] ?? ""}
+                onChange={(e) => {
+                  setFilterValues((prev) => ({ ...prev, [filter.name]: e.target.value }));
+                  setPage(1);
+                }}
+              >
+                <option value="">Tất cả {filter.label.toLowerCase()}</option>
+                {filter.options.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          ))}
         </CardBody>
       </Card>
 

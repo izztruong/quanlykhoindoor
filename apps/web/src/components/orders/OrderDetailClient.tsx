@@ -201,14 +201,15 @@ export function OrderDetailClient({ id }: { id: string }) {
           )}
         </CardHeader>
         <CardBody className="overflow-x-auto p-0">
-          <table className="w-full text-sm">
+          <table className="w-full border-collapse text-sm">
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-4 py-2 text-left">Hàng hoá</th>
-                <th className="px-4 py-2 text-right">Số lượng đặt</th>
-                <th className="px-4 py-2 text-left">Đơn vị</th>
-                {order.status === "PENDING_CONFIRM" && <th className="px-4 py-2 text-left">SL nhận</th>}
-                {(canReceive || order.status === "COMPLETED") && <th className="px-4 py-2 text-left">SL thực nhận</th>}
+                <th className="border border-slate-200 px-4 py-2 text-left">Hàng hoá</th>
+                <th className="border border-slate-200 px-4 py-2 text-right">Số lượng đặt</th>
+                <th className="border border-slate-200 px-4 py-2 text-left">Đơn vị</th>
+                {order.status === "PENDING_CONFIRM" && <th className="border border-slate-200 px-4 py-2 text-left">SL nhận</th>}
+                {order.status === "PENDING_CONFIRM" && <th className="border border-slate-200 px-4 py-2 text-left">Ghi chú</th>}
+                {(canReceive || order.status === "COMPLETED") && <th className="border border-slate-200 px-4 py-2 text-left">SL thực nhận</th>}
               </tr>
             </thead>
             <tbody>
@@ -223,12 +224,12 @@ export function OrderDetailClient({ id }: { id: string }) {
                       ? "text-emerald-600"
                       : "";
                 return (
-                  <tr key={item.id} className="border-t border-slate-100">
-                    <td className="px-4 py-2">{item.product.name}</td>
-                    <td className="px-4 py-2 text-right">{item.quantity}</td>
-                    <td className="px-4 py-2">{item.product.unit?.name ?? "-"}</td>
+                  <tr key={item.id}>
+                    <td className="border border-slate-200 px-4 py-2">{item.product.name}</td>
+                    <td className="border border-slate-200 px-4 py-2 text-right">{item.quantity}</td>
+                    <td className="border border-slate-200 px-4 py-2">{item.product.unit?.name ?? "-"}</td>
                     {canReceive && (
-                      <td className="px-4 py-2">
+                      <td className="border border-slate-200 px-4 py-2">
                         <Input
                           type="number"
                           step="0.001"
@@ -240,10 +241,13 @@ export function OrderDetailClient({ id }: { id: string }) {
                       </td>
                     )}
                     {!canReceive && order.status === "COMPLETED" && (
-                      <td className="px-4 py-2">{item.receivedQuantity != null ? String(item.receivedQuantity) : item.quantity}</td>
+                      <td className="border border-slate-200 px-4 py-2">{item.receivedQuantity != null ? String(item.receivedQuantity) : item.quantity}</td>
                     )}
                     {order.status === "PENDING_CONFIRM" && (
-                      <td className={`px-4 py-2 font-medium ${reportedTone}`}>{formatNumber(reportedQty)}</td>
+                      <td className={`border border-slate-200 px-4 py-2 font-medium ${reportedTone}`}>{formatNumber(reportedQty)}</td>
+                    )}
+                    {order.status === "PENDING_CONFIRM" && (
+                      <td className="border border-slate-200 px-4 py-2 text-slate-600">{item.note ?? "-"}</td>
                     )}
                   </tr>
                 );

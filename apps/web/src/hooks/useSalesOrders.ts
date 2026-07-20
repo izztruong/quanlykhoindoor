@@ -17,7 +17,7 @@ export interface SalesOrderInput {
   skipStockCheck?: boolean;
 }
 
-export function useSalesOrders(filter: { status?: string; from?: string; to?: string }) {
+export function useSalesOrders(filter: { status?: string; from?: string; to?: string; page?: number; pageSize?: number }) {
   return useQuery({
     queryKey: ["sales-orders", filter],
     queryFn: () =>
@@ -25,7 +25,8 @@ export function useSalesOrders(filter: { status?: string; from?: string; to?: st
         status: filter.status,
         from: filter.from,
         to: filter.to,
-        pageSize: 100,
+        page: filter.page,
+        pageSize: filter.pageSize ?? 20,
       }),
   });
 }
@@ -89,6 +90,7 @@ export interface SalesOrderConfirmItemInput {
   supplierId?: string;
   costPrice: number;
   quantity: number;
+  note?: string;
 }
 
 export function useConfirmSalesOrderWithExport(id: string) {

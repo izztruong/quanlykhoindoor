@@ -24,10 +24,12 @@ export interface StockTransactionInput {
 }
 
 export function createStockTransactionHooks(endpoint: string, queryKey: string) {
-  function useList(filter: { warehouseId?: string; status?: string; from?: string; to?: string } = {}) {
+  function useList(
+    filter: { warehouseId?: string; status?: string; from?: string; to?: string; page?: number; pageSize?: number } = {},
+  ) {
     return useQuery({
       queryKey: [queryKey, filter],
-      queryFn: () => api.get<PagedResult<StockTransaction>>(endpoint, { ...filter, pageSize: 50 }),
+      queryFn: () => api.get<PagedResult<StockTransaction>>(endpoint, { ...filter, pageSize: filter.pageSize ?? 20 }),
     });
   }
 

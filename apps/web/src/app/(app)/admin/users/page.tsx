@@ -1,12 +1,14 @@
 "use client";
 
 import { DataTable } from "@/components/data-table/DataTable";
+import { Pagination } from "@/components/data-table/Pagination";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { useCreateUser, useDeleteUser, useUsers, type ManagedUser } from "@/hooks/useUsers";
+import { useClientPagination } from "@/hooks/useClientPagination";
 import { ApiError } from "@/lib/api-client";
 import { useCurrentUser } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
@@ -19,6 +21,7 @@ const roleLabel: Record<string, string> = { ADMIN: "Quản trị viên", STAFF: 
 export default function UsersPage() {
   const { data: currentUser } = useCurrentUser();
   const { data: users = [], isLoading } = useUsers();
+  const { page, pageSize, pageItems, total, setPage, onPageSizeChange } = useClientPagination(users);
   const createUser = useCreateUser();
   const deleteUser = useDeleteUser();
 
@@ -143,7 +146,8 @@ export default function UsersPage() {
           <CardTitle>Danh sách tài khoản</CardTitle>
         </CardHeader>
         <CardBody className="p-0">
-          <DataTable columns={columns} data={users} isLoading={isLoading} />
+          <DataTable columns={columns} data={pageItems} isLoading={isLoading} />
+          <Pagination page={page} pageSize={pageSize} total={total} onPageChange={setPage} onPageSizeChange={onPageSizeChange} />
         </CardBody>
         {deleteError && <p className="px-4 pb-4 text-sm text-red-600">{deleteError}</p>}
       </Card>

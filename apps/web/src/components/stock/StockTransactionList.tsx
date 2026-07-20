@@ -1,6 +1,7 @@
 "use client";
 
 import { DataTable } from "@/components/data-table/DataTable";
+import { Pagination } from "@/components/data-table/Pagination";
 import { DateRangeFilter } from "@/components/filters/DateRangeFilter";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -12,7 +13,7 @@ import type { UseQueryResult } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const statusTone: Record<string, "gray" | "green" | "red" | "yellow" | "blue"> = {
   DRAFT: "gray",
@@ -23,7 +24,13 @@ const statusTone: Record<string, "gray" | "green" | "red" | "yellow" | "blue"> =
 interface StockTransactionListProps {
   title: string;
   description: string;
-  useList: (filter: { status?: string; from?: string; to?: string }) => UseQueryResult<PagedResult<StockTransaction>>;
+  useList: (filter: {
+    status?: string;
+    from?: string;
+    to?: string;
+    page?: number;
+    pageSize?: number;
+  }) => UseQueryResult<PagedResult<StockTransaction>>;
   newHref: string;
   typeLabel: (v: string) => string;
 }
@@ -31,10 +38,15 @@ interface StockTransactionListProps {
 export function StockTransactionList({ title, description, useList, newHref, typeLabel }: StockTransactionListProps) {
   const [status, setStatus] = useState("");
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  useEffect(() => setPage(1), [status, dateRange.from, dateRange.to]);
   const { data, isLoading } = useList({
     status: status || undefined,
     from: dateRange.from || undefined,
     to: dateRange.to || undefined,
+    page,
+    pageSize,
   });
 
   const columns = useMemo<ColumnDef<StockTransaction>[]>(
@@ -97,6 +109,16 @@ export function StockTransactionList({ title, description, useList, newHref, typ
         </CardHeader>
         <CardBody className="p-0">
           <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} />
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            total={data?.total ?? 0}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setPage(1);
+            }}
+          />
         </CardBody>
       </Card>
     </div>

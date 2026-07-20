@@ -16,12 +16,13 @@ export interface StockCheckFinishedItemInput {
 }
 
 export interface StockCheckCreateInput {
+  checkedAt?: string;
   note?: string;
   items: StockCheckItemInput[];
   finishedItems: StockCheckFinishedItemInput[];
 }
 
-export function useStockChecks(filter: { from?: string; to?: string } = {}) {
+export function useStockChecks(filter: { from?: string; to?: string; createdById?: string } = {}) {
   return useQuery({
     queryKey: ["stock-checks", filter],
     queryFn: () => api.get<{ items: StockCheck[] }>("/stock-checks", filter).then((r) => r.items),

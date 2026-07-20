@@ -1,10 +1,12 @@
 "use client";
 
 import { DataTable } from "@/components/data-table/DataTable";
+import { Pagination } from "@/components/data-table/Pagination";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { useStockChecks } from "@/hooks/useStockChecks";
+import { useClientPagination } from "@/hooks/useClientPagination";
 import { clampDateRange } from "@/lib/dateRange";
 import { formatDateTime } from "@/lib/format";
 import type { StockCheck } from "@/types";
@@ -20,11 +22,12 @@ export default function StockChecksPage() {
     from: appliedFilter.from || undefined,
     to: appliedFilter.to || undefined,
   });
+  const { page, pageSize, pageItems, total, setPage, onPageSizeChange } = useClientPagination(data);
 
   const columns = useMemo<ColumnDef<StockCheck>[]>(
     () => [
       { header: "Mã phiếu", accessorKey: "code" },
-      { header: "Thời gian kiểm", accessorFn: (row) => formatDateTime(row.createdAt), id: "createdAt" },
+      { header: "Thời gian kiểm", accessorFn: (row) => formatDateTime(row.checkedAt), id: "createdAt" },
       { header: "Người tạo", accessorFn: (row) => row.createdBy?.name ?? "-", id: "createdBy" },
       { header: "Ghi chú", accessorFn: (row) => row.note ?? "-", id: "note" },
       {
@@ -69,7 +72,13 @@ export default function StockChecksPage() {
             <label className="mb-1 block text-xs font-medium text-slate-500">Đến ngày</label>
             <Input type="date" value={filter.to} onChange={(e) => setFilter((f) => clampDateRange(f.from, e.target.value, "to"))} />
           </div>
-          <Button variant="secondary" onClick={() => setAppliedFilter(filter)}>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setAppliedFilter(filter);
+              setPage(1);
+            }}
+          >
             Lọc
           </Button>
         </CardBody>
@@ -80,7 +89,8 @@ export default function StockChecksPage() {
           <CardTitle>Danh sách phiếu kiểm kê</CardTitle>
         </CardHeader>
         <CardBody className="p-0">
-          <DataTable columns={columns} data={data} isLoading={isLoading} />
+          <DataTable columns={columns} data={pageItems} isLoading={isLoading} />
+          <Pagination page={page} pageSize={pageSize} total={total} onPageChange={setPage} onPageSizeChange={onPageSizeChange} />
         </CardBody>
       </Card>
     </div>

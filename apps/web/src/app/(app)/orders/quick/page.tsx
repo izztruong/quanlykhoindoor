@@ -231,29 +231,29 @@ export default function QuickOrderPage() {
               Bạn chưa được thiết lập định lượng tối thiểu / tối đa cho hàng hoá nào. Liên hệ quản trị viên để thiết lập.
             </p>
           ) : (
-            <table className="w-full min-w-[720px] text-sm">
+            <table className="w-full min-w-[720px] border-collapse text-sm">
               <thead>
-                <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase text-slate-500">
-                  <th className="py-2 pr-3">Mã</th>
-                  <th className="py-2 pr-3">Tên hàng hoá</th>
-                  <th className="py-2 pr-3">ĐVT</th>
-                  <th className="py-2 pr-3">Tối thiểu</th>
-                  <th className="py-2 pr-3">Tối đa</th>
-                  <th className="py-2 pr-3">Tồn hiện tại</th>
-                  <th className="py-2 pr-3">SL cần đặt</th>
+                <tr className="text-left text-xs font-medium uppercase text-slate-500">
+                  <th className="border border-slate-200 px-3 py-2">Mã</th>
+                  <th className="border border-slate-200 px-3 py-2">Tên hàng hoá</th>
+                  <th className="border border-slate-200 px-3 py-2">ĐVT</th>
+                  <th className="border border-slate-200 px-3 py-2">Tối thiểu</th>
+                  <th className="border border-slate-200 px-3 py-2">Tối đa</th>
+                  <th className="border border-slate-200 px-3 py-2">Tồn hiện tại</th>
+                  <th className="border border-slate-200 px-3 py-2">SL cần đặt</th>
                 </tr>
               </thead>
               <tbody>
                 {thresholds.map((t) => {
                   const qty = suggestedQty(t);
                   return (
-                    <tr key={t.id} className="border-b border-slate-100">
-                      <td className="py-2 pr-3">{t.product.code}</td>
-                      <td className="py-2 pr-3">{t.product.name}</td>
-                      <td className="py-2 pr-3">{t.product.unit?.name}</td>
-                      <td className="py-2 pr-3">{formatNumber(t.minQuantity)}</td>
-                      <td className="py-2 pr-3">{formatNumber(t.maxQuantity)}</td>
-                      <td className="py-2 pr-3">
+                    <tr key={t.id}>
+                      <td className="border border-slate-200 px-3 py-2">{t.product.code}</td>
+                      <td className="border border-slate-200 px-3 py-2">{t.product.name}</td>
+                      <td className="border border-slate-200 px-3 py-2">{t.product.unit?.name}</td>
+                      <td className="border border-slate-200 px-3 py-2">{formatNumber(t.minQuantity)}</td>
+                      <td className="border border-slate-200 px-3 py-2">{formatNumber(t.maxQuantity)}</td>
+                      <td className="border border-slate-200 px-3 py-2">
                         <Input
                           type="number"
                           step="0.01"
@@ -263,7 +263,7 @@ export default function QuickOrderPage() {
                           onChange={(e) => setStockInputs((prev) => ({ ...prev, [t.productId]: e.target.value }))}
                         />
                       </td>
-                      <td className="py-2 pr-3 font-medium">
+                      <td className="border border-slate-200 px-3 py-2 font-medium">
                         {qty > 0 ? <span className="text-red-600">{formatNumber(qty)}</span> : "-"}
                       </td>
                     </tr>

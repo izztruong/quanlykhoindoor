@@ -1,20 +1,22 @@
 "use client";
 
 import { DataTable } from "@/components/data-table/DataTable";
+import { Pagination } from "@/components/data-table/Pagination";
 import { DateRangeFilter } from "@/components/filters/DateRangeFilter";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Select } from "@/components/ui/Select";
 import { useSalesOrders } from "@/hooks/useSalesOrders";
+import { api } from "@/lib/api-client";
 import { useCurrentUser } from "@/lib/auth";
 import { formatDateTime, formatNumber, labels } from "@/lib/format";
-import type { SalesOrder } from "@/types";
+import type { PagedResult, SalesOrder } from "@/types";
 import type { ColumnDef } from "@tanstack/react-table";
 import ExcelJS from "exceljs";
 import { FileSpreadsheet, Plus } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const statusTone: Record<string, "gray" | "green" | "red" | "yellow" | "blue"> = {
   DRAFT: "gray",
@@ -74,7 +76,16 @@ export default function OrdersPage() {
   const isAdmin = currentUser?.role === "ADMIN";
   const [status, setStatus] = useState("");
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
-  const { data, isLoading } = useSalesOrders({ status, from: dateRange.from || undefined, to: dateRange.to || undefined });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  useEffect(() => setPage(1), [status, dateRange.from, dateRange.to]);
+  const { data, isLoading } = useSalesOrders({
+    status,
+    from: dateRange.from || undefined,
+    to: dateRange.to || undefined,
+    page,
+    pageSize,
+  });
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -93,7 +104,16 @@ export default function OrdersPage() {
   }
 
   async function handleConfirmExport() {
-    const orders = (data?.items ?? []).filter((o) => selected.has(o.id));
+    // "selected" có thể gồm đơn ở nhiều trang khác nhau — data hiện chỉ giữ đúng
+    // trang đang xem, nên phải lấy lại toàn bộ đơn khớp bộ lọc rồi mới lọc theo selected.
+    const all = await api.get<PagedResult<SalesOrder>>("/sales-orders", {
+      status,
+      from: dateRange.from || undefined,
+      to: dateRange.to || undefined,
+      page: 1,
+      pageSize: Math.max(data?.total ?? 0, 1),
+    });
+    const orders = all.items.filter((o) => selected.has(o.id));
     await exportPurchaseListExcel(orders);
     setSelectMode(false);
     setSelected(new Set());
@@ -206,6 +226,16 @@ export default function OrdersPage() {
         </CardHeader>
         <CardBody className="p-0">
           <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} />
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            total={data?.total ?? 0}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setPage(1);
+            }}
+          />
         </CardBody>
       </Card>
     </div>
