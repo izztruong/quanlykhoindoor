@@ -24,6 +24,8 @@ export interface Unit {
   name: string;
 }
 
+export type ProductType = "NVL" | "COC_TAKE" | "BANH" | "DUNG_CU" | "KHAC";
+
 export interface Product {
   id: string;
   code: string;
@@ -34,6 +36,10 @@ export interface Product {
   productGroup: ProductGroup;
   costPrice: string | number;
   note?: string | null;
+  recipeUnitId?: string | null;
+  recipeUnit?: Unit | null;
+  recipeUnitsPerBaseUnit?: string | number | null;
+  type: ProductType;
 }
 
 export interface ReorderThreshold {
@@ -115,6 +121,7 @@ export interface SalesOrderItem {
   quantity: string | number;
   received: boolean;
   receivedQuantity?: string | number | null;
+  note?: string | null;
 }
 
 export interface SalesOrder {
@@ -198,12 +205,16 @@ export interface InventoryCount {
   items?: InventoryCountItemRow[];
 }
 
+export type FinishedGoodCategory = "TRA" | "DAV" | "THANH_PHAM";
+
 export interface FinishedGoodItem {
   id: string;
   code: string;
   name: string;
   unitId: string;
   unit: Unit;
+  category?: FinishedGoodCategory | null;
+  sellingPrice?: string | number | null;
 }
 
 export interface StockCheckItemRow {
@@ -227,8 +238,137 @@ export interface StockCheck {
   id: string;
   code: string;
   createdAt: string;
+  checkedAt: string;
   note?: string | null;
   createdBy?: { id: string; name: string } | null;
   items?: StockCheckItemRow[];
   finishedItems?: StockCheckFinishedItemRow[];
+}
+
+export interface FinishedGoodRecipeItem {
+  id: string;
+  productId: string;
+  product: Product;
+  quantityPerUnit: string | number;
+}
+
+export interface MaterialWasteItemRow {
+  id: string;
+  productId: string;
+  product: Product;
+  wholeQuantity?: string | number | null;
+  looseQuantity?: string | number | null;
+  note?: string | null;
+}
+
+export interface MaterialWasteFinishedItemRow {
+  id: string;
+  finishedGoodItemId: string;
+  finishedGoodItem: FinishedGoodItem;
+  quantity: string | number;
+  note?: string | null;
+}
+
+export interface MaterialWaste {
+  id: string;
+  code: string;
+  note?: string | null;
+  createdAt: string;
+  wasteAt: string;
+  createdBy?: { id: string; name: string } | null;
+  items?: MaterialWasteItemRow[];
+  finishedItems?: MaterialWasteFinishedItemRow[];
+}
+
+export interface CostCheckSoldItemRow {
+  id: string;
+  finishedGoodItemId: string;
+  finishedGoodItem: FinishedGoodItem;
+  quantitySold: string | number;
+}
+
+export interface CostCheckReportRow {
+  productId: string;
+  code: string;
+  name: string;
+  unitLabel: string;
+  openingQty: number;
+  receivedQty: number;
+  transferOutQty: number;
+  wastedQty: number;
+  closingQty: number;
+  actualUsed: number;
+  theoretical: number;
+  variance: number;
+}
+
+export interface CostCheckFinancialSummary {
+  revenueTra: number;
+  revenueDav: number;
+  revenueTotal: number;
+  discountTra: number;
+  discountDav: number;
+  discountTotal: number;
+  netRevenueTra: number;
+  netRevenueDav: number;
+  netRevenueTotal: number;
+  expectedNvlTra: number;
+  expectedNvlTraPct: number;
+  expectedDav: number;
+  expectedDavPct: number;
+  actualNvlTra: number;
+  actualNvlTraPct: number;
+  actualDav: number;
+  actualDavPct: number;
+  cupsStraws: number;
+  cupsStrawsPct: number;
+  actualCostTraValue: number;
+  actualCostTraPct: number;
+  actualCostTotalValue: number;
+  actualCostTotalPct: number;
+  wasteNvlValue: number;
+  wasteNvlPct: number;
+}
+
+export interface CostCheck {
+  id: string;
+  code: string;
+  userId: string;
+  user: { id: string; name: string };
+  openingStockCheck: { id: string; code: string; checkedAt: string };
+  closingStockCheck: { id: string; code: string; checkedAt: string };
+  note?: string | null;
+  discountTra?: string | number | null;
+  discountDav?: string | number | null;
+  createdBy?: { id: string; name: string } | null;
+  createdAt: string;
+  soldItems?: CostCheckSoldItemRow[];
+  report?: CostCheckReportRow[];
+  financialSummary?: CostCheckFinancialSummary;
+}
+
+export interface MaterialTransferItemRow {
+  id: string;
+  productId: string;
+  product: Product;
+  wholeQuantity?: string | number | null;
+  looseQuantity?: string | number | null;
+  supplierId?: string | null;
+  supplier?: Supplier | null;
+  costPrice?: string | number | null;
+  note?: string | null;
+}
+
+export interface MaterialTransfer {
+  id: string;
+  code: string;
+  fromUserId: string;
+  fromUser: { id: string; name: string };
+  toUserId: string;
+  toUser: { id: string; name: string };
+  transferAt: string;
+  note?: string | null;
+  createdBy?: { id: string; name: string } | null;
+  createdAt: string;
+  items?: MaterialTransferItemRow[];
 }

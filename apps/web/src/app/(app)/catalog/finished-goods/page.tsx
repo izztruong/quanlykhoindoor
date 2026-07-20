@@ -3,14 +3,33 @@
 import { CatalogPage } from "@/components/catalog/CatalogPage";
 import { FinishedGoodItemExcelImport } from "@/components/catalog/FinishedGoodItemExcelImport";
 import { useFinishedGoodItems, useUnits } from "@/hooks/useCatalog";
+import { formatCurrency, labels } from "@/lib/format";
 import type { FinishedGoodItem } from "@/types";
 import type { ColumnDef } from "@tanstack/react-table";
+import Link from "next/link";
 import { useMemo, useState } from "react";
+
+const FINISHED_GOOD_CATEGORY_OPTIONS = [
+  { value: "TRA", label: "Trà" },
+  { value: "DAV", label: "Đồ ăn vặt" },
+  { value: "THANH_PHAM", label: "Đồ thành phẩm" },
+];
 
 const columns: ColumnDef<FinishedGoodItem>[] = [
   { header: "Mã", accessorKey: "code" },
   { header: "Tên đồ thành phẩm", accessorKey: "name" },
   { header: "Đơn vị", accessorFn: (row) => row.unit?.name, id: "unit" },
+  { header: "Nhóm", accessorFn: (row) => (row.category ? labels.finishedGoodCategory(row.category) : "—"), id: "category" },
+  { header: "Giá bán", accessorFn: (row) => (row.sellingPrice != null ? formatCurrency(row.sellingPrice) : "—"), id: "sellingPrice" },
+  {
+    header: "Công thức",
+    id: "recipe",
+    cell: ({ row }) => (
+      <Link href={`/catalog/finished-goods/${row.original.id}/recipe`} className="text-sm text-indigo-600 hover:underline">
+        Khai báo công thức
+      </Link>
+    ),
+  },
 ];
 
 export default function FinishedGoodItemsPage() {
@@ -29,6 +48,13 @@ export default function FinishedGoodItemsPage() {
         required: true,
         options: units.map((u) => ({ value: u.id, label: u.name })),
       },
+      {
+        name: "category",
+        label: "Nhóm (Trà / Đồ ăn vặt)",
+        type: "select" as const,
+        options: FINISHED_GOOD_CATEGORY_OPTIONS,
+      },
+      { name: "sellingPrice", label: "Giá bán", type: "number" as const },
     ],
     [units],
   );

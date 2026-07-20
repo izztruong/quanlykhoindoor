@@ -6,6 +6,10 @@ export function formatCurrency(value: number | string) {
   return new Intl.NumberFormat("vi-VN").format(Number(value)) + "đ";
 }
 
+export function formatPercent(value: number | string) {
+  return new Intl.NumberFormat("vi-VN", { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(Number(value) * 100) + "%";
+}
+
 export function formatDateTime(value: string) {
   return new Date(value).toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" });
 }
@@ -63,6 +67,20 @@ const inventoryCountStatusLabel: Record<string, string> = {
   CANCELLED: "Đã huỷ",
 };
 
+const productTypeLabel: Record<string, string> = {
+  NVL: "Nguyên vật liệu",
+  COC_TAKE: "Cốc & ống hút",
+  BANH: "Bánh",
+  DUNG_CU: "Dụng cụ",
+  KHAC: "Khác",
+};
+
+const finishedGoodCategoryLabel: Record<string, string> = {
+  TRA: "Trà",
+  DAV: "Đồ ăn vặt",
+  THANH_PHAM: "Đồ thành phẩm",
+};
+
 export const labels = {
   transactionForm: (v: string) => transactionFormLabel[v] ?? v,
   transactionStatus: (v: string) => transactionStatusLabel[v] ?? v,
@@ -70,4 +88,6 @@ export const labels = {
   stockExportType: (v: string) => stockExportTypeLabel[v] ?? v,
   salesOrderStatus: (v: string) => salesOrderStatusLabel[v] ?? v,
   inventoryCountStatus: (v: string) => inventoryCountStatusLabel[v] ?? v,
+  productType: (v: string) => productTypeLabel[v] ?? v,
+  finishedGoodCategory: (v: string) => finishedGoodCategoryLabel[v] ?? v,
 };
