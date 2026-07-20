@@ -23,10 +23,16 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  inventoryCounts   InventoryCount[]
-  salesOrders       SalesOrder[]
-  reorderThresholds ProductReorderThreshold[]
-  stockChecks       StockCheck[]
+  inventoryCounts          InventoryCount[]
+  salesOrders              SalesOrder[]
+  reorderThresholds        ProductReorderThreshold[]
+  stockChecks              StockCheck[]
+  materialWastes           MaterialWaste[]
+  costChecks               CostCheck[]               @relation("CostCheckShop")
+  costChecksCreated        CostCheck[]               @relation("CostCheckCreatedBy")
+  materialTransfersFrom    MaterialTransfer[]        @relation("MaterialTransferFrom")
+  materialTransfersTo      MaterialTransfer[]        @relation("MaterialTransferTo")
+  materialTransfersCreated MaterialTransfer[]        @relation("MaterialTransferCreatedBy")
 }
 
 model Warehouse {
@@ -56,22 +62,63 @@ model Unit {
   code String @unique
   name String
 
-  products          Product[]
-  finishedGoodItems FinishedGoodItem[]
+  products             Product[]
+  finishedGoodItems    FinishedGoodItem[]
+  productsAsRecipeUnit Product[]          @relation("ProductRecipeUnit")
+}
+
+// Nhóm món cho Check Cost (doanh thu/chi phí tách theo nhóm) — để trống với món chưa phân loại.
+enum FinishedGoodCategory {
+  TRA
+  DAV
+  // Vật tư/đồ đã pha chế sẵn cần kiểm kê vật lý (ly, ống hút, nắp, nước pha sẵn...) —
+  // khác với TRA/DAV vốn là món bán qua POS, chỉ dùng để tính doanh thu Check Cost.
+  THANH_PHAM
 }
 
 // Catalog of "đồ thành phẩm" (prepared/finished items and supplies checked
 // alongside raw materials in a phiếu kiểm kê) — independent of Product, since
 // many of these (cups, straws, lids, brewed liquids) aren't raw-material SKUs.
 model FinishedGoodItem {
-  id        String   @id @default(cuid())
-  code      String   @unique
-  name      String
-  unitId    String
-  unit      Unit     @relation(fields: [unitId], references: [id])
-  createdAt DateTime @default(now())
+  id           String                @id @default(cuid())
+  code         String                @unique
+  name         String
+  unitId       String
+  unit         Unit                  @relation(fields: [unitId], references: [id])
+  category     FinishedGoodCategory?
+  sellingPrice Decimal?              @db.Decimal(18, 2)
+  createdAt    DateTime              @default(now())
 
-  stockCheckFinishedItems StockCheckFinishedItem[]
+  stockCheckFinishedItems    StockCheckFinishedItem[]
+  materialWasteFinishedItems MaterialWasteFinishedItem[]
+  // Công thức: nguyên liệu + định lượng cần để làm ra 1 đơn vị đồ thành phẩm/món này — dùng cho tính Check Cost.
+  recipeItems                FinishedGoodRecipeItem[]
+  costCheckSoldItems         CostCheckSoldItem[]
+}
+
+// Công thức (BOM): 1 đơn vị của 1 đồ thành phẩm/món cần bao nhiêu nguyên liệu — định lượng luôn tính theo
+// Product.recipeUnit (vd Gram), không theo đơn vị chính của nguyên liệu (vd Hộp).
+model FinishedGoodRecipeItem {
+  id                 String           @id @default(cuid())
+  finishedGoodItemId String
+  finishedGoodItem   FinishedGoodItem @relation(fields: [finishedGoodItemId], references: [id], onDelete: Cascade)
+  productId          String
+  product            Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantityPerUnit    Decimal          @db.Decimal(18, 4)
+
+  @@unique([finishedGoodItemId, productId])
+}
+
+// Loại hàng hoá — 5 giá trị cố định trong code, dùng để gộp chi phí cho Check Cost
+// (NVL -> chi phí NVL Trà; COC_TAKE -> cốc & ống hút riêng; BANH -> chi phí ĐAV qua công thức
+// 1 dòng; DUNG_CU/KHAC -> không tính vào Check Cost). Sửa được bình thường trên từng hàng hoá,
+// chỉ 5 tên loại là cố định, không thêm loại mới qua giao diện.
+enum ProductType {
+  NVL
+  COC_TAKE
+  BANH
+  DUNG_CU
+  KHAC
 }
 
 model Product {
@@ -83,16 +130,26 @@ model Product {
   productGroupId String
   productGroup   ProductGroup @relation(fields: [productGroupId], references: [id])
   costPrice      Decimal      @default(0) @db.Decimal(18, 2)
+  type           ProductType  @default(NVL)
   note           String?
   createdAt      DateTime     @default(now())
 
-  stockImportItems    StockImportItem[]
-  stockExportItems    StockExportItem[]
-  inventoryCountItems InventoryCountItem[]
-  salesOrderItems     SalesOrderItem[]
-  reorderThresholds   ProductReorderThreshold[]
-  stockCheckItems     StockCheckItem[]
-  supplierPrices      ProductSupplierPrice[]
+  // Quy đổi cho công thức/check cost: 1 [đơn vị chính] = recipeUnitsPerBaseUnit [recipeUnit, vd gam].
+  // Để trống nếu công thức dùng thẳng đơn vị chính (hệ số quy đổi = 1).
+  recipeUnitId           String?
+  recipeUnit             Unit?    @relation("ProductRecipeUnit", fields: [recipeUnitId], references: [id])
+  recipeUnitsPerBaseUnit Decimal? @db.Decimal(18, 4)
+
+  stockImportItems      StockImportItem[]
+  stockExportItems      StockExportItem[]
+  inventoryCountItems   InventoryCountItem[]
+  salesOrderItems       SalesOrderItem[]
+  reorderThresholds     ProductReorderThreshold[]
+  stockCheckItems       StockCheckItem[]
+  supplierPrices        ProductSupplierPrice[]
+  recipeLines           FinishedGoodRecipeItem[]
+  materialWasteItems    MaterialWasteItem[]
+  materialTransferItems MaterialTransferItem[]
 }
 
 // Per-supplier price list: the same product can be sourced from more than
@@ -134,10 +191,11 @@ model Supplier {
   phone   String?
   address String?
 
-  stockImports     StockImport[]
-  stockExports     StockExport[]
-  productPrices    ProductSupplierPrice[]
-  stockExportItems StockExportItem[]
+  stockImports          StockImport[]
+  stockExports          StockExport[]
+  productPrices         ProductSupplierPrice[]
+  stockExportItems      StockExportItem[]
+  materialTransferItems MaterialTransferItem[]
 }
 
 model Customer {
@@ -278,6 +336,9 @@ model SalesOrder {
   createdById String?
   createdBy   User?            @relation(fields: [createdById], references: [id])
   createdAt   DateTime         @default(now())
+  // Lúc completeSalesOrderReceiving chạy xong gần nhất (dù ra SHORT hay COMPLETED) — dùng để lọc
+  // "nhận trong kỳ" theo mốc thời gian thực tế nhận hàng, thay vì orderDate (lúc đặt).
+  completedAt DateTime?
 
   items       SalesOrderItem[]
   stockExport StockExport?
@@ -294,6 +355,9 @@ model SalesOrderItem {
   // partially received line can log how much actually arrived instead.
   received         Boolean    @default(false)
   receivedQuantity Decimal?   @db.Decimal(18, 3)
+  // Lý do admin đổi số lượng lúc xác nhận đơn — hiển thị lại cho nhân viên xem khi đơn ở
+  // trạng thái chờ xác nhận (PENDING_CONFIRM).
+  note             String?
 }
 
 enum InventoryCountStatus {
@@ -342,9 +406,14 @@ model StockCheck {
   createdById String?
   createdBy   User?    @relation(fields: [createdById], references: [id])
   createdAt   DateTime @default(now())
+  // Thời điểm kiểm thực tế do người dùng chọn (mặc định lúc lưu) — dùng làm mốc kỳ Check Cost,
+  // khác với createdAt (lúc bản ghi được lưu vào hệ thống).
+  checkedAt   DateTime @default(now())
 
-  items         StockCheckItem[]
-  finishedItems StockCheckFinishedItem[]
+  items               StockCheckItem[]
+  finishedItems       StockCheckFinishedItem[]
+  costChecksAsOpening CostCheck[]              @relation("CostCheckOpening")
+  costChecksAsClosing CostCheck[]              @relation("CostCheckClosing")
 }
 
 // Nguyên liệu line: tồn chẵn (theo đơn vị chính của hàng hoá) + tồn lẻ (luôn
@@ -374,4 +443,120 @@ model StockCheckFinishedItem {
   note               String?
 
   @@unique([stockCheckId, finishedGoodItemId])
+}
+
+// Phiếu huỷ nguyên liệu tại quán (nguyên liệu hỏng/đổ bỏ) — cùng kiểu tự phục vụ như
+// StockCheck: userId chính là quán (người tạo), không sửa được sau khi tạo.
+model MaterialWaste {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  note        String?
+  createdById String?
+  createdBy   User?    @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  // Thời điểm huỷ thực tế do người dùng chọn (mặc định lúc lưu) — dùng làm mốc lọc kỳ Check Cost,
+  // khác với createdAt (lúc bản ghi được lưu vào hệ thống).
+  wasteAt     DateTime @default(now())
+
+  items         MaterialWasteItem[]
+  finishedItems MaterialWasteFinishedItem[]
+}
+
+model MaterialWasteItem {
+  id              String        @id @default(cuid())
+  materialWasteId String
+  materialWaste   MaterialWaste @relation(fields: [materialWasteId], references: [id], onDelete: Cascade)
+  productId       String
+  product         Product       @relation(fields: [productId], references: [id])
+  wholeQuantity   Decimal?      @db.Decimal(18, 3)
+  looseQuantity   Decimal?      @db.Decimal(18, 3)
+  note            String?
+
+  @@index([productId])
+}
+
+// Đồ thành phẩm huỷ — cùng cấu trúc StockCheckFinishedItem (1 số lượng duy nhất, không tách chẵn/lẻ).
+model MaterialWasteFinishedItem {
+  id                 String           @id @default(cuid())
+  materialWasteId    String
+  materialWaste      MaterialWaste    @relation(fields: [materialWasteId], references: [id], onDelete: Cascade)
+  finishedGoodItemId String
+  finishedGoodItem   FinishedGoodItem @relation(fields: [finishedGoodItemId], references: [id])
+  quantity           Decimal          @db.Decimal(18, 3)
+  note               String?
+
+  @@unique([materialWasteId, finishedGoodItemId])
+}
+
+// Phiếu Check Cost: đối soát nguyên liệu tiêu hao thực tế (giữa 2 phiếu kiểm kê quán)
+// so với tiêu hao theo công thức (từ SL đồ thành phẩm/món đã bán trong kỳ). userId là
+// quán được đối soát — khác với createdById vì admin nhập hộ dữ liệu bán hàng cho quán.
+model CostCheck {
+  id                  String     @id @default(cuid())
+  code                String     @unique
+  userId              String
+  user                User       @relation("CostCheckShop", fields: [userId], references: [id])
+  openingStockCheckId String
+  openingStockCheck   StockCheck @relation("CostCheckOpening", fields: [openingStockCheckId], references: [id])
+  closingStockCheckId String
+  closingStockCheck   StockCheck @relation("CostCheckClosing", fields: [closingStockCheckId], references: [id])
+  note                String?
+  // Khuyến mãi/giảm giá trong kỳ, nhập tay theo nhóm — dùng tính doanh thu thuần.
+  discountTra         Decimal?   @db.Decimal(18, 2)
+  discountDav         Decimal?   @db.Decimal(18, 2)
+  createdById         String?
+  createdBy           User?      @relation("CostCheckCreatedBy", fields: [createdById], references: [id])
+  createdAt           DateTime   @default(now())
+  // Chốt cứng { rows, summary } ngay khi tạo phiếu — sửa giá vốn/giá bán/công thức
+  // sau này không được phép làm thay đổi số liệu của phiếu đã tạo.
+  reportSnapshot      Json?
+
+  soldItems CostCheckSoldItem[]
+}
+
+model CostCheckSoldItem {
+  id                 String           @id @default(cuid())
+  costCheckId        String
+  costCheck          CostCheck        @relation(fields: [costCheckId], references: [id], onDelete: Cascade)
+  finishedGoodItemId String
+  finishedGoodItem   FinishedGoodItem @relation(fields: [finishedGoodItemId], references: [id])
+  quantitySold       Decimal          @db.Decimal(18, 3)
+
+  @@unique([costCheckId, finishedGoodItemId])
+}
+
+// Điều chuyển nguyên liệu giữa 2 quán (không qua kho trung tâm) — admin tạo hộ, không có bước
+// quán nhận xác nhận lại (tin theo đúng số admin ghi). Ảnh hưởng công thức Check Cost: trừ vào
+// quán gửi, cộng vào quán nhận, giống hệt cách "Nhận trong kỳ"/"Đã huỷ" đang được cộng/trừ.
+model MaterialTransfer {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  fromUserId  String
+  fromUser    User     @relation("MaterialTransferFrom", fields: [fromUserId], references: [id])
+  toUserId    String
+  toUser      User     @relation("MaterialTransferTo", fields: [toUserId], references: [id])
+  transferAt  DateTime @default(now())
+  note        String?
+  createdById String?
+  createdBy   User?    @relation("MaterialTransferCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  items MaterialTransferItem[]
+}
+
+model MaterialTransferItem {
+  id                 String           @id @default(cuid())
+  materialTransferId String
+  materialTransfer   MaterialTransfer @relation(fields: [materialTransferId], references: [id], onDelete: Cascade)
+  productId          String
+  product            Product          @relation(fields: [productId], references: [id])
+  wholeQuantity      Decimal?         @db.Decimal(18, 3)
+  looseQuantity      Decimal?         @db.Decimal(18, 3)
+  // Nguồn giá vốn (để sau này tính doanh thu/chỉ số khác cho Check Cost) — không bắt buộc.
+  supplierId         String?
+  supplier           Supplier?        @relation(fields: [supplierId], references: [id])
+  costPrice          Decimal?         @db.Decimal(18, 2)
+  note               String?
+
+  @@index([productId])
 }
