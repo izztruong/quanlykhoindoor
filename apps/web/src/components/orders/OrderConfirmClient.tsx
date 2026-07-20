@@ -109,8 +109,11 @@ export function OrderConfirmClient({ id }: { id: string }) {
     setError(null);
 
     const items = order!.items.flatMap((item) =>
+      // Giữ lại các dòng người dùng đã thực sự nhập số lượng (kể cả 0 — nghĩa là
+      // không đặt được hàng hoá đó từ NCC nào), chỉ bỏ những dòng chia thêm mà
+      // chưa ai điền gì.
       linesFor(item)
-        .filter((line) => Number(line.quantity) > 0)
+        .filter((line) => line.quantity.trim() !== "")
         .map((line) => ({
           itemId: item.id,
           supplierId: line.supplierId || undefined,

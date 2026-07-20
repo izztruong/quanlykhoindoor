@@ -43,7 +43,8 @@ export const salesOrderConfirmSchema = z.object({
         itemId: z.string().min(1),
         supplierId: z.string().min(1).optional(),
         costPrice: z.coerce.number().nonnegative(),
-        quantity: z.coerce.number().positive(),
+        // 0 là hợp lệ — nghĩa là không đặt được hàng hoá đó từ nhà cung cấp nào trong đợt này.
+        quantity: z.coerce.number().nonnegative(),
       }),
     )
     .min(1),
