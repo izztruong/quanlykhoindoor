@@ -5,9 +5,13 @@ import { env } from "./config/env";
 import { requireAuth, requireRole } from "./middleware/auth";
 import { errorHandler, notFoundHandler } from "./middleware/error";
 import { authRouter } from "./modules/auth/auth.routes";
+import { costChecksRouter } from "./modules/costChecks/costChecks.routes";
 import { customersRouter } from "./modules/customers/customers.routes";
 import { finishedGoodItemsRouter } from "./modules/finishedGoodItems/finishedGoodItems.routes";
+import { finishedGoodRecipesRouter } from "./modules/finishedGoodRecipes/finishedGoodRecipes.routes";
 import { inventoryCountsRouter } from "./modules/inventoryCounts/inventoryCounts.routes";
+import { materialTransfersRouter } from "./modules/materialTransfers/materialTransfers.routes";
+import { materialWasteRouter } from "./modules/materialWaste/materialWaste.routes";
 import { productGroupsRouter } from "./modules/productGroups/productGroups.routes";
 import { productStockRouter } from "./modules/products/productStock.routes";
 import { productsRouter } from "./modules/products/products.routes";
@@ -47,9 +51,10 @@ app.use("/api/finished-good-items", finishedGoodItemsRouter);
 // Read is self-scoped (or any user for admin) inside the router; write is admin-only inside the router.
 app.use("/api/reorder-thresholds", reorderThresholdsRouter);
 
-// Sales orders and phiếu kiểm (stock checks): open to both roles, ownership-scoped for staff inside the router.
+// Sales orders, phiếu kiểm (stock checks) và phiếu huỷ nguyên liệu: open to both roles, ownership-scoped for staff inside the router.
 app.use("/api/sales-orders", salesOrdersRouter);
 app.use("/api/stock-checks", stockChecksRouter);
+app.use("/api/material-waste", materialWasteRouter);
 
 // Staff has no use for these at all — admin only, both read and write.
 app.use("/api/product-groups", requireRole("ADMIN"), productGroupsRouter);
@@ -58,6 +63,9 @@ app.use("/api/suppliers", requireRole("ADMIN"), suppliersRouter);
 app.use("/api/stock-imports", requireRole("ADMIN"), stockImportsRouter);
 app.use("/api/stock-exports", requireRole("ADMIN"), stockExportsRouter);
 app.use("/api/product-supplier-prices", requireRole("ADMIN"), productSupplierPricesRouter);
+app.use("/api/finished-good-recipes", requireRole("ADMIN"), finishedGoodRecipesRouter);
+app.use("/api/cost-checks", requireRole("ADMIN"), costChecksRouter);
+app.use("/api/material-transfers", requireRole("ADMIN"), materialTransfersRouter);
 app.use("/api/inventory-counts", requireRole("ADMIN"), inventoryCountsRouter);
 app.use("/api/reports", requireRole("ADMIN"), reportsRouter);
 app.use("/api/users", requireRole("ADMIN"), usersRouter);

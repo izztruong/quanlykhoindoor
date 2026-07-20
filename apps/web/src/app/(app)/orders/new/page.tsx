@@ -163,13 +163,6 @@ export default function NewOrderPage() {
     return products.find((p) => p.id === productId)?.unit?.name ?? "-";
   }
 
-  function stockExceededMessage(productId: string, quantity: number): string | null {
-    if (!warehouseId || !productId || !quantity) return null;
-    const available = stockByProductId.get(productId) ?? 0;
-    if (quantity > available) return `Còn ${formatNumber(available)}`;
-    return null;
-  }
-
   function onSubmit(values: FormValues) {
     setError(null);
     createOrder.mutate(
@@ -267,19 +260,7 @@ export default function NewOrderPage() {
                   </Select>
                 </div>
                 <div className="flex flex-col gap-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <label className="text-xs font-medium text-slate-500">Số lượng</label>
-                    {(() => {
-                      const productId = items[index]?.productId;
-                      const quantity = items[index]?.quantity;
-                      const exceededMessage = stockExceededMessage(productId, quantity);
-                      if (exceededMessage) return <span className="text-xs font-medium text-red-600">{exceededMessage}</span>;
-                      if (warehouseId && productId) {
-                        return <span className="text-xs text-slate-400">Tồn kho: {formatNumber(stockByProductId.get(productId) ?? 0)}</span>;
-                      }
-                      return null;
-                    })()}
-                  </div>
+                  <label className="text-xs font-medium text-slate-500">Số lượng</label>
                   <Input
                     type="number"
                     step="0.01"

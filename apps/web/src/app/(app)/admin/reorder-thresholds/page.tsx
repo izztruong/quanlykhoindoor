@@ -269,23 +269,23 @@ export default function ReorderThresholdsPage() {
               onChange={(e) => setSearch(e.target.value)}
               className="max-w-sm"
             />
-            <table className="w-full min-w-[640px] text-sm">
+            <table className="w-full min-w-[640px] border-collapse text-sm">
               <thead>
-                <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase text-slate-500">
-                  <th className="py-2 pr-3">Mã</th>
-                  <th className="py-2 pr-3">Tên hàng hoá</th>
-                  <th className="py-2 pr-3">ĐVT</th>
-                  <th className="py-2 pr-3">Tối thiểu</th>
-                  <th className="py-2 pr-3">Tối đa</th>
+                <tr className="text-left text-xs font-medium uppercase text-slate-500">
+                  <th className="border border-slate-200 px-3 py-2">Mã</th>
+                  <th className="border border-slate-200 px-3 py-2">Tên hàng hoá</th>
+                  <th className="border border-slate-200 px-3 py-2">ĐVT</th>
+                  <th className="border border-slate-200 px-3 py-2">Tối thiểu</th>
+                  <th className="border border-slate-200 px-3 py-2">Tối đa</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredProducts.map((p) => (
-                  <tr key={p.id} className="border-b border-slate-100">
-                    <td className="py-2 pr-3">{p.code}</td>
-                    <td className="py-2 pr-3">{p.name}</td>
-                    <td className="py-2 pr-3">{p.unit?.name}</td>
-                    <td className="py-2 pr-3">
+                  <tr key={p.id}>
+                    <td className="border border-slate-200 px-3 py-2">{p.code}</td>
+                    <td className="border border-slate-200 px-3 py-2">{p.name}</td>
+                    <td className="border border-slate-200 px-3 py-2">{p.unit?.name}</td>
+                    <td className="border border-slate-200 px-3 py-2">
                       <Input
                         type="number"
                         step="1"
@@ -295,7 +295,7 @@ export default function ReorderThresholdsPage() {
                         onChange={(e) => setRow(p.id, "min", e.target.value)}
                       />
                     </td>
-                    <td className="py-2 pr-3">
+                    <td className="border border-slate-200 px-3 py-2">
                       <Input
                         type="number"
                         step="1"

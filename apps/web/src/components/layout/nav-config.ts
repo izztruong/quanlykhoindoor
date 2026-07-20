@@ -43,12 +43,17 @@ export const navSections: NavSection[] = [
       { label: "Phiếu nhập kho", href: "/stock/imports" },
       { label: "Phiếu xuất kho", href: "/stock/exports" },
       { label: "Phiếu kiểm kê", href: "/stock/inventory-counts" },
+      { label: "Phiếu Check Cost", href: "/cost-checks" },
+      { label: "Phiếu điều chuyển", href: "/material-transfers" },
     ],
   },
   {
     label: "Kiểm kê quán",
     icon: ClipboardList,
-    items: [{ label: "Phiếu kiểm kê", href: "/stock-checks" }],
+    items: [
+      { label: "Phiếu kiểm kê", href: "/stock-checks" },
+      { label: "Phiếu huỷ nguyên liệu", href: "/material-waste" },
+    ],
   },
   {
     label: "Danh mục",

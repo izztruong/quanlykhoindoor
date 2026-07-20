@@ -22,13 +22,15 @@ function assertOwnership(check: { createdById: string | null }, user?: AuthUser)
 
 stockChecksRouter.get("/", async (req, res) => {
   const { from, to } = parseDateRange(req);
+  const { createdById } = req.query as Record<string, string>;
   const items = await prisma.stockCheck.findMany({
     where: {
-      createdAt: from || to ? { gte: from, lte: to } : undefined,
-      // Staff only ever see their own phiếu kiểm; admins see everything.
-      createdById: req.user?.role === "ADMIN" ? undefined : req.user?.id,
+      checkedAt: from || to ? { gte: from, lte: to } : undefined,
+      // Staff only ever see their own phiếu kiểm; admins see everything, optionally
+      // narrowed to one quán via ?createdById= (used by the Check Cost picker).
+      createdById: req.user?.role === "ADMIN" ? createdById || undefined : req.user?.id,
     },
-    orderBy: { createdAt: "desc" },
+    orderBy: { checkedAt: "desc" },
     include: { createdBy: { select: { id: true, name: true } } },
   });
   res.json({ items });
@@ -48,6 +50,7 @@ stockChecksRouter.post("/", async (req, res) => {
     const created = await tx.stockCheck.create({
       data: {
         code: generateCode("KT"),
+        checkedAt: data.checkedAt,
         note: data.note,
         createdById: req.user?.id,
       },
