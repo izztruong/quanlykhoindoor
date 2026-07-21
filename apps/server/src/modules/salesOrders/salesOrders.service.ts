@@ -1,5 +1,5 @@
 import { prisma } from "../../config/db";
-import type { Prisma } from "../../generated/prisma/client";
+import { Prisma } from "../../generated/prisma/client";
 import type { AuthUser } from "../../middleware/auth";
 import { generateCode } from "../../utils/codeGenerator";
 import { HttpError } from "../../utils/httpError";
@@ -167,9 +167,10 @@ function buildStockExportCreateData(order: OrderWithItemsForExport, actingUserId
  * across suppliers). When the actual received quantity for a product turns
  * out to differ, scale every export line for that product proportionally so
  * the export's total matches reality while keeping each supplier's relative
- * share intact. Returns the (unexecuted) update operations — built from
- * export items the caller already has in hand — rather than awaiting them
- * one at a time; see completeSalesOrderReceiving for why.
+ * share intact. Returns a single (unexecuted) bulk-update statement — built
+ * from export items the caller already has in hand — covering every changed
+ * line in one round trip instead of one UPDATE per line; see
+ * completeSalesOrderReceiving for why that matters.
  */
 function buildStockExportReconcileOps(
   exportItems: { id: string; productId: string; quantity: Prisma.Decimal; costPrice: Prisma.Decimal }[],
@@ -182,7 +183,7 @@ function buildStockExportReconcileOps(
     linesByProduct.set(line.productId, list);
   }
 
-  const operations: Prisma.PrismaPromise<unknown>[] = [];
+  const rows: Prisma.Sql[] = [];
   for (const target of targets) {
     const lines = linesByProduct.get(target.productId);
     if (!lines || lines.length === 0) continue;
@@ -193,15 +194,20 @@ function buildStockExportReconcileOps(
     const scale = target.receivedQuantity / currentTotal;
     for (const line of lines) {
       const newQty = Number(line.quantity) * scale;
-      operations.push(
-        prisma.stockExportItem.update({
-          where: { id: line.id },
-          data: { quantity: newQty, costAmount: newQty * Number(line.costPrice) },
-        }),
-      );
+      const newCostAmount = newQty * Number(line.costPrice);
+      rows.push(Prisma.sql`(${line.id}::text, ${newQty}::numeric, ${newCostAmount}::numeric)`);
     }
   }
-  return operations;
+  if (rows.length === 0) return [];
+
+  return [
+    prisma.$executeRaw`
+      UPDATE "StockExportItem" AS t
+      SET "quantity" = v.quantity, "costAmount" = v."costAmount"
+      FROM (VALUES ${Prisma.join(rows)}) AS v(id, quantity, "costAmount")
+      WHERE t.id = v.id
+    `,
+  ];
 }
 
 export async function updateSalesOrderStatus(orderId: string, status: string, actingUser?: AuthUser) {
@@ -268,19 +274,24 @@ export async function completeSalesOrderReceiving(orderId: string, data: SalesOr
   const allReceived = order.items.every((it) => (receivedByItemId.get(it.id) ?? 0) >= Number(it.quantity));
   const newStatus = allReceived ? "COMPLETED" : "SHORT";
 
-  // Same fix as confirmSalesOrderWithExport/confirmOrderReportedQuantities: batch every write
-  // into one non-interactive transaction instead of one round trip per line, which blew past
-  // Prisma's 5s timeout over Neon's higher per-request latency on orders with many lines.
-  const operations: Prisma.PrismaPromise<unknown>[] = data.items.map((update) => {
-    const orderItem = itemById.get(update.itemId)!;
-    return prisma.salesOrderItem.update({
-      where: { id: update.itemId },
-      data: {
-        receivedQuantity: update.receivedQuantity,
-        received: update.receivedQuantity >= Number(orderItem.quantity),
-      },
+  // Same fix as confirmSalesOrderWithExport/confirmOrderReportedQuantities, taken one step
+  // further: instead of one UPDATE statement per line (even batched into a single transaction
+  // round trip), fold every line into ONE bulk UPDATE ... FROM (VALUES ...) statement, which
+  // Postgres executes as a single planned operation regardless of line count.
+  const operations: Prisma.PrismaPromise<unknown>[] = [];
+  if (data.items.length > 0) {
+    const rows = data.items.map((update) => {
+      const orderItem = itemById.get(update.itemId)!;
+      const received = update.receivedQuantity >= Number(orderItem.quantity);
+      return Prisma.sql`(${update.itemId}::text, ${update.receivedQuantity}::numeric, ${received}::boolean)`;
     });
-  });
+    operations.push(prisma.$executeRaw`
+      UPDATE "SalesOrderItem" AS t
+      SET "receivedQuantity" = v."receivedQuantity", "received" = v.received
+      FROM (VALUES ${Prisma.join(rows)}) AS v(id, "receivedQuantity", received)
+      WHERE t.id = v.id
+    `);
+  }
 
   if (order.stockExport) {
     operations.push(
@@ -402,12 +413,20 @@ export async function confirmSalesOrderWithExport(orderId: string, data: SalesOr
   ];
 
   // Ghi chú theo từng hàng hoá (itemId), không theo từng dòng NCC tách nhỏ — lấy dòng
-  // đầu tiên có note trong số các dòng cùng itemId.
+  // đầu tiên có note trong số các dòng cùng itemId. Gộp thành 1 câu UPDATE bulk duy nhất
+  // thay vì 1 câu lệnh riêng cho từng hàng hoá có ghi chú.
+  const noteRows: Prisma.Sql[] = [];
   for (const [itemId, entries] of entriesByItemId) {
     const note = entries.find((entry) => entry.note?.trim())?.note?.trim();
-    if (note) {
-      operations.push(prisma.salesOrderItem.update({ where: { id: itemId }, data: { note } }));
-    }
+    if (note) noteRows.push(Prisma.sql`(${itemId}::text, ${note}::text)`);
+  }
+  if (noteRows.length > 0) {
+    operations.push(prisma.$executeRaw`
+      UPDATE "SalesOrderItem" AS t
+      SET "note" = v.note
+      FROM (VALUES ${Prisma.join(noteRows)}) AS v(id, note)
+      WHERE t.id = v.id
+    `);
   }
 
   operations.push(prisma.salesOrder.update({ where: { id: orderId }, data: { status: "PENDING_CONFIRM" } }));
@@ -443,19 +462,25 @@ export async function confirmOrderReportedQuantities(orderId: string, actingUser
     reportedByProductId.set(line.productId, (reportedByProductId.get(line.productId) ?? 0) + Number(line.quantity));
   }
 
-  // Same fix as confirmSalesOrderWithExport: batch every line's update into one non-interactive
-  // transaction instead of one round trip per line, which blew past Prisma's 5s timeout over
-  // Neon's higher per-request latency on orders with many lines. Most items usually end up
-  // reported at exactly their ordered quantity, so skipping the no-op updates (same value already
-  // stored) cuts the operation count — often drastically — for the common case.
-  const operations: Prisma.PrismaPromise<unknown>[] = order.items
-    .filter((item) => (reportedByProductId.get(item.productId) ?? 0) !== Number(item.quantity))
-    .map((item) =>
-      prisma.salesOrderItem.update({
-        where: { id: item.id },
-        data: { quantity: reportedByProductId.get(item.productId) ?? 0 },
-      }),
-    );
+  // Most items usually end up reported at exactly their ordered quantity, so skip the no-op
+  // updates (same value already stored) first — often drastically cutting the row count for the
+  // common case. What's left is folded into ONE bulk UPDATE ... FROM (VALUES ...) statement
+  // instead of one UPDATE per line, so the whole batch is a single planned operation regardless
+  // of how many lines actually changed — this replaces the previous fix of merely batching one
+  // UPDATE-per-line into a single transaction round trip, which still blew past Prisma's 5s
+  // timeout over Neon's higher per-request latency on orders with many changed lines.
+  const changedItems = order.items.filter((item) => (reportedByProductId.get(item.productId) ?? 0) !== Number(item.quantity));
+
+  const operations: Prisma.PrismaPromise<unknown>[] = [];
+  if (changedItems.length > 0) {
+    const rows = changedItems.map((item) => Prisma.sql`(${item.id}::text, ${reportedByProductId.get(item.productId) ?? 0}::numeric)`);
+    operations.push(prisma.$executeRaw`
+      UPDATE "SalesOrderItem" AS t
+      SET "quantity" = v.quantity
+      FROM (VALUES ${Prisma.join(rows)}) AS v(id, quantity)
+      WHERE t.id = v.id
+    `);
+  }
   operations.push(prisma.salesOrder.update({ where: { id: orderId }, data: { status: "CONFIRMED" } }));
 
   // Default Prisma transaction timeout is 5s — orders with ~100+ lines can take longer than that
