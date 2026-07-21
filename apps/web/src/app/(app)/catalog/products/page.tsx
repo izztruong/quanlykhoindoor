@@ -3,18 +3,10 @@
 import { CatalogPage } from "@/components/catalog/CatalogPage";
 import { ProductExcelImport } from "@/components/catalog/ProductExcelImport";
 import { useProductGroups, useUnits } from "@/hooks/useCatalog";
-import { formatCurrency, labels } from "@/lib/format";
+import { PRODUCT_TYPE_OPTIONS, formatCurrency, labels } from "@/lib/format";
 import type { Product } from "@/types";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMemo, useState } from "react";
-
-const PRODUCT_TYPE_OPTIONS = [
-  { value: "NVL", label: "Nguyên vật liệu" },
-  { value: "COC_TAKE", label: "Cốc & ống hút" },
-  { value: "BANH", label: "Bánh" },
-  { value: "DUNG_CU", label: "Dụng cụ" },
-  { value: "KHAC", label: "Khác" },
-];
 
 const columns: ColumnDef<Product>[] = [
   { header: "Mã hàng hoá", accessorKey: "code" },
@@ -64,6 +56,11 @@ export default function ProductsPage() {
         options: units.map((u) => ({ value: u.id, label: u.name })),
       },
       { name: "recipeUnitsPerBaseUnit", label: "Quy đổi: 1 đơn vị chính = ? đơn vị công thức", type: "number" as const },
+      {
+        name: "tareWeight",
+        label: "Khối lượng vỏ (theo đơn vị công thức — SL lẻ nhập cả vỏ sẽ tự trừ số này)",
+        type: "number" as const,
+      },
     ],
     [units, productGroups],
   );

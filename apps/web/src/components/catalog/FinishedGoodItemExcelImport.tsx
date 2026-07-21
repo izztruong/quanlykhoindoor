@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { useUnits } from "@/hooks/useCatalog";
 import { ApiError, api } from "@/lib/api-client";
+import { FINISHED_GOOD_CATEGORY_OPTIONS, labels } from "@/lib/format";
 import type { FinishedGoodItem } from "@/types";
 import { useQueryClient } from "@tanstack/react-query";
 import ExcelJS from "exceljs";
@@ -14,6 +15,8 @@ interface ParsedItem {
   code: string;
   name: string;
   unitId: string;
+  category?: string;
+  sellingPrice?: number;
 }
 
 interface ImportResult {
@@ -22,7 +25,9 @@ interface ImportResult {
   errors: string[];
 }
 
-const TEMPLATE_HEADER = ["Mã*", "Tên đồ thành phẩm*", "Đơn vị tính*"];
+const TEMPLATE_HEADER = ["Mã*", "Tên đồ thành phẩm*", "Đơn vị tính*", "Nhóm", "Giá bán"];
+
+const categoryValueByLabel = new Map(FINISHED_GOOD_CATEGORY_OPTIONS.map((o) => [o.label.toLowerCase(), o.value]));
 
 function downloadWorkbook(workbook: ExcelJS.Workbook, filename: string) {
   return workbook.xlsx.writeBuffer().then((buffer) => {
@@ -69,7 +74,7 @@ export function FinishedGoodItemExcelImport({ items, search }: FinishedGoodItemE
     const sheet = workbook.addWorksheet("Đồ thành phẩm");
     sheet.columns = TEMPLATE_HEADER.map((header) => ({ header, width: 26 }));
     sheet.getRow(1).font = { bold: true };
-    sheet.addRow(["TP001", "Cà phê ủ", units[0]?.name ?? "Gam"]);
+    sheet.addRow(["TP001", "Cà phê ủ", units[0]?.name ?? "Gam", "Trà", 25000]);
     await downloadWorkbook(workbook, "mau-do-thanh-pham.xlsx");
   }
 
@@ -85,7 +90,14 @@ export function FinishedGoodItemExcelImport({ items, search }: FinishedGoodItemE
     const sheet = workbook.addWorksheet("Đồ thành phẩm");
     sheet.columns = TEMPLATE_HEADER.map((header) => ({ header: header.replace("*", ""), width: 26 }));
     sheet.getRow(1).font = { bold: true };
-    for (const item of list) sheet.addRow([item.code, item.name, item.unit?.name ?? "-"]);
+    for (const item of list)
+      sheet.addRow([
+        item.code,
+        item.name,
+        item.unit?.name ?? "-",
+        item.category ? labels.finishedGoodCategory(item.category) : "",
+        item.sellingPrice != null ? Number(item.sellingPrice) : "",
+      ]);
     await downloadWorkbook(workbook, "do-thanh-pham.xlsx");
   }
 
@@ -125,6 +137,8 @@ export function FinishedGoodItemExcelImport({ items, search }: FinishedGoodItemE
         const code = cell(1);
         const name = cell(2);
         const unitName = cell(3);
+        const categoryLabel = cell(4);
+        const sellingPriceRaw = row.getCell(5).value;
 
         if (!code && !name) return;
         if (!code || !name) {
@@ -138,7 +152,22 @@ export function FinishedGoodItemExcelImport({ items, search }: FinishedGoodItemE
           return;
         }
 
-        parsedItems.push({ code, name, unitId });
+        let category: string | undefined;
+        if (categoryLabel) {
+          category = categoryValueByLabel.get(categoryLabel.toLowerCase());
+          if (!category) {
+            errors.push(`Dòng ${rowNumber}: không nhận ra nhóm "${categoryLabel}"`);
+            return;
+          }
+        }
+
+        parsedItems.push({
+          code,
+          name,
+          unitId,
+          category,
+          sellingPrice: sellingPriceRaw !== null && sellingPriceRaw !== undefined && sellingPriceRaw !== "" ? Number(sellingPriceRaw) : undefined,
+        });
       });
 
       if (parsedItems.length === 0) {
@@ -190,9 +219,9 @@ export function FinishedGoodItemExcelImport({ items, search }: FinishedGoodItemE
         <Modal title="Nhập đồ thành phẩm từ Excel" onClose={() => setImportOpen(false)}>
           <div className="flex flex-col gap-3">
             <p className="text-sm text-slate-600">
-              Chọn file Excel theo đúng thứ tự cột trong file mẫu: Mã*, Tên đồ thành phẩm*, Đơn vị tính* (cột có dấu * là bắt
-              buộc phải điền). Mã đã tồn tại sẽ được cập nhật đè; dòng có đơn vị tính chưa khai báo trong hệ thống sẽ bị bỏ qua
-              và báo lỗi.
+              Chọn file Excel theo đúng thứ tự cột trong file mẫu: Mã*, Tên đồ thành phẩm*, Đơn vị tính*, Nhóm, Giá bán (cột có
+              dấu * là bắt buộc phải điền). Mã đã tồn tại sẽ được cập nhật đè; dòng có đơn vị tính chưa khai báo hoặc nhóm
+              không nhận ra trong hệ thống sẽ bị bỏ qua và báo lỗi.
             </p>
             <Button type="button" variant="secondary" size="sm" className="self-start" onClick={downloadTemplate}>
               <Download size={14} />

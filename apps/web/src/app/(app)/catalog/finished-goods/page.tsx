@@ -3,17 +3,11 @@
 import { CatalogPage } from "@/components/catalog/CatalogPage";
 import { FinishedGoodItemExcelImport } from "@/components/catalog/FinishedGoodItemExcelImport";
 import { useFinishedGoodItems, useUnits } from "@/hooks/useCatalog";
-import { formatCurrency, labels } from "@/lib/format";
+import { FINISHED_GOOD_CATEGORY_OPTIONS, formatCurrency, labels } from "@/lib/format";
 import type { FinishedGoodItem } from "@/types";
 import type { ColumnDef } from "@tanstack/react-table";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-
-const FINISHED_GOOD_CATEGORY_OPTIONS = [
-  { value: "TRA", label: "Trà" },
-  { value: "DAV", label: "Đồ ăn vặt" },
-  { value: "THANH_PHAM", label: "Đồ thành phẩm" },
-];
 
 const columns: ColumnDef<FinishedGoodItem>[] = [
   { header: "Mã", accessorKey: "code" },

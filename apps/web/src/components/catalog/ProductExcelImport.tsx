@@ -4,19 +4,37 @@ import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { useProductGroups, useProducts, useUnits } from "@/hooks/useCatalog";
 import { ApiError, api } from "@/lib/api-client";
+import { PRODUCT_TYPE_OPTIONS, labels } from "@/lib/format";
 import { useQueryClient } from "@tanstack/react-query";
 import ExcelJS from "exceljs";
 import { ChevronDown, Download } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-const TEMPLATE_HEADER = ["Mã hàng hoá*", "Tên hàng hoá*", "Đơn vị tính*", "Nhóm hàng hoá*", "Giá vốn", "Ghi chú"];
+const TEMPLATE_HEADER = [
+  "Mã hàng hoá*",
+  "Tên hàng hoá*",
+  "Đơn vị tính*",
+  "Nhóm hàng hoá*",
+  "Loại hàng hoá",
+  "Giá vốn",
+  "Đơn vị công thức",
+  "Quy đổi (1 đơn vị chính = ? đơn vị công thức)",
+  "Khối lượng vỏ (theo đơn vị công thức)",
+  "Ghi chú",
+];
+
+const typeValueByLabel = new Map(PRODUCT_TYPE_OPTIONS.map((o) => [o.label.toLowerCase(), o.value]));
 
 interface ParsedItem {
   code: string;
   name: string;
   unitId: string;
   productGroupId: string;
+  type: string;
   costPrice: number;
+  recipeUnitId?: string;
+  recipeUnitsPerBaseUnit?: number;
+  tareWeight?: number;
   note?: string;
 }
 
@@ -73,7 +91,18 @@ export function ProductExcelImport({ search }: ProductExcelImportProps) {
     const sheet = workbook.addWorksheet("Hàng hoá");
     sheet.columns = TEMPLATE_HEADER.map((header) => ({ header, width: 22 }));
     sheet.getRow(1).font = { bold: true };
-    sheet.addRow(["SP001", "Cà phê hạt", units[0]?.name ?? "Kg", productGroups[0]?.name ?? "COFFEE", 100000, ""]);
+    sheet.addRow([
+      "SP001",
+      "Cà phê hạt",
+      units[0]?.name ?? "Kg",
+      productGroups[0]?.name ?? "COFFEE",
+      "Nguyên vật liệu",
+      100000,
+      "Gram",
+      1000,
+      0,
+      "",
+    ]);
     await downloadWorkbook(workbook, "mau-hang-hoa.xlsx");
   }
 
@@ -93,7 +122,11 @@ export function ProductExcelImport({ search }: ProductExcelImportProps) {
         product.name,
         product.unit?.name ?? "-",
         product.productGroup?.name ?? "-",
+        labels.productType(product.type),
         Number(product.costPrice) || 0,
+        product.recipeUnit?.name ?? "",
+        product.recipeUnitsPerBaseUnit != null ? Number(product.recipeUnitsPerBaseUnit) : "",
+        product.tareWeight != null ? Number(product.tareWeight) : "",
         product.note ?? "",
       ]);
     }
@@ -140,8 +173,12 @@ export function ProductExcelImport({ search }: ProductExcelImportProps) {
         const name = cell(2);
         const unitName = cell(3);
         const groupName = cell(4);
-        const costPriceRaw = row.getCell(5).value;
-        const note = cell(6);
+        const typeLabel = cell(5);
+        const costPriceRaw = row.getCell(6).value;
+        const recipeUnitName = cell(7);
+        const recipeUnitsPerBaseUnitRaw = row.getCell(8).value;
+        const tareWeightRaw = row.getCell(9).value;
+        const note = cell(10);
 
         if (!code && !name) return;
 
@@ -162,7 +199,40 @@ export function ProductExcelImport({ search }: ProductExcelImportProps) {
           return;
         }
 
-        items.push({ code, name, unitId, productGroupId, costPrice: Number(costPriceRaw) || 0, note: note || undefined });
+        let type = "NVL";
+        if (typeLabel) {
+          const found = typeValueByLabel.get(typeLabel.toLowerCase());
+          if (!found) {
+            errors.push(`Dòng ${rowNumber}: không nhận ra loại hàng hoá "${typeLabel}"`);
+            return;
+          }
+          type = found;
+        }
+
+        let recipeUnitId: string | undefined;
+        if (recipeUnitName) {
+          recipeUnitId = unitByName.get(recipeUnitName.toLowerCase());
+          if (!recipeUnitId) {
+            errors.push(`Dòng ${rowNumber}: không tìm thấy đơn vị công thức "${recipeUnitName}"`);
+            return;
+          }
+        }
+
+        items.push({
+          code,
+          name,
+          unitId,
+          productGroupId,
+          type,
+          costPrice: Number(costPriceRaw) || 0,
+          recipeUnitId,
+          recipeUnitsPerBaseUnit:
+            recipeUnitsPerBaseUnitRaw !== null && recipeUnitsPerBaseUnitRaw !== undefined && recipeUnitsPerBaseUnitRaw !== ""
+              ? Number(recipeUnitsPerBaseUnitRaw)
+              : undefined,
+          tareWeight: tareWeightRaw !== null && tareWeightRaw !== undefined && tareWeightRaw !== "" ? Number(tareWeightRaw) : undefined,
+          note: note || undefined,
+        });
       });
 
       if (items.length === 0) {
@@ -212,9 +282,11 @@ export function ProductExcelImport({ search }: ProductExcelImportProps) {
         <Modal title="Nhập hàng hoá từ Excel" onClose={() => setImportOpen(false)}>
           <div className="flex flex-col gap-3">
             <p className="text-sm text-slate-600">
-              Chọn file Excel theo đúng thứ tự cột trong file mẫu: Mã hàng hoá*, Tên hàng hoá*, Đơn vị tính*, Nhóm hàng hoá*, Giá
-              vốn, Ghi chú (cột có dấu * là bắt buộc phải điền). Mã đã tồn tại sẽ được cập nhật đè; dòng có đơn vị tính hoặc nhóm
-              hàng hoá chưa khai báo trong hệ thống sẽ bị bỏ qua và báo lỗi.
+              Chọn file Excel theo đúng thứ tự cột trong file mẫu: Mã hàng hoá*, Tên hàng hoá*, Đơn vị tính*, Nhóm hàng hoá*,
+              Loại hàng hoá, Giá vốn, Đơn vị công thức, Quy đổi, Khối lượng vỏ, Ghi chú (cột có dấu * là bắt buộc phải điền).
+              Mã đã tồn tại sẽ được cập nhật đè; dòng có đơn vị tính, nhóm hàng hoá, loại hàng hoá hoặc đơn vị công thức chưa
+              khai báo/không nhận ra trong hệ thống sẽ bị bỏ qua và báo lỗi. Bỏ trống "Loại hàng hoá" sẽ mặc định là Nguyên vật
+              liệu.
             </p>
             <Button type="button" variant="secondary" size="sm" className="self-start" onClick={downloadTemplate}>
               <Download size={14} />

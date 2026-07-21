@@ -91,3 +91,7 @@ export const labels = {
   productType: (v: string) => productTypeLabel[v] ?? v,
   finishedGoodCategory: (v: string) => finishedGoodCategoryLabel[v] ?? v,
 };
+
+/** Derived from the label maps above so the dropdown/Excel option lists and display labels never drift apart. */
+export const PRODUCT_TYPE_OPTIONS = Object.entries(productTypeLabel).map(([value, label]) => ({ value, label }));
+export const FINISHED_GOOD_CATEGORY_OPTIONS = Object.entries(finishedGoodCategoryLabel).map(([value, label]) => ({ value, label }));
