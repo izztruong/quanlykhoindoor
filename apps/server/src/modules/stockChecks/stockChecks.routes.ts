@@ -4,6 +4,7 @@ import type { AuthUser } from "../../middleware/auth";
 import { generateCode } from "../../utils/codeGenerator";
 import { HttpError } from "../../utils/httpError";
 import { parseDateRange } from "../../utils/pagination";
+import { subtractTareWeight } from "../../utils/tareWeight";
 import { stockCheckCreateSchema } from "./stockChecks.schemas";
 
 export const stockChecksRouter = Router();
@@ -45,6 +46,7 @@ stockChecksRouter.get("/:id", async (req, res) => {
 
 stockChecksRouter.post("/", async (req, res) => {
   const data = stockCheckCreateSchema.parse(req.body);
+  const items = await subtractTareWeight(data.items);
 
   const item = await prisma.$transaction(async (tx) => {
     const created = await tx.stockCheck.create({
@@ -56,9 +58,9 @@ stockChecksRouter.post("/", async (req, res) => {
       },
     });
 
-    if (data.items.length > 0) {
+    if (items.length > 0) {
       await tx.stockCheckItem.createMany({
-        data: data.items.map((it) => ({
+        data: items.map((it) => ({
           stockCheckId: created.id,
           productId: it.productId,
           wholeQuantity: it.wholeQuantity,

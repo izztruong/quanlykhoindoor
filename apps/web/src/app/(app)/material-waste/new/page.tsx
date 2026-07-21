@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/Input";
 import { useFinishedGoodItems, useProducts } from "@/hooks/useCatalog";
 import { useCreateMaterialWaste } from "@/hooks/useMaterialWaste";
 import { ApiError } from "@/lib/api-client";
+import { formatNumber } from "@/lib/format";
 import type { FinishedGoodItem, Product } from "@/types";
 import { Trash2 } from "lucide-react";
 import Link from "next/link";
@@ -201,16 +202,24 @@ export default function NewMaterialWastePage() {
                       />
                     </td>
                     <td className="border border-slate-200 px-3 py-2">
-                      <div className="flex items-center gap-1">
-                        <Input
-                          type="number"
-                          step="0.001"
-                          min="0"
-                          className="h-8 w-24"
-                          value={row.looseQuantity}
-                          onChange={(e) => updateRow(row.productId, { looseQuantity: e.target.value })}
-                        />
-                        {row.product.recipeUnit?.name && <span className="text-xs text-slate-400">{row.product.recipeUnit.name}</span>}
+                      <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center gap-1">
+                          <Input
+                            type="number"
+                            step="0.001"
+                            min="0"
+                            className="h-8 w-24"
+                            value={row.looseQuantity}
+                            onChange={(e) => updateRow(row.productId, { looseQuantity: e.target.value })}
+                          />
+                          {row.product.recipeUnit?.name && <span className="text-xs text-slate-400">{row.product.recipeUnit.name}</span>}
+                        </div>
+                        {row.product.tareWeight != null && Number(row.product.tareWeight) > 0 && (
+                          <span className="text-xs text-amber-600">
+                            Cân cả vỏ — tự trừ {formatNumber(row.product.tareWeight)}
+                            {row.product.recipeUnit?.name}
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="border border-slate-200 px-3 py-2">

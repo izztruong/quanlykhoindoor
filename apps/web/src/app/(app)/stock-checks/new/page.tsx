@@ -7,6 +7,7 @@ import { Modal } from "@/components/ui/Modal";
 import { useFinishedGoodItems, useProducts } from "@/hooks/useCatalog";
 import { useCreateStockCheck } from "@/hooks/useStockChecks";
 import { ApiError } from "@/lib/api-client";
+import { formatNumber } from "@/lib/format";
 import type { FinishedGoodItem, Product, ProductType } from "@/types";
 import ExcelJS from "exceljs";
 import { ChevronDown, Download } from "lucide-react";
@@ -45,6 +46,173 @@ function matchesQuery(name: string, code: string, query: string): boolean {
   if (!query.trim()) return true;
   const q = query.trim().toLowerCase();
   return name.toLowerCase().includes(q) || code.toLowerCase().includes(q);
+}
+
+// Defined at module scope (not inside NewStockCheckPage) so their identity stays stable across
+// re-renders — nesting these would make React remount the whole table (losing scroll position)
+// on every keystroke, since a new function component is created for each parent render.
+interface MaterialGroupTableProps {
+  groupKey: string;
+  label: string;
+  items: Product[];
+  filter: string;
+  onFilterChange: (value: string) => void;
+  entryFor: (productId: string) => MaterialEntry;
+  onUpdateEntry: (productId: string, patch: Partial<MaterialEntry>) => void;
+}
+
+function MaterialGroupTable({ groupKey, label, items, filter, onFilterChange, entryFor, onUpdateEntry }: MaterialGroupTableProps) {
+  const filtered = items.filter((p) => matchesQuery(p.name, p.code, filter));
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{label}</CardTitle>
+      </CardHeader>
+      <CardBody className="flex flex-col gap-3">
+        <Input placeholder="Lọc theo tên/mã..." value={filter} onChange={(e) => onFilterChange(e.target.value)} className="w-64" />
+        {items.length === 0 ? (
+          <p className="text-sm text-slate-400">Không có hàng hoá nào trong nhóm này.</p>
+        ) : (
+          <div className="max-h-[500px] overflow-auto">
+            <table className="w-full border-collapse text-sm">
+              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="sticky top-0 z-10 border border-slate-200 bg-slate-50 px-3 py-2 text-left">Tên NL</th>
+                  <th className="sticky top-0 z-10 border border-slate-200 bg-slate-50 px-3 py-2 text-left">Đơn vị</th>
+                  <th className="sticky top-0 z-10 border border-slate-200 bg-slate-50 px-3 py-2 text-left">SL chẵn</th>
+                  <th className="sticky top-0 z-10 border border-slate-200 bg-slate-50 px-3 py-2 text-left">SL lẻ</th>
+                  <th className="sticky top-0 z-10 border border-slate-200 bg-slate-50 px-3 py-2 text-left">Ghi chú</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((product) => {
+                  const entry = entryFor(product.id);
+                  return (
+                    <tr key={product.id}>
+                      <td className="border border-slate-200 px-3 py-2">{product.name}</td>
+                      <td className="border border-slate-200 px-3 py-2">{product.unit?.name}</td>
+                      <td className="border border-slate-200 px-3 py-2">
+                        <Input
+                          type="number"
+                          step="0.001"
+                          min="0"
+                          className="h-8 w-24"
+                          value={entry.wholeQuantity}
+                          onChange={(e) => onUpdateEntry(product.id, { wholeQuantity: e.target.value })}
+                        />
+                      </td>
+                      <td className="border border-slate-200 px-3 py-2">
+                        <div className="flex flex-col gap-0.5">
+                          <div className="flex items-center gap-1">
+                            <Input
+                              type="number"
+                              step="0.001"
+                              min="0"
+                              className="h-8 w-24"
+                              value={entry.looseQuantity}
+                              onChange={(e) => onUpdateEntry(product.id, { looseQuantity: e.target.value })}
+                            />
+                            {product.recipeUnit?.name && <span className="text-xs text-slate-400">{product.recipeUnit.name}</span>}
+                          </div>
+                          {product.tareWeight != null && Number(product.tareWeight) > 0 && (
+                            <span className="text-xs text-amber-600">
+                              Cân cả vỏ — tự trừ {formatNumber(product.tareWeight)}
+                              {product.recipeUnit?.name}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="border border-slate-200 px-3 py-2">
+                        <Input className="h-8 w-40" value={entry.note} onChange={(e) => onUpdateEntry(product.id, { note: e.target.value })} />
+                      </td>
+                    </tr>
+                  );
+                })}
+                {filtered.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="border border-slate-200 px-3 py-4 text-center text-slate-400">
+                      Không tìm thấy hàng hoá khớp bộ lọc.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardBody>
+    </Card>
+  );
+}
+
+interface FinishedGroupTableProps {
+  items: FinishedGoodItem[];
+  filter: string;
+  onFilterChange: (value: string) => void;
+  entryFor: (itemId: string) => FinishedEntry;
+  onUpdateEntry: (itemId: string, patch: Partial<FinishedEntry>) => void;
+}
+
+function FinishedGroupTable({ items, filter, onFilterChange, entryFor, onUpdateEntry }: FinishedGroupTableProps) {
+  const filtered = items.filter((f) => matchesQuery(f.name, f.code, filter));
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Đồ thành phẩm</CardTitle>
+      </CardHeader>
+      <CardBody className="flex flex-col gap-3">
+        <Input placeholder="Lọc theo tên/mã..." value={filter} onChange={(e) => onFilterChange(e.target.value)} className="w-64" />
+        {items.length === 0 ? (
+          <p className="text-sm text-slate-400">
+            Chưa có đồ thành phẩm nào được gán nhóm &quot;Đồ thành phẩm&quot;. Vào Danh mục → Đồ thành phẩm để gán nhóm.
+          </p>
+        ) : (
+          <div className="max-h-[500px] overflow-auto">
+            <table className="w-full border-collapse text-sm">
+              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="sticky top-0 z-10 border border-slate-200 bg-slate-50 px-3 py-2 text-left">Tên đồ thành phẩm</th>
+                  <th className="sticky top-0 z-10 border border-slate-200 bg-slate-50 px-3 py-2 text-left">Đơn vị kiểm</th>
+                  <th className="sticky top-0 z-10 border border-slate-200 bg-slate-50 px-3 py-2 text-left">Số lượng</th>
+                  <th className="sticky top-0 z-10 border border-slate-200 bg-slate-50 px-3 py-2 text-left">Ghi chú</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((item) => {
+                  const entry = entryFor(item.id);
+                  return (
+                    <tr key={item.id}>
+                      <td className="border border-slate-200 px-3 py-2">{item.name}</td>
+                      <td className="border border-slate-200 px-3 py-2">{item.unit?.name}</td>
+                      <td className="border border-slate-200 px-3 py-2">
+                        <Input
+                          type="number"
+                          step="0.001"
+                          min="0"
+                          className="h-8 w-28"
+                          value={entry.quantity}
+                          onChange={(e) => onUpdateEntry(item.id, { quantity: e.target.value })}
+                        />
+                      </td>
+                      <td className="border border-slate-200 px-3 py-2">
+                        <Input className="h-8 w-40" value={entry.note} onChange={(e) => onUpdateEntry(item.id, { note: e.target.value })} />
+                      </td>
+                    </tr>
+                  );
+                })}
+                {filtered.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="border border-slate-200 px-3 py-4 text-center text-slate-400">
+                      Không tìm thấy đồ thành phẩm khớp bộ lọc.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardBody>
+    </Card>
+  );
 }
 
 export default function NewStockCheckPage() {
@@ -96,7 +264,10 @@ export default function NewStockCheckPage() {
   }
 
   function updateMaterialEntry(productId: string, patch: Partial<MaterialEntry>) {
-    setMaterialEntries((prev) => ({ ...prev, [productId]: { ...materialEntryFor(productId), ...patch } }));
+    setMaterialEntries((prev) => ({
+      ...prev,
+      [productId]: { ...(prev[productId] ?? { wholeQuantity: "", looseQuantity: "", note: "" }), ...patch },
+    }));
   }
 
   function finishedEntryFor(itemId: string): FinishedEntry {
@@ -104,7 +275,7 @@ export default function NewStockCheckPage() {
   }
 
   function updateFinishedEntry(itemId: string, patch: Partial<FinishedEntry>) {
-    setFinishedEntries((prev) => ({ ...prev, [itemId]: { ...finishedEntryFor(itemId), ...patch } }));
+    setFinishedEntries((prev) => ({ ...prev, [itemId]: { ...(prev[itemId] ?? { quantity: "", note: "" }), ...patch } }));
   }
 
   function groupFilterFor(key: string): string {
@@ -260,163 +431,6 @@ export default function NewStockCheckPage() {
     await downloadWorkbook(workbook, "phieu-kiem-ke.xlsx");
   }
 
-  function MaterialGroupTable({ groupKey, label, items }: { groupKey: string; label: string; items: Product[] }) {
-    const filtered = items.filter((p) => matchesQuery(p.name, p.code, groupFilterFor(groupKey)));
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>{label}</CardTitle>
-        </CardHeader>
-        <CardBody className="flex flex-col gap-3">
-          <Input
-            placeholder="Lọc theo tên/mã..."
-            value={groupFilterFor(groupKey)}
-            onChange={(e) => setGroupFilter(groupKey, e.target.value)}
-            className="w-64"
-          />
-          {items.length === 0 ? (
-            <p className="text-sm text-slate-400">Không có hàng hoá nào trong nhóm này.</p>
-          ) : (
-            <div className="max-h-[500px] overflow-auto">
-              <table className="w-full border-collapse text-sm">
-                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                  <tr>
-                    <th className="sticky top-0 z-10 border border-slate-200 bg-slate-50 px-3 py-2 text-left">Tên NL</th>
-                    <th className="sticky top-0 z-10 border border-slate-200 bg-slate-50 px-3 py-2 text-left">Đơn vị</th>
-                    <th className="sticky top-0 z-10 border border-slate-200 bg-slate-50 px-3 py-2 text-left">SL chẵn</th>
-                    <th className="sticky top-0 z-10 border border-slate-200 bg-slate-50 px-3 py-2 text-left">SL lẻ</th>
-                    <th className="sticky top-0 z-10 border border-slate-200 bg-slate-50 px-3 py-2 text-left">Ghi chú</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((product) => {
-                    const entry = materialEntryFor(product.id);
-                    return (
-                      <tr key={product.id}>
-                        <td className="border border-slate-200 px-3 py-2">{product.name}</td>
-                        <td className="border border-slate-200 px-3 py-2">{product.unit?.name}</td>
-                        <td className="border border-slate-200 px-3 py-2">
-                          <Input
-                            type="number"
-                            step="0.001"
-                            min="0"
-                            className="h-8 w-24"
-                            value={entry.wholeQuantity}
-                            onChange={(e) => updateMaterialEntry(product.id, { wholeQuantity: e.target.value })}
-                          />
-                        </td>
-                        <td className="border border-slate-200 px-3 py-2">
-                          <div className="flex items-center gap-1">
-                            <Input
-                              type="number"
-                              step="0.001"
-                              min="0"
-                              className="h-8 w-24"
-                              value={entry.looseQuantity}
-                              onChange={(e) => updateMaterialEntry(product.id, { looseQuantity: e.target.value })}
-                            />
-                            {product.recipeUnit?.name && <span className="text-xs text-slate-400">{product.recipeUnit.name}</span>}
-                          </div>
-                        </td>
-                        <td className="border border-slate-200 px-3 py-2">
-                          <Input
-                            className="h-8 w-40"
-                            value={entry.note}
-                            onChange={(e) => updateMaterialEntry(product.id, { note: e.target.value })}
-                          />
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {filtered.length === 0 && (
-                    <tr>
-                      <td colSpan={5} className="border border-slate-200 px-3 py-4 text-center text-slate-400">
-                        Không tìm thấy hàng hoá khớp bộ lọc.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardBody>
-      </Card>
-    );
-  }
-
-  function FinishedGroupTable({ items }: { items: FinishedGoodItem[] }) {
-    const groupKey = "THANH_PHAM";
-    const filtered = items.filter((f) => matchesQuery(f.name, f.code, groupFilterFor(groupKey)));
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Đồ thành phẩm</CardTitle>
-        </CardHeader>
-        <CardBody className="flex flex-col gap-3">
-          <Input
-            placeholder="Lọc theo tên/mã..."
-            value={groupFilterFor(groupKey)}
-            onChange={(e) => setGroupFilter(groupKey, e.target.value)}
-            className="w-64"
-          />
-          {items.length === 0 ? (
-            <p className="text-sm text-slate-400">
-              Chưa có đồ thành phẩm nào được gán nhóm &quot;Đồ thành phẩm&quot;. Vào Danh mục → Đồ thành phẩm để gán nhóm.
-            </p>
-          ) : (
-            <div className="max-h-[500px] overflow-auto">
-              <table className="w-full border-collapse text-sm">
-                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                  <tr>
-                    <th className="sticky top-0 z-10 border border-slate-200 bg-slate-50 px-3 py-2 text-left">Tên đồ thành phẩm</th>
-                    <th className="sticky top-0 z-10 border border-slate-200 bg-slate-50 px-3 py-2 text-left">Đơn vị kiểm</th>
-                    <th className="sticky top-0 z-10 border border-slate-200 bg-slate-50 px-3 py-2 text-left">Số lượng</th>
-                    <th className="sticky top-0 z-10 border border-slate-200 bg-slate-50 px-3 py-2 text-left">Ghi chú</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((item) => {
-                    const entry = finishedEntryFor(item.id);
-                    return (
-                      <tr key={item.id}>
-                        <td className="border border-slate-200 px-3 py-2">{item.name}</td>
-                        <td className="border border-slate-200 px-3 py-2">{item.unit?.name}</td>
-                        <td className="border border-slate-200 px-3 py-2">
-                          <Input
-                            type="number"
-                            step="0.001"
-                            min="0"
-                            className="h-8 w-28"
-                            value={entry.quantity}
-                            onChange={(e) => updateFinishedEntry(item.id, { quantity: e.target.value })}
-                          />
-                        </td>
-                        <td className="border border-slate-200 px-3 py-2">
-                          <Input
-                            className="h-8 w-40"
-                            value={entry.note}
-                            onChange={(e) => updateFinishedEntry(item.id, { note: e.target.value })}
-                          />
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {filtered.length === 0 && (
-                    <tr>
-                      <td colSpan={4} className="border border-slate-200 px-3 py-4 text-center text-slate-400">
-                        Không tìm thấy đồ thành phẩm khớp bộ lọc.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardBody>
-      </Card>
-    );
-  }
-
   return (
     <div className="flex flex-col gap-4">
       <div>
@@ -471,10 +485,25 @@ export default function NewStockCheckPage() {
       </Card>
 
       {PRODUCT_TYPE_GROUPS.map((group) => (
-        <MaterialGroupTable key={group.key} groupKey={group.key} label={group.label} items={productsByType.get(group.key) ?? []} />
+        <MaterialGroupTable
+          key={group.key}
+          groupKey={group.key}
+          label={group.label}
+          items={productsByType.get(group.key) ?? []}
+          filter={groupFilterFor(group.key)}
+          onFilterChange={(value) => setGroupFilter(group.key, value)}
+          entryFor={materialEntryFor}
+          onUpdateEntry={updateMaterialEntry}
+        />
       ))}
 
-      <FinishedGroupTable items={thanhPhamItems} />
+      <FinishedGroupTable
+        items={thanhPhamItems}
+        filter={groupFilterFor("THANH_PHAM")}
+        onFilterChange={(value) => setGroupFilter("THANH_PHAM", value)}
+        entryFor={finishedEntryFor}
+        onUpdateEntry={updateFinishedEntry}
+      />
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 

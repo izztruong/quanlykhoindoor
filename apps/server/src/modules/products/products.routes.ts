@@ -14,6 +14,8 @@ const schema = z.object({
   recipeUnitsPerBaseUnit: z.coerce.number().positive().optional(),
   // Dùng để gộp chi phí Check Cost — 5 giá trị cố định.
   type: z.enum(["NVL", "COC_TAKE", "BANH", "DUNG_CU", "KHAC"]).default("NVL"),
+  // SL lẻ nhập lúc kiểm kê/huỷ/điều chuyển được coi là cân cả vỏ và tự trừ số này (theo recipeUnit).
+  tareWeight: z.coerce.number().nonnegative().optional(),
 });
 
 export const productsRouter = createCrudRouter(prisma.product, {

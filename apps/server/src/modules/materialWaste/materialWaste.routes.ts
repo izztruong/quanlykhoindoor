@@ -4,6 +4,7 @@ import type { AuthUser } from "../../middleware/auth";
 import { generateCode } from "../../utils/codeGenerator";
 import { HttpError } from "../../utils/httpError";
 import { parseDateRange } from "../../utils/pagination";
+import { subtractTareWeight } from "../../utils/tareWeight";
 import { materialWasteCreateSchema } from "./materialWaste.schemas";
 
 export const materialWasteRouter = Router();
@@ -43,15 +44,16 @@ materialWasteRouter.get("/:id", async (req, res) => {
 
 materialWasteRouter.post("/", async (req, res) => {
   const data = materialWasteCreateSchema.parse(req.body);
+  const items = await subtractTareWeight(data.items);
 
   const item = await prisma.$transaction(async (tx) => {
     const created = await tx.materialWaste.create({
       data: { code: generateCode("PH"), wasteAt: data.wasteAt, note: data.note, createdById: req.user?.id },
     });
 
-    if (data.items.length > 0) {
+    if (items.length > 0) {
       await tx.materialWasteItem.createMany({
-        data: data.items.map((it) => ({
+        data: items.map((it) => ({
           materialWasteId: created.id,
           productId: it.productId,
           wholeQuantity: it.wholeQuantity,

@@ -3,6 +3,7 @@ import { prisma } from "../../config/db";
 import { generateCode } from "../../utils/codeGenerator";
 import { HttpError } from "../../utils/httpError";
 import { parseDateRange } from "../../utils/pagination";
+import { subtractTareWeight } from "../../utils/tareWeight";
 import { materialTransferCreateSchema } from "./materialTransfers.schemas";
 
 // Mounted under requireRole("ADMIN") in app.ts — chỉ admin tạo/xem, không có bước quán nhận xác nhận.
@@ -37,6 +38,7 @@ materialTransfersRouter.get("/:id", async (req, res) => {
 
 materialTransfersRouter.post("/", async (req, res) => {
   const data = materialTransferCreateSchema.parse(req.body);
+  const items = await subtractTareWeight(data.items);
 
   const item = await prisma.$transaction(async (tx) => {
     const created = await tx.materialTransfer.create({
@@ -51,7 +53,7 @@ materialTransfersRouter.post("/", async (req, res) => {
     });
 
     await tx.materialTransferItem.createMany({
-      data: data.items.map((it) => ({
+      data: items.map((it) => ({
         materialTransferId: created.id,
         productId: it.productId,
         wholeQuantity: it.wholeQuantity,

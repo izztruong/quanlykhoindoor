@@ -40,6 +40,7 @@ export interface Product {
   recipeUnit?: Unit | null;
   recipeUnitsPerBaseUnit?: string | number | null;
   type: ProductType;
+  tareWeight?: string | number | null;
 }
 
 export interface ReorderThreshold {
