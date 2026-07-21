@@ -308,7 +308,9 @@ export async function completeSalesOrderReceiving(orderId: string, data: SalesOr
 
   operations.push(prisma.salesOrder.update({ where: { id: orderId }, data: { status: newStatus, completedAt: new Date() } }));
 
-  await prisma.$transaction(operations);
+  // Default Prisma transaction timeout is 5s — orders with ~100+ lines can take longer than that
+  // to execute sequentially over Neon even batched into one transaction, so raise it generously.
+  await prisma.$transaction(operations, { timeout: 20000 });
 
   return prisma.salesOrder.findUniqueOrThrow({ where: { id: orderId }, include: salesOrderDetailInclude });
 }
@@ -410,7 +412,9 @@ export async function confirmSalesOrderWithExport(orderId: string, data: SalesOr
 
   operations.push(prisma.salesOrder.update({ where: { id: orderId }, data: { status: "PENDING_CONFIRM" } }));
 
-  await prisma.$transaction(operations);
+  // Default Prisma transaction timeout is 5s — orders with ~100+ lines can take longer than that
+  // to execute sequentially over Neon even batched into one transaction, so raise it generously.
+  await prisma.$transaction(operations, { timeout: 20000 });
 
   return prisma.salesOrder.findUniqueOrThrow({ where: { id: orderId }, include: salesOrderDetailInclude });
 }
@@ -450,7 +454,9 @@ export async function confirmOrderReportedQuantities(orderId: string, actingUser
   );
   operations.push(prisma.salesOrder.update({ where: { id: orderId }, data: { status: "CONFIRMED" } }));
 
-  await prisma.$transaction(operations);
+  // Default Prisma transaction timeout is 5s — orders with ~100+ lines can take longer than that
+  // to execute sequentially over Neon even batched into one transaction, so raise it generously.
+  await prisma.$transaction(operations, { timeout: 20000 });
 
   return prisma.salesOrder.findUniqueOrThrow({ where: { id: orderId }, include: salesOrderDetailInclude });
 }

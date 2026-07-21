@@ -69,7 +69,9 @@ inventoryCountsRouter.put("/:id/items", async (req, res) => {
   );
   operations.push(prisma.inventoryCount.update({ where: { id: req.params.id }, data: { status: "COMPLETED" } }));
 
-  await prisma.$transaction(operations);
+  // Default Prisma transaction timeout is 5s — counts with many products can take longer than
+  // that to execute sequentially over Neon even batched into one transaction, so raise it.
+  await prisma.$transaction(operations, { timeout: 20000 });
 
   const item = await prisma.inventoryCount.findUnique({ where: { id: req.params.id }, include: { items: true } });
   res.json(item);
