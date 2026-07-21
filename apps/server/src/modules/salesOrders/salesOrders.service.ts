@@ -445,13 +445,17 @@ export async function confirmOrderReportedQuantities(orderId: string, actingUser
 
   // Same fix as confirmSalesOrderWithExport: batch every line's update into one non-interactive
   // transaction instead of one round trip per line, which blew past Prisma's 5s timeout over
-  // Neon's higher per-request latency on orders with many lines.
-  const operations: Prisma.PrismaPromise<unknown>[] = order.items.map((item) =>
-    prisma.salesOrderItem.update({
-      where: { id: item.id },
-      data: { quantity: reportedByProductId.get(item.productId) ?? 0 },
-    }),
-  );
+  // Neon's higher per-request latency on orders with many lines. Most items usually end up
+  // reported at exactly their ordered quantity, so skipping the no-op updates (same value already
+  // stored) cuts the operation count — often drastically — for the common case.
+  const operations: Prisma.PrismaPromise<unknown>[] = order.items
+    .filter((item) => (reportedByProductId.get(item.productId) ?? 0) !== Number(item.quantity))
+    .map((item) =>
+      prisma.salesOrderItem.update({
+        where: { id: item.id },
+        data: { quantity: reportedByProductId.get(item.productId) ?? 0 },
+      }),
+    );
   operations.push(prisma.salesOrder.update({ where: { id: orderId }, data: { status: "CONFIRMED" } }));
 
   // Default Prisma transaction timeout is 5s — orders with ~100+ lines can take longer than that
