@@ -140,6 +140,10 @@ model Product {
   recipeUnit             Unit?    @relation("ProductRecipeUnit", fields: [recipeUnitId], references: [id])
   recipeUnitsPerBaseUnit Decimal? @db.Decimal(18, 4)
 
+  // Khối lượng vỏ/bao bì (theo recipeUnit, vd gam) — SL lẻ nhập lúc kiểm kê/huỷ/điều chuyển được
+  // coi là cân cả vỏ và tự trừ đi số này trước khi lưu. Để trống nếu hàng hoá không có bao bì đáng kể.
+  tareWeight Decimal? @db.Decimal(18, 4)
+
   stockImportItems      StockImportItem[]
   stockExportItems      StockExportItem[]
   inventoryCountItems   InventoryCountItem[]
@@ -358,6 +362,8 @@ model SalesOrderItem {
   // Lý do admin đổi số lượng lúc xác nhận đơn — hiển thị lại cho nhân viên xem khi đơn ở
   // trạng thái chờ xác nhận (PENDING_CONFIRM).
   note             String?
+
+  @@index([productId])
 }
 
 enum InventoryCountStatus {
@@ -393,6 +399,7 @@ model InventoryCountItem {
   note             String?
 
   @@unique([inventoryCountId, productId])
+  @@index([productId])
 }
 
 // Simple stock check for staff: just "what's on hand right now" per product,
@@ -429,6 +436,7 @@ model StockCheckItem {
   note          String?
 
   @@unique([stockCheckId, productId])
+  @@index([productId])
 }
 
 // Đồ thành phẩm line: danh sách độc lập với nguyên liệu (không phải mỗi
