@@ -322,43 +322,47 @@ export async function confirmSalesOrderWithExport(orderId: string, data: SalesOr
     throw new HttpError(403, "Chỉ quản trị viên mới được xác nhận đơn hàng");
   }
 
-  return prisma.$transaction(async (tx) => {
-    const order = await tx.salesOrder.findUnique({ where: { id: orderId }, include: { items: { include: { product: true } } } });
-    if (!order) throw new HttpError(404, "Không tìm thấy đơn hàng");
-    if (order.status !== "DRAFT") throw new HttpError(409, "Chỉ có thể xác nhận đơn hàng ở trạng thái chưa xác nhận");
+  const order = await prisma.salesOrder.findUnique({ where: { id: orderId }, include: { items: { include: { product: true } } } });
+  if (!order) throw new HttpError(404, "Không tìm thấy đơn hàng");
+  if (order.status !== "DRAFT") throw new HttpError(409, "Chỉ có thể xác nhận đơn hàng ở trạng thái chưa xác nhận");
 
-    const itemById = new Map(order.items.map((it) => [it.id, it]));
-    if (data.items.some((entry) => !itemById.has(entry.itemId))) {
-      throw new HttpError(400, "Dòng hàng hoá không thuộc đơn hàng này");
+  const itemById = new Map(order.items.map((it) => [it.id, it]));
+  if (data.items.some((entry) => !itemById.has(entry.itemId))) {
+    throw new HttpError(400, "Dòng hàng hoá không thuộc đơn hàng này");
+  }
+
+  const entriesByItemId = new Map<string, typeof data.items>();
+  for (const entry of data.items) {
+    const list = entriesByItemId.get(entry.itemId) ?? [];
+    list.push(entry);
+    entriesByItemId.set(entry.itemId, list);
+  }
+
+  for (const orderItem of order.items) {
+    const entries = entriesByItemId.get(orderItem.id);
+    if (!entries || entries.length === 0) {
+      throw new HttpError(400, `Thiếu thông tin phân bổ nhà cung cấp cho "${orderItem.product.name}"`);
     }
+  }
 
-    const entriesByItemId = new Map<string, typeof data.items>();
-    for (const entry of data.items) {
-      const list = entriesByItemId.get(entry.itemId) ?? [];
-      list.push(entry);
-      entriesByItemId.set(entry.itemId, list);
+  const linePairs = data.items
+    .filter((it) => it.supplierId)
+    .map((it) => ({ productId: itemById.get(it.itemId)!.productId, supplierId: it.supplierId! }));
+  if (linePairs.length > 0) {
+    const prices = await prisma.productSupplierPrice.findMany({ where: { OR: linePairs } });
+    const pricedPairs = new Set(prices.map((p) => `${p.productId}:${p.supplierId}`));
+    const missing = linePairs.filter((p) => !pricedPairs.has(`${p.productId}:${p.supplierId}`));
+    if (missing.length > 0) {
+      throw new HttpError(400, "Có hàng hoá chưa được thiết lập giá cho nhà cung cấp đã chọn");
     }
+  }
 
-    for (const orderItem of order.items) {
-      const entries = entriesByItemId.get(orderItem.id);
-      if (!entries || entries.length === 0) {
-        throw new HttpError(400, `Thiếu thông tin phân bổ nhà cung cấp cho "${orderItem.product.name}"`);
-      }
-    }
-
-    const linePairs = data.items
-      .filter((it) => it.supplierId)
-      .map((it) => ({ productId: itemById.get(it.itemId)!.productId, supplierId: it.supplierId! }));
-    if (linePairs.length > 0) {
-      const prices = await tx.productSupplierPrice.findMany({ where: { OR: linePairs } });
-      const pricedPairs = new Set(prices.map((p) => `${p.productId}:${p.supplierId}`));
-      const missing = linePairs.filter((p) => !pricedPairs.has(`${p.productId}:${p.supplierId}`));
-      if (missing.length > 0) {
-        throw new HttpError(400, "Có hàng hoá chưa được thiết lập giá cho nhà cung cấp đã chọn");
-      }
-    }
-
-    await tx.stockExport.create({
+  // Same fix as reorder-thresholds/product-supplier-prices: an interactive transaction awaiting
+  // one note-update round trip per hàng hoá blew past Prisma's 5s timeout over Neon's higher
+  // per-request latency on orders with many lines. Batch every write into one non-interactive
+  // transaction (single round trip) instead.
+  const operations: Prisma.PrismaPromise<unknown>[] = [
+    prisma.stockExport.create({
       data: {
         code: generateCode("PX"),
         type: "SALE",
@@ -381,23 +385,23 @@ export async function confirmSalesOrderWithExport(orderId: string, data: SalesOr
           }),
         },
       },
-    });
+    }),
+  ];
 
-    // Ghi chú theo từng hàng hoá (itemId), không theo từng dòng NCC tách nhỏ — lấy dòng
-    // đầu tiên có note trong số các dòng cùng itemId.
-    for (const [itemId, entries] of entriesByItemId) {
-      const note = entries.find((entry) => entry.note?.trim())?.note?.trim();
-      if (note) {
-        await tx.salesOrderItem.update({ where: { id: itemId }, data: { note } });
-      }
+  // Ghi chú theo từng hàng hoá (itemId), không theo từng dòng NCC tách nhỏ — lấy dòng
+  // đầu tiên có note trong số các dòng cùng itemId.
+  for (const [itemId, entries] of entriesByItemId) {
+    const note = entries.find((entry) => entry.note?.trim())?.note?.trim();
+    if (note) {
+      operations.push(prisma.salesOrderItem.update({ where: { id: itemId }, data: { note } }));
     }
+  }
 
-    return tx.salesOrder.update({
-      where: { id: orderId },
-      data: { status: "PENDING_CONFIRM" },
-      include: salesOrderDetailInclude,
-    });
-  });
+  operations.push(prisma.salesOrder.update({ where: { id: orderId }, data: { status: "PENDING_CONFIRM" } }));
+
+  await prisma.$transaction(operations);
+
+  return prisma.salesOrder.findUniqueOrThrow({ where: { id: orderId }, include: salesOrderDetailInclude });
 }
 
 /**
@@ -409,33 +413,33 @@ export async function confirmSalesOrderWithExport(orderId: string, data: SalesOr
  * receiving checklist (completeSalesOrderReceiving) unchanged.
  */
 export async function confirmOrderReportedQuantities(orderId: string, actingUser?: AuthUser) {
-  return prisma.$transaction(async (tx) => {
-    const order = await tx.salesOrder.findUnique({
-      where: { id: orderId },
-      include: { items: true, stockExport: { include: { items: true } } },
-    });
-    if (!order) throw new HttpError(404, "Không tìm thấy đơn hàng");
-    assertOwnership(order, actingUser);
-    if (order.status !== "PENDING_CONFIRM") {
-      throw new HttpError(409, "Đơn hàng không ở trạng thái chờ xác nhận");
-    }
-
-    const reportedByProductId = new Map<string, number>();
-    for (const line of order.stockExport?.items ?? []) {
-      reportedByProductId.set(line.productId, (reportedByProductId.get(line.productId) ?? 0) + Number(line.quantity));
-    }
-
-    for (const item of order.items) {
-      await tx.salesOrderItem.update({
-        where: { id: item.id },
-        data: { quantity: reportedByProductId.get(item.productId) ?? 0 },
-      });
-    }
-
-    return tx.salesOrder.update({
-      where: { id: orderId },
-      data: { status: "CONFIRMED" },
-      include: salesOrderDetailInclude,
-    });
+  const order = await prisma.salesOrder.findUnique({
+    where: { id: orderId },
+    include: { items: true, stockExport: { include: { items: true } } },
   });
+  if (!order) throw new HttpError(404, "Không tìm thấy đơn hàng");
+  assertOwnership(order, actingUser);
+  if (order.status !== "PENDING_CONFIRM") {
+    throw new HttpError(409, "Đơn hàng không ở trạng thái chờ xác nhận");
+  }
+
+  const reportedByProductId = new Map<string, number>();
+  for (const line of order.stockExport?.items ?? []) {
+    reportedByProductId.set(line.productId, (reportedByProductId.get(line.productId) ?? 0) + Number(line.quantity));
+  }
+
+  // Same fix as confirmSalesOrderWithExport: batch every line's update into one non-interactive
+  // transaction instead of one round trip per line, which blew past Prisma's 5s timeout over
+  // Neon's higher per-request latency on orders with many lines.
+  const operations: Prisma.PrismaPromise<unknown>[] = order.items.map((item) =>
+    prisma.salesOrderItem.update({
+      where: { id: item.id },
+      data: { quantity: reportedByProductId.get(item.productId) ?? 0 },
+    }),
+  );
+  operations.push(prisma.salesOrder.update({ where: { id: orderId }, data: { status: "CONFIRMED" } }));
+
+  await prisma.$transaction(operations);
+
+  return prisma.salesOrder.findUniqueOrThrow({ where: { id: orderId }, include: salesOrderDetailInclude });
 }
