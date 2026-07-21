@@ -27,8 +27,15 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
       res.status(404).json({ message: "Không tìm thấy bản ghi" });
       return;
     }
-    if (prismaErr.code === "P2003") {
+    // P2003 là mã Prisma bọc lại; 23503 là mã gốc Postgres cho cùng lỗi vi phạm khoá ngoại — xuất
+    // hiện trực tiếp khi driver adapter (@prisma/adapter-pg) đôi lúc không bọc lại được.
+    if (prismaErr.code === "P2003" || prismaErr.code === "23503") {
       res.status(409).json({ message: "Không thể thực hiện vì dữ liệu đang được tham chiếu" });
+      return;
+    }
+    // 57014 = Postgres query_canceled — thường do câu lệnh chạy quá lâu (thiếu index, bảng lớn).
+    if (prismaErr.code === "57014") {
+      res.status(504).json({ message: "Thao tác mất quá nhiều thời gian, vui lòng thử lại" });
       return;
     }
   }

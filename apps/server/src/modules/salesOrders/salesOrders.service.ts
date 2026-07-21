@@ -131,31 +131,34 @@ interface OrderWithItemsForExport {
   }[];
 }
 
-/** Exports at the actual received quantity where known, falling back to the ordered quantity otherwise. */
-async function createStockExportForOrder(tx: Prisma.TransactionClient, order: OrderWithItemsForExport, actingUserId?: string) {
-  await tx.stockExport.create({
-    data: {
-      code: generateCode("PX"),
-      type: "SALE",
-      transactionAt: new Date(),
-      form: "CASH",
-      status: "COMPLETED",
-      warehouseId: order.warehouseId,
-      salesOrderId: order.id,
-      createdById: actingUserId,
-      items: {
-        create: order.items.map((it) => {
-          const qty = it.receivedQuantity != null ? Number(it.receivedQuantity) : Number(it.quantity);
-          return {
-            productId: it.productId,
-            quantity: qty,
-            costPrice: it.product.costPrice,
-            costAmount: qty * Number(it.product.costPrice),
-          };
-        }),
-      },
+/**
+ * Exports at the actual received quantity where known, falling back to the ordered quantity
+ * otherwise. Returns the `data` object rather than calling `.create()` itself so callers can
+ * either `await tx.stockExport.create({ data })` inside a cheap interactive transaction, or
+ * collect it unawaited into a batched non-interactive `prisma.$transaction([...])` array.
+ */
+function buildStockExportCreateData(order: OrderWithItemsForExport, actingUserId?: string): Prisma.StockExportUncheckedCreateInput {
+  return {
+    code: generateCode("PX"),
+    type: "SALE",
+    transactionAt: new Date(),
+    form: "CASH",
+    status: "COMPLETED",
+    warehouseId: order.warehouseId,
+    salesOrderId: order.id,
+    createdById: actingUserId,
+    items: {
+      create: order.items.map((it) => {
+        const qty = it.receivedQuantity != null ? Number(it.receivedQuantity) : Number(it.quantity);
+        return {
+          productId: it.productId,
+          quantity: qty,
+          costPrice: it.product.costPrice,
+          costAmount: qty * Number(it.product.costPrice),
+        };
+      }),
     },
-  });
+  };
 }
 
 /**
@@ -164,14 +167,14 @@ async function createStockExportForOrder(tx: Prisma.TransactionClient, order: Or
  * across suppliers). When the actual received quantity for a product turns
  * out to differ, scale every export line for that product proportionally so
  * the export's total matches reality while keeping each supplier's relative
- * share intact.
+ * share intact. Returns the (unexecuted) update operations — built from
+ * export items the caller already has in hand — rather than awaiting them
+ * one at a time; see completeSalesOrderReceiving for why.
  */
-async function reconcileStockExportForOrder(
-  tx: Prisma.TransactionClient,
-  stockExportId: string,
+function buildStockExportReconcileOps(
+  exportItems: { id: string; productId: string; quantity: Prisma.Decimal; costPrice: Prisma.Decimal }[],
   targets: { productId: string; receivedQuantity: number }[],
-) {
-  const exportItems = await tx.stockExportItem.findMany({ where: { stockExportId } });
+): Prisma.PrismaPromise<unknown>[] {
   const linesByProduct = new Map<string, typeof exportItems>();
   for (const line of exportItems) {
     const list = linesByProduct.get(line.productId) ?? [];
@@ -179,6 +182,7 @@ async function reconcileStockExportForOrder(
     linesByProduct.set(line.productId, list);
   }
 
+  const operations: Prisma.PrismaPromise<unknown>[] = [];
   for (const target of targets) {
     const lines = linesByProduct.get(target.productId);
     if (!lines || lines.length === 0) continue;
@@ -189,12 +193,15 @@ async function reconcileStockExportForOrder(
     const scale = target.receivedQuantity / currentTotal;
     for (const line of lines) {
       const newQty = Number(line.quantity) * scale;
-      await tx.stockExportItem.update({
-        where: { id: line.id },
-        data: { quantity: newQty, costAmount: newQty * Number(line.costPrice) },
-      });
+      operations.push(
+        prisma.stockExportItem.update({
+          where: { id: line.id },
+          data: { quantity: newQty, costAmount: newQty * Number(line.costPrice) },
+        }),
+      );
     }
   }
+  return operations;
 }
 
 export async function updateSalesOrderStatus(orderId: string, status: string, actingUser?: AuthUser) {
@@ -211,7 +218,7 @@ export async function updateSalesOrderStatus(orderId: string, status: string, ac
     assertStatusTransitionAllowed(order, status, actingUser);
 
     if (status === "COMPLETED" && !order.stockExport) {
-      await createStockExportForOrder(tx, order, actingUser?.id);
+      await tx.stockExport.create({ data: buildStockExportCreateData(order, actingUser?.id) });
     }
 
     return tx.salesOrder.update({
@@ -232,74 +239,78 @@ export async function updateSalesOrderStatus(orderId: string, status: string, ac
  * time) is kept in sync with the actual received quantities.
  */
 export async function completeSalesOrderReceiving(orderId: string, data: SalesOrderReceivingInput, actingUser?: AuthUser) {
-  return prisma.$transaction(async (tx) => {
-    const order = await tx.salesOrder.findUnique({
-      where: { id: orderId },
-      include: { items: { include: { product: true } }, stockExport: { include: { items: true } } },
-    });
-    if (!order) throw new HttpError(404, "Không tìm thấy đơn hàng");
-    assertOwnership(order, actingUser);
-    if (order.status !== "CONFIRMED" && order.status !== "SHORT") {
-      throw new HttpError(409, "Chỉ có thể nhận hàng khi đơn đã được xác nhận");
-    }
+  const order = await prisma.salesOrder.findUnique({
+    where: { id: orderId },
+    include: { items: { include: { product: true } }, stockExport: { include: { items: true } } },
+  });
+  if (!order) throw new HttpError(404, "Không tìm thấy đơn hàng");
+  assertOwnership(order, actingUser);
+  if (order.status !== "CONFIRMED" && order.status !== "SHORT") {
+    throw new HttpError(409, "Chỉ có thể nhận hàng khi đơn đã được xác nhận");
+  }
 
-    const itemById = new Map(order.items.map((it) => [it.id, it]));
-    const updateByItemId = new Map(data.items.map((it) => [it.itemId, it]));
+  const itemById = new Map(order.items.map((it) => [it.id, it]));
+  const updateByItemId = new Map(data.items.map((it) => [it.itemId, it]));
 
-    // Effective received quantity per line: this submission's value where
-    // touched, otherwise whatever was already saved from an earlier pass.
-    const receivedByItemId = new Map<string, number>();
-    for (const orderItem of order.items) {
-      const update = updateByItemId.get(orderItem.id);
-      const qty = update ? update.receivedQuantity : orderItem.receivedQuantity != null ? Number(orderItem.receivedQuantity) : 0;
-      receivedByItemId.set(orderItem.id, qty);
-    }
+  // Effective received quantity per line: this submission's value where
+  // touched, otherwise whatever was already saved from an earlier pass.
+  const receivedByItemId = new Map<string, number>();
+  for (const orderItem of order.items) {
+    const update = updateByItemId.get(orderItem.id);
+    const qty = update ? update.receivedQuantity : orderItem.receivedQuantity != null ? Number(orderItem.receivedQuantity) : 0;
+    receivedByItemId.set(orderItem.id, qty);
+  }
 
-    for (const update of data.items) {
-      const orderItem = itemById.get(update.itemId);
-      if (!orderItem) throw new HttpError(400, "Dòng hàng hoá không thuộc đơn hàng này");
+  for (const update of data.items) {
+    if (!itemById.has(update.itemId)) throw new HttpError(400, "Dòng hàng hoá không thuộc đơn hàng này");
+  }
 
-      await tx.salesOrderItem.update({
-        where: { id: update.itemId },
-        data: {
-          receivedQuantity: update.receivedQuantity,
-          received: update.receivedQuantity >= Number(orderItem.quantity),
-        },
-      });
-    }
+  const allReceived = order.items.every((it) => (receivedByItemId.get(it.id) ?? 0) >= Number(it.quantity));
+  const newStatus = allReceived ? "COMPLETED" : "SHORT";
 
-    const allReceived = order.items.every((it) => (receivedByItemId.get(it.id) ?? 0) >= Number(it.quantity));
-    const newStatus = allReceived ? "COMPLETED" : "SHORT";
-
-    if (order.stockExport) {
-      await reconcileStockExportForOrder(
-        tx,
-        order.stockExport.id,
-        order.items.map((it) => ({ productId: it.productId, receivedQuantity: receivedByItemId.get(it.id)! })),
-      );
-    } else if (newStatus === "COMPLETED") {
-      await createStockExportForOrder(
-        tx,
-        {
-          id: order.id,
-          warehouseId: order.warehouseId,
-          items: order.items.map((it) => ({
-            productId: it.productId,
-            quantity: it.quantity,
-            receivedQuantity: receivedByItemId.get(it.id)!,
-            product: it.product,
-          })),
-        },
-        actingUser?.id,
-      );
-    }
-
-    return tx.salesOrder.update({
-      where: { id: orderId },
-      data: { status: newStatus, completedAt: new Date() },
-      include: salesOrderDetailInclude,
+  // Same fix as confirmSalesOrderWithExport/confirmOrderReportedQuantities: batch every write
+  // into one non-interactive transaction instead of one round trip per line, which blew past
+  // Prisma's 5s timeout over Neon's higher per-request latency on orders with many lines.
+  const operations: Prisma.PrismaPromise<unknown>[] = data.items.map((update) => {
+    const orderItem = itemById.get(update.itemId)!;
+    return prisma.salesOrderItem.update({
+      where: { id: update.itemId },
+      data: {
+        receivedQuantity: update.receivedQuantity,
+        received: update.receivedQuantity >= Number(orderItem.quantity),
+      },
     });
   });
+
+  if (order.stockExport) {
+    operations.push(
+      ...buildStockExportReconcileOps(
+        order.stockExport.items,
+        order.items.map((it) => ({ productId: it.productId, receivedQuantity: receivedByItemId.get(it.id)! })),
+      ),
+    );
+  } else if (newStatus === "COMPLETED") {
+    const exportData = buildStockExportCreateData(
+      {
+        id: order.id,
+        warehouseId: order.warehouseId,
+        items: order.items.map((it) => ({
+          productId: it.productId,
+          quantity: it.quantity,
+          receivedQuantity: receivedByItemId.get(it.id)!,
+          product: it.product,
+        })),
+      },
+      actingUser?.id,
+    );
+    operations.push(prisma.stockExport.create({ data: exportData }));
+  }
+
+  operations.push(prisma.salesOrder.update({ where: { id: orderId }, data: { status: newStatus, completedAt: new Date() } }));
+
+  await prisma.$transaction(operations);
+
+  return prisma.salesOrder.findUniqueOrThrow({ where: { id: orderId }, include: salesOrderDetailInclude });
 }
 
 /**

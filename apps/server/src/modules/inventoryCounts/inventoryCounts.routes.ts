@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { prisma } from "../../config/db";
+import type { Prisma } from "../../generated/prisma/client";
 import { generateCode } from "../../utils/codeGenerator";
 import { HttpError } from "../../utils/httpError";
 import { parseDateRange } from "../../utils/pagination";
@@ -51,21 +52,24 @@ inventoryCountsRouter.post("/", async (req, res) => {
 inventoryCountsRouter.put("/:id/items", async (req, res) => {
   const { items } = inventoryCountItemsSchema.parse(req.body);
 
-  await prisma.$transaction(async (tx) => {
-    const count = await tx.inventoryCount.findUnique({ where: { id: req.params.id } });
-    if (!count) throw new HttpError(404, "Không tìm thấy phiếu kiểm kê");
-    if (count.status !== "DRAFT") throw new HttpError(400, "Phiếu đã lưu số liệu hoặc đã huỷ, không thể chỉnh sửa");
+  const count = await prisma.inventoryCount.findUnique({ where: { id: req.params.id } });
+  if (!count) throw new HttpError(404, "Không tìm thấy phiếu kiểm kê");
+  if (count.status !== "DRAFT") throw new HttpError(400, "Phiếu đã lưu số liệu hoặc đã huỷ, không thể chỉnh sửa");
 
-    for (const it of items) {
-      await tx.inventoryCountItem.upsert({
-        where: { inventoryCountId_productId: { inventoryCountId: req.params.id, productId: it.productId } },
-        create: { inventoryCountId: req.params.id, productId: it.productId, actualQuantity: it.actualQuantity, note: it.note },
-        update: { actualQuantity: it.actualQuantity, note: it.note },
-      });
-    }
+  // Same fix as reorder-thresholds/product-supplier-prices/sales-orders: batch every line's
+  // upsert into one non-interactive transaction instead of one round trip per line, which can
+  // blow past Prisma's 5s timeout over Neon's higher per-request latency on counts with many
+  // products.
+  const operations: Prisma.PrismaPromise<unknown>[] = items.map((it) =>
+    prisma.inventoryCountItem.upsert({
+      where: { inventoryCountId_productId: { inventoryCountId: req.params.id, productId: it.productId } },
+      create: { inventoryCountId: req.params.id, productId: it.productId, actualQuantity: it.actualQuantity, note: it.note },
+      update: { actualQuantity: it.actualQuantity, note: it.note },
+    }),
+  );
+  operations.push(prisma.inventoryCount.update({ where: { id: req.params.id }, data: { status: "COMPLETED" } }));
 
-    await tx.inventoryCount.update({ where: { id: req.params.id }, data: { status: "COMPLETED" } });
-  });
+  await prisma.$transaction(operations);
 
   const item = await prisma.inventoryCount.findUnique({ where: { id: req.params.id }, include: { items: true } });
   res.json(item);
