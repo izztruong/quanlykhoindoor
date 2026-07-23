@@ -16,6 +16,8 @@ const schema = z.object({
   type: z.enum(["NVL", "COC_TAKE", "BANH", "DUNG_CU", "KHAC"]).default("NVL"),
   // SL lẻ nhập lúc kiểm kê/huỷ/điều chuyển được coi là cân cả vỏ và tự trừ số này (theo recipeUnit).
   tareWeight: z.coerce.number().nonnegative().optional(),
+  // Hàng hoá ngừng dùng (active=false) bị ẩn khỏi ô chọn hàng hoá khi tạo phiếu/đơn hàng mới.
+  active: z.boolean().optional().default(true),
 });
 
 export const productsRouter = createCrudRouter(prisma.product, {
@@ -25,5 +27,6 @@ export const productsRouter = createCrudRouter(prisma.product, {
   include: { unit: true, productGroup: true, recipeUnit: true },
   writeRoles: ["ADMIN"],
   bulkImportKey: "code",
-  filterFields: ["productGroupId", "type"],
+  filterFields: ["productGroupId", "type", "active"],
+  booleanFilterFields: ["active"],
 });

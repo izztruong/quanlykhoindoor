@@ -35,7 +35,7 @@ function nowForDatetimeLocal(): string {
 export default function NewMaterialTransferPage() {
   const router = useRouter();
   const { data: users = [] } = useUsers();
-  const { data: products = [] } = useProducts();
+  const { data: products = [] } = useProducts({ activeOnly: true });
   const { data: suppliers = [] } = useSuppliers();
   const { data: prices = [] } = useProductSupplierPrices();
   const createTransfer = useCreateMaterialTransfer();

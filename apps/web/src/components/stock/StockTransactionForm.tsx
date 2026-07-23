@@ -70,7 +70,7 @@ export function StockTransactionForm({ title, description, typeOptions, useCreat
   const { data: warehouses = [] } = useWarehouses();
   const { data: suppliers = [] } = useSuppliers();
   const { data: customers = [] } = useCustomers();
-  const { data: products = [] } = useProducts();
+  const { data: products = [] } = useProducts({ activeOnly: true });
   const { data: prices = [] } = useProductSupplierPrices();
   const createTransaction = useCreate();
   const [error, setError] = useState<string | null>(null);

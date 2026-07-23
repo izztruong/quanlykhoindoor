@@ -38,7 +38,7 @@ export default function NewOrderPage() {
   const router = useRouter();
   const { data: currentUser } = useCurrentUser();
   const { data: warehouses = [] } = useWarehouses();
-  const { data: products = [] } = useProducts();
+  const { data: products = [] } = useProducts({ activeOnly: true });
   const createOrder = useCreateSalesOrder();
   const [error, setError] = useState<string | null>(null);
 

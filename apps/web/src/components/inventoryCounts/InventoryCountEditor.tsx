@@ -61,7 +61,7 @@ interface InventoryCountEditorProps {
 export function InventoryCountEditor({ mode, count }: InventoryCountEditorProps) {
   const router = useRouter();
   const { data: warehouses = [] } = useWarehouses();
-  const { data: products = [] } = useProducts();
+  const { data: products = [] } = useProducts({ activeOnly: true });
 
   const [warehouseId, setWarehouseId] = useState(count?.warehouseId ?? "");
   const [countDate, setCountDate] = useState(count?.countDate.slice(0, 10) ?? today());

@@ -36,7 +36,7 @@ function nowForDatetimeLocal(): string {
 
 export default function NewMaterialWastePage() {
   const router = useRouter();
-  const { data: products = [] } = useProducts();
+  const { data: products = [] } = useProducts({ activeOnly: true });
   const { data: finishedGoodItems = [] } = useFinishedGoodItems();
   const createWaste = useCreateMaterialWaste();
 

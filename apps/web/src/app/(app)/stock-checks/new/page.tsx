@@ -217,7 +217,7 @@ function FinishedGroupTable({ items, filter, onFilterChange, entryFor, onUpdateE
 
 export default function NewStockCheckPage() {
   const router = useRouter();
-  const { data: products = [] } = useProducts();
+  const { data: products = [] } = useProducts({ activeOnly: true });
   const { data: finishedGoodItems = [] } = useFinishedGoodItems();
   const createCheck = useCreateStockCheck();
 

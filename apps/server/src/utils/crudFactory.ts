@@ -33,6 +33,8 @@ interface CrudOptions {
   bulkImportKey?: string;
   /** Exact-match query filters allowed via ?field=value (e.g. productGroupId, type). */
   filterFields?: string[];
+  /** Which of filterFields are actual Boolean columns — their "true"/"false" query string is coerced accordingly. */
+  booleanFilterFields?: string[];
 }
 
 /**
@@ -54,9 +56,10 @@ export function createCrudRouter(delegate: Delegate, options: CrudOptions): Rout
       search && options.searchFields?.length
         ? { OR: options.searchFields.map((field) => ({ [field]: { contains: search, mode: "insensitive" } })) }
         : {};
-    const filterWhere: Record<string, string> = {};
+    const filterWhere: Record<string, unknown> = {};
     for (const field of options.filterFields ?? []) {
-      if (queryFields[field]) filterWhere[field] = queryFields[field];
+      if (!queryFields[field]) continue;
+      filterWhere[field] = options.booleanFilterFields?.includes(field) ? queryFields[field] === "true" : queryFields[field];
     }
     const where = { ...searchWhere, ...filterWhere };
 

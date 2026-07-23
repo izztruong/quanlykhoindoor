@@ -15,6 +15,16 @@ const columns: ColumnDef<Product>[] = [
   { header: "Nhóm hàng hoá", accessorFn: (row) => row.productGroup?.name, id: "productGroup" },
   { header: "Loại hàng hoá", accessorFn: (row) => labels.productType(row.type), id: "type" },
   { header: "Giá vốn", accessorFn: (row) => formatCurrency(row.costPrice), id: "costPrice" },
+  {
+    header: "Trạng thái",
+    id: "active",
+    cell: ({ row }) =>
+      row.original.active === false ? (
+        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">Ngừng dùng</span>
+      ) : (
+        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-600">Đang dùng</span>
+      ),
+  },
 ];
 
 export default function ProductsPage() {
@@ -61,6 +71,11 @@ export default function ProductsPage() {
         label: "Khối lượng vỏ (theo đơn vị công thức — SL lẻ nhập cả vỏ sẽ tự trừ số này)",
         type: "number" as const,
       },
+      {
+        name: "active",
+        label: "Đang sử dụng (bỏ tick để ẩn khỏi ô chọn hàng hoá khi tạo phiếu/đơn hàng)",
+        type: "checkbox" as const,
+      },
     ],
     [units, productGroups],
   );
@@ -76,6 +91,14 @@ export default function ProductsPage() {
         name: "type",
         label: "Loại hàng hoá",
         options: PRODUCT_TYPE_OPTIONS,
+      },
+      {
+        name: "active",
+        label: "Trạng thái",
+        options: [
+          { value: "true", label: "Đang dùng" },
+          { value: "false", label: "Ngừng dùng" },
+        ],
       },
     ],
     [productGroups],

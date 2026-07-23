@@ -134,6 +134,10 @@ model Product {
   note           String?
   createdAt      DateTime     @default(now())
 
+  // Hàng hoá ngừng dùng (active=false) vẫn giữ nguyên lịch sử, chỉ bị ẩn khỏi các ô chọn hàng
+  // hoá khi tạo phiếu/đơn hàng mới — không ảnh hưởng gì tới trang quản lý danh mục (vẫn hiện đủ).
+  active         Boolean      @default(true)
+
   // Quy đổi cho công thức/check cost: 1 [đơn vị chính] = recipeUnitsPerBaseUnit [recipeUnit, vd gam].
   // Để trống nếu công thức dùng thẳng đơn vị chính (hệ số quy đổi = 1).
   recipeUnitId           String?

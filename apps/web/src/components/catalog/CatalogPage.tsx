@@ -17,7 +17,7 @@ import { useState } from "react";
 export interface CatalogFieldConfig {
   name: string;
   label: string;
-  type?: "text" | "number" | "select" | "textarea";
+  type?: "text" | "number" | "select" | "textarea" | "checkbox";
   required?: boolean;
   options?: { value: string; label: string }[];
 }
@@ -55,6 +55,8 @@ function buildPayload(fields: CatalogFieldConfig[], values: Record<string, strin
     const raw = values[field.name] ?? "";
     if (field.type === "number") {
       payload[field.name] = raw === "" ? (field.required ? 0 : undefined) : Number(raw);
+    } else if (field.type === "checkbox") {
+      payload[field.name] = raw === "true";
     } else {
       payload[field.name] = raw || undefined;
     }
@@ -122,7 +124,7 @@ export function CatalogPage<T extends { id: string }>({
 
   function openCreate() {
     setError(null);
-    setFormValues(Object.fromEntries(fields.map((f) => [f.name, ""])));
+    setFormValues(Object.fromEntries(fields.map((f) => [f.name, f.type === "checkbox" ? "true" : ""])));
     setModalItem("new");
   }
 
@@ -266,6 +268,13 @@ export function CatalogPage<T extends { id: string }>({
                       </option>
                     ))}
                   </Select>
+                ) : field.type === "checkbox" ? (
+                  <input
+                    type="checkbox"
+                    checked={formValues[field.name] === "true"}
+                    onChange={(e) => setFormValues((prev) => ({ ...prev, [field.name]: e.target.checked ? "true" : "false" }))}
+                    className="h-4 w-4 rounded border-slate-300"
+                  />
                 ) : (
                   <Input
                     type={field.type === "number" ? "number" : "text"}
