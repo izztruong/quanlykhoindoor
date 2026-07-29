@@ -15,7 +15,7 @@ import type { ReorderThreshold } from "@/types";
 import ExcelJS from "exceljs";
 import { ChevronDown, Download } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export default function QuickOrderPage() {
   const router = useRouter();
@@ -62,6 +62,17 @@ export default function QuickOrderPage() {
         .filter((it) => it.quantity > 0),
     [thresholds, suggestedQty],
   );
+
+  const thresholdsByGroup = useMemo(() => {
+    const groups = new Map<string, ReorderThreshold[]>();
+    for (const t of thresholds) {
+      const groupName = t.product.productGroup?.name ?? "Chưa phân nhóm";
+      const list = groups.get(groupName) ?? [];
+      list.push(t);
+      groups.set(groupName, list);
+    }
+    return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
+  }, [thresholds]);
 
   function onSubmit() {
     setError(null);
@@ -244,31 +255,40 @@ export default function QuickOrderPage() {
                 </tr>
               </thead>
               <tbody>
-                {thresholds.map((t) => {
-                  const qty = suggestedQty(t);
-                  return (
-                    <tr key={t.id}>
-                      <td className="border border-slate-200 px-3 py-2">{t.product.code}</td>
-                      <td className="border border-slate-200 px-3 py-2">{t.product.name}</td>
-                      <td className="border border-slate-200 px-3 py-2">{t.product.unit?.name}</td>
-                      <td className="border border-slate-200 px-3 py-2">{formatNumber(t.minQuantity)}</td>
-                      <td className="border border-slate-200 px-3 py-2">{formatNumber(t.maxQuantity)}</td>
-                      <td className="border border-slate-200 px-3 py-2">
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          className="w-28"
-                          value={stockInputs[t.productId] ?? ""}
-                          onChange={(e) => setStockInputs((prev) => ({ ...prev, [t.productId]: e.target.value }))}
-                        />
-                      </td>
-                      <td className="border border-slate-200 px-3 py-2 font-medium">
-                        {qty > 0 ? <span className="text-red-600">{formatNumber(qty)}</span> : "-"}
+                {thresholdsByGroup.map(([groupName, groupThresholds]) => (
+                  <Fragment key={groupName}>
+                    <tr className="bg-slate-50">
+                      <td colSpan={7} className="border border-slate-200 px-3 py-1.5 text-xs font-semibold uppercase text-slate-600">
+                        {groupName}
                       </td>
                     </tr>
-                  );
-                })}
+                    {groupThresholds.map((t) => {
+                      const qty = suggestedQty(t);
+                      return (
+                        <tr key={t.id}>
+                          <td className="border border-slate-200 px-3 py-2">{t.product.code}</td>
+                          <td className="border border-slate-200 px-3 py-2">{t.product.name}</td>
+                          <td className="border border-slate-200 px-3 py-2">{t.product.unit?.name}</td>
+                          <td className="border border-slate-200 px-3 py-2">{formatNumber(t.minQuantity)}</td>
+                          <td className="border border-slate-200 px-3 py-2">{formatNumber(t.maxQuantity)}</td>
+                          <td className="border border-slate-200 px-3 py-2">
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              className="w-28"
+                              value={stockInputs[t.productId] ?? ""}
+                              onChange={(e) => setStockInputs((prev) => ({ ...prev, [t.productId]: e.target.value }))}
+                            />
+                          </td>
+                          <td className="border border-slate-200 px-3 py-2 font-medium">
+                            {qty > 0 ? <span className="text-red-600">{formatNumber(qty)}</span> : "-"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </Fragment>
+                ))}
               </tbody>
             </table>
           )}

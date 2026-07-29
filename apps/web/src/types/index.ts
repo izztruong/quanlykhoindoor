@@ -293,6 +293,7 @@ export interface CostCheckReportRow {
   productId: string;
   code: string;
   name: string;
+  productGroupName: string;
   unitLabel: string;
   openingQty: number;
   receivedQty: number;

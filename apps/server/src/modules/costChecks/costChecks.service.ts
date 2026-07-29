@@ -76,6 +76,7 @@ export interface MaterialRow {
   productId: string;
   code: string;
   name: string;
+  productGroupName: string;
   unitLabel: string;
   openingQty: number;
   // Đã gộp cả "nhận từ kho" (SalesOrder) lẫn "nhận điều chuyển" (MaterialTransfer đến) — 2 nguồn
@@ -218,7 +219,7 @@ export async function computeCostCheckReport(costCheckId: string): Promise<{ row
 
   const products = await prisma.product.findMany({
     where: { id: { in: [...productIds] } },
-    include: { unit: true, recipeUnit: true },
+    include: { unit: true, recipeUnit: true, productGroup: true },
   });
   const productById = new Map(products.map((p) => [p.id, p]));
 
@@ -298,6 +299,7 @@ export async function computeCostCheckReport(costCheckId: string): Promise<{ row
       productId,
       code: product.code,
       name: product.name,
+      productGroupName: product.productGroup.name,
       unitLabel: product.recipeUnit?.name ?? product.unit.name,
       openingQty,
       receivedQty: received,
@@ -310,7 +312,7 @@ export async function computeCostCheckReport(costCheckId: string): Promise<{ row
     });
   }
 
-  rows.sort((a, b) => a.name.localeCompare(b.name));
+  rows.sort((a, b) => a.productGroupName.localeCompare(b.productGroupName) || a.name.localeCompare(b.name));
 
   // Chi phí quy ra tiền, gộp theo Loại hàng hoá: NVL -> chi phí NVL Trà, COC_TAKE -> cốc &
   // ống hút, BANH -> chi phí ĐAV (qua công thức 1 dòng trỏ tới đúng hàng hoá Bánh đó).

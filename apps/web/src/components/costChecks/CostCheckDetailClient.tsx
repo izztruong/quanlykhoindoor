@@ -4,11 +4,11 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { useCostCheck } from "@/hooks/useCostChecks";
 import { formatCurrency, formatDateTime, formatNumber, formatPercent } from "@/lib/format";
-import type { CostCheck, CostCheckFinancialSummary } from "@/types";
+import type { CostCheck, CostCheckFinancialSummary, CostCheckReportRow } from "@/types";
 import ExcelJS from "exceljs";
 import { FileSpreadsheet } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 
 interface CostRatioRow {
   label: string;
@@ -80,6 +80,7 @@ async function exportCostCheckToExcel(costCheck: CostCheck) {
 
   const reportSheet = workbook.addWorksheet("Báo cáo Check Cost");
   reportSheet.columns = [
+    { header: "Nhóm hàng hoá", width: 20 },
     { header: "Nguyên liệu", width: 28 },
     { header: "Đơn vị", width: 12 },
     { header: "Tồn đầu kỳ", width: 14 },
@@ -95,6 +96,7 @@ async function exportCostCheckToExcel(costCheck: CostCheck) {
   reportSheet.getRow(1).font = { bold: true };
   (costCheck.report ?? []).forEach((row) => {
     const excelRow = reportSheet.addRow([
+      row.productGroupName,
       row.name,
       row.unitLabel,
       row.openingQty,
@@ -107,7 +109,7 @@ async function exportCostCheckToExcel(costCheck: CostCheck) {
       row.variance,
       varianceActualPct(row),
     ]);
-    excelRow.getCell(11).numFmt = "0.0%";
+    excelRow.getCell(12).numFmt = "0.0%";
   });
 
   const buffer = await workbook.xlsx.writeBuffer();
@@ -125,6 +127,16 @@ async function exportCostCheckToExcel(costCheck: CostCheck) {
 export function CostCheckDetailClient({ id }: { id: string }) {
   const { data: costCheck, isLoading } = useCostCheck(id);
   const [exporting, setExporting] = useState(false);
+
+  const reportByGroup = useMemo(() => {
+    const groups = new Map<string, CostCheckReportRow[]>();
+    for (const row of costCheck?.report ?? []) {
+      const list = groups.get(row.productGroupName) ?? [];
+      list.push(row);
+      groups.set(row.productGroupName, list);
+    }
+    return [...groups.entries()];
+  }, [costCheck?.report]);
 
   if (isLoading || !costCheck) {
     return <p className="text-slate-400">Đang tải...</p>;
@@ -308,28 +320,40 @@ export function CostCheckDetailClient({ id }: { id: string }) {
               </tr>
             </thead>
             <tbody>
-              {(costCheck.report ?? []).map((row) => {
-                const tone = row.variance > 1e-6 ? "text-red-600" : row.variance < -1e-6 ? "text-emerald-600" : "text-slate-600";
-                return (
-                  <tr key={row.productId}>
-                    <td className="sticky left-0 z-10 whitespace-nowrap border border-slate-200 bg-white px-4 py-2">{row.name}</td>
-                    <td className="whitespace-nowrap border border-slate-200 px-4 py-2">{row.unitLabel}</td>
-                    <td className="whitespace-nowrap border border-slate-200 px-4 py-2 text-right">{formatNumber(row.openingQty)}</td>
-                    <td className="whitespace-nowrap border border-slate-200 px-4 py-2 text-right">{formatNumber(row.receivedQty)}</td>
-                    <td className="whitespace-nowrap border border-slate-200 px-4 py-2 text-right">{formatNumber(row.wastedQty)}</td>
-                    <td className="whitespace-nowrap border border-slate-200 px-4 py-2 text-right">{formatNumber(row.transferOutQty)}</td>
-                    <td className="whitespace-nowrap border border-slate-200 px-4 py-2 text-right">{formatNumber(row.closingQty)}</td>
-                    <td className="whitespace-nowrap border border-slate-200 px-4 py-2 text-right">{formatNumber(row.actualUsed)}</td>
-                    <td className="whitespace-nowrap border border-slate-200 px-4 py-2 text-right">{formatNumber(row.theoretical)}</td>
-                    <td className={`whitespace-nowrap border border-slate-200 px-4 py-2 text-right font-medium ${tone}`}>
-                      {formatNumber(row.variance)}
-                    </td>
-                    <td className={`whitespace-nowrap border border-slate-200 px-4 py-2 text-right font-medium ${tone}`}>
-                      {formatPercent(varianceActualPct(row))}
+              {reportByGroup.map(([groupName, groupRows]) => (
+                <Fragment key={groupName}>
+                  <tr className="bg-slate-50">
+                    <td
+                      colSpan={11}
+                      className="sticky left-0 z-10 whitespace-nowrap border border-slate-200 bg-slate-50 px-4 py-1.5 text-xs font-semibold uppercase text-slate-600"
+                    >
+                      {groupName}
                     </td>
                   </tr>
-                );
-              })}
+                  {groupRows.map((row) => {
+                    const tone = row.variance > 1e-6 ? "text-red-600" : row.variance < -1e-6 ? "text-emerald-600" : "text-slate-600";
+                    return (
+                      <tr key={row.productId}>
+                        <td className="sticky left-0 z-10 whitespace-nowrap border border-slate-200 bg-white px-4 py-2">{row.name}</td>
+                        <td className="whitespace-nowrap border border-slate-200 px-4 py-2">{row.unitLabel}</td>
+                        <td className="whitespace-nowrap border border-slate-200 px-4 py-2 text-right">{formatNumber(row.openingQty)}</td>
+                        <td className="whitespace-nowrap border border-slate-200 px-4 py-2 text-right">{formatNumber(row.receivedQty)}</td>
+                        <td className="whitespace-nowrap border border-slate-200 px-4 py-2 text-right">{formatNumber(row.wastedQty)}</td>
+                        <td className="whitespace-nowrap border border-slate-200 px-4 py-2 text-right">{formatNumber(row.transferOutQty)}</td>
+                        <td className="whitespace-nowrap border border-slate-200 px-4 py-2 text-right">{formatNumber(row.closingQty)}</td>
+                        <td className="whitespace-nowrap border border-slate-200 px-4 py-2 text-right">{formatNumber(row.actualUsed)}</td>
+                        <td className="whitespace-nowrap border border-slate-200 px-4 py-2 text-right">{formatNumber(row.theoretical)}</td>
+                        <td className={`whitespace-nowrap border border-slate-200 px-4 py-2 text-right font-medium ${tone}`}>
+                          {formatNumber(row.variance)}
+                        </td>
+                        <td className={`whitespace-nowrap border border-slate-200 px-4 py-2 text-right font-medium ${tone}`}>
+                          {formatPercent(varianceActualPct(row))}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </Fragment>
+              ))}
               {(costCheck.report ?? []).length === 0 && (
                 <tr>
                   <td colSpan={11} className="border border-slate-200 px-4 py-6 text-center text-slate-400">
