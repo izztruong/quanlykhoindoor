@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Select } from "@/components/ui/Select";
 import { useSalesOrders } from "@/hooks/useSalesOrders";
+import { useUsers } from "@/hooks/useUsers";
+import { useCurrentUser } from "@/lib/auth";
 import { formatDateTime, formatNumber, labels } from "@/lib/format";
 import type { SalesOrder } from "@/types";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -25,13 +27,18 @@ const statusTone: Record<string, "gray" | "green" | "red" | "yellow" | "blue"> =
 };
 
 export default function OrdersPage() {
+  const { data: currentUser } = useCurrentUser();
+  const isAdmin = currentUser?.role === "ADMIN";
+  const { data: users = [] } = useUsers({ enabled: isAdmin });
   const [status, setStatus] = useState("");
+  const [createdById, setCreatedById] = useState("");
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
-  useEffect(() => setPage(1), [status, dateRange.from, dateRange.to]);
+  useEffect(() => setPage(1), [status, createdById, dateRange.from, dateRange.to]);
   const { data, isLoading } = useSalesOrders({
     status,
+    createdById: isAdmin ? createdById || undefined : undefined,
     from: dateRange.from || undefined,
     to: dateRange.to || undefined,
     page,
@@ -98,6 +105,21 @@ export default function OrdersPage() {
               </Select>
             </div>
           </div>
+          {isAdmin && (
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-500">Tài khoản</label>
+              <div className="w-48">
+                <Select value={createdById} onChange={(e) => setCreatedById(e.target.value)}>
+                  <option value="">Tất cả tài khoản</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            </div>
+          )}
           <DateRangeFilter value={dateRange} onChange={setDateRange} label="Ngày đặt" />
         </CardBody>
       </Card>

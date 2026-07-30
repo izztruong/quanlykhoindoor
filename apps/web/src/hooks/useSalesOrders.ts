@@ -17,7 +17,14 @@ export interface SalesOrderInput {
   skipStockCheck?: boolean;
 }
 
-export function useSalesOrders(filter: { status?: string; from?: string; to?: string; page?: number; pageSize?: number }) {
+export function useSalesOrders(filter: {
+  status?: string;
+  from?: string;
+  to?: string;
+  createdById?: string;
+  page?: number;
+  pageSize?: number;
+}) {
   return useQuery({
     queryKey: ["sales-orders", filter],
     queryFn: () =>
@@ -25,6 +32,7 @@ export function useSalesOrders(filter: { status?: string; from?: string; to?: st
         status: filter.status,
         from: filter.from,
         to: filter.to,
+        createdById: filter.createdById,
         page: filter.page,
         pageSize: filter.pageSize ?? 20,
       }),

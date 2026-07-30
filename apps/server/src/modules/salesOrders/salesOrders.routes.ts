@@ -17,7 +17,7 @@ import {
 export const salesOrdersRouter = Router();
 
 salesOrdersRouter.get("/", async (req, res) => {
-  const { warehouseId, status } = req.query as Record<string, string>;
+  const { warehouseId, status, createdById } = req.query as Record<string, string>;
   const { from, to } = parseDateRange(req);
   const { skip, take, page, pageSize } = parsePagination(req, 20);
 
@@ -25,8 +25,8 @@ salesOrdersRouter.get("/", async (req, res) => {
     warehouseId: warehouseId || undefined,
     status: (status || undefined) as any,
     orderDate: from || to ? { gte: from, lte: to } : undefined,
-    // Staff only ever see their own orders; admins see everything.
-    createdById: req.user?.role === "ADMIN" ? undefined : req.user?.id,
+    // Staff only ever see their own orders; admins see everything, optionally narrowed to one account.
+    createdById: req.user?.role === "ADMIN" ? createdById || undefined : req.user?.id,
   };
 
   const [items, total] = await Promise.all([

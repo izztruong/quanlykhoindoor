@@ -13,10 +13,11 @@ export interface CreateUserInput {
   role: "ADMIN" | "STAFF";
 }
 
-export function useUsers() {
+export function useUsers(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ["users"],
     queryFn: () => api.get<{ items: ManagedUser[] }>("/users").then((r) => r.items),
+    enabled: options?.enabled ?? true,
   });
 }
 
