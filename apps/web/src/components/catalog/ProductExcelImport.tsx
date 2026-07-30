@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { useProductGroups, useProducts, useUnits } from "@/hooks/useCatalog";
 import { ApiError, api } from "@/lib/api-client";
+import { sanitizeExcelRow } from "@/lib/excelExport";
 import { PRODUCT_TYPE_OPTIONS, labels } from "@/lib/format";
 import { useQueryClient } from "@tanstack/react-query";
 import ExcelJS from "exceljs";
@@ -91,18 +92,20 @@ export function ProductExcelImport({ search }: ProductExcelImportProps) {
     const sheet = workbook.addWorksheet("Hàng hoá");
     sheet.columns = TEMPLATE_HEADER.map((header) => ({ header, width: 22 }));
     sheet.getRow(1).font = { bold: true };
-    sheet.addRow([
-      "SP001",
-      "Cà phê hạt",
-      units[0]?.name ?? "Kg",
-      productGroups[0]?.name ?? "COFFEE",
-      "Nguyên vật liệu",
-      100000,
-      "Gram",
-      1000,
-      0,
-      "",
-    ]);
+    sheet.addRow(
+      sanitizeExcelRow([
+        "SP001",
+        "Cà phê hạt",
+        units[0]?.name ?? "Kg",
+        productGroups[0]?.name ?? "COFFEE",
+        "Nguyên vật liệu",
+        100000,
+        "Gram",
+        1000,
+        0,
+        "",
+      ]),
+    );
     await downloadWorkbook(workbook, "mau-hang-hoa.xlsx");
   }
 
@@ -117,18 +120,20 @@ export function ProductExcelImport({ search }: ProductExcelImportProps) {
     sheet.columns = TEMPLATE_HEADER.map((header) => ({ header: header.replace("*", ""), width: 22 }));
     sheet.getRow(1).font = { bold: true };
     for (const product of list) {
-      sheet.addRow([
-        product.code,
-        product.name,
-        product.unit?.name ?? "-",
-        product.productGroup?.name ?? "-",
-        labels.productType(product.type),
-        Number(product.costPrice) || 0,
-        product.recipeUnit?.name ?? "",
-        product.recipeUnitsPerBaseUnit != null ? Number(product.recipeUnitsPerBaseUnit) : "",
-        product.tareWeight != null ? Number(product.tareWeight) : "",
-        product.note ?? "",
-      ]);
+      sheet.addRow(
+        sanitizeExcelRow([
+          product.code,
+          product.name,
+          product.unit?.name ?? "-",
+          product.productGroup?.name ?? "-",
+          labels.productType(product.type),
+          Number(product.costPrice) || 0,
+          product.recipeUnit?.name ?? "",
+          product.recipeUnitsPerBaseUnit != null ? Number(product.recipeUnitsPerBaseUnit) : "",
+          product.tareWeight != null ? Number(product.tareWeight) : "",
+          product.note ?? "",
+        ]),
+      );
     }
     await downloadWorkbook(workbook, "danh-sach-hang-hoa.xlsx");
   }

@@ -2,7 +2,7 @@ import { Router } from "express";
 import { prisma } from "../../config/db";
 import { generateCode } from "../../utils/codeGenerator";
 import { HttpError } from "../../utils/httpError";
-import { parseDateRange } from "../../utils/pagination";
+import { parseDateRange, parsePagination } from "../../utils/pagination";
 import { subtractTareWeight } from "../../utils/tareWeight";
 import { materialTransferCreateSchema } from "./materialTransfers.schemas";
 
@@ -22,12 +22,14 @@ const detailInclude = {
 
 materialTransfersRouter.get("/", async (req, res) => {
   const { from, to } = parseDateRange(req);
-  const items = await prisma.materialTransfer.findMany({
-    where: { transferAt: from || to ? { gte: from, lte: to } : undefined },
-    orderBy: { transferAt: "desc" },
-    include: listInclude,
-  });
-  res.json({ items });
+  const { skip, take, page, pageSize } = parsePagination(req, 20);
+  const where = { transferAt: from || to ? { gte: from, lte: to } : undefined };
+
+  const [items, total] = await Promise.all([
+    prisma.materialTransfer.findMany({ where, orderBy: { transferAt: "desc" }, skip, take, include: listInclude }),
+    prisma.materialTransfer.count({ where }),
+  ]);
+  res.json({ items, total, page, pageSize });
 });
 
 materialTransfersRouter.get("/:id", async (req, res) => {

@@ -14,6 +14,7 @@ export interface ReportFilter {
 
 type StockItemDelegate = {
   findMany: (args: any) => Promise<any[]>;
+  count: (args: any) => Promise<number>;
 };
 
 function buildItemWhere(headerField: "stockImport" | "stockExport", filter: ReportFilter) {
@@ -31,17 +32,21 @@ function buildItemWhere(headerField: "stockImport" | "stockExport", filter: Repo
 
 async function getDetail(delegate: StockItemDelegate, headerField: "stockImport" | "stockExport", filter: ReportFilter) {
   const where = buildItemWhere(headerField, filter);
-  const rows = await delegate.findMany({
-    where,
-    orderBy: { [headerField]: { transactionAt: "desc" } },
-    include: {
-      [headerField]: { include: { warehouse: true, supplier: true, customer: true } },
-      product: { include: { unit: true, productGroup: true } },
-    },
-  });
+  const [rows, total] = await Promise.all([
+    delegate.findMany({
+      where,
+      orderBy: { [headerField]: { transactionAt: "desc" } },
+      skip: filter.skip,
+      take: filter.take,
+      include: {
+        [headerField]: { include: { warehouse: true, supplier: true, customer: true } },
+        product: { include: { unit: true, productGroup: true } },
+      },
+    }),
+    delegate.count({ where }),
+  ]);
 
-  const total = rows.length;
-  const paged = rows.slice(filter.skip, filter.skip + filter.take).map((row, index) => ({
+  const items = rows.map((row, index) => ({
     stt: filter.skip + index + 1,
     id: row.id,
     header: row[headerField],
@@ -54,7 +59,7 @@ async function getDetail(delegate: StockItemDelegate, headerField: "stockImport"
     note: row.note,
   }));
 
-  return { items: paged, total };
+  return { items, total };
 }
 
 interface SummaryRow {
@@ -205,9 +210,24 @@ export async function getInventoryCountReport(filter: InventoryCountFilter) {
 
   type MovementRow = { productId: string; quantity: unknown; stockImport?: { transactionAt: Date }; stockExport?: { transactionAt: Date } };
 
-  function movementsSince(rows: MovementRow[], productId: string, afterExclusive: Date) {
+  // Grouped once up front so movementsSince (called per product below) filters only the rows
+  // for that one product instead of re-scanning the full import/export arrays every time —
+  // O(products + movements) instead of O(products × movements).
+  function groupByProductId(rows: MovementRow[]) {
+    const map = new Map<string, MovementRow[]>();
+    for (const row of rows) {
+      const list = map.get(row.productId) ?? [];
+      list.push(row);
+      map.set(row.productId, list);
+    }
+    return map;
+  }
+  const importRowsByProduct = groupByProductId(importRows);
+  const exportRowsByProduct = groupByProductId(exportRows);
+
+  function movementsSince(rowsByProduct: Map<string, MovementRow[]>, productId: string, afterExclusive: Date) {
+    const rows = rowsByProduct.get(productId) ?? [];
     return rows
-      .filter((r) => r.productId === productId)
       .filter((r) => (r.stockImport ?? r.stockExport)!.transactionAt > afterExclusive)
       .reduce((sum, r) => sum + Number(r.quantity), 0);
   }
@@ -225,8 +245,8 @@ export async function getInventoryCountReport(filter: InventoryCountFilter) {
     if (latestCount && latestCount.countDate >= filter.periodStart) {
       estimatedActualQty =
         latestCount.actualQuantity +
-        movementsSince(importRows, product.id, latestCount.countDate) -
-        movementsSince(exportRows, product.id, latestCount.countDate);
+        movementsSince(importRowsByProduct, product.id, latestCount.countDate) -
+        movementsSince(exportRowsByProduct, product.id, latestCount.countDate);
     }
 
     const hasActual = actualMap.has(product.id);

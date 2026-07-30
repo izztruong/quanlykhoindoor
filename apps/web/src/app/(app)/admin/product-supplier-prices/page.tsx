@@ -9,11 +9,11 @@ import { useProducts, useSuppliers } from "@/hooks/useCatalog";
 import { useProductSupplierPrices, useSaveProductSupplierPrices } from "@/hooks/useProductSupplierPrices";
 import { ApiError } from "@/lib/api-client";
 import { useCurrentUser } from "@/lib/auth";
-import { type ExcelColumn, exportRowsToExcel } from "@/lib/excelExport";
+import { type ExcelColumn, exportRowsToExcel, sanitizeExcelRow } from "@/lib/excelExport";
 import type { Product } from "@/types";
 import ExcelJS from "exceljs";
 import { ChevronDown, Download } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 interface RowInput {
   importPrice: string;
@@ -33,9 +33,10 @@ export default function ProductSupplierPricesPage() {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [search, setSearch] = useState("");
-  const filteredProducts = search.trim()
-    ? products.filter((p) => p.name.toLowerCase().includes(search.trim().toLowerCase()))
-    : products;
+  const filteredProducts = useMemo(
+    () => (search.trim() ? products.filter((p) => p.name.toLowerCase().includes(search.trim().toLowerCase())) : products),
+    [products, search],
+  );
 
   const [excelMenuOpen, setExcelMenuOpen] = useState(false);
   const excelMenuRef = useRef<HTMLDivElement>(null);
@@ -52,7 +53,7 @@ export default function ProductSupplierPricesPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [excelMenuOpen]);
 
-  const savedByProductId = new Map(prices.map((p) => [p.productId, p]));
+  const savedByProductId = useMemo(() => new Map(prices.map((p) => [p.productId, p])), [prices]);
 
   function valueFor(productId: string, field: "importPrice" | "exportPrice"): string {
     const override = overrides[productId]?.[field];
@@ -117,7 +118,7 @@ export default function ProductSupplierPricesPage() {
     const sheet = workbook.addWorksheet("Giá theo NCC");
     sheet.columns = ["Mã hàng hoá*", "Giá nhập", "Giá xuất"].map((header) => ({ header, width: 22 }));
     sheet.getRow(1).font = { bold: true };
-    sheet.addRow([products[0]?.code ?? "SP001", 0, 0]);
+    sheet.addRow(sanitizeExcelRow([products[0]?.code ?? "SP001", 0, 0]));
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     const url = URL.createObjectURL(blob);

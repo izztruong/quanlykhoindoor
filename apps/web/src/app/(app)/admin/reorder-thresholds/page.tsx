@@ -10,11 +10,11 @@ import { useReorderThresholds, useSaveReorderThresholds } from "@/hooks/useReord
 import { useUsers } from "@/hooks/useUsers";
 import { ApiError } from "@/lib/api-client";
 import { useCurrentUser } from "@/lib/auth";
-import { type ExcelColumn, exportRowsToExcel } from "@/lib/excelExport";
+import { type ExcelColumn, exportRowsToExcel, sanitizeExcelRow } from "@/lib/excelExport";
 import type { Product } from "@/types";
 import ExcelJS from "exceljs";
 import { ChevronDown, Download } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 interface RowInput {
   min: string;
@@ -29,9 +29,10 @@ export default function ReorderThresholdsPage() {
   const { data: thresholds = [] } = useReorderThresholds(userId || undefined);
   const saveThresholds = useSaveReorderThresholds();
   const [search, setSearch] = useState("");
-  const filteredProducts = search.trim()
-    ? products.filter((p) => p.name.toLowerCase().includes(search.trim().toLowerCase()))
-    : products;
+  const filteredProducts = useMemo(
+    () => (search.trim() ? products.filter((p) => p.name.toLowerCase().includes(search.trim().toLowerCase())) : products),
+    [products, search],
+  );
   // Only holds fields the admin has actually touched this session; unedited
   // rows fall back to the value already saved on the server (see valueFor).
   const [overrides, setOverrides] = useState<Record<string, RowInput>>({});
@@ -53,7 +54,7 @@ export default function ReorderThresholdsPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [excelMenuOpen]);
 
-  const savedByProductId = new Map(thresholds.map((t) => [t.productId, t]));
+  const savedByProductId = useMemo(() => new Map(thresholds.map((t) => [t.productId, t])), [thresholds]);
 
   function valueFor(productId: string, field: "min" | "max"): string {
     const override = overrides[productId]?.[field];
@@ -114,7 +115,7 @@ export default function ReorderThresholdsPage() {
     const sheet = workbook.addWorksheet("Định lượng");
     sheet.columns = ["Mã hàng hoá*", "Tối thiểu", "Tối đa"].map((header) => ({ header, width: 22 }));
     sheet.getRow(1).font = { bold: true };
-    sheet.addRow([products[0]?.code ?? "SP001", 0, 0]);
+    sheet.addRow(sanitizeExcelRow([products[0]?.code ?? "SP001", 0, 0]));
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     const url = URL.createObjectURL(blob);

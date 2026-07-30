@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { useStockChecks } from "@/hooks/useStockChecks";
-import { useClientPagination } from "@/hooks/useClientPagination";
 import { clampDateRange } from "@/lib/dateRange";
 import { formatDateTime } from "@/lib/format";
 import type { StockCheck } from "@/types";
@@ -18,11 +17,14 @@ import { useMemo, useState } from "react";
 export default function StockChecksPage() {
   const [filter, setFilter] = useState({ from: "", to: "" });
   const [appliedFilter, setAppliedFilter] = useState({ from: "", to: "" });
-  const { data = [], isLoading } = useStockChecks({
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const { data, isLoading } = useStockChecks({
     from: appliedFilter.from || undefined,
     to: appliedFilter.to || undefined,
+    page,
+    pageSize,
   });
-  const { page, pageSize, pageItems, total, setPage, onPageSizeChange } = useClientPagination(data);
 
   const columns = useMemo<ColumnDef<StockCheck>[]>(
     () => [
@@ -89,8 +91,17 @@ export default function StockChecksPage() {
           <CardTitle>Danh sách phiếu kiểm kê</CardTitle>
         </CardHeader>
         <CardBody className="p-0">
-          <DataTable columns={columns} data={pageItems} isLoading={isLoading} />
-          <Pagination page={page} pageSize={pageSize} total={total} onPageChange={setPage} onPageSizeChange={onPageSizeChange} />
+          <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} />
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            total={data?.total ?? 0}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setPage(1);
+            }}
+          />
         </CardBody>
       </Card>
     </div>

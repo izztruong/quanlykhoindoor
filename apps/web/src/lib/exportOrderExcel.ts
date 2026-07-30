@@ -1,4 +1,5 @@
 import { formatDateVN, labels } from "@/lib/format";
+import { sanitizeExcelRow } from "@/lib/excelExport";
 import type { SalesOrder } from "@/types";
 import ExcelJS from "exceljs";
 
@@ -32,7 +33,7 @@ export async function exportOrderToExcel(order: SalesOrder) {
   sheet.addRow([]);
 
   function addInfoRow(label: string, value: string) {
-    const row = sheet.addRow(["", label, value]);
+    const row = sheet.addRow(sanitizeExcelRow(["", label, value]));
     row.getCell(2).font = { bold: true };
   }
 
@@ -58,20 +59,22 @@ export async function exportOrderToExcel(order: SalesOrder) {
   for (const [index, item] of order.items.entries()) {
     const qty = Number(item.quantity);
     totalQty += qty;
-    const row = sheet.addRow([
-      index + 1,
-      item.product.code,
-      item.product.name,
-      "-",
-      0,
-      item.product.unit?.name ?? "-",
-      qty,
-      0,
-      0,
-      "0%",
-      0,
-      0,
-    ]);
+    const row = sheet.addRow(
+      sanitizeExcelRow([
+        index + 1,
+        item.product.code,
+        item.product.name,
+        "-",
+        0,
+        item.product.unit?.name ?? "-",
+        qty,
+        0,
+        0,
+        "0%",
+        0,
+        0,
+      ]),
+    );
     row.eachCell((cell) => (cell.border = THIN_BORDER));
   }
 

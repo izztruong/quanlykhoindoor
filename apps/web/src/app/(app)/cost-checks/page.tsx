@@ -5,17 +5,17 @@ import { Pagination } from "@/components/data-table/Pagination";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { useCostCheckList } from "@/hooks/useCostChecks";
-import { useClientPagination } from "@/hooks/useClientPagination";
 import { formatDateTime } from "@/lib/format";
 import type { CostCheck } from "@/types";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus } from "lucide-react";
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 export default function CostChecksPage() {
-  const { data = [], isLoading } = useCostCheckList();
-  const { page, pageSize, pageItems, total, setPage, onPageSizeChange } = useClientPagination(data);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const { data, isLoading } = useCostCheckList({ page, pageSize });
 
   const columns = useMemo<ColumnDef<CostCheck>[]>(
     () => [
@@ -57,8 +57,17 @@ export default function CostChecksPage() {
           <CardTitle>Danh sách phiếu</CardTitle>
         </CardHeader>
         <CardBody className="p-0">
-          <DataTable columns={columns} data={pageItems} isLoading={isLoading} />
-          <Pagination page={page} pageSize={pageSize} total={total} onPageChange={setPage} onPageSizeChange={onPageSizeChange} />
+          <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} />
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            total={data?.total ?? 0}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setPage(1);
+            }}
+          />
         </CardBody>
       </Card>
     </div>

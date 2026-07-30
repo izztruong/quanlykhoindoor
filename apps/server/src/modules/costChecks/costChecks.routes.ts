@@ -2,7 +2,7 @@ import { Router } from "express";
 import { prisma } from "../../config/db";
 import type { Prisma } from "../../generated/prisma/client";
 import { HttpError } from "../../utils/httpError";
-import { parseDateRange } from "../../utils/pagination";
+import { parseDateRange, parsePagination } from "../../utils/pagination";
 import {
   computeCostCheckReport,
   costCheckDetailInclude,
@@ -18,12 +18,14 @@ export const costChecksRouter = Router();
 
 costChecksRouter.get("/", async (req, res) => {
   const { from, to } = parseDateRange(req);
-  const items = await prisma.costCheck.findMany({
-    where: { createdAt: from || to ? { gte: from, lte: to } : undefined },
-    orderBy: { createdAt: "desc" },
-    include: costCheckListInclude,
-  });
-  res.json({ items });
+  const { skip, take, page, pageSize } = parsePagination(req, 20);
+  const where = { createdAt: from || to ? { gte: from, lte: to } : undefined };
+
+  const [items, total] = await Promise.all([
+    prisma.costCheck.findMany({ where, orderBy: { createdAt: "desc" }, skip, take, include: costCheckListInclude }),
+    prisma.costCheck.count({ where }),
+  ]);
+  res.json({ items, total, page, pageSize });
 });
 
 costChecksRouter.get("/:id", async (req, res) => {

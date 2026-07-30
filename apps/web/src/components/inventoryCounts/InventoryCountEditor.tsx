@@ -15,7 +15,7 @@ import {
   useSaveInventoryCountItems,
 } from "@/hooks/useInventoryCounts";
 import { ApiError, api } from "@/lib/api-client";
-import { type ExcelColumn, exportRowsToExcel } from "@/lib/excelExport";
+import { type ExcelColumn, exportRowsToExcel, sanitizeExcelRow } from "@/lib/excelExport";
 import { formatNumber, labels } from "@/lib/format";
 import type { InventoryCount, InventoryCountRow, Product } from "@/types";
 import { useQuery } from "@tanstack/react-query";
@@ -183,7 +183,7 @@ export function InventoryCountEditor({ mode, count }: InventoryCountEditorProps)
     const sheet = workbook.addWorksheet("Kiểm kê");
     sheet.columns = ["Mã hàng hoá*", "Tồn thực tế*", "Ghi chú"].map((header) => ({ header, width: 22 }));
     sheet.getRow(1).font = { bold: true };
-    sheet.addRow([products[0]?.code ?? "SP001", 0, ""]);
+    sheet.addRow(sanitizeExcelRow([products[0]?.code ?? "SP001", 0, ""]));
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     const url = URL.createObjectURL(blob);

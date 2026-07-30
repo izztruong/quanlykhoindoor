@@ -12,6 +12,7 @@ import { useUsers } from "@/hooks/useUsers";
 import { ApiError } from "@/lib/api-client";
 import { formatDateTime } from "@/lib/format";
 import type { FinishedGoodItem } from "@/types";
+import { sanitizeExcelRow } from "@/lib/excelExport";
 import ExcelJS from "exceljs";
 import { ChevronDown, Download, Trash2 } from "lucide-react";
 import Link from "next/link";
@@ -33,7 +34,8 @@ export default function NewCostCheckPage() {
   const createCostCheck = useCreateCostCheck();
 
   const [userId, setUserId] = useState("");
-  const { data: stockChecks = [] } = useStockChecks({ createdById: userId || undefined });
+  const { data: stockChecksResult } = useStockChecks({ createdById: userId || undefined, pageSize: 500 });
+  const stockChecks = stockChecksResult?.items ?? [];
   const sortedStockChecks = useMemo(
     () => [...stockChecks].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     [stockChecks],
@@ -137,7 +139,7 @@ export default function NewCostCheckPage() {
     const sheet = workbook.addWorksheet("SL da ban");
     sheet.columns = TEMPLATE_HEADER.map((header) => ({ header, width: 26 }));
     sheet.getRow(1).font = { bold: true };
-    sheet.addRow([finishedGoodItems[0]?.name ?? "Tên món mẫu", 10]);
+    sheet.addRow(sanitizeExcelRow([finishedGoodItems[0]?.name ?? "Tên món mẫu", 10]));
     await downloadWorkbook(workbook, "mau-sl-da-ban.xlsx");
   }
 

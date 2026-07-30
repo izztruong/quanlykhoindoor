@@ -9,7 +9,7 @@ import { useWarehouses } from "@/hooks/useCatalog";
 import { useReorderThresholds } from "@/hooks/useReorderThresholds";
 import { useCreateSalesOrder } from "@/hooks/useSalesOrders";
 import { ApiError } from "@/lib/api-client";
-import { type ExcelColumn, exportRowsToExcel } from "@/lib/excelExport";
+import { type ExcelColumn, exportRowsToExcel, sanitizeExcelRow } from "@/lib/excelExport";
 import { formatNumber } from "@/lib/format";
 import type { ReorderThreshold } from "@/types";
 import ExcelJS from "exceljs";
@@ -98,7 +98,7 @@ export default function QuickOrderPage() {
     const sheet = workbook.addWorksheet("Order nhanh");
     sheet.columns = ["Tên hàng hoá*", "Tồn hiện tại"].map((header) => ({ header, width: 28 }));
     sheet.getRow(1).font = { bold: true };
-    sheet.addRow([thresholds[0]?.product.name ?? "Tên hàng hoá mẫu", 0]);
+    sheet.addRow(sanitizeExcelRow([thresholds[0]?.product.name ?? "Tên hàng hoá mẫu", 0]));
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     const url = URL.createObjectURL(blob);

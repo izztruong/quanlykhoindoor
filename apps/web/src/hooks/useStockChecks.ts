@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
-import type { StockCheck } from "@/types";
+import type { PagedResult, StockCheck } from "@/types";
 
 export interface StockCheckItemInput {
   productId: string;
@@ -22,10 +22,12 @@ export interface StockCheckCreateInput {
   finishedItems: StockCheckFinishedItemInput[];
 }
 
-export function useStockChecks(filter: { from?: string; to?: string; createdById?: string } = {}) {
+export function useStockChecks(
+  filter: { from?: string; to?: string; createdById?: string; page?: number; pageSize?: number } = {},
+) {
   return useQuery({
     queryKey: ["stock-checks", filter],
-    queryFn: () => api.get<{ items: StockCheck[] }>("/stock-checks", filter).then((r) => r.items),
+    queryFn: () => api.get<PagedResult<StockCheck>>("/stock-checks", { ...filter, pageSize: filter.pageSize ?? 20 }),
   });
 }
 

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { rateLimit } from "express-rate-limit";
 import { z } from "zod";
 import { prisma } from "../../config/db";
 import { env } from "../../config/env";
@@ -8,6 +9,16 @@ import { HttpError } from "../../utils/httpError";
 import { requireAuth, type AuthUser } from "../../middleware/auth";
 
 export const authRouter = Router();
+
+// Slows down credential-stuffing/brute-force attempts against the small internal
+// account list — keyed by IP since failed logins don't have a stable user identity yet.
+const loginRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Thử đăng nhập quá nhiều lần, vui lòng thử lại sau ít phút" },
+});
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -34,7 +45,7 @@ function setAuthCookie(res: import("express").Response, user: AuthUser) {
   });
 }
 
-authRouter.post("/login", async (req, res) => {
+authRouter.post("/login", loginRateLimit, async (req, res) => {
   const { email, password } = loginSchema.parse(req.body);
 
   const user = await prisma.user.findUnique({ where: { email } });
@@ -43,7 +54,7 @@ authRouter.post("/login", async (req, res) => {
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) throw new HttpError(401, "Email hoặc mật khẩu không đúng");
 
-  const authUser: AuthUser = { id: user.id, email: user.email, name: user.name, role: user.role };
+  const authUser: AuthUser = { id: user.id, email: user.email, name: user.name, role: user.role, tokenVersion: user.tokenVersion };
   setAuthCookie(res, authUser);
   res.json({ user: authUser });
 });
@@ -72,6 +83,6 @@ authRouter.patch("/password", requireAuth, async (req, res) => {
   if (!valid) throw new HttpError(401, "Mật khẩu hiện tại không đúng");
 
   const passwordHash = await bcrypt.hash(newPassword, 10);
-  await prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
+  await prisma.user.update({ where: { id: user.id }, data: { passwordHash, tokenVersion: { increment: 1 } } });
   res.status(204).send();
 });

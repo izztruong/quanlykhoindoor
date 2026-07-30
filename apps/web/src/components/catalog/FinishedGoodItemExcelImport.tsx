@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { useUnits } from "@/hooks/useCatalog";
 import { ApiError, api } from "@/lib/api-client";
+import { sanitizeExcelRow } from "@/lib/excelExport";
 import { FINISHED_GOOD_CATEGORY_OPTIONS, labels } from "@/lib/format";
 import type { FinishedGoodItem } from "@/types";
 import { useQueryClient } from "@tanstack/react-query";
@@ -91,13 +92,15 @@ export function FinishedGoodItemExcelImport({ items, search }: FinishedGoodItemE
     sheet.columns = TEMPLATE_HEADER.map((header) => ({ header: header.replace("*", ""), width: 26 }));
     sheet.getRow(1).font = { bold: true };
     for (const item of list)
-      sheet.addRow([
-        item.code,
-        item.name,
-        item.unit?.name ?? "-",
-        item.category ? labels.finishedGoodCategory(item.category) : "",
-        item.sellingPrice != null ? Number(item.sellingPrice) : "",
-      ]);
+      sheet.addRow(
+        sanitizeExcelRow([
+          item.code,
+          item.name,
+          item.unit?.name ?? "-",
+          item.category ? labels.finishedGoodCategory(item.category) : "",
+          item.sellingPrice != null ? Number(item.sellingPrice) : "",
+        ]),
+      );
     await downloadWorkbook(workbook, "do-thanh-pham.xlsx");
   }
 

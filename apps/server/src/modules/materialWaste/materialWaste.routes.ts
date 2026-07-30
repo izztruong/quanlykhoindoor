@@ -3,7 +3,7 @@ import { prisma } from "../../config/db";
 import type { AuthUser } from "../../middleware/auth";
 import { generateCode } from "../../utils/codeGenerator";
 import { HttpError } from "../../utils/httpError";
-import { parseDateRange } from "../../utils/pagination";
+import { parseDateRange, parsePagination } from "../../utils/pagination";
 import { subtractTareWeight } from "../../utils/tareWeight";
 import { materialWasteCreateSchema } from "./materialWaste.schemas";
 
@@ -23,16 +23,24 @@ function assertOwnership(waste: { createdById: string | null }, user?: AuthUser)
 
 materialWasteRouter.get("/", async (req, res) => {
   const { from, to } = parseDateRange(req);
-  const items = await prisma.materialWaste.findMany({
-    where: {
-      wasteAt: from || to ? { gte: from, lte: to } : undefined,
-      // Staff only ever see their own phiếu huỷ; admins see everything.
-      createdById: req.user?.role === "ADMIN" ? undefined : req.user?.id,
-    },
-    orderBy: { wasteAt: "desc" },
-    include: { createdBy: { select: { id: true, name: true } } },
-  });
-  res.json({ items });
+  const { skip, take, page, pageSize } = parsePagination(req, 20);
+  const where = {
+    wasteAt: from || to ? { gte: from, lte: to } : undefined,
+    // Staff only ever see their own phiếu huỷ; admins see everything.
+    createdById: req.user?.role === "ADMIN" ? undefined : req.user?.id,
+  };
+
+  const [items, total] = await Promise.all([
+    prisma.materialWaste.findMany({
+      where,
+      orderBy: { wasteAt: "desc" },
+      skip,
+      take,
+      include: { createdBy: { select: { id: true, name: true } } },
+    }),
+    prisma.materialWaste.count({ where }),
+  ]);
+  res.json({ items, total, page, pageSize });
 });
 
 materialWasteRouter.get("/:id", async (req, res) => {

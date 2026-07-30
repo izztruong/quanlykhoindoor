@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { useWarehouses } from "@/hooks/useCatalog";
 import { useInventoryCounts } from "@/hooks/useInventoryCounts";
-import { useClientPagination } from "@/hooks/useClientPagination";
 import { clampDateRange } from "@/lib/dateRange";
 import { labels } from "@/lib/format";
 import type { InventoryCount } from "@/types";
@@ -29,12 +28,15 @@ export default function InventoryCountsPage() {
   const [warehouseId, setWarehouseId] = useState("");
   const [filter, setFilter] = useState({ from: "", to: "" });
   const [appliedFilter, setAppliedFilter] = useState({ from: "", to: "" });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const { data, isLoading } = useInventoryCounts({
     warehouseId: warehouseId || undefined,
     from: appliedFilter.from || undefined,
     to: appliedFilter.to || undefined,
+    page,
+    pageSize,
   });
-  const { page, pageSize, pageItems, total, setPage, onPageSizeChange } = useClientPagination(data?.items ?? []);
 
   const columns = useMemo<ColumnDef<InventoryCount>[]>(
     () => [
@@ -124,8 +126,17 @@ export default function InventoryCountsPage() {
           <CardTitle>Danh sách phiếu kiểm kê</CardTitle>
         </CardHeader>
         <CardBody className="p-0">
-          <DataTable columns={columns} data={pageItems} isLoading={isLoading} />
-          <Pagination page={page} pageSize={pageSize} total={total} onPageChange={setPage} onPageSizeChange={onPageSizeChange} />
+          <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} />
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            total={data?.total ?? 0}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setPage(1);
+            }}
+          />
         </CardBody>
       </Card>
     </div>

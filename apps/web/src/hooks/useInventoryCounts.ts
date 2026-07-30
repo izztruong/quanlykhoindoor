@@ -14,10 +14,12 @@ export interface InventoryCountItemInput {
   note?: string;
 }
 
-export function useInventoryCounts(filter: { warehouseId?: string; from?: string; to?: string } = {}) {
+export function useInventoryCounts(
+  filter: { warehouseId?: string; from?: string; to?: string; page?: number; pageSize?: number } = {},
+) {
   return useQuery({
     queryKey: ["inventory-counts", filter],
-    queryFn: () => api.get<PagedResult<InventoryCount>>("/inventory-counts", filter),
+    queryFn: () => api.get<PagedResult<InventoryCount>>("/inventory-counts", { ...filter, pageSize: filter.pageSize ?? 20 }),
   });
 }
 

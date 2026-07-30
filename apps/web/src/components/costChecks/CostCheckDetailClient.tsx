@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { useCostCheck } from "@/hooks/useCostChecks";
+import { sanitizeExcelRow } from "@/lib/excelExport";
 import { formatCurrency, formatDateTime, formatNumber, formatPercent } from "@/lib/format";
 import type { CostCheck, CostCheckFinancialSummary, CostCheckReportRow } from "@/types";
 import ExcelJS from "exceljs";
@@ -75,7 +76,7 @@ async function exportCostCheckToExcel(costCheck: CostCheck) {
   ];
   soldSheet.getRow(1).font = { bold: true };
   (costCheck.soldItems ?? []).forEach((it) =>
-    soldSheet.addRow([it.finishedGoodItem.name, it.finishedGoodItem.unit?.name ?? "-", Number(it.quantitySold)]),
+    soldSheet.addRow(sanitizeExcelRow([it.finishedGoodItem.name, it.finishedGoodItem.unit?.name ?? "-", Number(it.quantitySold)])),
   );
 
   const reportSheet = workbook.addWorksheet("Báo cáo Check Cost");
@@ -95,20 +96,22 @@ async function exportCostCheckToExcel(costCheck: CostCheck) {
   ];
   reportSheet.getRow(1).font = { bold: true };
   (costCheck.report ?? []).forEach((row) => {
-    const excelRow = reportSheet.addRow([
-      row.productGroupName,
-      row.name,
-      row.unitLabel,
-      row.openingQty,
-      row.receivedQty,
-      row.wastedQty,
-      row.transferOutQty,
-      row.closingQty,
-      row.actualUsed,
-      row.theoretical,
-      row.variance,
-      varianceActualPct(row),
-    ]);
+    const excelRow = reportSheet.addRow(
+      sanitizeExcelRow([
+        row.productGroupName,
+        row.name,
+        row.unitLabel,
+        row.openingQty,
+        row.receivedQty,
+        row.wastedQty,
+        row.transferOutQty,
+        row.closingQty,
+        row.actualUsed,
+        row.theoretical,
+        row.variance,
+        varianceActualPct(row),
+      ]),
+    );
     excelRow.getCell(12).numFmt = "0.0%";
   });
 

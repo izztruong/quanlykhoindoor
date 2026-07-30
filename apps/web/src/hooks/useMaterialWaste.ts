@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
-import type { MaterialWaste } from "@/types";
+import type { MaterialWaste, PagedResult } from "@/types";
 
 export interface MaterialWasteItemInput {
   productId: string;
@@ -22,10 +22,10 @@ export interface MaterialWasteCreateInput {
   finishedItems: MaterialWasteFinishedItemInput[];
 }
 
-export function useMaterialWasteList(filter: { from?: string; to?: string } = {}) {
+export function useMaterialWasteList(filter: { from?: string; to?: string; page?: number; pageSize?: number } = {}) {
   return useQuery({
     queryKey: ["material-waste", filter],
-    queryFn: () => api.get<{ items: MaterialWaste[] }>("/material-waste", filter).then((r) => r.items),
+    queryFn: () => api.get<PagedResult<MaterialWaste>>("/material-waste", { ...filter, pageSize: filter.pageSize ?? 20 }),
   });
 }
 

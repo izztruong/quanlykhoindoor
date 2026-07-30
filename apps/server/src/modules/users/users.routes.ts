@@ -2,15 +2,23 @@ import bcrypt from "bcryptjs";
 import { Router } from "express";
 import { prisma } from "../../config/db";
 import { HttpError } from "../../utils/httpError";
+import { parsePagination } from "../../utils/pagination";
 import { userCreateSchema } from "./users.schemas";
 
 export const usersRouter = Router();
 
 const userSelect = { id: true, email: true, name: true, role: true, createdAt: true };
 
-usersRouter.get("/", async (_req, res) => {
-  const items = await prisma.user.findMany({ select: userSelect, orderBy: { createdAt: "asc" } });
-  res.json({ items });
+usersRouter.get("/", async (req, res) => {
+  // Small, bounded list (internal staff/admin accounts) — the frontend fetches it in one
+  // page (pageSize defaults high) and paginates the display client-side, since a couple of
+  // its own checks (e.g. "is this the last remaining admin?") need the complete list at once.
+  const { skip, take, page, pageSize } = parsePagination(req, 500);
+  const [items, total] = await Promise.all([
+    prisma.user.findMany({ select: userSelect, orderBy: { createdAt: "asc" }, skip, take }),
+    prisma.user.count(),
+  ]);
+  res.json({ items, total, page, pageSize });
 });
 
 usersRouter.post("/", async (req, res) => {

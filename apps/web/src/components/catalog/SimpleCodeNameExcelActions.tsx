@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { ApiError, api } from "@/lib/api-client";
+import { sanitizeExcelRow } from "@/lib/excelExport";
 import { useQueryClient } from "@tanstack/react-query";
 import ExcelJS from "exceljs";
 import { ChevronDown, Download } from "lucide-react";
@@ -98,7 +99,7 @@ export function SimpleCodeNameExcelActions({
     const sheet = workbook.addWorksheet(entityLabel);
     sheet.columns = [codeLabel, nameLabel].map((header) => ({ header, width: 24 }));
     sheet.getRow(1).font = { bold: true };
-    for (const item of list) sheet.addRow([item.code, item.name]);
+    for (const item of list) sheet.addRow(sanitizeExcelRow([item.code, item.name]));
     await downloadWorkbook(workbook, `${fileBaseName}.xlsx`);
   }
 

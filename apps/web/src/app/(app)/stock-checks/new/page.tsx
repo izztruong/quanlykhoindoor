@@ -7,6 +7,8 @@ import { Modal } from "@/components/ui/Modal";
 import { useFinishedGoodItems, useProducts } from "@/hooks/useCatalog";
 import { useCreateStockCheck } from "@/hooks/useStockChecks";
 import { ApiError } from "@/lib/api-client";
+import { nowForDatetimeLocal } from "@/lib/dateRange";
+import { sanitizeExcelRow } from "@/lib/excelExport";
 import { formatNumber } from "@/lib/format";
 import type { FinishedGoodItem, Product, ProductType } from "@/types";
 import ExcelJS from "exceljs";
@@ -35,12 +37,6 @@ const PRODUCT_TYPE_GROUPS: { key: ProductType; label: string }[] = [
 ];
 
 const TEMPLATE_HEADER = ["Tên NL*", "Đơn vị", "SL chẵn", "SL lẻ (theo đơn vị công thức)", "Tên đồ thành phẩm*", "Đơn vị kiểm", "Số lượng"];
-
-function nowForDatetimeLocal(): string {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
 
 function matchesQuery(name: string, code: string, query: string): boolean {
   if (!query.trim()) return true;
@@ -332,15 +328,17 @@ export default function NewStockCheckPage() {
     const sheet = workbook.addWorksheet("Kiểm kê");
     sheet.columns = TEMPLATE_HEADER.map((header) => ({ header, width: 22 }));
     sheet.getRow(1).font = { bold: true };
-    sheet.addRow([
-      products[0]?.name ?? "Tên NL mẫu",
-      products[0]?.unit?.name ?? "",
-      5,
-      900,
-      thanhPhamItems[0]?.name ?? "Tên đồ thành phẩm mẫu",
-      thanhPhamItems[0]?.unit?.name ?? "",
-      700,
-    ]);
+    sheet.addRow(
+      sanitizeExcelRow([
+        products[0]?.name ?? "Tên NL mẫu",
+        products[0]?.unit?.name ?? "",
+        5,
+        900,
+        thanhPhamItems[0]?.name ?? "Tên đồ thành phẩm mẫu",
+        thanhPhamItems[0]?.unit?.name ?? "",
+        700,
+      ]),
+    );
     await downloadWorkbook(workbook, "mau-phieu-kiem-ke.xlsx");
   }
 
@@ -426,7 +424,9 @@ export default function NewStockCheckPage() {
       const f = thanhPhamItems[i];
       const m = p ? materialEntryFor(p.id) : undefined;
       const fe = f ? finishedEntryFor(f.id) : undefined;
-      sheet.addRow([p?.name ?? "", p?.unit?.name ?? "", m?.wholeQuantity ?? "", m?.looseQuantity ?? "", f?.name ?? "", f?.unit?.name ?? "", fe?.quantity ?? ""]);
+      sheet.addRow(
+        sanitizeExcelRow([p?.name ?? "", p?.unit?.name ?? "", m?.wholeQuantity ?? "", m?.looseQuantity ?? "", f?.name ?? "", f?.unit?.name ?? "", fe?.quantity ?? ""]),
+      );
     }
     await downloadWorkbook(workbook, "phieu-kiem-ke.xlsx");
   }

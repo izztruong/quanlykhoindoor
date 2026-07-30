@@ -3,7 +3,7 @@ import { prisma } from "../../config/db";
 import type { Prisma } from "../../generated/prisma/client";
 import { generateCode } from "../../utils/codeGenerator";
 import { HttpError } from "../../utils/httpError";
-import { parseDateRange } from "../../utils/pagination";
+import { parseDateRange, parsePagination } from "../../utils/pagination";
 import { inventoryCountCreateSchema, inventoryCountItemsSchema, inventoryCountStatusSchema } from "./inventoryCounts.schemas";
 
 export const inventoryCountsRouter = Router();
@@ -11,15 +11,23 @@ export const inventoryCountsRouter = Router();
 inventoryCountsRouter.get("/", async (req, res) => {
   const { warehouseId } = req.query as Record<string, string>;
   const { from, to } = parseDateRange(req);
-  const items = await prisma.inventoryCount.findMany({
-    where: {
-      warehouseId: warehouseId || undefined,
-      countDate: from || to ? { gte: from, lte: to } : undefined,
-    },
-    orderBy: { createdAt: "desc" },
-    include: { warehouse: true, createdBy: { select: { id: true, name: true } } },
-  });
-  res.json({ items });
+  const { skip, take, page, pageSize } = parsePagination(req, 20);
+  const where = {
+    warehouseId: warehouseId || undefined,
+    countDate: from || to ? { gte: from, lte: to } : undefined,
+  };
+
+  const [items, total] = await Promise.all([
+    prisma.inventoryCount.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip,
+      take,
+      include: { warehouse: true, createdBy: { select: { id: true, name: true } } },
+    }),
+    prisma.inventoryCount.count({ where }),
+  ]);
+  res.json({ items, total, page, pageSize });
 });
 
 inventoryCountsRouter.get("/:id", async (req, res) => {

@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { ApiError, api } from "@/lib/api-client";
+import { sanitizeExcelRow } from "@/lib/excelExport";
 import type { Supplier } from "@/types";
 import { useQueryClient } from "@tanstack/react-query";
 import ExcelJS from "exceljs";
@@ -84,7 +85,7 @@ export function SupplierExcelImport({ items, search }: SupplierExcelImportProps)
     const sheet = workbook.addWorksheet("Nhà cung cấp");
     sheet.columns = TEMPLATE_HEADER.map((header) => ({ header: header.replace("*", ""), width: 24 }));
     sheet.getRow(1).font = { bold: true };
-    for (const item of list) sheet.addRow([item.code, item.name, item.phone ?? "", item.address ?? ""]);
+    for (const item of list) sheet.addRow(sanitizeExcelRow([item.code, item.name, item.phone ?? "", item.address ?? ""]));
     await downloadWorkbook(workbook, "nha-cung-cap.xlsx");
   }
 

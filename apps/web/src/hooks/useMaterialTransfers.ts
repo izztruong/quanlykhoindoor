@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
-import type { MaterialTransfer } from "@/types";
+import type { MaterialTransfer, PagedResult } from "@/types";
 
 export interface MaterialTransferItemInput {
   productId: string;
@@ -19,10 +19,10 @@ export interface MaterialTransferCreateInput {
   items: MaterialTransferItemInput[];
 }
 
-export function useMaterialTransferList(filter: { from?: string; to?: string } = {}) {
+export function useMaterialTransferList(filter: { from?: string; to?: string; page?: number; pageSize?: number } = {}) {
   return useQuery({
     queryKey: ["material-transfers", filter],
-    queryFn: () => api.get<{ items: MaterialTransfer[] }>("/material-transfers", filter).then((r) => r.items),
+    queryFn: () => api.get<PagedResult<MaterialTransfer>>("/material-transfers", { ...filter, pageSize: filter.pageSize ?? 20 }),
   });
 }
 

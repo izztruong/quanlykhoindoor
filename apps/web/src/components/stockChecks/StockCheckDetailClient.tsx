@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { useStockCheck } from "@/hooks/useStockChecks";
+import { sanitizeExcelRow } from "@/lib/excelExport";
 import { formatDateTime, formatNumber } from "@/lib/format";
 import { Download } from "lucide-react";
 import ExcelJS from "exceljs";
@@ -29,15 +30,17 @@ export function StockCheckDetailClient({ id }: { id: string }) {
     for (let i = 0; i < rowCount; i++) {
       const m = items[i];
       const f = finishedItems[i];
-      sheet.addRow([
-        m?.product.name ?? "",
-        m?.product.unit?.name ?? "",
-        m?.wholeQuantity ?? "",
-        m?.looseQuantity ?? "",
-        f?.finishedGoodItem.name ?? "",
-        f?.finishedGoodItem.unit?.name ?? "",
-        f?.quantity ?? "",
-      ]);
+      sheet.addRow(
+        sanitizeExcelRow([
+          m?.product.name ?? "",
+          m?.product.unit?.name ?? "",
+          m?.wholeQuantity ?? "",
+          m?.looseQuantity ?? "",
+          f?.finishedGoodItem.name ?? "",
+          f?.finishedGoodItem.unit?.name ?? "",
+          f?.quantity ?? "",
+        ]),
+      );
     }
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });

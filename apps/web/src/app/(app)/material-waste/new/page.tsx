@@ -6,7 +6,9 @@ import { Input } from "@/components/ui/Input";
 import { useFinishedGoodItems, useProducts } from "@/hooks/useCatalog";
 import { useCreateMaterialWaste } from "@/hooks/useMaterialWaste";
 import { ApiError } from "@/lib/api-client";
+import { nowForDatetimeLocal } from "@/lib/dateRange";
 import { formatNumber } from "@/lib/format";
+import { filterSuggestions } from "@/lib/searchSuggestions";
 import type { FinishedGoodItem, Product } from "@/types";
 import { Trash2 } from "lucide-react";
 import Link from "next/link";
@@ -28,12 +30,6 @@ interface FinishedRow {
   note: string;
 }
 
-function nowForDatetimeLocal(): string {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
 export default function NewMaterialWastePage() {
   const router = useRouter();
   const { data: products = [] } = useProducts({ activeOnly: true });
@@ -49,20 +45,13 @@ export default function NewMaterialWastePage() {
   const [error, setError] = useState<string | null>(null);
 
   const rowIds = useMemo(() => new Set(rows.map((r) => r.productId)), [rows]);
-  const suggestions = useMemo(() => {
-    if (!search.trim()) return [];
-    const q = search.trim().toLowerCase();
-    return products.filter((p) => !rowIds.has(p.id) && (p.code.toLowerCase().includes(q) || p.name.toLowerCase().includes(q))).slice(0, 8);
-  }, [search, products, rowIds]);
+  const suggestions = useMemo(() => filterSuggestions(products, rowIds, search), [search, products, rowIds]);
 
   const finishedRowIds = useMemo(() => new Set(finishedRows.map((r) => r.finishedGoodItemId)), [finishedRows]);
-  const finishedSuggestions = useMemo(() => {
-    if (!finishedSearch.trim()) return [];
-    const q = finishedSearch.trim().toLowerCase();
-    return finishedGoodItems
-      .filter((f) => !finishedRowIds.has(f.id) && (f.code.toLowerCase().includes(q) || f.name.toLowerCase().includes(q)))
-      .slice(0, 8);
-  }, [finishedSearch, finishedGoodItems, finishedRowIds]);
+  const finishedSuggestions = useMemo(
+    () => filterSuggestions(finishedGoodItems, finishedRowIds, finishedSearch),
+    [finishedSearch, finishedGoodItems, finishedRowIds],
+  );
 
   function addRow(product: Product) {
     setRows((prev) =>

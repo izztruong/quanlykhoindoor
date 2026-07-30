@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
-import type { CostCheck } from "@/types";
+import type { CostCheck, PagedResult } from "@/types";
 
 export interface CostCheckSoldItemInput {
   finishedGoodItemId: string;
@@ -17,10 +17,10 @@ export interface CostCheckCreateInput {
   soldItems: CostCheckSoldItemInput[];
 }
 
-export function useCostCheckList(filter: { from?: string; to?: string } = {}) {
+export function useCostCheckList(filter: { from?: string; to?: string; page?: number; pageSize?: number } = {}) {
   return useQuery({
     queryKey: ["cost-checks", filter],
-    queryFn: () => api.get<{ items: CostCheck[] }>("/cost-checks", filter).then((r) => r.items),
+    queryFn: () => api.get<PagedResult<CostCheck>>("/cost-checks", { ...filter, pageSize: filter.pageSize ?? 20 }),
   });
 }
 

@@ -20,6 +20,9 @@ model User {
   passwordHash String
   name         String
   role         UserRole @default(STAFF)
+  // Bumped on password change so any JWT issued before that moment is rejected —
+  // otherwise a stolen cookie would stay valid for its full 7-day life post-reset.
+  tokenVersion Int      @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -350,6 +353,8 @@ model SalesOrder {
 
   items       SalesOrderItem[]
   stockExport StockExport?
+
+  @@index([createdById, completedAt])
 }
 
 model SalesOrderItem {
@@ -472,6 +477,8 @@ model MaterialWaste {
 
   items         MaterialWasteItem[]
   finishedItems MaterialWasteFinishedItem[]
+
+  @@index([createdById, wasteAt])
 }
 
 model MaterialWasteItem {
@@ -554,6 +561,9 @@ model MaterialTransfer {
   createdAt   DateTime @default(now())
 
   items MaterialTransferItem[]
+
+  @@index([fromUserId, transferAt])
+  @@index([toUserId, transferAt])
 }
 
 model MaterialTransferItem {

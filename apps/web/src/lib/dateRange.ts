@@ -24,3 +24,10 @@ export function clampDateRange(from: string, to: string, changed: "from" | "to")
   }
   return { from: addMonths(to, -MAX_RANGE_MONTHS), to };
 }
+
+/** Current local time formatted for an `<input type="datetime-local">` default value. */
+export function nowForDatetimeLocal(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}

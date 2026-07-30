@@ -9,7 +9,7 @@ import { useProducts, useProductStock, useWarehouses } from "@/hooks/useCatalog"
 import { useCreateSalesOrder } from "@/hooks/useSalesOrders";
 import { ApiError } from "@/lib/api-client";
 import { useCurrentUser } from "@/lib/auth";
-import { type ExcelColumn, exportRowsToExcel } from "@/lib/excelExport";
+import { type ExcelColumn, exportRowsToExcel, sanitizeExcelRow } from "@/lib/excelExport";
 import { formatNumber } from "@/lib/format";
 import { zodResolver } from "@hookform/resolvers/zod";
 import ExcelJS from "exceljs";
@@ -84,7 +84,7 @@ export default function NewOrderPage() {
     const sheet = workbook.addWorksheet("Đơn hàng");
     sheet.columns = ["Tên hàng hoá*", "Số lượng*"].map((header) => ({ header, width: 28 }));
     sheet.getRow(1).font = { bold: true };
-    sheet.addRow([products[0]?.name ?? "Tên hàng hoá mẫu", 1]);
+    sheet.addRow(sanitizeExcelRow([products[0]?.name ?? "Tên hàng hoá mẫu", 1]));
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     const url = URL.createObjectURL(blob);

@@ -3,7 +3,7 @@ import { prisma } from "../../config/db";
 import type { AuthUser } from "../../middleware/auth";
 import { generateCode } from "../../utils/codeGenerator";
 import { HttpError } from "../../utils/httpError";
-import { parseDateRange } from "../../utils/pagination";
+import { parseDateRange, parsePagination } from "../../utils/pagination";
 import { subtractTareWeight } from "../../utils/tareWeight";
 import { stockCheckCreateSchema } from "./stockChecks.schemas";
 
@@ -24,17 +24,25 @@ function assertOwnership(check: { createdById: string | null }, user?: AuthUser)
 stockChecksRouter.get("/", async (req, res) => {
   const { from, to } = parseDateRange(req);
   const { createdById } = req.query as Record<string, string>;
-  const items = await prisma.stockCheck.findMany({
-    where: {
-      checkedAt: from || to ? { gte: from, lte: to } : undefined,
-      // Staff only ever see their own phiếu kiểm; admins see everything, optionally
-      // narrowed to one quán via ?createdById= (used by the Check Cost picker).
-      createdById: req.user?.role === "ADMIN" ? createdById || undefined : req.user?.id,
-    },
-    orderBy: { checkedAt: "desc" },
-    include: { createdBy: { select: { id: true, name: true } } },
-  });
-  res.json({ items });
+  const { skip, take, page, pageSize } = parsePagination(req, 20);
+  const where = {
+    checkedAt: from || to ? { gte: from, lte: to } : undefined,
+    // Staff only ever see their own phiếu kiểm; admins see everything, optionally
+    // narrowed to one quán via ?createdById= (used by the Check Cost picker).
+    createdById: req.user?.role === "ADMIN" ? createdById || undefined : req.user?.id,
+  };
+
+  const [items, total] = await Promise.all([
+    prisma.stockCheck.findMany({
+      where,
+      orderBy: { checkedAt: "desc" },
+      skip,
+      take,
+      include: { createdBy: { select: { id: true, name: true } } },
+    }),
+    prisma.stockCheck.count({ where }),
+  ]);
+  res.json({ items, total, page, pageSize });
 });
 
 stockChecksRouter.get("/:id", async (req, res) => {

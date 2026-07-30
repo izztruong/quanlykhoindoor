@@ -9,7 +9,9 @@ import { useCreateMaterialTransfer } from "@/hooks/useMaterialTransfers";
 import { useProductSupplierPrices } from "@/hooks/useProductSupplierPrices";
 import { useUsers } from "@/hooks/useUsers";
 import { ApiError } from "@/lib/api-client";
+import { nowForDatetimeLocal } from "@/lib/dateRange";
 import { formatNumber } from "@/lib/format";
+import { filterSuggestions } from "@/lib/searchSuggestions";
 import type { Product } from "@/types";
 import { Trash2 } from "lucide-react";
 import Link from "next/link";
@@ -24,12 +26,6 @@ interface MaterialRow {
   supplierId: string;
   costPrice: string;
   note: string;
-}
-
-function nowForDatetimeLocal(): string {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 export default function NewMaterialTransferPage() {
@@ -49,11 +45,7 @@ export default function NewMaterialTransferPage() {
   const [error, setError] = useState<string | null>(null);
 
   const rowIds = useMemo(() => new Set(rows.map((r) => r.productId)), [rows]);
-  const suggestions = useMemo(() => {
-    if (!search.trim()) return [];
-    const q = search.trim().toLowerCase();
-    return products.filter((p) => !rowIds.has(p.id) && (p.code.toLowerCase().includes(q) || p.name.toLowerCase().includes(q))).slice(0, 8);
-  }, [search, products, rowIds]);
+  const suggestions = useMemo(() => filterSuggestions(products, rowIds, search), [search, products, rowIds]);
 
   function addRow(product: Product) {
     setRows((prev) =>
