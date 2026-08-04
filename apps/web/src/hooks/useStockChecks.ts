@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
-import type { PagedResult, StockCheck } from "@/types";
+import type { AffectedCostCheck, PagedResult, StockCheck } from "@/types";
 
 export interface StockCheckItemInput {
   productId: string;
@@ -44,5 +44,16 @@ export function useCreateStockCheck() {
   return useMutation({
     mutationFn: (data: StockCheckCreateInput) => api.post<StockCheck>("/stock-checks", data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["stock-checks"] }),
+  });
+}
+
+export function useUpdateStockCheck(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: StockCheckCreateInput) => api.put<StockCheck & { affectedCostChecks: AffectedCostCheck[] }>(`/stock-checks/${id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["stock-checks"] });
+      queryClient.invalidateQueries({ queryKey: ["stock-checks", id] });
+    },
   });
 }

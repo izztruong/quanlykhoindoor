@@ -2,6 +2,7 @@
 
 import { DataTable } from "@/components/data-table/DataTable";
 import { Pagination } from "@/components/data-table/Pagination";
+import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { useCostCheckList } from "@/hooks/useCostChecks";
@@ -24,6 +25,12 @@ export default function CostChecksPage() {
       { header: "Từ", accessorFn: (row) => formatDateTime(row.openingStockCheck.checkedAt), id: "opening" },
       { header: "Đến", accessorFn: (row) => formatDateTime(row.closingStockCheck.checkedAt), id: "closing" },
       { header: "Người tạo", accessorFn: (row) => row.createdBy?.name ?? "-", id: "createdBy" },
+      {
+        header: "Trạng thái",
+        id: "status",
+        cell: ({ row }) =>
+          row.original.status === "CANCELLED" ? <Badge tone="red">Đã huỷ</Badge> : <Badge tone="green">Hiệu lực</Badge>,
+      },
       {
         header: "Thao tác",
         id: "actions",

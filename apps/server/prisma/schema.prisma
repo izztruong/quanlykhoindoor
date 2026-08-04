@@ -507,25 +507,33 @@ model MaterialWasteFinishedItem {
   @@unique([materialWasteId, finishedGoodItemId])
 }
 
+enum CostCheckStatus {
+  ACTIVE
+  CANCELLED
+}
+
 // Phiếu Check Cost: đối soát nguyên liệu tiêu hao thực tế (giữa 2 phiếu kiểm kê quán)
 // so với tiêu hao theo công thức (từ SL đồ thành phẩm/món đã bán trong kỳ). userId là
 // quán được đối soát — khác với createdById vì admin nhập hộ dữ liệu bán hàng cho quán.
 model CostCheck {
-  id                  String     @id @default(cuid())
-  code                String     @unique
+  id                  String          @id @default(cuid())
+  code                String          @unique
   userId              String
-  user                User       @relation("CostCheckShop", fields: [userId], references: [id])
+  user                User            @relation("CostCheckShop", fields: [userId], references: [id])
   openingStockCheckId String
-  openingStockCheck   StockCheck @relation("CostCheckOpening", fields: [openingStockCheckId], references: [id])
+  openingStockCheck   StockCheck      @relation("CostCheckOpening", fields: [openingStockCheckId], references: [id])
   closingStockCheckId String
-  closingStockCheck   StockCheck @relation("CostCheckClosing", fields: [closingStockCheckId], references: [id])
+  closingStockCheck   StockCheck      @relation("CostCheckClosing", fields: [closingStockCheckId], references: [id])
   note                String?
   // Khuyến mãi/giảm giá trong kỳ, nhập tay theo nhóm — dùng tính doanh thu thuần.
-  discountTra         Decimal?   @db.Decimal(18, 2)
-  discountDav         Decimal?   @db.Decimal(18, 2)
+  discountTra         Decimal?        @db.Decimal(18, 2)
+  discountDav         Decimal?        @db.Decimal(18, 2)
+  // Huỷ mềm — giữ lại lịch sử thay vì xoá hẳn, vd khi phiếu kiểm kê/huỷ/điều chuyển gốc
+  // bị sửa và admin muốn tạo lại phiếu Check Cost khác thay cho phiếu này.
+  status              CostCheckStatus @default(ACTIVE)
   createdById         String?
-  createdBy           User?      @relation("CostCheckCreatedBy", fields: [createdById], references: [id])
-  createdAt           DateTime   @default(now())
+  createdBy           User?           @relation("CostCheckCreatedBy", fields: [createdById], references: [id])
+  createdAt           DateTime        @default(now())
   // Chốt cứng { rows, summary } ngay khi tạo phiếu — sửa giá vốn/giá bán/công thức
   // sau này không được phép làm thay đổi số liệu của phiếu đã tạo.
   reportSnapshot      Json?

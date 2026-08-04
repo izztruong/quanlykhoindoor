@@ -1,7 +1,9 @@
 import { Router } from "express";
 import { prisma } from "../../config/db";
 import type { AuthUser } from "../../middleware/auth";
+import { requireRole } from "../../middleware/auth";
 import { generateCode } from "../../utils/codeGenerator";
+import { findCostChecksUsingPeriodRecord } from "../../utils/costCheckImpact";
 import { HttpError } from "../../utils/httpError";
 import { parseDateRange, parsePagination } from "../../utils/pagination";
 import { subtractTareWeight } from "../../utils/tareWeight";
@@ -86,4 +88,52 @@ materialWasteRouter.post("/", async (req, res) => {
   });
 
   res.status(201).json(item);
+});
+
+// Chỉ admin được sửa. Phiếu huỷ không liên kết trực tiếp tới Check Cost (được gộp theo kỳ lúc
+// tính), nên tìm phiếu Check Cost bị ảnh hưởng dựa trên quán + thời điểm huỷ TRƯỚC khi sửa —
+// số liệu các phiếu đó không tự cập nhật lại, trả về danh sách để frontend báo cho admin.
+materialWasteRouter.put("/:id", requireRole("ADMIN"), async (req, res) => {
+  const id = req.params.id as string;
+  const data = materialWasteCreateSchema.parse(req.body);
+  const items = await subtractTareWeight(data.items);
+
+  const existing = await prisma.materialWaste.findUnique({ where: { id } });
+  if (!existing) throw new HttpError(404, "Không tìm thấy phiếu huỷ");
+
+  const affectedCostChecks = await findCostChecksUsingPeriodRecord([existing.createdById], existing.wasteAt);
+
+  const item = await prisma.$transaction(async (tx) => {
+    await tx.materialWasteItem.deleteMany({ where: { materialWasteId: id } });
+    await tx.materialWasteFinishedItem.deleteMany({ where: { materialWasteId: id } });
+
+    await tx.materialWaste.update({ where: { id }, data: { wasteAt: data.wasteAt, note: data.note } });
+
+    if (items.length > 0) {
+      await tx.materialWasteItem.createMany({
+        data: items.map((it) => ({
+          materialWasteId: id,
+          productId: it.productId,
+          wholeQuantity: it.wholeQuantity,
+          looseQuantity: it.looseQuantity,
+          note: it.note,
+        })),
+      });
+    }
+
+    if (data.finishedItems.length > 0) {
+      await tx.materialWasteFinishedItem.createMany({
+        data: data.finishedItems.map((it) => ({
+          materialWasteId: id,
+          finishedGoodItemId: it.finishedGoodItemId,
+          quantity: it.quantity,
+          note: it.note,
+        })),
+      });
+    }
+
+    return tx.materialWaste.findUniqueOrThrow({ where: { id }, include: detailInclude });
+  });
+
+  res.json({ ...item, affectedCostChecks });
 });

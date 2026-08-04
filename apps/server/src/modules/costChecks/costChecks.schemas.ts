@@ -16,3 +16,7 @@ export const costCheckCreateSchema = z.object({
     )
     .min(1, "Cần ít nhất 1 dòng đồ thành phẩm/món đã bán"),
 });
+
+export const costCheckStatusSchema = z.object({
+  status: z.enum(["ACTIVE", "CANCELLED"]),
+});

@@ -11,7 +11,7 @@ import {
   type FinancialSummary,
   type MaterialRow,
 } from "./costChecks.service";
-import { costCheckCreateSchema } from "./costChecks.schemas";
+import { costCheckCreateSchema, costCheckStatusSchema } from "./costChecks.schemas";
 
 // Mounted under requireRole("ADMIN") in app.ts — Check Cost is admin-only, staff have no access at all.
 export const costChecksRouter = Router();
@@ -52,4 +52,14 @@ costChecksRouter.post("/", async (req, res) => {
   const data = costCheckCreateSchema.parse(req.body);
   const item = await createCostCheck(data, req.user);
   res.status(201).json(item);
+});
+
+// Huỷ mềm — giữ lại lịch sử thay vì xoá hẳn (router đã admin-only toàn bộ).
+costChecksRouter.patch("/:id/status", async (req, res) => {
+  const { status } = costCheckStatusSchema.parse(req.body);
+  const existing = await prisma.costCheck.findUnique({ where: { id: req.params.id } });
+  if (!existing) throw new HttpError(404, "Không tìm thấy phiếu Check Cost");
+
+  const item = await prisma.costCheck.update({ where: { id: req.params.id }, data: { status }, include: costCheckListInclude });
+  res.json(item);
 });

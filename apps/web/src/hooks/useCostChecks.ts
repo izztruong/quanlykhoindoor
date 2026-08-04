@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
-import type { CostCheck, PagedResult } from "@/types";
+import type { CostCheck, CostCheckStatus, PagedResult } from "@/types";
 
 export interface CostCheckSoldItemInput {
   finishedGoodItemId: string;
@@ -37,5 +37,16 @@ export function useCreateCostCheck() {
   return useMutation({
     mutationFn: (data: CostCheckCreateInput) => api.post<CostCheck>("/cost-checks", data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["cost-checks"] }),
+  });
+}
+
+export function useUpdateCostCheckStatus(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (status: CostCheckStatus) => api.patch<CostCheck>(`/cost-checks/${id}/status`, { status }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["cost-checks"] });
+      queryClient.invalidateQueries({ queryKey: ["cost-checks", id] });
+    },
   });
 }

@@ -1,13 +1,15 @@
 "use client";
 
+import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
-import { useCostCheck } from "@/hooks/useCostChecks";
+import { useCostCheck, useUpdateCostCheckStatus } from "@/hooks/useCostChecks";
+import { ApiError } from "@/lib/api-client";
 import { sanitizeExcelRow } from "@/lib/excelExport";
 import { formatCurrency, formatDateTime, formatNumber, formatPercent } from "@/lib/format";
 import type { CostCheck, CostCheckFinancialSummary, CostCheckReportRow } from "@/types";
 import ExcelJS from "exceljs";
-import { FileSpreadsheet } from "lucide-react";
+import { Ban, FileSpreadsheet, RotateCcw } from "lucide-react";
 import Link from "next/link";
 import { Fragment, useMemo, useState } from "react";
 
@@ -129,7 +131,9 @@ async function exportCostCheckToExcel(costCheck: CostCheck) {
 
 export function CostCheckDetailClient({ id }: { id: string }) {
   const { data: costCheck, isLoading } = useCostCheck(id);
+  const updateStatus = useUpdateCostCheckStatus(id);
   const [exporting, setExporting] = useState(false);
+  const [statusError, setStatusError] = useState<string | null>(null);
 
   const reportByGroup = useMemo(() => {
     const groups = new Map<string, CostCheckReportRow[]>();
@@ -143,6 +147,21 @@ export function CostCheckDetailClient({ id }: { id: string }) {
 
   if (isLoading || !costCheck) {
     return <p className="text-slate-400">Đang tải...</p>;
+  }
+
+  function handleToggleStatus() {
+    if (!costCheck) return;
+    const nextStatus = costCheck.status === "CANCELLED" ? "ACTIVE" : "CANCELLED";
+    const confirmMessage =
+      nextStatus === "CANCELLED"
+        ? "Huỷ phiếu Check Cost này? Phiếu vẫn được giữ lại trong danh sách nhưng đánh dấu là đã huỷ."
+        : "Bỏ huỷ phiếu Check Cost này?";
+    if (!confirm(confirmMessage)) return;
+
+    setStatusError(null);
+    updateStatus.mutate(nextStatus, {
+      onError: (err) => setStatusError(err instanceof ApiError ? err.message : "Đổi trạng thái phiếu thất bại"),
+    });
   }
 
   async function handleExportExcel() {
@@ -162,14 +181,25 @@ export function CostCheckDetailClient({ id }: { id: string }) {
           <Link href="/cost-checks" className="self-start text-sm text-indigo-600 hover:underline">
             ← Danh sách Check Cost
           </Link>
-          <h1 className="mt-2 text-xl font-semibold text-slate-800">Phiếu {costCheck.code}</h1>
+          <div className="mt-2 flex items-center gap-2">
+            <h1 className="text-xl font-semibold text-slate-800">Phiếu {costCheck.code}</h1>
+            {costCheck.status === "CANCELLED" && <Badge tone="red">Đã huỷ</Badge>}
+          </div>
           <p className="text-sm text-slate-500">Quán: {costCheck.user?.name ?? "-"}</p>
         </div>
-        <Button type="button" variant="secondary" onClick={handleExportExcel} disabled={exporting}>
-          <FileSpreadsheet size={16} />
-          {exporting ? "Đang xuất..." : "Xuất Excel"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button type="button" variant="secondary" onClick={handleToggleStatus} disabled={updateStatus.isPending}>
+            {costCheck.status === "CANCELLED" ? <RotateCcw size={16} /> : <Ban size={16} />}
+            {updateStatus.isPending ? "Đang lưu..." : costCheck.status === "CANCELLED" ? "Bỏ huỷ" : "Huỷ phiếu"}
+          </Button>
+          <Button type="button" variant="secondary" onClick={handleExportExcel} disabled={exporting}>
+            <FileSpreadsheet size={16} />
+            {exporting ? "Đang xuất..." : "Xuất Excel"}
+          </Button>
+        </div>
       </div>
+
+      {statusError && <p className="text-sm text-red-600">{statusError}</p>}
 
       <Card>
         <CardBody className="grid grid-cols-1 gap-4 text-sm md:grid-cols-4">

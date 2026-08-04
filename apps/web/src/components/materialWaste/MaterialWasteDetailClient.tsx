@@ -1,11 +1,15 @@
 "use client";
 
+import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { useMaterialWaste } from "@/hooks/useMaterialWaste";
+import { useCurrentUser } from "@/lib/auth";
 import { formatDateTime, formatNumber } from "@/lib/format";
+import { Pencil } from "lucide-react";
 import Link from "next/link";
 
 export function MaterialWasteDetailClient({ id }: { id: string }) {
+  const { data: currentUser } = useCurrentUser();
   const { data: waste, isLoading } = useMaterialWaste(id);
 
   if (isLoading || !waste) {
@@ -18,9 +22,19 @@ export function MaterialWasteDetailClient({ id }: { id: string }) {
         ← Danh sách phiếu huỷ
       </Link>
 
-      <div>
-        <h1 className="text-xl font-semibold text-slate-800">Phiếu huỷ {waste.code}</h1>
-        <p className="text-sm text-slate-500">Thời gian huỷ: {formatDateTime(waste.wasteAt)}</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-slate-800">Phiếu huỷ {waste.code}</h1>
+          <p className="text-sm text-slate-500">Thời gian huỷ: {formatDateTime(waste.wasteAt)}</p>
+        </div>
+        {currentUser?.role === "ADMIN" && (
+          <Link href={`/material-waste/${waste.id}/edit`}>
+            <Button type="button" variant="secondary" size="sm">
+              <Pencil size={14} />
+              Sửa
+            </Button>
+          </Link>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
-import type { MaterialTransfer, PagedResult } from "@/types";
+import type { AffectedCostCheck, MaterialTransfer, PagedResult } from "@/types";
 
 export interface MaterialTransferItemInput {
   productId: string;
@@ -39,5 +39,17 @@ export function useCreateMaterialTransfer() {
   return useMutation({
     mutationFn: (data: MaterialTransferCreateInput) => api.post<MaterialTransfer>("/material-transfers", data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["material-transfers"] }),
+  });
+}
+
+export function useUpdateMaterialTransfer(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: MaterialTransferCreateInput) =>
+      api.put<MaterialTransfer & { affectedCostChecks: AffectedCostCheck[] }>(`/material-transfers/${id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["material-transfers"] });
+      queryClient.invalidateQueries({ queryKey: ["material-transfers", id] });
+    },
   });
 }

@@ -5,13 +5,15 @@ import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { useStockCheck } from "@/hooks/useStockChecks";
 import { sanitizeExcelRow } from "@/lib/excelExport";
 import { formatDateTime, formatNumber } from "@/lib/format";
-import { Download } from "lucide-react";
+import { useCurrentUser } from "@/lib/auth";
+import { Download, Pencil } from "lucide-react";
 import ExcelJS from "exceljs";
 import Link from "next/link";
 
 const TEMPLATE_HEADER = ["Tên NL", "Đơn vị", "SL chẵn", "SL lẻ (theo đơn vị công thức)", "Tên đồ thành phẩm", "Đơn vị kiểm", "Số lượng"];
 
 export function StockCheckDetailClient({ id }: { id: string }) {
+  const { data: currentUser } = useCurrentUser();
   const { data: check, isLoading } = useStockCheck(id);
 
   if (isLoading || !check) {
@@ -65,10 +67,20 @@ export function StockCheckDetailClient({ id }: { id: string }) {
           <h1 className="text-xl font-semibold text-slate-800">Phiếu kiểm kê {check.code}</h1>
           <p className="text-sm text-slate-500">Thời gian kiểm: {formatDateTime(check.checkedAt)}</p>
         </div>
-        <Button type="button" variant="secondary" size="sm" onClick={exportData}>
-          <Download size={14} />
-          Xuất excel
-        </Button>
+        <div className="flex items-center gap-2">
+          {currentUser?.role === "ADMIN" && (
+            <Link href={`/stock-checks/${check.id}/edit`}>
+              <Button type="button" variant="secondary" size="sm">
+                <Pencil size={14} />
+                Sửa
+              </Button>
+            </Link>
+          )}
+          <Button type="button" variant="secondary" size="sm" onClick={exportData}>
+            <Download size={14} />
+            Xuất excel
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">

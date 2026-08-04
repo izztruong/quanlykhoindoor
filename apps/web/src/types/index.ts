@@ -333,6 +333,8 @@ export interface CostCheckFinancialSummary {
   wasteNvlPct: number;
 }
 
+export type CostCheckStatus = "ACTIVE" | "CANCELLED";
+
 export interface CostCheck {
   id: string;
   code: string;
@@ -343,11 +345,17 @@ export interface CostCheck {
   note?: string | null;
   discountTra?: string | number | null;
   discountDav?: string | number | null;
+  status: CostCheckStatus;
   createdBy?: { id: string; name: string } | null;
   createdAt: string;
   soldItems?: CostCheckSoldItemRow[];
   report?: CostCheckReportRow[];
   financialSummary?: CostCheckFinancialSummary;
+}
+
+export interface AffectedCostCheck {
+  id: string;
+  code: string;
 }
 
 export interface MaterialTransferItemRow {
