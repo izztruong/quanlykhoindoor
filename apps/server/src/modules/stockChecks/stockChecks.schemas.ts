@@ -4,12 +4,16 @@ const materialItemSchema = z.object({
   productId: z.string().min(1),
   wholeQuantity: z.coerce.number().nonnegative().optional(),
   looseQuantity: z.coerce.number().nonnegative().optional(),
+  // Đơn giá chốt lúc kiểm — wholePrice theo đơn vị chính, loosePrice theo đơn vị công thức.
+  wholePrice: z.coerce.number().nonnegative().optional(),
+  loosePrice: z.coerce.number().nonnegative().optional(),
   note: z.string().optional(),
 });
 
 const finishedItemSchema = z.object({
   finishedGoodItemId: z.string().min(1),
   quantity: z.coerce.number().nonnegative(),
+  price: z.coerce.number().nonnegative().optional(),
   note: z.string().optional(),
 });
 

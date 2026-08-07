@@ -75,6 +75,8 @@ stockChecksRouter.post("/", async (req, res) => {
           productId: it.productId,
           wholeQuantity: it.wholeQuantity,
           looseQuantity: it.looseQuantity,
+          wholePrice: it.wholePrice,
+          loosePrice: it.loosePrice,
           note: it.note,
         })),
       });
@@ -86,6 +88,7 @@ stockChecksRouter.post("/", async (req, res) => {
           stockCheckId: created.id,
           finishedGoodItemId: it.finishedGoodItemId,
           quantity: it.quantity,
+          price: it.price,
           note: it.note,
         })),
       });
@@ -127,6 +130,8 @@ stockChecksRouter.put("/:id", requireRole("ADMIN"), async (req, res) => {
           productId: it.productId,
           wholeQuantity: it.wholeQuantity,
           looseQuantity: it.looseQuantity,
+          wholePrice: it.wholePrice,
+          loosePrice: it.loosePrice,
           note: it.note,
         })),
       });
@@ -138,6 +143,7 @@ stockChecksRouter.put("/:id", requireRole("ADMIN"), async (req, res) => {
           stockCheckId: id,
           finishedGoodItemId: it.finishedGoodItemId,
           quantity: it.quantity,
+          price: it.price,
           note: it.note,
         })),
       });

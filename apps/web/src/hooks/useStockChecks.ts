@@ -6,12 +6,15 @@ export interface StockCheckItemInput {
   productId: string;
   wholeQuantity?: number;
   looseQuantity?: number;
+  wholePrice?: number;
+  loosePrice?: number;
   note?: string;
 }
 
 export interface StockCheckFinishedItemInput {
   finishedGoodItemId: string;
   quantity: number;
+  price?: number;
   note?: string;
 }
 

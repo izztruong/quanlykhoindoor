@@ -20,12 +20,41 @@ import { useEffect, useMemo, useRef, useState } from "react";
 interface MaterialEntry {
   wholeQuantity: string;
   looseQuantity: string;
+  wholePrice: string;
+  loosePrice: string;
   note: string;
 }
 
 interface FinishedEntry {
   quantity: string;
+  price: string;
   note: string;
+}
+
+function roundPrice(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+/**
+ * Giá mặc định gợi ý sẵn khi mở form: giá chẵn lấy thẳng Product.costPrice, giá lẻ quy về đơn vị
+ * công thức bằng đúng công thức Check Cost đang dùng (costPrice ÷ recipeUnitsPerBaseUnit).
+ * Vẫn cho sửa tay vì lô hàng thực tế có thể mua giá khác.
+ */
+function defaultMaterialEntry(product: Product): MaterialEntry {
+  const costPrice = Number(product.costPrice) || 0;
+  const factor = product.recipeUnitsPerBaseUnit != null ? Number(product.recipeUnitsPerBaseUnit) : 1;
+  return {
+    wholeQuantity: "",
+    looseQuantity: "",
+    wholePrice: costPrice ? String(costPrice) : "",
+    loosePrice: costPrice && factor ? String(roundPrice(costPrice / factor)) : "",
+    note: "",
+  };
+}
+
+function defaultFinishedEntry(item: FinishedGoodItem): FinishedEntry {
+  const sellingPrice = item.sellingPrice != null ? Number(item.sellingPrice) : 0;
+  return { quantity: "", price: sellingPrice ? String(sellingPrice) : "", note: "" };
 }
 
 const PRODUCT_TYPE_GROUPS: { key: ProductType; label: string }[] = [
@@ -36,7 +65,18 @@ const PRODUCT_TYPE_GROUPS: { key: ProductType; label: string }[] = [
   { key: "KHAC", label: "Khác" },
 ];
 
-const TEMPLATE_HEADER = ["Tên NL*", "Đơn vị", "SL chẵn", "SL lẻ (theo đơn vị công thức)", "Tên đồ thành phẩm*", "Đơn vị kiểm", "Số lượng"];
+const TEMPLATE_HEADER = [
+  "Tên NL*",
+  "Đơn vị",
+  "SL chẵn",
+  "Giá chẵn",
+  "SL lẻ (theo đơn vị công thức)",
+  "Giá lẻ",
+  "Tên đồ thành phẩm*",
+  "Đơn vị kiểm",
+  "Số lượng",
+  "Giá",
+];
 
 function matchesQuery(name: string, code: string, query: string): boolean {
   if (!query.trim()) return true;
@@ -53,7 +93,7 @@ interface MaterialGroupTableProps {
   items: Product[];
   filter: string;
   onFilterChange: (value: string) => void;
-  entryFor: (productId: string) => MaterialEntry;
+  entryFor: (product: Product) => MaterialEntry;
   onUpdateEntry: (productId: string, patch: Partial<MaterialEntry>) => void;
 }
 
@@ -82,7 +122,7 @@ function MaterialGroupTable({ groupKey, label, items, filter, onFilterChange, en
               </thead>
               <tbody>
                 {filtered.map((product) => {
-                  const entry = entryFor(product.id);
+                  const entry = entryFor(product);
                   return (
                     <tr key={product.id}>
                       <td className="border border-slate-200 px-3 py-2">{product.name}</td>
@@ -144,7 +184,7 @@ interface FinishedGroupTableProps {
   items: FinishedGoodItem[];
   filter: string;
   onFilterChange: (value: string) => void;
-  entryFor: (itemId: string) => FinishedEntry;
+  entryFor: (item: FinishedGoodItem) => FinishedEntry;
   onUpdateEntry: (itemId: string, patch: Partial<FinishedEntry>) => void;
 }
 
@@ -174,7 +214,7 @@ function FinishedGroupTable({ items, filter, onFilterChange, entryFor, onUpdateE
               </thead>
               <tbody>
                 {filtered.map((item) => {
-                  const entry = entryFor(item.id);
+                  const entry = entryFor(item);
                   return (
                     <tr key={item.id}>
                       <td className="border border-slate-200 px-3 py-2">{item.name}</td>
@@ -214,9 +254,14 @@ function FinishedGroupTable({ items, filter, onFilterChange, entryFor, onUpdateE
 function toMaterialEntries(check?: StockCheck): Record<string, MaterialEntry> {
   const entries: Record<string, MaterialEntry> = {};
   for (const it of check?.items ?? []) {
+    // Phiếu cũ (tạo trước khi có cột giá) chưa có giá — rơi về giá gợi ý từ hàng hoá để admin
+    // không phải gõ lại từ đầu khi mở ra sửa.
+    const fallback = defaultMaterialEntry(it.product);
     entries[it.productId] = {
       wholeQuantity: it.wholeQuantity != null ? String(Number(it.wholeQuantity)) : "",
       looseQuantity: it.looseQuantity != null ? String(Number(it.looseQuantity)) : "",
+      wholePrice: it.wholePrice != null ? String(Number(it.wholePrice)) : fallback.wholePrice,
+      loosePrice: it.loosePrice != null ? String(Number(it.loosePrice)) : fallback.loosePrice,
       note: it.note ?? "",
     };
   }
@@ -226,7 +271,12 @@ function toMaterialEntries(check?: StockCheck): Record<string, MaterialEntry> {
 function toFinishedEntries(check?: StockCheck): Record<string, FinishedEntry> {
   const entries: Record<string, FinishedEntry> = {};
   for (const it of check?.finishedItems ?? []) {
-    entries[it.finishedGoodItemId] = { quantity: it.quantity != null ? String(Number(it.quantity)) : "", note: it.note ?? "" };
+    const fallback = defaultFinishedEntry(it.finishedGoodItem);
+    entries[it.finishedGoodItemId] = {
+      quantity: it.quantity != null ? String(Number(it.quantity)) : "",
+      price: it.price != null ? String(Number(it.price)) : fallback.price,
+      note: it.note ?? "",
+    };
   }
   return entries;
 }
@@ -283,23 +333,31 @@ export function StockCheckFormClient({ existing }: StockCheckFormClientProps) {
     [finishedGoodItems],
   );
 
-  function materialEntryFor(productId: string): MaterialEntry {
-    return materialEntries[productId] ?? { wholeQuantity: "", looseQuantity: "", note: "" };
+  const productById = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
+  const finishedById = useMemo(() => new Map(finishedGoodItems.map((f) => [f.id, f])), [finishedGoodItems]);
+
+  function materialEntryFor(product: Product): MaterialEntry {
+    return materialEntries[product.id] ?? defaultMaterialEntry(product);
   }
 
   function updateMaterialEntry(productId: string, patch: Partial<MaterialEntry>) {
-    setMaterialEntries((prev) => ({
-      ...prev,
-      [productId]: { ...(prev[productId] ?? { wholeQuantity: "", looseQuantity: "", note: "" }), ...patch },
-    }));
+    setMaterialEntries((prev) => {
+      const product = productById.get(productId);
+      const base = prev[productId] ?? (product ? defaultMaterialEntry(product) : { wholeQuantity: "", looseQuantity: "", wholePrice: "", loosePrice: "", note: "" });
+      return { ...prev, [productId]: { ...base, ...patch } };
+    });
   }
 
-  function finishedEntryFor(itemId: string): FinishedEntry {
-    return finishedEntries[itemId] ?? { quantity: "", note: "" };
+  function finishedEntryFor(item: FinishedGoodItem): FinishedEntry {
+    return finishedEntries[item.id] ?? defaultFinishedEntry(item);
   }
 
   function updateFinishedEntry(itemId: string, patch: Partial<FinishedEntry>) {
-    setFinishedEntries((prev) => ({ ...prev, [itemId]: { ...(prev[itemId] ?? { quantity: "", note: "" }), ...patch } }));
+    setFinishedEntries((prev) => {
+      const item = finishedById.get(itemId);
+      const base = prev[itemId] ?? (item ? defaultFinishedEntry(item) : { quantity: "", price: "", note: "" });
+      return { ...prev, [itemId]: { ...base, ...patch } };
+    });
   }
 
   function groupFilterFor(key: string): string {
@@ -319,11 +377,18 @@ export function StockCheckFormClient({ existing }: StockCheckFormClientProps) {
         productId,
         wholeQuantity: entry.wholeQuantity !== "" ? Number(entry.wholeQuantity) : undefined,
         looseQuantity: entry.looseQuantity !== "" ? Number(entry.looseQuantity) : undefined,
+        wholePrice: entry.wholePrice !== "" ? Number(entry.wholePrice) : undefined,
+        loosePrice: entry.loosePrice !== "" ? Number(entry.loosePrice) : undefined,
         note: entry.note || undefined,
       }));
     const finishedItems = Object.entries(finishedEntries)
       .filter(([, entry]) => entry.quantity !== "" && !Number.isNaN(Number(entry.quantity)))
-      .map(([finishedGoodItemId, entry]) => ({ finishedGoodItemId, quantity: Number(entry.quantity), note: entry.note || undefined }));
+      .map(([finishedGoodItemId, entry]) => ({
+        finishedGoodItemId,
+        quantity: Number(entry.quantity),
+        price: entry.price !== "" ? Number(entry.price) : undefined,
+        note: entry.note || undefined,
+      }));
 
     if (items.length === 0 && finishedItems.length === 0) {
       setError("Vui lòng nhập số lượng cho ít nhất 1 nguyên liệu hoặc đồ thành phẩm.");
@@ -381,10 +446,13 @@ export function StockCheckFormClient({ existing }: StockCheckFormClientProps) {
         products[0]?.name ?? "Tên NL mẫu",
         products[0]?.unit?.name ?? "",
         5,
+        100000,
         900,
+        100,
         thanhPhamItems[0]?.name ?? "Tên đồ thành phẩm mẫu",
         thanhPhamItems[0]?.unit?.name ?? "",
         700,
+        50000,
       ]),
     );
     await downloadWorkbook(workbook, "mau-phieu-kiem-ke.xlsx");
@@ -416,9 +484,15 @@ export function StockCheckFormClient({ existing }: StockCheckFormClientProps) {
       sheet.eachRow((row, rowNumber) => {
         if (rowNumber === 1) return;
 
+        // Ô để trống nghĩa là "không đổi" — giữ nguyên giá đang có trên form thay vì ghi đè rỗng.
+        const cellToText = (value: ExcelJS.CellValue): string | undefined =>
+          value === null || value === undefined || value === "" ? undefined : String(Number(value));
+
         const materialName = String(row.getCell(1).value ?? "").trim();
         const wholeRaw = row.getCell(3).value;
-        const looseRaw = row.getCell(4).value;
+        const wholePriceRaw = row.getCell(4).value;
+        const looseRaw = row.getCell(5).value;
+        const loosePriceRaw = row.getCell(6).value;
         if (materialName) {
           const product = productByName.get(materialName.toLowerCase());
           if (!product) {
@@ -426,15 +500,23 @@ export function StockCheckFormClient({ existing }: StockCheckFormClientProps) {
           } else {
             const wholeQuantity = wholeRaw === null || wholeRaw === undefined || wholeRaw === "" ? "" : String(Number(wholeRaw));
             const looseQuantity = looseRaw === null || looseRaw === undefined || looseRaw === "" ? "" : String(Number(looseRaw));
+            const wholePrice = cellToText(wholePriceRaw);
+            const loosePrice = cellToText(loosePriceRaw);
             const existed = Boolean(materialEntries[product.id]);
-            updateMaterialEntry(product.id, { wholeQuantity, looseQuantity });
+            updateMaterialEntry(product.id, {
+              wholeQuantity,
+              looseQuantity,
+              ...(wholePrice !== undefined ? { wholePrice } : {}),
+              ...(loosePrice !== undefined ? { loosePrice } : {}),
+            });
             if (existed) updated++;
             else added++;
           }
         }
 
-        const finishedName = String(row.getCell(5).value ?? "").trim();
-        const finishedQtyRaw = row.getCell(7).value;
+        const finishedName = String(row.getCell(7).value ?? "").trim();
+        const finishedQtyRaw = row.getCell(9).value;
+        const finishedPriceRaw = row.getCell(10).value;
         if (finishedName) {
           const finishedItem = finishedByName.get(finishedName.toLowerCase());
           if (!finishedItem) {
@@ -443,8 +525,9 @@ export function StockCheckFormClient({ existing }: StockCheckFormClientProps) {
             errors.push(`Dòng ${rowNumber}: số lượng đồ thành phẩm không hợp lệ`);
           } else {
             const quantity = finishedQtyRaw === null || finishedQtyRaw === undefined || finishedQtyRaw === "" ? "" : String(Number(finishedQtyRaw));
+            const price = cellToText(finishedPriceRaw);
             const existed = Boolean(finishedEntries[finishedItem.id]);
-            updateFinishedEntry(finishedItem.id, { quantity });
+            updateFinishedEntry(finishedItem.id, { quantity, ...(price !== undefined ? { price } : {}) });
             if (existed) updated++;
             else added++;
           }
@@ -470,10 +553,21 @@ export function StockCheckFormClient({ existing }: StockCheckFormClientProps) {
     for (let i = 0; i < rowCount; i++) {
       const p = allProducts[i];
       const f = thanhPhamItems[i];
-      const m = p ? materialEntryFor(p.id) : undefined;
-      const fe = f ? finishedEntryFor(f.id) : undefined;
+      const m = p ? materialEntryFor(p) : undefined;
+      const fe = f ? finishedEntryFor(f) : undefined;
       sheet.addRow(
-        sanitizeExcelRow([p?.name ?? "", p?.unit?.name ?? "", m?.wholeQuantity ?? "", m?.looseQuantity ?? "", f?.name ?? "", f?.unit?.name ?? "", fe?.quantity ?? ""]),
+        sanitizeExcelRow([
+          p?.name ?? "",
+          p?.unit?.name ?? "",
+          m?.wholeQuantity ?? "",
+          m?.wholePrice ?? "",
+          m?.looseQuantity ?? "",
+          m?.loosePrice ?? "",
+          f?.name ?? "",
+          f?.unit?.name ?? "",
+          fe?.quantity ?? "",
+          fe?.price ?? "",
+        ]),
       );
     }
     await downloadWorkbook(workbook, "phieu-kiem-ke.xlsx");
@@ -491,7 +585,8 @@ export function StockCheckFormClient({ existing }: StockCheckFormClientProps) {
         <h1 className="mt-2 text-xl font-semibold text-slate-800">{isEdit ? `Sửa phiếu ${existing?.code}` : "Tạo phiếu kiểm kê"}</h1>
         <p className="text-sm text-slate-500">
           Kiểm tồn kho hiện có, không cần chọn kho hàng. Danh sách đã liệt kê sẵn theo từng nhóm — chỉ cần nhập số lượng cho
-          hàng hoá đang kiểm.
+          hàng hoá đang kiểm. Đơn giá và thành tiền tự tính theo giá vốn/giá bán đang khai trong danh mục, xem ở trang chi
+          tiết phiếu sau khi lưu.
         </p>
       </div>
 

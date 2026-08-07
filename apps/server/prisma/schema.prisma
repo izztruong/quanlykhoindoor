@@ -442,6 +442,12 @@ model StockCheckItem {
   product       Product    @relation(fields: [productId], references: [id])
   wholeQuantity Decimal?   @db.Decimal(18, 3)
   looseQuantity Decimal?   @db.Decimal(18, 3)
+  // Đơn giá chốt tại thời điểm kiểm (mặc định lấy từ Product.costPrice, cho sửa tay) — lưu vào
+  // phiếu thay vì tính lại lúc xem, để sửa giá vốn sau này không làm đổi số của phiếu đã kiểm.
+  // wholePrice theo đơn vị chính, loosePrice theo đơn vị công thức. Thành tiền = SL × giá, tính
+  // khi hiển thị chứ không lưu (tránh 2 nguồn sự thật lệch nhau).
+  wholePrice    Decimal?   @db.Decimal(18, 2)
+  loosePrice    Decimal?   @db.Decimal(18, 2)
   note          String?
 
   @@unique([stockCheckId, productId])
@@ -457,6 +463,9 @@ model StockCheckFinishedItem {
   finishedGoodItemId String
   finishedGoodItem   FinishedGoodItem @relation(fields: [finishedGoodItemId], references: [id])
   quantity           Decimal          @db.Decimal(18, 3)
+  // Đơn giá chốt tại thời điểm kiểm — mặc định lấy từ FinishedGoodItem.sellingPrice, cho sửa tay.
+  // Chỉ 1 giá vì đồ thành phẩm chỉ kiểm theo 1 đơn vị (không tách chẵn/lẻ như nguyên liệu).
+  price              Decimal?         @db.Decimal(18, 2)
   note               String?
 
   @@unique([stockCheckId, finishedGoodItemId])

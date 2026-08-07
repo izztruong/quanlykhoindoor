@@ -225,6 +225,8 @@ export interface StockCheckItemRow {
   product: Product;
   wholeQuantity?: string | number | null;
   looseQuantity?: string | number | null;
+  wholePrice?: string | number | null;
+  loosePrice?: string | number | null;
   note?: string | null;
 }
 
@@ -233,6 +235,7 @@ export interface StockCheckFinishedItemRow {
   finishedGoodItemId: string;
   finishedGoodItem: FinishedGoodItem;
   quantity: string | number;
+  price?: string | number | null;
   note?: string | null;
 }
 

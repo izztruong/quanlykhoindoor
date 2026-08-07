@@ -4,13 +4,35 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { useStockCheck } from "@/hooks/useStockChecks";
 import { sanitizeExcelRow } from "@/lib/excelExport";
-import { formatDateTime, formatNumber } from "@/lib/format";
+import { formatCurrency, formatDateTime, formatNumber } from "@/lib/format";
 import { useCurrentUser } from "@/lib/auth";
 import { Download, Pencil } from "lucide-react";
 import ExcelJS from "exceljs";
 import Link from "next/link";
 
-const TEMPLATE_HEADER = ["Tên NL", "Đơn vị", "SL chẵn", "SL lẻ (theo đơn vị công thức)", "Tên đồ thành phẩm", "Đơn vị kiểm", "Số lượng"];
+const TEMPLATE_HEADER = [
+  "Tên NL",
+  "Đơn vị",
+  "SL chẵn",
+  "Giá chẵn",
+  "T.tiền chẵn",
+  "SL lẻ (theo đơn vị công thức)",
+  "Giá lẻ",
+  "T.tiền lẻ",
+  "Tên đồ thành phẩm",
+  "Đơn vị kiểm",
+  "Số lượng",
+  "Giá",
+  "Thành tiền",
+];
+
+/** Thành tiền = SL × đơn giá; thiếu vế nào thì coi như 0 (phiếu cũ chưa có giá). */
+function lineAmount(quantity?: string | number | null, price?: string | number | null): number {
+  const qty = Number(quantity);
+  const unitPrice = Number(price);
+  if (!Number.isFinite(qty) || !Number.isFinite(unitPrice)) return 0;
+  return qty * unitPrice;
+}
 
 export function StockCheckDetailClient({ id }: { id: string }) {
   const { data: currentUser } = useCurrentUser();
@@ -19,6 +41,12 @@ export function StockCheckDetailClient({ id }: { id: string }) {
   if (isLoading || !check) {
     return <p className="text-slate-400">Đang tải...</p>;
   }
+
+  const materialTotal = (check.items ?? []).reduce(
+    (sum, item) => sum + lineAmount(item.wholeQuantity, item.wholePrice) + lineAmount(item.looseQuantity, item.loosePrice),
+    0,
+  );
+  const finishedTotal = (check.finishedItems ?? []).reduce((sum, item) => sum + lineAmount(item.quantity, item.price), 0);
 
   async function exportData() {
     if (!check) return;
@@ -37,10 +65,16 @@ export function StockCheckDetailClient({ id }: { id: string }) {
           m?.product.name ?? "",
           m?.product.unit?.name ?? "",
           m?.wholeQuantity ?? "",
+          m?.wholePrice ?? "",
+          m ? lineAmount(m.wholeQuantity, m.wholePrice) : "",
           m?.looseQuantity ?? "",
+          m?.loosePrice ?? "",
+          m ? lineAmount(m.looseQuantity, m.loosePrice) : "",
           f?.finishedGoodItem.name ?? "",
           f?.finishedGoodItem.unit?.name ?? "",
           f?.quantity ?? "",
+          f?.price ?? "",
+          f ? lineAmount(f.quantity, f.price) : "",
         ]),
       );
     }
@@ -96,7 +130,11 @@ export function StockCheckDetailClient({ id }: { id: string }) {
                     <th className="border border-slate-200 px-5 py-2">Tên NL</th>
                     <th className="border border-slate-200 px-5 py-2">Đơn vị</th>
                     <th className="border border-slate-200 px-5 py-2">SL chẵn</th>
+                    <th className="border border-slate-200 px-5 py-2 text-right">Giá chẵn</th>
+                    <th className="border border-slate-200 px-5 py-2 text-right">T.tiền chẵn</th>
                     <th className="border border-slate-200 px-5 py-2">SL lẻ</th>
+                    <th className="border border-slate-200 px-5 py-2 text-right">Giá lẻ</th>
+                    <th className="border border-slate-200 px-5 py-2 text-right">T.tiền lẻ</th>
                     <th className="border border-slate-200 px-5 py-2">Ghi chú</th>
                   </tr>
                 </thead>
@@ -106,22 +144,44 @@ export function StockCheckDetailClient({ id }: { id: string }) {
                       <td className="border border-slate-200 px-5 py-2">{item.product.name}</td>
                       <td className="border border-slate-200 px-5 py-2">{item.product.unit?.name}</td>
                       <td className="border border-slate-200 px-5 py-2">{item.wholeQuantity != null ? formatNumber(item.wholeQuantity) : "-"}</td>
+                      <td className="whitespace-nowrap border border-slate-200 px-5 py-2 text-right">
+                        {item.wholePrice != null ? formatCurrency(item.wholePrice) : "-"}
+                      </td>
+                      <td className="whitespace-nowrap border border-slate-200 px-5 py-2 text-right">
+                        {formatCurrency(lineAmount(item.wholeQuantity, item.wholePrice))}
+                      </td>
                       <td className="border border-slate-200 px-5 py-2">
                         {item.looseQuantity != null
                           ? `${formatNumber(item.looseQuantity)}${item.product.recipeUnit?.name ? ` ${item.product.recipeUnit.name}` : ""}`
                           : "-"}
+                      </td>
+                      <td className="whitespace-nowrap border border-slate-200 px-5 py-2 text-right">
+                        {item.loosePrice != null ? formatCurrency(item.loosePrice) : "-"}
+                      </td>
+                      <td className="whitespace-nowrap border border-slate-200 px-5 py-2 text-right">
+                        {formatCurrency(lineAmount(item.looseQuantity, item.loosePrice))}
                       </td>
                       <td className="border border-slate-200 px-5 py-2">{item.note || "-"}</td>
                     </tr>
                   ))}
                   {(check.items ?? []).length === 0 && (
                     <tr>
-                      <td className="border border-slate-200 px-5 py-3 text-slate-400" colSpan={5}>
+                      <td className="border border-slate-200 px-5 py-3 text-slate-400" colSpan={9}>
                         Không có dòng nguyên liệu nào.
                       </td>
                     </tr>
                   )}
                 </tbody>
+                <tfoot>
+                  <tr className="bg-slate-50 font-semibold text-slate-700">
+                    <td colSpan={7} className="border border-slate-200 px-5 py-2 text-right">
+                      Tổng cộng (chẵn + lẻ)
+                    </td>
+                    <td colSpan={2} className="whitespace-nowrap border border-slate-200 px-5 py-2 text-right">
+                      {formatCurrency(materialTotal)}
+                    </td>
+                  </tr>
+                </tfoot>
               </table>
             </CardBody>
           </Card>
@@ -137,6 +197,8 @@ export function StockCheckDetailClient({ id }: { id: string }) {
                     <th className="border border-slate-200 px-5 py-2">Tên đồ thành phẩm</th>
                     <th className="border border-slate-200 px-5 py-2">Đơn vị kiểm</th>
                     <th className="border border-slate-200 px-5 py-2">Số lượng</th>
+                    <th className="border border-slate-200 px-5 py-2 text-right">Giá</th>
+                    <th className="border border-slate-200 px-5 py-2 text-right">Thành tiền</th>
                     <th className="border border-slate-200 px-5 py-2">Ghi chú</th>
                   </tr>
                 </thead>
@@ -146,17 +208,33 @@ export function StockCheckDetailClient({ id }: { id: string }) {
                       <td className="border border-slate-200 px-5 py-2">{item.finishedGoodItem.name}</td>
                       <td className="border border-slate-200 px-5 py-2">{item.finishedGoodItem.unit?.name}</td>
                       <td className="border border-slate-200 px-5 py-2">{formatNumber(item.quantity)}</td>
+                      <td className="whitespace-nowrap border border-slate-200 px-5 py-2 text-right">
+                        {item.price != null ? formatCurrency(item.price) : "-"}
+                      </td>
+                      <td className="whitespace-nowrap border border-slate-200 px-5 py-2 text-right">
+                        {formatCurrency(lineAmount(item.quantity, item.price))}
+                      </td>
                       <td className="border border-slate-200 px-5 py-2">{item.note || "-"}</td>
                     </tr>
                   ))}
                   {(check.finishedItems ?? []).length === 0 && (
                     <tr>
-                      <td className="border border-slate-200 px-5 py-3 text-slate-400" colSpan={4}>
+                      <td className="border border-slate-200 px-5 py-3 text-slate-400" colSpan={6}>
                         Không có dòng đồ thành phẩm nào.
                       </td>
                     </tr>
                   )}
                 </tbody>
+                <tfoot>
+                  <tr className="bg-slate-50 font-semibold text-slate-700">
+                    <td colSpan={4} className="border border-slate-200 px-5 py-2 text-right">
+                      Tổng cộng
+                    </td>
+                    <td colSpan={2} className="whitespace-nowrap border border-slate-200 px-5 py-2 text-right">
+                      {formatCurrency(finishedTotal)}
+                    </td>
+                  </tr>
+                </tfoot>
               </table>
             </CardBody>
           </Card>
