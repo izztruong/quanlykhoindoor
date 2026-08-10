@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/Input";
 import { useFinishedGoodItems, useProducts } from "@/hooks/useCatalog";
 import { useCreateMaterialWaste, useUpdateMaterialWaste } from "@/hooks/useMaterialWaste";
 import { ApiError } from "@/lib/api-client";
-import { nowForDatetimeLocal } from "@/lib/dateRange";
+import { nowForDatetimeLocal, toDatetimeLocal } from "@/lib/dateRange";
 import { formatNumber } from "@/lib/format";
 import { filterSuggestions } from "@/lib/searchSuggestions";
 import type { FinishedGoodItem, MaterialWaste, Product } from "@/types";
@@ -62,7 +62,7 @@ export function MaterialWasteFormClient({ existing }: MaterialWasteFormClientPro
   const createWaste = useCreateMaterialWaste();
   const updateWaste = useUpdateMaterialWaste(existing?.id ?? "");
 
-  const [wasteAt, setWasteAt] = useState(() => (existing ? existing.wasteAt.slice(0, 16) : nowForDatetimeLocal()));
+  const [wasteAt, setWasteAt] = useState(() => (existing ? toDatetimeLocal(existing.wasteAt) : nowForDatetimeLocal()));
   const [note, setNote] = useState(existing?.note ?? "");
   const [rows, setRows] = useState<MaterialRow[]>(() => toMaterialRows(existing));
   const [finishedRows, setFinishedRows] = useState<FinishedRow[]>(() => toFinishedRows(existing));

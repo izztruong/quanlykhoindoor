@@ -7,7 +7,7 @@ import { Modal } from "@/components/ui/Modal";
 import { useFinishedGoodItems, useProducts } from "@/hooks/useCatalog";
 import { useCreateStockCheck, useUpdateStockCheck } from "@/hooks/useStockChecks";
 import { ApiError } from "@/lib/api-client";
-import { nowForDatetimeLocal } from "@/lib/dateRange";
+import { nowForDatetimeLocal, toDatetimeLocal } from "@/lib/dateRange";
 import { sanitizeExcelRow } from "@/lib/excelExport";
 import { formatNumber } from "@/lib/format";
 import type { FinishedGoodItem, Product, ProductType, StockCheck } from "@/types";
@@ -294,7 +294,7 @@ export function StockCheckFormClient({ existing }: StockCheckFormClientProps) {
   const createCheck = useCreateStockCheck();
   const updateCheck = useUpdateStockCheck(existing?.id ?? "");
 
-  const [checkedAt, setCheckedAt] = useState(() => (existing ? existing.checkedAt.slice(0, 16) : nowForDatetimeLocal()));
+  const [checkedAt, setCheckedAt] = useState(() => (existing ? toDatetimeLocal(existing.checkedAt) : nowForDatetimeLocal()));
   const [note, setNote] = useState(existing?.note ?? "");
   const [materialEntries, setMaterialEntries] = useState<Record<string, MaterialEntry>>(() => toMaterialEntries(existing));
   const [finishedEntries, setFinishedEntries] = useState<Record<string, FinishedEntry>>(() => toFinishedEntries(existing));

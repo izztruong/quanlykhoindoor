@@ -9,7 +9,7 @@ import { useCreateMaterialTransfer, useUpdateMaterialTransfer } from "@/hooks/us
 import { useProductSupplierPrices } from "@/hooks/useProductSupplierPrices";
 import { useUsers } from "@/hooks/useUsers";
 import { ApiError } from "@/lib/api-client";
-import { nowForDatetimeLocal } from "@/lib/dateRange";
+import { nowForDatetimeLocal, toDatetimeLocal } from "@/lib/dateRange";
 import { formatNumber } from "@/lib/format";
 import { filterSuggestions } from "@/lib/searchSuggestions";
 import type { MaterialTransfer, Product } from "@/types";
@@ -57,7 +57,7 @@ export function MaterialTransferFormClient({ existing }: MaterialTransferFormCli
 
   const [fromUserId, setFromUserId] = useState(existing?.fromUserId ?? "");
   const [toUserId, setToUserId] = useState(existing?.toUserId ?? "");
-  const [transferAt, setTransferAt] = useState(() => (existing ? existing.transferAt.slice(0, 16) : nowForDatetimeLocal()));
+  const [transferAt, setTransferAt] = useState(() => (existing ? toDatetimeLocal(existing.transferAt) : nowForDatetimeLocal()));
   const [note, setNote] = useState(existing?.note ?? "");
   const [rows, setRows] = useState<MaterialRow[]>(() => toMaterialRows(existing));
   const [search, setSearch] = useState("");
