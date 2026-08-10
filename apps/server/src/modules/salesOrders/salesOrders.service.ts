@@ -2,10 +2,16 @@ import { prisma } from "../../config/db";
 import { Prisma } from "../../generated/prisma/client";
 import type { AuthUser } from "../../middleware/auth";
 import { generateCode } from "../../utils/codeGenerator";
+import { type AffectedCostCheck, findCostChecksUsingPeriodRecord } from "../../utils/costCheckImpact";
 import { HttpError } from "../../utils/httpError";
 import { getInventoryCountReport } from "../reports/reports.service";
 import type { z } from "zod";
-import type { salesOrderConfirmSchema, salesOrderCreateSchema, salesOrderReceivingSchema } from "./salesOrders.schemas";
+import type {
+  salesOrderConfirmSchema,
+  salesOrderCreateSchema,
+  salesOrderReceivedDatesSchema,
+  salesOrderReceivingSchema,
+} from "./salesOrders.schemas";
 
 export const salesOrderDetailInclude = {
   warehouse: true,
@@ -21,6 +27,7 @@ export const salesOrderDetailInclude = {
 type SalesOrderCreateInput = z.infer<typeof salesOrderCreateSchema>;
 type SalesOrderReceivingInput = z.infer<typeof salesOrderReceivingSchema>;
 type SalesOrderConfirmInput = z.infer<typeof salesOrderConfirmSchema>;
+type SalesOrderReceivedDatesInput = z.infer<typeof salesOrderReceivedDatesSchema>;
 
 /** Staff may only see/act on orders they created themselves; admins see everything. */
 export function assertOwnership(order: { createdById: string | null }, user?: AuthUser) {
@@ -280,15 +287,24 @@ export async function completeSalesOrderReceiving(orderId: string, data: SalesOr
   // Postgres executes as a single planned operation regardless of line count.
   const operations: Prisma.PrismaPromise<unknown>[] = [];
   if (data.items.length > 0) {
+    const submittedAt = new Date();
+    // Chỉ admin được đặt ngày nhận — quán chỉ điền số lượng. Chặn ở server chứ không chỉ ẩn ô
+    // trên giao diện, vì ai cũng gọi thẳng API được.
+    const canSetDate = actingUser?.role === "ADMIN";
     const rows = data.items.map((update) => {
       const orderItem = itemById.get(update.itemId)!;
       const received = update.receivedQuantity >= Number(orderItem.quantity);
-      return Prisma.sql`(${update.itemId}::text, ${update.receivedQuantity}::numeric, ${received}::boolean)`;
+      const receivedAt = canSetDate ? (update.receivedAt ?? null) : null;
+      return Prisma.sql`(${update.itemId}::text, ${update.receivedQuantity}::numeric, ${received}::boolean, ${receivedAt}::timestamp)`;
     });
+    // Thứ tự ưu tiên ngày nhận: giá trị admin vừa gửi -> ngày đã lưu sẵn (admin đặt lúc xác nhận
+    // đơn) -> giờ submit. Nếu ghi đè thẳng, quán bấm "Hoàn thành" sẽ xoá mất ngày admin đã đặt.
     operations.push(prisma.$executeRaw`
       UPDATE "SalesOrderItem" AS t
-      SET "receivedQuantity" = v."receivedQuantity", "received" = v.received
-      FROM (VALUES ${Prisma.join(rows)}) AS v(id, "receivedQuantity", received)
+      SET "receivedQuantity" = v."receivedQuantity",
+          "received" = v.received,
+          "receivedAt" = COALESCE(v."receivedAt", t."receivedAt", ${submittedAt}::timestamp)
+      FROM (VALUES ${Prisma.join(rows)}) AS v(id, "receivedQuantity", received, "receivedAt")
       WHERE t.id = v.id
     `);
   }
@@ -412,19 +428,21 @@ export async function confirmSalesOrderWithExport(orderId: string, data: SalesOr
     }),
   ];
 
-  // Ghi chú theo từng hàng hoá (itemId), không theo từng dòng NCC tách nhỏ — lấy dòng
-  // đầu tiên có note trong số các dòng cùng itemId. Gộp thành 1 câu UPDATE bulk duy nhất
-  // thay vì 1 câu lệnh riêng cho từng hàng hoá có ghi chú.
-  const noteRows: Prisma.Sql[] = [];
+  // Ghi chú và ngày nhận dự kiến đều theo từng hàng hoá (itemId), không theo từng dòng NCC tách
+  // nhỏ — lấy dòng đầu tiên có giá trị trong số các dòng cùng itemId. Gộp cả 2 cột vào 1 câu
+  // UPDATE bulk duy nhất; COALESCE để dòng chỉ có note không bị xoá mất ngày và ngược lại.
+  const itemRows: Prisma.Sql[] = [];
   for (const [itemId, entries] of entriesByItemId) {
-    const note = entries.find((entry) => entry.note?.trim())?.note?.trim();
-    if (note) noteRows.push(Prisma.sql`(${itemId}::text, ${note}::text)`);
+    const note = entries.find((entry) => entry.note?.trim())?.note?.trim() ?? null;
+    const receivedAt = entries.find((entry) => entry.receivedAt)?.receivedAt ?? null;
+    if (note || receivedAt) itemRows.push(Prisma.sql`(${itemId}::text, ${note}::text, ${receivedAt}::timestamp)`);
   }
-  if (noteRows.length > 0) {
+  if (itemRows.length > 0) {
     operations.push(prisma.$executeRaw`
       UPDATE "SalesOrderItem" AS t
-      SET "note" = v.note
-      FROM (VALUES ${Prisma.join(noteRows)}) AS v(id, note)
+      SET "note" = COALESCE(v.note, t.note),
+          "receivedAt" = COALESCE(v."receivedAt", t."receivedAt")
+      FROM (VALUES ${Prisma.join(itemRows)}) AS v(id, note, "receivedAt")
       WHERE t.id = v.id
     `);
   }
@@ -488,4 +506,63 @@ export async function confirmOrderReportedQuantities(orderId: string, actingUser
   await prisma.$transaction(operations, { timeout: 20000 });
 
   return prisma.salesOrder.findUniqueOrThrow({ where: { id: orderId }, include: salesOrderDetailInclude });
+}
+
+/**
+ * Admin sửa riêng ngày nhận của từng dòng, ở BẤT KỲ trạng thái nào sau khi đơn đã xác nhận.
+ * Tách khỏi completeSalesOrderReceiving có chủ đích: nút "Hoàn thành" còn ghi số lượng, tính lại
+ * trạng thái đơn và tạo/đối soát phiếu xuất kho, nên nếu gộp vào thì admin chỉ muốn sửa ngày sẽ
+ * vô tình hoàn thành luôn đơn — và ngày sai sẽ bị khoá cứng khi đơn đã COMPLETED.
+ *
+ * Check Cost lọc kỳ theo chính ngày này, nên trả về danh sách phiếu Check Cost bị ảnh hưởng:
+ * phiếu nào có kỳ trùm ngày CŨ (đang tính nhầm dòng này vào) hoặc ngày MỚI (lẽ ra phải tính vào).
+ * Số của các phiếu đó đã chốt cứng nên không tự đổi — admin cần tự tạo lại nếu muốn số đúng.
+ */
+export async function updateSalesOrderReceivedDates(orderId: string, data: SalesOrderReceivedDatesInput, actingUser?: AuthUser) {
+  if (actingUser?.role !== "ADMIN") {
+    throw new HttpError(403, "Chỉ quản trị viên mới được sửa ngày nhận");
+  }
+
+  const order = await prisma.salesOrder.findUnique({ where: { id: orderId }, include: { items: true } });
+  if (!order) throw new HttpError(404, "Không tìm thấy đơn hàng");
+  if (order.status === "DRAFT" || order.status === "PENDING_CONFIRM") {
+    throw new HttpError(409, "Chỉ sửa được ngày nhận sau khi đơn đã xác nhận");
+  }
+
+  const itemById = new Map(order.items.map((it) => [it.id, it]));
+  for (const update of data.items) {
+    if (!itemById.has(update.itemId)) throw new HttpError(400, "Dòng hàng hoá không thuộc đơn hàng này");
+  }
+
+  // Gom cả mốc cũ lẫn mốc mới của những dòng thực sự đổi ngày, để tìm đủ phiếu Check Cost bị
+  // ảnh hưởng ở cả 2 phía (dòng rời khỏi kỳ cũ và rơi vào kỳ mới).
+  const affectedDates: Date[] = [];
+  for (const update of data.items) {
+    const existing = itemById.get(update.itemId)!;
+    if (existing.receivedAt?.getTime() === update.receivedAt.getTime()) continue;
+    if (existing.receivedAt) affectedDates.push(existing.receivedAt);
+    affectedDates.push(update.receivedAt);
+  }
+
+  const affectedCostChecks: AffectedCostCheck[] = [];
+  const seen = new Set<string>();
+  for (const at of affectedDates) {
+    for (const cc of await findCostChecksUsingPeriodRecord([order.createdById], at)) {
+      if (!seen.has(cc.id)) {
+        seen.add(cc.id);
+        affectedCostChecks.push(cc);
+      }
+    }
+  }
+
+  const rows = data.items.map((update) => Prisma.sql`(${update.itemId}::text, ${update.receivedAt}::timestamp)`);
+  await prisma.$executeRaw`
+    UPDATE "SalesOrderItem" AS t
+    SET "receivedAt" = v."receivedAt"
+    FROM (VALUES ${Prisma.join(rows)}) AS v(id, "receivedAt")
+    WHERE t.id = v.id
+  `;
+
+  const updated = await prisma.salesOrder.findUniqueOrThrow({ where: { id: orderId }, include: salesOrderDetailInclude });
+  return { ...updated, affectedCostChecks };
 }

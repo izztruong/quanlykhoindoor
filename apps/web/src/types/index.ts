@@ -123,6 +123,7 @@ export interface SalesOrderItem {
   quantity: string | number;
   received: boolean;
   receivedQuantity?: string | number | null;
+  receivedAt?: string | null;
   note?: string | null;
 }
 

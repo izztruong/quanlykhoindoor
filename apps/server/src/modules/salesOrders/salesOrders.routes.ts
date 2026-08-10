@@ -2,7 +2,13 @@ import { Router } from "express";
 import { prisma } from "../../config/db";
 import { HttpError } from "../../utils/httpError";
 import { parseDateRange, parsePagination } from "../../utils/pagination";
-import { salesOrderConfirmSchema, salesOrderCreateSchema, salesOrderReceivingSchema, salesOrderStatusSchema } from "./salesOrders.schemas";
+import {
+  salesOrderConfirmSchema,
+  salesOrderCreateSchema,
+  salesOrderReceivedDatesSchema,
+  salesOrderReceivingSchema,
+  salesOrderStatusSchema,
+} from "./salesOrders.schemas";
 import {
   assertOwnership,
   completeSalesOrderReceiving,
@@ -11,6 +17,7 @@ import {
   createSalesOrder,
   replaceSalesOrderItems,
   salesOrderDetailInclude,
+  updateSalesOrderReceivedDates,
   updateSalesOrderStatus,
 } from "./salesOrders.service";
 
@@ -82,5 +89,13 @@ salesOrdersRouter.patch("/:id/confirm", async (req, res) => {
 
 salesOrdersRouter.patch("/:id/confirm-quantities", async (req, res) => {
   const item = await confirmOrderReportedQuantities(req.params.id, req.user);
+  res.json(item);
+});
+
+// Tách riêng khỏi /receiving: chỉ ghi ngày nhận, không đụng số lượng/trạng thái/phiếu xuất kho.
+// Quyền admin được kiểm trong service (kèm cả kiểm tra trạng thái đơn).
+salesOrdersRouter.patch("/:id/received-dates", async (req, res) => {
+  const data = salesOrderReceivedDatesSchema.parse(req.body);
+  const item = await updateSalesOrderReceivedDates(req.params.id, data, req.user);
   res.json(item);
 });

@@ -28,6 +28,9 @@ export const salesOrderReceivingSchema = z.object({
       z.object({
         itemId: z.string().min(1),
         receivedQuantity: z.coerce.number().nonnegative(),
+        // Thời điểm dòng này thực nhận — Check Cost lọc kỳ theo mốc này. Client không gửi thì
+        // server tự điền now(), giữ bất biến "có số lượng nhận thì phải có ngày nhận".
+        receivedAt: z.coerce.date().optional(),
       }),
     )
     .min(1),
@@ -48,6 +51,20 @@ export const salesOrderConfirmSchema = z.object({
         // Theo từng hàng hoá (itemId), không theo từng dòng NCC tách nhỏ — nếu 1 itemId có
         // nhiều dòng, chỉ cần 1 dòng mang note là đủ, các dòng còn lại có thể bỏ trống.
         note: z.string().optional(),
+        // Ngày nhận dự kiến admin đặt ngay lúc xác nhận. Cũng lấy theo itemId như note.
+        receivedAt: z.coerce.date().optional(),
+      }),
+    )
+    .min(1),
+});
+
+/** Admin sửa riêng ngày nhận, không đụng số lượng/trạng thái đơn/phiếu xuất kho. */
+export const salesOrderReceivedDatesSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        itemId: z.string().min(1),
+        receivedAt: z.coerce.date(),
       }),
     )
     .min(1),

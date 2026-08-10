@@ -147,13 +147,14 @@ export async function computeCostCheckReport(costCheckId: string): Promise<{ row
 
   const { openingStockCheck: opening, closingStockCheck: closing } = costCheck;
 
+  // Lọc theo mốc nhận của TỪNG DÒNG (SalesOrderItem.receivedAt) chứ không phải mốc hoàn thành
+  // của cả đơn — đơn nhận rải rác nhiều ngày sẽ rơi vào đúng kỳ của từng dòng, thay vì bị dồn
+  // hết vào ngày bấm "Hoàn thành" lần cuối.
   const receivedGroups = await prisma.salesOrderItem.groupBy({
     by: ["productId"],
     where: {
-      salesOrder: {
-        createdById: costCheck.userId,
-        completedAt: { gte: opening.checkedAt, lte: closing.checkedAt },
-      },
+      receivedAt: { gte: opening.checkedAt, lte: closing.checkedAt },
+      salesOrder: { createdById: costCheck.userId },
     },
     _sum: { receivedQuantity: true },
   });

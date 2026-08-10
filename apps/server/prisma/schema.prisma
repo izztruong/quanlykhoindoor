@@ -368,11 +368,17 @@ model SalesOrderItem {
   // partially received line can log how much actually arrived instead.
   received         Boolean    @default(false)
   receivedQuantity Decimal?   @db.Decimal(18, 3)
+  // Thời điểm CHÍNH DÒNG NÀY thực nhận — Check Cost lọc "nhận trong kỳ" theo mốc này thay vì
+  // SalesOrder.completedAt, để đơn nhận rải rác nhiều ngày rơi vào đúng kỳ của từng dòng.
+  // Là DateTime chứ không phải ngày trần: mốc kỳ (StockCheck.checkedAt) có cả giờ, ngày trần
+  // 00:00 sẽ khiến hàng nhận cùng ngày với phiếu kiểm đầu kỳ bị rơi ra ngoài kỳ.
+  receivedAt       DateTime?
   // Lý do admin đổi số lượng lúc xác nhận đơn — hiển thị lại cho nhân viên xem khi đơn ở
   // trạng thái chờ xác nhận (PENDING_CONFIRM).
   note             String?
 
   @@index([productId])
+  @@index([receivedAt])
 }
 
 enum InventoryCountStatus {

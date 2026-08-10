@@ -8,10 +8,12 @@ import {
   useCompleteSalesOrderReceiving,
   useConfirmOrderReportedQuantities,
   useSalesOrder,
+  useUpdateSalesOrderReceivedDates,
   useUpdateSalesOrderStatus,
 } from "@/hooks/useSalesOrders";
 import { ApiError } from "@/lib/api-client";
 import { useCurrentUser } from "@/lib/auth";
+import { nowForDatetimeLocal, toDatetimeLocal } from "@/lib/dateRange";
 import { exportOrderToExcel } from "@/lib/exportOrderExcel";
 import { formatDateTime, formatNumber, labels } from "@/lib/format";
 import type { AuthUser, SalesOrderItem, SalesOrderStatus } from "@/types";
@@ -61,12 +63,16 @@ export function OrderDetailClient({ id }: { id: string }) {
   const updateStatus = useUpdateSalesOrderStatus(id);
   const completeReceiving = useCompleteSalesOrderReceiving(id);
   const confirmQuantities = useConfirmOrderReportedQuantities(id);
+  const updateReceivedDates = useUpdateSalesOrderReceivedDates(id);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   // Only holds rows the user has actually touched this session; untouched
   // rows fall back to what was saved from an earlier pass, or the ordered
   // quantity as a starting point (see receivedQuantityFor).
   const [overrides, setOverrides] = useState<Record<string, string>>({});
+  // Ngày nhận theo từng dòng. Mặc định chung ở đầu bảng, dòng nào về ngày khác thì sửa riêng.
+  const [dateOverrides, setDateOverrides] = useState<Record<string, string>>({});
+  const [bulkReceivedAt, setBulkReceivedAt] = useState(nowForDatetimeLocal);
 
   if (isLoading || !order) {
     return <p className="text-slate-400">Đang tải...</p>;
@@ -74,6 +80,11 @@ export function OrderDetailClient({ id }: { id: string }) {
 
   const actions = getAvailableActions(order.status, currentUser?.role);
   const canReceive = order.status === "CONFIRMED" || order.status === "SHORT";
+  const isAdmin = currentUser?.role === "ADMIN";
+  // Chỉ admin được đặt ngày nhận; quán chỉ điền số lượng. Sửa được ở mọi trạng thái sau khi đơn
+  // đã xác nhận (kể cả Hoàn thành), nếu không thì ngày sai sẽ bị khoá cứng.
+  const canEditDates = isAdmin && (canReceive || order.status === "COMPLETED");
+  const showDateColumn = canEditDates || order.status === "COMPLETED";
 
   function receivedQuantityFor(item: SalesOrderItem): string {
     const override = overrides[item.id];
@@ -85,6 +96,57 @@ export function OrderDetailClient({ id }: { id: string }) {
   function setReceivedQuantity(itemId: string, receivedQuantity: string) {
     setError(null);
     setOverrides((prev) => ({ ...prev, [itemId]: receivedQuantity }));
+  }
+
+  /**
+   * Dòng đã nhận từ đợt trước GIỮ NGUYÊN ngày cũ — nếu lấy mặc định hôm nay thì mỗi lần mở lại
+   * đơn thiếu để nhận bổ sung, toàn bộ ngày sẽ nhảy sang hôm nay và Check Cost tính sai kỳ.
+   * Chỉ dòng chưa từng nhận mới lấy ngày mặc định ở đầu bảng.
+   */
+  function receivedAtFor(item: SalesOrderItem): string {
+    const override = dateOverrides[item.id];
+    if (override !== undefined) return override;
+    if (item.receivedAt) return toDatetimeLocal(item.receivedAt);
+    return bulkReceivedAt;
+  }
+
+  function setReceivedAt(itemId: string, value: string) {
+    setError(null);
+    setDateOverrides((prev) => ({ ...prev, [itemId]: value }));
+  }
+
+  /** Áp ngày mặc định cho mọi dòng, kể cả dòng đã nhận đợt trước — dùng khi cả đơn về cùng ngày. */
+  function applyBulkDateToAll() {
+    setError(null);
+    const next: Record<string, string> = {};
+    for (const item of order!.items) next[item.id] = bulkReceivedAt;
+    setDateOverrides(next);
+  }
+
+  /**
+   * Lưu RIÊNG ngày nhận — không đụng số lượng, trạng thái đơn hay phiếu xuất kho. Tách khỏi nút
+   * "Hoàn thành" để admin sửa ngày mà không vô tình hoàn thành đơn.
+   */
+  function handleSaveDates() {
+    setError(null);
+    const items = order!.items
+      .map((item) => ({ itemId: item.id, receivedAt: receivedAtFor(item) }))
+      .filter((it) => it.receivedAt)
+      .map((it) => ({ itemId: it.itemId, receivedAt: new Date(it.receivedAt).toISOString() }));
+    if (items.length === 0) return;
+
+    updateReceivedDates.mutate(items, {
+      onSuccess: (updated) => {
+        setDateOverrides({});
+        if (updated.affectedCostChecks.length > 0) {
+          const codes = updated.affectedCostChecks.map((c) => c.code).join(", ");
+          alert(
+            `Đã lưu ngày nhận. Các phiếu Check Cost sau có kỳ trùm ngày cũ hoặc ngày mới — số liệu của chúng CHƯA được cập nhật, vui lòng tạo lại nếu cần: ${codes}`,
+          );
+        }
+      },
+      onError: (err) => setError(err instanceof ApiError ? err.message : "Lưu ngày nhận thất bại"),
+    });
   }
 
   function fillAllWithOrdered() {
@@ -118,13 +180,20 @@ export function OrderDetailClient({ id }: { id: string }) {
 
   function handleComplete() {
     setError(null);
-    const items = order!.items.map((item) => ({
-      itemId: item.id,
-      receivedQuantity: Number(receivedQuantityFor(item)) || 0,
-    }));
+    const items = order!.items.map((item) => {
+      const receivedAt = receivedAtFor(item);
+      return {
+        itemId: item.id,
+        receivedQuantity: Number(receivedQuantityFor(item)) || 0,
+        receivedAt: receivedAt ? new Date(receivedAt).toISOString() : undefined,
+      };
+    });
 
     completeReceiving.mutate(items, {
-      onSuccess: () => setOverrides({}),
+      onSuccess: () => {
+        setOverrides({});
+        setDateOverrides({});
+      },
       onError: (err) => setError(err instanceof ApiError ? err.message : "Cập nhật thất bại"),
     });
   }
@@ -194,11 +263,32 @@ export function OrderDetailClient({ id }: { id: string }) {
       <Card>
         <CardHeader>
           <CardTitle>Hàng hoá</CardTitle>
-          {canReceive && (
-            <Button variant="secondary" size="sm" onClick={fillAllWithOrdered}>
-              Điền theo số đặt
-            </Button>
-          )}
+          <div className="flex flex-wrap items-end gap-2">
+            {canEditDates && (
+              <>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-medium text-slate-500">Ngày nhận mặc định</label>
+                  <Input
+                    type="datetime-local"
+                    className="h-8 w-52"
+                    value={bulkReceivedAt}
+                    onChange={(e) => setBulkReceivedAt(e.target.value)}
+                  />
+                </div>
+                <Button variant="secondary" size="sm" onClick={applyBulkDateToAll}>
+                  Áp ngày cho tất cả
+                </Button>
+                <Button variant="secondary" size="sm" onClick={handleSaveDates} disabled={updateReceivedDates.isPending}>
+                  {updateReceivedDates.isPending ? "Đang lưu..." : "Lưu ngày nhận"}
+                </Button>
+              </>
+            )}
+            {canReceive && (
+              <Button variant="secondary" size="sm" onClick={fillAllWithOrdered}>
+                Điền theo số đặt
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardBody className="overflow-x-auto p-0">
           <table className="w-full border-collapse text-sm">
@@ -210,6 +300,7 @@ export function OrderDetailClient({ id }: { id: string }) {
                 {order.status === "PENDING_CONFIRM" && <th className="border border-slate-200 px-4 py-2 text-left">SL nhận</th>}
                 {order.status === "PENDING_CONFIRM" && <th className="border border-slate-200 px-4 py-2 text-left">Ghi chú</th>}
                 {(canReceive || order.status === "COMPLETED") && <th className="border border-slate-200 px-4 py-2 text-left">SL thực nhận</th>}
+                {showDateColumn && <th className="border border-slate-200 px-4 py-2 text-left">Ngày nhận</th>}
               </tr>
             </thead>
             <tbody>
@@ -242,6 +333,22 @@ export function OrderDetailClient({ id }: { id: string }) {
                     )}
                     {!canReceive && order.status === "COMPLETED" && (
                       <td className="border border-slate-200 px-4 py-2">{item.receivedQuantity != null ? String(item.receivedQuantity) : item.quantity}</td>
+                    )}
+                    {showDateColumn && (
+                      <td className="whitespace-nowrap border border-slate-200 px-4 py-2">
+                        {canEditDates ? (
+                          <Input
+                            type="datetime-local"
+                            className="h-8 w-52"
+                            value={receivedAtFor(item)}
+                            onChange={(e) => setReceivedAt(item.id, e.target.value)}
+                          />
+                        ) : item.receivedAt ? (
+                          formatDateTime(item.receivedAt)
+                        ) : (
+                          "-"
+                        )}
+                      </td>
                     )}
                     {order.status === "PENDING_CONFIRM" && (
                       <td className={`border border-slate-200 px-4 py-2 font-medium ${reportedTone}`}>{formatNumber(reportedQty)}</td>

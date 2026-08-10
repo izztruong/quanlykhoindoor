@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
-import type { PagedResult, SalesOrder, SalesOrderStatus } from "@/types";
+import type { AffectedCostCheck, PagedResult, SalesOrder, SalesOrderStatus } from "@/types";
 
 export interface SalesOrderItemInput {
   productId: string;
@@ -69,6 +69,8 @@ export function useUpdateSalesOrderStatus(id: string) {
 export interface SalesOrderReceivingItemInput {
   itemId: string;
   receivedQuantity: number;
+  /** Thời điểm dòng này thực nhận (ISO). Check Cost lọc kỳ theo mốc này. */
+  receivedAt?: string;
 }
 
 export function useCompleteSalesOrderReceiving(id: string) {
@@ -99,6 +101,26 @@ export interface SalesOrderConfirmItemInput {
   costPrice: number;
   quantity: number;
   note?: string;
+  /** Ngày nhận dự kiến admin đặt ngay lúc xác nhận đơn (ISO). */
+  receivedAt?: string;
+}
+
+export interface SalesOrderReceivedDateInput {
+  itemId: string;
+  receivedAt: string;
+}
+
+/** Admin sửa riêng ngày nhận — không đụng số lượng, trạng thái đơn hay phiếu xuất kho. */
+export function useUpdateSalesOrderReceivedDates(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (items: SalesOrderReceivedDateInput[]) =>
+      api.patch<SalesOrder & { affectedCostChecks: AffectedCostCheck[] }>(`/sales-orders/${id}/received-dates`, { items }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sales-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["sales-orders", id] });
+    },
+  });
 }
 
 export function useConfirmSalesOrderWithExport(id: string) {

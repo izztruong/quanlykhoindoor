@@ -9,6 +9,7 @@ import { useProductSupplierPrices } from "@/hooks/useProductSupplierPrices";
 import { useConfirmSalesOrderWithExport, useSalesOrder } from "@/hooks/useSalesOrders";
 import { ApiError } from "@/lib/api-client";
 import { useCurrentUser } from "@/lib/auth";
+import { nowForDatetimeLocal } from "@/lib/dateRange";
 import { formatNumber } from "@/lib/format";
 import type { SalesOrderItem } from "@/types";
 import { Plus, Trash2 } from "lucide-react";
@@ -38,6 +39,9 @@ export function OrderConfirmClient({ id }: { id: string }) {
   const confirmOrder = useConfirmSalesOrderWithExport(id);
   const [linesByItemId, setLinesByItemId] = useState<Record<string, SplitLine[]>>({});
   const [notesByItemId, setNotesByItemId] = useState<Record<string, string>>({});
+  // Ngày nhận dự kiến: 1 ô mặc định cho cả đơn, hàng hoá nào về ngày khác thì sửa riêng.
+  const [datesByItemId, setDatesByItemId] = useState<Record<string, string>>({});
+  const [bulkReceivedAt, setBulkReceivedAt] = useState(nowForDatetimeLocal);
   const [error, setError] = useState<string | null>(null);
 
   if (currentUser && currentUser.role !== "ADMIN") {
@@ -115,6 +119,15 @@ export function OrderConfirmClient({ id }: { id: string }) {
     setNotesByItemId((prev) => ({ ...prev, [item.id]: note }));
   }
 
+  function receivedAtFor(item: SalesOrderItem): string {
+    return datesByItemId[item.id] ?? bulkReceivedAt;
+  }
+
+  function setReceivedAt(item: SalesOrderItem, value: string) {
+    setError(null);
+    setDatesByItemId((prev) => ({ ...prev, [item.id]: value }));
+  }
+
   function handleSubmit() {
     setError(null);
 
@@ -122,6 +135,8 @@ export function OrderConfirmClient({ id }: { id: string }) {
       // Theo từng hàng hoá, không theo từng dòng NCC tách nhỏ — gắn note vào mọi dòng
       // của item đó, backend chỉ cần lấy 1 lần.
       const note = noteFor(item).trim() || undefined;
+      const dateValue = receivedAtFor(item);
+      const receivedAt = dateValue ? new Date(dateValue).toISOString() : undefined;
       return (
         linesFor(item)
           // Giữ lại các dòng người dùng đã thực sự nhập số lượng (kể cả 0 — nghĩa là
@@ -134,6 +149,7 @@ export function OrderConfirmClient({ id }: { id: string }) {
             costPrice: line.costPrice.trim() === "" ? 0 : Number(line.costPrice),
             quantity: Number(line.quantity),
             note,
+            receivedAt,
           }))
       );
     });
@@ -170,6 +186,20 @@ export function OrderConfirmClient({ id }: { id: string }) {
       <Card>
         <CardHeader>
           <CardTitle>Hàng hoá</CardTitle>
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-500">Ngày nhận dự kiến (mặc định)</label>
+              <Input
+                type="datetime-local"
+                className="h-8 w-52"
+                value={bulkReceivedAt}
+                onChange={(e) => setBulkReceivedAt(e.target.value)}
+              />
+            </div>
+            <Button variant="secondary" size="sm" onClick={() => setDatesByItemId({})}>
+              Áp cho tất cả
+            </Button>
+          </div>
         </CardHeader>
         <CardBody className="flex flex-col gap-4">
           {order.items.map((item) => {
@@ -252,13 +282,24 @@ export function OrderConfirmClient({ id }: { id: string }) {
                   Tổng số lượng đã nhập: {formatNumber(allocated)} (số lượng đặt ban đầu: {formatNumber(item.quantity)})
                 </p>
 
-                <div className="mt-2 flex flex-col gap-1">
-                  <label className="text-xs font-medium text-slate-500">Ghi chú (lý do thay đổi số lượng, nếu có)</label>
-                  <Input
-                    value={noteFor(item)}
-                    onChange={(e) => setNote(item, e.target.value)}
-                    placeholder="Ví dụ: NCC hết hàng, chỉ đặt được một phần..."
-                  />
+                <div className="mt-2 flex flex-wrap items-end gap-3">
+                  <div className="flex min-w-[16rem] flex-1 flex-col gap-1">
+                    <label className="text-xs font-medium text-slate-500">Ghi chú (lý do thay đổi số lượng, nếu có)</label>
+                    <Input
+                      value={noteFor(item)}
+                      onChange={(e) => setNote(item, e.target.value)}
+                      placeholder="Ví dụ: NCC hết hàng, chỉ đặt được một phần..."
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-slate-500">Ngày nhận dự kiến</label>
+                    <Input
+                      type="datetime-local"
+                      className="w-52"
+                      value={receivedAtFor(item)}
+                      onChange={(e) => setReceivedAt(item, e.target.value)}
+                    />
+                  </div>
                 </div>
               </div>
             );
