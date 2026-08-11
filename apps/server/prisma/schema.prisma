@@ -23,9 +23,6 @@ model User {
   // Bumped on password change so any JWT issued before that moment is rejected —
   // otherwise a stolen cookie would stay valid for its full 7-day life post-reset.
   tokenVersion Int      @default(0)
-  // Định danh cuộc trò chuyện với bot Zalo. Chỉ có sau khi người dùng chủ động nhắn cho bot
-  // một lần (bot không thể tự nhắn trước cho người lạ). Bỏ trống = không nhận thông báo.
-  zaloChatId   String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -353,11 +350,6 @@ model SalesOrder {
   // Lúc completeSalesOrderReceiving chạy xong gần nhất (dù ra SHORT hay COMPLETED) — dùng để lọc
   // "nhận trong kỳ" theo mốc thời gian thực tế nhận hàng, thay vì orderDate (lúc đặt).
   completedAt DateTime?
-  // Lúc gửi thông báo Zalo "đơn mới" cho admin thành công. Việc gửi được nuốt lỗi để không làm
-  // hỏng việc tạo đơn, nên nếu không có cột này thì thông báo trượt sẽ mất hẳn, không ai biết.
-  notifiedAt  DateTime?
-  // Tương tự, nhưng cho thông báo "chờ xác nhận" gửi về đúng tài khoản quán đã đặt đơn.
-  pendingNotifiedAt DateTime?
 
   items       SalesOrderItem[]
   stockExport StockExport?
