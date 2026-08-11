@@ -12,6 +12,7 @@ import { finishedGoodRecipesRouter } from "./modules/finishedGoodRecipes/finishe
 import { inventoryCountsRouter } from "./modules/inventoryCounts/inventoryCounts.routes";
 import { materialTransfersRouter } from "./modules/materialTransfers/materialTransfers.routes";
 import { materialWasteRouter } from "./modules/materialWaste/materialWaste.routes";
+import { notificationsRouter } from "./modules/notifications/notifications.routes";
 import { productGroupsRouter } from "./modules/productGroups/productGroups.routes";
 import { productStockRouter } from "./modules/products/productStock.routes";
 import { productsRouter } from "./modules/products/products.routes";
@@ -69,6 +70,7 @@ app.use("/api/material-transfers", requireRole("ADMIN"), materialTransfersRouter
 app.use("/api/inventory-counts", requireRole("ADMIN"), inventoryCountsRouter);
 app.use("/api/reports", requireRole("ADMIN"), reportsRouter);
 app.use("/api/users", requireRole("ADMIN"), usersRouter);
+app.use("/api/notifications", requireRole("ADMIN"), notificationsRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

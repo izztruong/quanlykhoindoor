@@ -77,6 +77,7 @@ export const navSections: NavSection[] = [
       { label: "Tài khoản người dùng", href: "/admin/users" },
       { label: "Định lượng Order nhanh", href: "/admin/reorder-thresholds" },
       { label: "Giá theo Nhà cung cấp", href: "/admin/product-supplier-prices" },
+      { label: "Thông báo Zalo", href: "/admin/notifications" },
     ],
   },
 ];

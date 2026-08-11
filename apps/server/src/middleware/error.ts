@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import { ZodError } from "zod";
+import { ZaloBotError } from "../modules/notifications/zaloBot.client";
 import { HttpError } from "../utils/httpError";
 
 export function notFoundHandler(req: Request, res: Response) {
@@ -14,6 +15,13 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
 
   if (err instanceof HttpError) {
     res.status(err.statusCode).json({ message: err.message });
+    return;
+  }
+
+  // Sự cố phía Zalo là lỗi của dịch vụ ngoài, không phải lỗi hệ thống của mình — trả 502 kèm
+  // nguyên văn mô tả để admin tự sửa được (token sai, chưa nhắn cho bot, hết hạn mức...).
+  if (err instanceof ZaloBotError) {
+    res.status(502).json({ message: err.message });
     return;
   }
 

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { prisma } from "../../config/db";
 import { HttpError } from "../../utils/httpError";
 import { parseDateRange, parsePagination } from "../../utils/pagination";
+import { notifyNewSalesOrder, notifyOrderPendingConfirm } from "../notifications/notifications.service";
 import {
   salesOrderConfirmSchema,
   salesOrderCreateSchema,
@@ -61,6 +62,11 @@ salesOrdersRouter.post("/", async (req, res) => {
   const data = salesOrderCreateSchema.parse(req.body);
   const item = await createSalesOrder(data, req.user?.id);
   res.status(201).json(item);
+
+  // Cố tình KHÔNG await: người đặt hàng không phải chờ Zalo trả lời mới thấy đơn được tạo.
+  // Chạy được sau khi đã trả response vì tiến trình Node vẫn sống (Render chỉ ngủ sau 15 phút
+  // không có request). Hàm này tự nuốt mọi lỗi nên `void` ở đây là an toàn, không cần .catch().
+  void notifyNewSalesOrder(item);
 });
 
 salesOrdersRouter.put("/:id", async (req, res) => {
@@ -85,6 +91,10 @@ salesOrdersRouter.patch("/:id/confirm", async (req, res) => {
   const data = salesOrderConfirmSchema.parse(req.body);
   const item = await confirmSalesOrderWithExport(req.params.id, data, req.user);
   res.json(item);
+
+  // Đơn vừa sang PENDING_CONFIRM: báo cho quán đã đặt để họ vào xác nhận số lượng thực mua.
+  // Không await, cùng lý do như lúc tạo đơn — xem chú thích ở POST "/".
+  void notifyOrderPendingConfirm(item);
 });
 
 salesOrdersRouter.patch("/:id/confirm-quantities", async (req, res) => {

@@ -6,3 +6,12 @@ export const userCreateSchema = z.object({
   name: z.string().min(1),
   role: z.enum(["ADMIN", "STAFF"]).default("STAFF"),
 });
+
+export const userUpdateSchema = z.object({
+  // Chuỗi rỗng = xoá liên kết Zalo, nên map về null thay vì lưu "" (findMany lọc theo `not: null`).
+  zaloChatId: z
+    .string()
+    .trim()
+    .transform((v) => v || null)
+    .nullable(),
+});

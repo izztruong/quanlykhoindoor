@@ -3,11 +3,11 @@ import { Router } from "express";
 import { prisma } from "../../config/db";
 import { HttpError } from "../../utils/httpError";
 import { parsePagination } from "../../utils/pagination";
-import { userCreateSchema } from "./users.schemas";
+import { userCreateSchema, userUpdateSchema } from "./users.schemas";
 
 export const usersRouter = Router();
 
-const userSelect = { id: true, email: true, name: true, role: true, createdAt: true };
+const userSelect = { id: true, email: true, name: true, role: true, zaloChatId: true, createdAt: true };
 
 usersRouter.get("/", async (req, res) => {
   // Small, bounded list (internal staff/admin accounts) — the frontend fetches it in one
@@ -29,6 +29,23 @@ usersRouter.post("/", async (req, res) => {
     select: userSelect,
   });
   res.status(201).json(user);
+});
+
+// Hiện chỉ dùng để gán/xoá Zalo chat ID. Toàn bộ router đã ở sau requireRole("ADMIN"),
+// nên admin sửa được cho mọi tài khoản (kể cả gán hộ một admin khác).
+usersRouter.patch("/:id", async (req, res) => {
+  const data = userUpdateSchema.parse(req.body);
+  const id = req.params.id as string;
+
+  // Cùng một chatId gán cho hai tài khoản thì người đó nhận thông báo trùng — chặn từ đây,
+  // vì cột này không đặt @unique (nhiều tài khoản để trống là hợp lệ).
+  if (data.zaloChatId) {
+    const taken = await prisma.user.findFirst({ where: { zaloChatId: data.zaloChatId, id: { not: id } }, select: { name: true } });
+    if (taken) throw new HttpError(409, `Zalo chat ID này đã được gán cho tài khoản "${taken.name}"`);
+  }
+
+  const user = await prisma.user.update({ where: { id }, data: { zaloChatId: data.zaloChatId }, select: userSelect });
+  res.json(user);
 });
 
 usersRouter.delete("/:id", async (req, res) => {

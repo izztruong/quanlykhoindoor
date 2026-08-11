@@ -19,4 +19,8 @@ export const env = {
   webOrigin: process.env.WEB_ORIGIN ?? "http://localhost:3000",
   cookieName: process.env.COOKIE_NAME ?? "kho_token",
   nodeEnv: process.env.NODE_ENV ?? "development",
+  // Token tĩnh của bot Zalo, dạng "123456789:abc-xyz". KHÔNG bắt buộc: bỏ trống thì phần
+  // thông báo tự tắt và mọi thứ còn lại chạy bình thường, nên không cần cấu hình gì thêm ở
+  // máy dev hay CI. Khác Zalo OA, token này không hết hạn nên không cần lưu/refresh trong DB.
+  zaloBotToken: process.env.ZALO_BOT_TOKEN ?? "",
 };
