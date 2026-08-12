@@ -7,6 +7,7 @@ import { errorHandler, notFoundHandler } from "./middleware/error";
 import { authRouter } from "./modules/auth/auth.routes";
 import { costChecksRouter } from "./modules/costChecks/costChecks.routes";
 import { customersRouter } from "./modules/customers/customers.routes";
+import { deadlinesRouter } from "./modules/deadlines/deadlines.routes";
 import { finishedGoodItemsRouter } from "./modules/finishedGoodItems/finishedGoodItems.routes";
 import { finishedGoodRecipesRouter } from "./modules/finishedGoodRecipes/finishedGoodRecipes.routes";
 import { inventoryCountsRouter } from "./modules/inventoryCounts/inventoryCounts.routes";
@@ -50,6 +51,8 @@ app.use("/api/product-stock", productStockRouter);
 app.use("/api/finished-good-items", finishedGoodItemsRouter);
 // Read is self-scoped (or any user for admin) inside the router; write is admin-only inside the router.
 app.use("/api/reorder-thresholds", reorderThresholdsRouter);
+// Đọc mở cho cả nhân viên (để hiện nhắc hạn nộp), ghi chỉ admin — chặn bên trong router.
+app.use("/api/deadlines", deadlinesRouter);
 
 // Sales orders, phiếu kiểm (stock checks) và phiếu huỷ nguyên liệu: open to both roles, ownership-scoped for staff inside the router.
 app.use("/api/sales-orders", salesOrdersRouter);

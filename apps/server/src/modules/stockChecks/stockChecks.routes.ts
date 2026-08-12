@@ -4,6 +4,7 @@ import type { AuthUser } from "../../middleware/auth";
 import { requireRole } from "../../middleware/auth";
 import { generateCode } from "../../utils/codeGenerator";
 import { findCostChecksUsingStockCheck } from "../../utils/costCheckImpact";
+import { assertCheckedAtNotInFuture, stampStockCheckLateness } from "../../utils/deadlines";
 import { HttpError } from "../../utils/httpError";
 import { parseDateRange, parsePagination } from "../../utils/pagination";
 import { subtractTareWeight } from "../../utils/tareWeight";
@@ -58,13 +59,23 @@ stockChecksRouter.post("/", async (req, res) => {
   const data = stockCheckCreateSchema.parse(req.body);
   const items = await subtractTareWeight(data.items);
 
+  // Xem chú thích ở createSalesOrder: createdAt ghi tường minh để dấu muộn và mốc hiển thị luôn
+  // khớp nhau. Tính hạn trước khi mở transaction cho khỏi kéo dài thời gian giữ transaction.
+  const createdAt = new Date();
+  assertCheckedAtNotInFuture(data.checkedAt, createdAt);
+  const lateness = await stampStockCheckLateness(data.type, data.checkedAt, createdAt);
+
   const item = await prisma.$transaction(async (tx) => {
     const created = await tx.stockCheck.create({
       data: {
         code: generateCode("KT"),
+        type: data.type,
         checkedAt: data.checkedAt,
         note: data.note,
         createdById: req.user?.id,
+        createdAt,
+        dueAt: lateness.dueAt,
+        isLate: lateness.isLate,
       },
     });
 
@@ -112,7 +123,16 @@ stockChecksRouter.put("/:id", requireRole("ADMIN"), async (req, res) => {
   const existing = await prisma.stockCheck.findUnique({ where: { id } });
   if (!existing) throw new HttpError(404, "Không tìm thấy phiếu kiểm");
 
+  // Áp cả ở đường sửa: ngày kiểm ở tương lai là dữ liệu vô nghĩa dù người nhập là admin.
+  assertCheckedAtNotInFuture(data.checkedAt);
+
   const affectedCostChecks = await findCostChecksUsingStockCheck(id);
+
+  // Sửa loại phiếu hoặc ngày kiểm là đổi kỳ, nên hạn phải tính lại theo giá trị mới — để nguyên
+  // dấu cũ thì admin chữa nhầm lẫn xong con số vẫn sai. An toàn vì route này chỉ admin vào được:
+  // quán không tự sửa phiếu để gỡ chấm đỏ của mình được. `createdAt` giữ nguyên, vì thời điểm
+  // nộp thật thì không bao giờ thay đổi.
+  const updatedLateness = await stampStockCheckLateness(data.type, data.checkedAt, existing.createdAt);
 
   const item = await prisma.$transaction(async (tx) => {
     await tx.stockCheckItem.deleteMany({ where: { stockCheckId: id } });
@@ -120,7 +140,7 @@ stockChecksRouter.put("/:id", requireRole("ADMIN"), async (req, res) => {
 
     await tx.stockCheck.update({
       where: { id },
-      data: { checkedAt: data.checkedAt, note: data.note },
+      data: { type: data.type, checkedAt: data.checkedAt, note: data.note, dueAt: updatedLateness.dueAt, isLate: updatedLateness.isLate },
     });
 
     if (items.length > 0) {

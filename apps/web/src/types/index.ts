@@ -139,6 +139,9 @@ export interface SalesOrder {
   createdBy?: { id: string; name: string; email: string } | null;
   items: SalesOrderItem[];
   stockExport?: StockTransaction | null;
+  /** null = tạo trước khi có chức năng chấm hạn, hoặc chưa cấu hình lịch — hiện chấm xám. */
+  dueAt?: string | null;
+  isLate?: boolean;
 }
 
 export interface PagedResult<T> {
@@ -240,15 +243,35 @@ export interface StockCheckFinishedItemRow {
   note?: string | null;
 }
 
+export type StockCheckType = "WEEKLY" | "MONTHLY";
+
 export interface StockCheck {
   id: string;
   code: string;
   createdAt: string;
   checkedAt: string;
+  /** null với phiếu tạo trước khi có chức năng này. */
+  type?: StockCheckType | null;
   note?: string | null;
   createdBy?: { id: string; name: string } | null;
   items?: StockCheckItemRow[];
   finishedItems?: StockCheckFinishedItemRow[];
+  dueAt?: string | null;
+  isLate?: boolean;
+}
+
+export type DeadlineKind = "SALES_ORDER" | "STOCK_CHECK_WEEKLY" | "STOCK_CHECK_MONTHLY";
+
+export interface Deadline {
+  id: string;
+  kind: DeadlineKind;
+  /** Thứ phải nộp. 1 = Thứ 2 … 7 = Chủ nhật. Chỉ dùng cho phiếu kiểm tuần. */
+  weekday: number | null;
+  /** Thứ quy định đi kiểm — mốc mở kỳ. Cũng chỉ dùng cho phiếu kiểm tuần. */
+  periodWeekday: number | null;
+  graceDays: number;
+  hour: number;
+  minute: number;
 }
 
 export interface FinishedGoodRecipeItem {

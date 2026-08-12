@@ -38,6 +38,39 @@ model User {
   materialTransfersCreated MaterialTransfer[]        @relation("MaterialTransferCreatedBy")
 }
 
+enum DeadlineKind {
+  SALES_ORDER
+  STOCK_CHECK_WEEKLY
+  STOCK_CHECK_MONTHLY
+}
+
+/**
+ * Lịch hạn nộp, dùng chung cho mọi quán — đúng một dòng cho mỗi loại.
+ *
+ * Giờ lưu bằng hai cột số nguyên chứ KHÔNG phải DateTime: một mốc giờ đi qua ô nhập
+ * datetime-local rồi lưu lại sẽ bị trừ đi phần lệch múi giờ mỗi lần lưu (xem chú thích ở
+ * apps/web/src/lib/dateRange.ts), tức "22:00" tụt dần thành 15:00 rồi 08:00.
+ */
+model Deadline {
+  id        String       @id @default(cuid())
+  kind      DeadlineKind @unique
+  // Thứ phải nộp, 1 = Thứ 2 … 7 = Chủ nhật (ISO-8601). Chỉ dùng cho STOCK_CHECK_WEEKLY.
+  weekday   Int?
+  // Thứ quy định đi kiểm — mốc MỞ KỲ, cũng chỉ dùng cho STOCK_CHECK_WEEKLY.
+  //
+  // Không thể suy ra kỳ từ tuần lịch cố định (bắt đầu Thứ 2): nếu quy định kiểm Chủ nhật và hạn
+  // nộp Thứ 2, thì Thứ 2 "cùng tuần lịch" lại nằm TRƯỚC ngày kiểm 6 ngày, khiến mọi phiếu đều
+  // muộn. Nên kỳ phải mở đúng vào ngày kiểm quy định, và hạn là lần xuất hiện đầu tiên của
+  // `weekday` kể từ mốc đó.
+  periodWeekday Int?
+  // Số ngày ân hạn sau khi kỳ kết thúc. Chỉ dùng cho STOCK_CHECK_MONTHLY (1 = 12h ngày mùng 1
+  // tháng sau). SALES_ORDER luôn là trong ngày nên không dùng.
+  graceDays Int          @default(0)
+  hour      Int
+  minute    Int
+  updatedAt DateTime     @updatedAt
+}
+
 model Warehouse {
   id        String   @id @default(cuid())
   code      String   @unique
@@ -351,6 +384,11 @@ model SalesOrder {
   // "nhận trong kỳ" theo mốc thời gian thực tế nhận hàng, thay vì orderDate (lúc đặt).
   completedAt DateTime?
 
+  // Hạn đặt hàng của chính ngày tạo đơn, chốt ngay lúc tạo. Đo theo createdAt chứ không theo
+  // orderDate: orderDate do người đặt tự chọn nên lùi ngày là thoát, createdAt thì không sửa được.
+  dueAt       DateTime?
+  isLate      Boolean          @default(false)
+
   items       SalesOrderItem[]
   stockExport StockExport?
 
@@ -421,16 +459,33 @@ model InventoryCountItem {
 // no warehouse and no system-vs-actual comparison (that's the separate,
 // admin-only InventoryCount feature above). A permanent one-shot log entry —
 // no draft/complete workflow, no editing after creation.
+// Phiếu kiểm tuần và phiếu kiểm tháng có hạn nộp neo vào hai mốc khác nhau (thứ cố định trong
+// tuần vs ngày cuối tháng), nên phải biết phiếu thuộc loại nào mới tính được hạn.
+enum StockCheckType {
+  WEEKLY
+  MONTHLY
+}
+
 model StockCheck {
-  id          String   @id @default(cuid())
-  code        String   @unique
+  id          String          @id @default(cuid())
+  code        String          @unique
   note        String?
+  // Cho phép trống vì phiếu tạo trước khi có chức năng chấm muộn không có thông tin này —
+  // những phiếu đó hiển thị "chưa đánh giá" thay vì bị đoán bừa thành đúng hạn.
+  type        StockCheckType?
   createdById String?
-  createdBy   User?    @relation(fields: [createdById], references: [id])
-  createdAt   DateTime @default(now())
+  createdBy   User?           @relation(fields: [createdById], references: [id])
+  createdAt   DateTime        @default(now())
   // Thời điểm kiểm thực tế do người dùng chọn (mặc định lúc lưu) — dùng làm mốc kỳ Check Cost,
   // khác với createdAt (lúc bản ghi được lưu vào hệ thống).
-  checkedAt   DateTime @default(now())
+  checkedAt   DateTime        @default(now())
+
+  // Hạn nộp của KỲ mà phiếu này báo cáo, chốt ngay lúc tạo. Kỳ suy ra từ checkedAt (quán khai
+  // kiểm ngày nào), còn hạn thì lấy từ lịch admin đặt — cố tình KHÔNG tính từ checkedAt, nếu
+  // không quán chỉ cần khai muộn ngày kiểm là hạn tự lùi theo và luôn đúng hạn.
+  dueAt       DateTime?
+  // Bằng createdAt > dueAt, nhưng lưu sẵn thành cột riêng để lọc/đánh dấu được bằng SQL.
+  isLate      Boolean         @default(false)
 
   items               StockCheckItem[]
   finishedItems       StockCheckFinishedItem[]

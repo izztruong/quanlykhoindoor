@@ -2,6 +2,7 @@
 
 import { DataTable } from "@/components/data-table/DataTable";
 import { Pagination } from "@/components/data-table/Pagination";
+import { LatenessDot } from "@/components/deadlines/LatenessDot";
 import { DateRangeFilter } from "@/components/filters/DateRangeFilter";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -50,9 +51,12 @@ export default function OrdersPage() {
         header: "Mã đơn",
         id: "code",
         cell: ({ row }) => (
-          <Link href={`/orders/${row.original.id}`} className="font-medium text-indigo-600 hover:underline">
-            {row.original.code}
-          </Link>
+          <span className="flex items-center gap-2">
+            <LatenessDot dueAt={row.original.dueAt} isLate={row.original.isLate} submittedAt={row.original.createdAt} />
+            <Link href={`/orders/${row.original.id}`} className="font-medium text-indigo-600 hover:underline">
+              {row.original.code}
+            </Link>
+          </span>
         ),
       },
       { header: "Tài khoản", accessorFn: (row) => row.createdBy?.name ?? "-", id: "createdBy" },

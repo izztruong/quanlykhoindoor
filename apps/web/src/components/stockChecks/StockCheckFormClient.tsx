@@ -4,13 +4,14 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
+import { Select } from "@/components/ui/Select";
 import { useFinishedGoodItems, useProducts } from "@/hooks/useCatalog";
 import { useCreateStockCheck, useUpdateStockCheck } from "@/hooks/useStockChecks";
 import { ApiError } from "@/lib/api-client";
 import { nowForDatetimeLocal, toDatetimeLocal } from "@/lib/dateRange";
 import { sanitizeExcelRow } from "@/lib/excelExport";
 import { formatNumber } from "@/lib/format";
-import type { FinishedGoodItem, Product, ProductType, StockCheck } from "@/types";
+import type { FinishedGoodItem, Product, ProductType, StockCheck, StockCheckType } from "@/types";
 import ExcelJS from "exceljs";
 import { ChevronDown, Download } from "lucide-react";
 import Link from "next/link";
@@ -294,6 +295,9 @@ export function StockCheckFormClient({ existing }: StockCheckFormClientProps) {
   const createCheck = useCreateStockCheck();
   const updateCheck = useUpdateStockCheck(existing?.id ?? "");
 
+  // Phiếu cũ chưa có loại thì mặc định về phiếu tuần — admin sửa lại được ngay tại đây, và việc
+  // lưu sẽ tính lại hạn theo loại mới.
+  const [type, setType] = useState<StockCheckType>(existing?.type ?? "WEEKLY");
   const [checkedAt, setCheckedAt] = useState(() => (existing ? toDatetimeLocal(existing.checkedAt) : nowForDatetimeLocal()));
   const [note, setNote] = useState(existing?.note ?? "");
   const [materialEntries, setMaterialEntries] = useState<Record<string, MaterialEntry>>(() => toMaterialEntries(existing));
@@ -395,7 +399,7 @@ export function StockCheckFormClient({ existing }: StockCheckFormClientProps) {
       return;
     }
 
-    const payload = { checkedAt: checkedAt ? new Date(checkedAt).toISOString() : undefined, note: note || undefined, items, finishedItems };
+    const payload = { type, checkedAt: checkedAt ? new Date(checkedAt).toISOString() : undefined, note: note || undefined, items, finishedItems };
 
     if (isEdit && existing) {
       updateCheck.mutate(payload, {
@@ -618,10 +622,19 @@ export function StockCheckFormClient({ existing }: StockCheckFormClientProps) {
             )}
           </div>
         </CardHeader>
-        <CardBody className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <CardBody className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-slate-600">Loại phiếu</label>
+            <Select value={type} onChange={(e) => setType(e.target.value as StockCheckType)}>
+              <option value="WEEKLY">Phiếu tuần</option>
+              <option value="MONTHLY">Phiếu tháng</option>
+            </Select>
+          </div>
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-slate-600">Thời gian kiểm</label>
-            <Input type="datetime-local" value={checkedAt} onChange={(e) => setCheckedAt(e.target.value)} />
+            {/* max chặn ngay trên trình duyệt cho đỡ phải gửi lên mới biết sai; server vẫn kiểm lại
+                (assertCheckedAtNotInFuture) vì thuộc tính này không phải trình duyệt nào cũng ép. */}
+            <Input type="datetime-local" max={nowForDatetimeLocal()} value={checkedAt} onChange={(e) => setCheckedAt(e.target.value)} />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-slate-600">Ghi chú</label>

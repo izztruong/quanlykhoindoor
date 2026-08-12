@@ -3,6 +3,7 @@ import { Prisma } from "../../generated/prisma/client";
 import type { AuthUser } from "../../middleware/auth";
 import { generateCode } from "../../utils/codeGenerator";
 import { type AffectedCostCheck, findCostChecksUsingPeriodRecord } from "../../utils/costCheckImpact";
+import { stampSalesOrderLateness } from "../../utils/deadlines";
 import { HttpError } from "../../utils/httpError";
 import { getInventoryCountReport } from "../reports/reports.service";
 import type { z } from "zod";
@@ -59,6 +60,12 @@ async function assertSufficientStock(warehouseId: string, items: { productId: st
 export async function createSalesOrder(data: SalesOrderCreateInput, createdById?: string) {
   if (!data.skipStockCheck) await assertSufficientStock(data.warehouseId, data.items);
 
+  // Ghi createdAt tường minh thay vì để DB tự điền: dấu đúng hạn/muộn phải được chấm theo đúng
+  // mốc lưu trong cột, nếu lấy hai nguồn thời gian khác nhau thì đơn sát giờ hạn có thể bị chấm
+  // lệch với chính con số hiển thị bên cạnh nó.
+  const createdAt = new Date();
+  const lateness = await stampSalesOrderLateness(createdAt);
+
   return prisma.salesOrder.create({
     data: {
       code: generateCode("DH"),
@@ -66,6 +73,9 @@ export async function createSalesOrder(data: SalesOrderCreateInput, createdById?
       orderDate: data.orderDate,
       note: data.note,
       createdById,
+      createdAt,
+      dueAt: lateness.dueAt,
+      isLate: lateness.isLate,
       items: {
         create: data.items.map((it) => ({
           productId: it.productId,

@@ -20,6 +20,9 @@ const finishedItemSchema = z.object({
 export const stockCheckCreateSchema = z
   .object({
     checkedAt: z.coerce.date().default(() => new Date()),
+    // Bắt buộc khi tạo mới (hạn nộp tuần và tháng neo vào hai mốc khác nhau), nhưng cột trong DB
+    // vẫn nullable vì phiếu tạo trước chức năng này không có thông tin đó.
+    type: z.enum(["WEEKLY", "MONTHLY"]),
     note: z.string().optional(),
     items: z.array(materialItemSchema).default([]),
     finishedItems: z.array(finishedItemSchema).default([]),
