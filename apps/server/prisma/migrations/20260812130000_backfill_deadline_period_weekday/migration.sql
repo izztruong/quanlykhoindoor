@@ -1,0 +1,13 @@
+-- Sửa lỗi thứ tự migration khiến phiếu kiểm tuần luôn hiện "chưa đánh giá" (chấm xám).
+--
+-- 20260812074536 thêm cột "periodWeekday" rồi backfill = 1, nhưng lúc đó bảng còn RỖNG trên một
+-- database mới. Mãi tới 20260812124250 các dòng lịch mặc định mới được chèn vào, mà câu INSERT ấy
+-- không điền "periodWeekday" (viết khi cột chưa tồn tại). Kết quả: DB mới có periodWeekday = NULL,
+-- weeklyStockCheckDueAt trả null, mọi phiếu tuần thành chưa đánh giá.
+--
+-- Máy dev không lộ ra lỗi này vì hai migration được áp theo đúng thứ tự tạo ra chúng, ngược với
+-- thứ tự sắp xếp theo tên mà `prisma migrate deploy` dùng trên database trắng.
+--
+-- Không sửa thẳng vào 20260812124250: Prisma lưu checksum của migration đã áp, sửa file sẽ làm
+-- deploy hỏng ở những nơi migration đó đã chạy.
+UPDATE "Deadline" SET "periodWeekday" = 1 WHERE "kind" = 'STOCK_CHECK_WEEKLY' AND "periodWeekday" IS NULL;
