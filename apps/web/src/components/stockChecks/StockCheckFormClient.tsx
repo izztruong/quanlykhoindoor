@@ -66,18 +66,21 @@ const PRODUCT_TYPE_GROUPS: { key: ProductType; label: string }[] = [
   { key: "KHAC", label: "Khác" },
 ];
 
+// Đúng bằng những gì form hiển thị — không có cột giá, vì form nhập liệu cũng đã bỏ giá cho đỡ
+// rối mắt. Giá vẫn được lưu vào phiếu, nhưng lấy tự động từ danh mục (Product.costPrice /
+// FinishedGoodItem.sellingPrice) chứ không nhập tay qua Excel nữa.
 const TEMPLATE_HEADER = [
   "Tên NL*",
   "Đơn vị",
   "SL chẵn",
-  "Giá chẵn",
   "SL lẻ (theo đơn vị công thức)",
-  "Giá lẻ",
   "Tên đồ thành phẩm*",
   "Đơn vị kiểm",
   "Số lượng",
-  "Giá",
 ];
+
+/** Chỉ số cột (1-based) của file Excel, gom một chỗ để mẫu/xuất/nhập không bao giờ lệch nhau. */
+const COL = { materialName: 1, wholeQty: 3, looseQty: 4, finishedName: 5, finishedQty: 7 } as const;
 
 function matchesQuery(name: string, code: string, query: string): boolean {
   if (!query.trim()) return true;
@@ -328,7 +331,15 @@ export function StockCheckFormClient({ existing }: StockCheckFormClientProps) {
       list.push(p);
       map.set(p.type, list);
     }
-    for (const list of map.values()) list.sort((a, b) => a.name.localeCompare(b.name));
+    // Nhóm hàng hoá trước, rồi mới tới tên — để hàng cùng nhóm nằm liền nhau, giống thứ tự bên
+    // trang Order nhanh. Vẫn giữ nguyên việc tách 5 bảng theo LOẠI hàng hoá: loại và nhóm là hai
+    // trục phân loại độc lập, gộp lại sẽ trộn lẫn bánh/dụng cụ vào giữa nguyên liệu.
+    //
+    // Cũng là thứ tự dùng cho mẫu Excel (allProducts đọc lại chính map này), nên bảng trên màn
+    // hình và file xuất ra luôn khớp dòng nhau khi đối chiếu.
+    for (const list of map.values()) {
+      list.sort((a, b) => (a.productGroup?.name ?? "").localeCompare(b.productGroup?.name ?? "") || a.name.localeCompare(b.name));
+    }
     return map;
   }, [products]);
 
@@ -450,13 +461,10 @@ export function StockCheckFormClient({ existing }: StockCheckFormClientProps) {
         products[0]?.name ?? "Tên NL mẫu",
         products[0]?.unit?.name ?? "",
         5,
-        100000,
         900,
-        100,
         thanhPhamItems[0]?.name ?? "Tên đồ thành phẩm mẫu",
         thanhPhamItems[0]?.unit?.name ?? "",
         700,
-        50000,
       ]),
     );
     await downloadWorkbook(workbook, "mau-phieu-kiem-ke.xlsx");
@@ -479,6 +487,24 @@ export function StockCheckFormClient({ existing }: StockCheckFormClientProps) {
         return;
       }
 
+      // Bắt buộc khớp hàng tiêu đề. File xuất theo mẫu CŨ có thêm 3 cột giá, nên đọc bằng bố cục
+      // mới sẽ lấy "Giá chẵn" làm "SL lẻ" — sai số liệu kiểm kê mà không hề báo lỗi. Thà chặn
+      // thẳng còn hơn nhập vào một phiếu trông vẫn bình thường nhưng số đã hỏng.
+      // Mẫu trắng để "Tên NL*" còn file xuất ra bỏ dấu *, nên bỏ dấu * ở cả hai bên trước khi so.
+      const normalise = (value: unknown) => String(value ?? "").replace("*", "").trim().toLowerCase();
+      const expectedHeader = TEMPLATE_HEADER.map(normalise);
+      const actualHeader = expectedHeader.map((_, i) => normalise(sheet.getRow(1).getCell(i + 1).value));
+      if (actualHeader.join("|") !== expectedHeader.join("|")) {
+        setImportResult({
+          updated: 0,
+          added: 0,
+          errors: [
+            "File không đúng mẫu hiện tại (mẫu mới đã bỏ 3 cột giá). Bấm “Tải file mẫu” để lấy mẫu mới rồi nhập lại.",
+          ],
+        });
+        return;
+      }
+
       const productByName = new Map(products.map((p) => [p.name.trim().toLowerCase(), p]));
       const finishedByName = new Map(thanhPhamItems.map((f) => [f.name.trim().toLowerCase(), f]));
       const errors: string[] = [];
@@ -488,15 +514,9 @@ export function StockCheckFormClient({ existing }: StockCheckFormClientProps) {
       sheet.eachRow((row, rowNumber) => {
         if (rowNumber === 1) return;
 
-        // Ô để trống nghĩa là "không đổi" — giữ nguyên giá đang có trên form thay vì ghi đè rỗng.
-        const cellToText = (value: ExcelJS.CellValue): string | undefined =>
-          value === null || value === undefined || value === "" ? undefined : String(Number(value));
-
-        const materialName = String(row.getCell(1).value ?? "").trim();
-        const wholeRaw = row.getCell(3).value;
-        const wholePriceRaw = row.getCell(4).value;
-        const looseRaw = row.getCell(5).value;
-        const loosePriceRaw = row.getCell(6).value;
+        const materialName = String(row.getCell(COL.materialName).value ?? "").trim();
+        const wholeRaw = row.getCell(COL.wholeQty).value;
+        const looseRaw = row.getCell(COL.looseQty).value;
         if (materialName) {
           const product = productByName.get(materialName.toLowerCase());
           if (!product) {
@@ -504,23 +524,16 @@ export function StockCheckFormClient({ existing }: StockCheckFormClientProps) {
           } else {
             const wholeQuantity = wholeRaw === null || wholeRaw === undefined || wholeRaw === "" ? "" : String(Number(wholeRaw));
             const looseQuantity = looseRaw === null || looseRaw === undefined || looseRaw === "" ? "" : String(Number(looseRaw));
-            const wholePrice = cellToText(wholePriceRaw);
-            const loosePrice = cellToText(loosePriceRaw);
             const existed = Boolean(materialEntries[product.id]);
-            updateMaterialEntry(product.id, {
-              wholeQuantity,
-              looseQuantity,
-              ...(wholePrice !== undefined ? { wholePrice } : {}),
-              ...(loosePrice !== undefined ? { loosePrice } : {}),
-            });
+            // Chỉ ghi đè số lượng — giá giữ nguyên giá mặc định lấy từ danh mục lúc tạo dòng.
+            updateMaterialEntry(product.id, { wholeQuantity, looseQuantity });
             if (existed) updated++;
             else added++;
           }
         }
 
-        const finishedName = String(row.getCell(7).value ?? "").trim();
-        const finishedQtyRaw = row.getCell(9).value;
-        const finishedPriceRaw = row.getCell(10).value;
+        const finishedName = String(row.getCell(COL.finishedName).value ?? "").trim();
+        const finishedQtyRaw = row.getCell(COL.finishedQty).value;
         if (finishedName) {
           const finishedItem = finishedByName.get(finishedName.toLowerCase());
           if (!finishedItem) {
@@ -529,9 +542,8 @@ export function StockCheckFormClient({ existing }: StockCheckFormClientProps) {
             errors.push(`Dòng ${rowNumber}: số lượng đồ thành phẩm không hợp lệ`);
           } else {
             const quantity = finishedQtyRaw === null || finishedQtyRaw === undefined || finishedQtyRaw === "" ? "" : String(Number(finishedQtyRaw));
-            const price = cellToText(finishedPriceRaw);
             const existed = Boolean(finishedEntries[finishedItem.id]);
-            updateFinishedEntry(finishedItem.id, { quantity, ...(price !== undefined ? { price } : {}) });
+            updateFinishedEntry(finishedItem.id, { quantity });
             if (existed) updated++;
             else added++;
           }
@@ -564,13 +576,10 @@ export function StockCheckFormClient({ existing }: StockCheckFormClientProps) {
           p?.name ?? "",
           p?.unit?.name ?? "",
           m?.wholeQuantity ?? "",
-          m?.wholePrice ?? "",
           m?.looseQuantity ?? "",
-          m?.loosePrice ?? "",
           f?.name ?? "",
           f?.unit?.name ?? "",
           fe?.quantity ?? "",
-          fe?.price ?? "",
         ]),
       );
     }
