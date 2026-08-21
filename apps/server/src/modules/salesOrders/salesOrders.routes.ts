@@ -17,6 +17,7 @@ import {
   createSalesOrder,
   replaceSalesOrderItems,
   salesOrderDetailInclude,
+  salesOrderListInclude,
   updateSalesOrderReceivedDates,
   updateSalesOrderStatus,
 } from "./salesOrders.service";
@@ -36,16 +37,23 @@ salesOrdersRouter.get("/", async (req, res) => {
     createdById: req.user?.role === "ADMIN" ? createdById || undefined : req.user?.id,
   };
 
-  const [items, total] = await Promise.all([
+  const [rows, total] = await Promise.all([
     prisma.salesOrder.findMany({
       where,
       orderBy: { orderDate: "desc" },
       skip,
       take,
-      include: salesOrderDetailInclude,
+      include: salesOrderListInclude,
     }),
     prisma.salesOrder.count({ where }),
   ]);
+
+  // Cộng số lượng ở server rồi bỏ hẳn mảng dòng hàng khỏi payload: bảng chỉ hiện một con số tổng,
+  // gửi kèm từng dòng chỉ để phía web tự cộng là tốn băng thông vô ích.
+  const items = rows.map(({ items: lines, ...order }) => ({
+    ...order,
+    totalQuantity: lines.reduce((sum, line) => sum + Number(line.quantity), 0),
+  }));
 
   res.json({ items, total, page, pageSize });
 });

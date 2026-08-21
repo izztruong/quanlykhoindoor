@@ -1,52 +1,23 @@
-import { formatDateVN, labels } from "@/lib/format";
 import { sanitizeExcelRow } from "@/lib/excelExport";
 import type { SalesOrder } from "@/types";
 import ExcelJS from "exceljs";
 
-const TABLE_HEADER = ["#", "Mã hàng", "Tên hàng", "Ghi chú", "NVL", "ĐVT", "Số lượng", "Đơn giá", "Giảm giá", "Vat", "Tiền Vat", "Thành tiền"];
+const TABLE_HEADER = ["Tên hàng hoá", "Số lượng đặt", "Đơn vị"];
 
 const THIN_BORDER = { top: { style: "thin" as const }, bottom: { style: "thin" as const }, left: { style: "thin" as const }, right: { style: "thin" as const } };
 
+/**
+ * Danh sách hàng hoá thuần, để cầm đi mua/nhận hàng — cố tình KHÔNG phải bản sao hoá đơn.
+ * Mẫu hoá đơn đầy đủ (mã đơn, kho, giá, VAT, tổng tiền, tiền bằng chữ) nằm ở chức năng in:
+ * /print/orders/[id]. Hai đường ra phục vụ hai mục đích khác nhau nên cố ý khác nội dung.
+ *
+ * Không in mã đơn vào trong sheet vì nó đã là tên file.
+ */
 export async function exportOrderToExcel(order: SalesOrder) {
   const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet("Phiếu bán hàng");
+  const sheet = workbook.addWorksheet("Đơn hàng");
 
-  sheet.columns = [
-    { width: 4 },
-    { width: 12 },
-    { width: 26 },
-    { width: 16 },
-    { width: 6 },
-    { width: 8 },
-    { width: 10 },
-    { width: 10 },
-    { width: 10 },
-    { width: 8 },
-    { width: 10 },
-    { width: 12 },
-  ];
-
-  const titleRow = sheet.addRow(["PHIẾU BÁN HÀNG"]);
-  titleRow.font = { bold: true, size: 16 };
-  sheet.mergeCells(`A${titleRow.number}:L${titleRow.number}`);
-  titleRow.alignment = { horizontal: "center" };
-  sheet.addRow([]);
-
-  function addInfoRow(label: string, value: string) {
-    const row = sheet.addRow(sanitizeExcelRow(["", label, value]));
-    row.getCell(2).font = { bold: true };
-  }
-
-  addInfoRow("Số phiếu:", order.code);
-  addInfoRow("Ngày tạo:", formatDateVN(order.createdAt));
-  addInfoRow("Trạng thái:", labels.salesOrderStatus(order.status));
-  addInfoRow("Tài khoản:", order.createdBy?.name ?? "-");
-  addInfoRow("Email:", order.createdBy?.email ?? "-");
-  addInfoRow("Kho xuất:", `${order.warehouse.code} - ${order.warehouse.name}`);
-  addInfoRow("Đ/C kho xuất:", order.warehouse.address || "-");
-  addInfoRow("T/G xuất:", order.stockExport ? formatDateVN(order.stockExport.transactionAt) : "-");
-  addInfoRow("Ghi chú:", order.note || "-");
-  sheet.addRow([]);
+  sheet.columns = [{ width: 36 }, { width: 14 }, { width: 12 }];
 
   const headerRow = sheet.addRow(TABLE_HEADER);
   headerRow.font = { bold: true };
@@ -55,38 +26,11 @@ export async function exportOrderToExcel(order: SalesOrder) {
     cell.alignment = { horizontal: "center" };
   });
 
-  let totalQty = 0;
-  for (const [index, item] of order.items.entries()) {
-    const qty = Number(item.quantity);
-    totalQty += qty;
-    const row = sheet.addRow(
-      sanitizeExcelRow([
-        index + 1,
-        item.product.code,
-        item.product.name,
-        "-",
-        0,
-        item.product.unit?.name ?? "-",
-        qty,
-        0,
-        0,
-        "0%",
-        0,
-        0,
-      ]),
-    );
+  for (const item of order.items) {
+    // Số lượng ĐẶT, không phải số đã nhận — đây là danh sách để đi lấy hàng.
+    const row = sheet.addRow(sanitizeExcelRow([item.product.name, Number(item.quantity), item.product.unit?.name ?? "-"]));
     row.eachCell((cell) => (cell.border = THIN_BORDER));
   }
-
-  const totalRow = sheet.addRow(["", "", "", "", "", "Tổng cộng", totalQty, 0, 0, "", 0, 0]);
-  totalRow.font = { bold: true };
-  sheet.addRow(["", "", "", "", "", "", "", "", "Chiết khấu giảm giá", "", "", 0]);
-  sheet.addRow(["", "", "", "", "", "", "", "", "Tiền thuế GTGT", "", "", 0]);
-  const grandTotalRow = sheet.addRow(["", "", "", "", "", "", "", "", "Tổng tiền", "", "", 0]);
-  grandTotalRow.font = { bold: true };
-
-  sheet.addRow([]);
-  sheet.addRow(["Tổng tiền thanh toán bằng chữ: Không đồng"]);
 
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });

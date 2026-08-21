@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
-import type { AffectedCostCheck, PagedResult, SalesOrder, SalesOrderStatus } from "@/types";
+import type { AffectedCostCheck, PagedResult, SalesOrder, SalesOrderListRow, SalesOrderStatus } from "@/types";
 
 export interface SalesOrderItemInput {
   productId: string;
@@ -28,7 +28,7 @@ export function useSalesOrders(filter: {
   return useQuery({
     queryKey: ["sales-orders", filter],
     queryFn: () =>
-      api.get<PagedResult<SalesOrder>>("/sales-orders", {
+      api.get<PagedResult<SalesOrderListRow>>("/sales-orders", {
         status: filter.status,
         from: filter.from,
         to: filter.to,

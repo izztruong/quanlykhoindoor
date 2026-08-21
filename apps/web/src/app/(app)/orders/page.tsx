@@ -12,7 +12,7 @@ import { useSalesOrders } from "@/hooks/useSalesOrders";
 import { useUsers } from "@/hooks/useUsers";
 import { useCurrentUser } from "@/lib/auth";
 import { formatDateTime, formatNumber, labels } from "@/lib/format";
-import type { SalesOrder } from "@/types";
+import type { SalesOrderListRow } from "@/types";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus } from "lucide-react";
 import Link from "next/link";
@@ -45,7 +45,7 @@ export default function OrdersPage() {
     page,
     pageSize,
   });
-  const columns = useMemo<ColumnDef<SalesOrder>[]>(
+  const columns = useMemo<ColumnDef<SalesOrderListRow>[]>(
     () => [
       {
         header: "Mã đơn",
@@ -65,7 +65,7 @@ export default function OrdersPage() {
       {
         header: "Tổng số lượng",
         id: "quantity",
-        accessorFn: (row) => formatNumber(row.items.reduce((sum, it) => sum + Number(it.quantity), 0)),
+        accessorFn: (row) => formatNumber(row.totalQuantity),
       },
       {
         header: "Trạng thái",

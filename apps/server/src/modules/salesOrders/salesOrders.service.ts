@@ -25,6 +25,22 @@ export const salesOrderDetailInclude = {
   items: { include: { product: { include: { unit: true, productGroup: true } } } },
 };
 
+/**
+ * Bảng danh sách chỉ hiện mã đơn, tài khoản, kho, ngày đặt, tổng số lượng và trạng thái. Dùng
+ * chung `salesOrderDetailInclude` khiến mỗi đơn kéo theo cả phiếu xuất kho (kèm từng dòng hàng và
+ * nhà cung cấp) lẫn thông tin đầy đủ của từng sản phẩm — đo được 187 KB cho 20 đơn, trong khi
+ * `stockExport` không được dùng một lần nào trên trang đó.
+ *
+ * Ở đây chỉ lấy đúng phần bảng cần. Riêng số lượng vẫn phải lấy thô từng dòng để cộng, nhưng
+ * `select: { quantity: true }` khiến mỗi dòng chỉ còn một con số thay vì cả object sản phẩm, và
+ * mảng này bị bỏ khỏi payload sau khi cộng xong (xem route GET "/").
+ */
+export const salesOrderListInclude = {
+  warehouse: true,
+  createdBy: { select: { id: true, name: true, email: true } },
+  items: { select: { quantity: true } },
+};
+
 type SalesOrderCreateInput = z.infer<typeof salesOrderCreateSchema>;
 type SalesOrderReceivingInput = z.infer<typeof salesOrderReceivingSchema>;
 type SalesOrderConfirmInput = z.infer<typeof salesOrderConfirmSchema>;

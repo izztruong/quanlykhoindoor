@@ -144,6 +144,26 @@ export interface SalesOrder {
   isLate?: boolean;
 }
 
+/**
+ * Một dòng trong bảng danh sách đơn hàng — CỐ TÌNH nhẹ hơn `SalesOrder`: không có `items` lẫn
+ * `stockExport`, đổi lại có sẵn `totalQuantity` do server cộng trước. Tách kiểu riêng thay vì
+ * nới lỏng `SalesOrder` để các trang chi tiết vẫn chắc chắn có đủ dữ liệu chúng cần.
+ */
+export interface SalesOrderListRow {
+  id: string;
+  code: string;
+  warehouseId: string;
+  warehouse: Warehouse;
+  orderDate: string;
+  status: SalesOrderStatus;
+  note?: string | null;
+  createdAt: string;
+  createdBy?: { id: string; name: string; email: string } | null;
+  dueAt?: string | null;
+  isLate?: boolean;
+  totalQuantity: number;
+}
+
 export interface PagedResult<T> {
   items: T[];
   total: number;
