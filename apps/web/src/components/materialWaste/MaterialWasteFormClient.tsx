@@ -7,7 +7,6 @@ import { useFinishedGoodItems, useProducts } from "@/hooks/useCatalog";
 import { useCreateMaterialWaste, useUpdateMaterialWaste } from "@/hooks/useMaterialWaste";
 import { ApiError } from "@/lib/api-client";
 import { nowForDatetimeLocal, toDatetimeLocal } from "@/lib/dateRange";
-import { formatNumber } from "@/lib/format";
 import { filterSuggestions } from "@/lib/searchSuggestions";
 import type { FinishedGoodItem, MaterialWaste, Product } from "@/types";
 import { Trash2 } from "lucide-react";
@@ -249,12 +248,6 @@ export function MaterialWasteFormClient({ existing }: MaterialWasteFormClientPro
                           />
                           {row.product.recipeUnit?.name && <span className="text-xs text-slate-400">{row.product.recipeUnit.name}</span>}
                         </div>
-                        {row.product.tareWeight != null && Number(row.product.tareWeight) > 0 && (
-                          <span className="text-xs text-amber-600">
-                            Cân cả vỏ — tự trừ {formatNumber(row.product.tareWeight)}
-                            {row.product.recipeUnit?.name}
-                          </span>
-                        )}
                       </div>
                     </td>
                     <td className="border border-slate-200 px-3 py-2">
@@ -352,6 +345,11 @@ export function MaterialWasteFormClient({ existing }: MaterialWasteFormClientPro
           )}
         </CardBody>
       </Card>
+
+      {/* Gom lời nhắc cân cả vỏ thành MỘT dòng ở cuối phiếu thay vì lặp ở từng dòng hàng
+          hoá có vỏ. Người nhập chỉ cần biết quy tắc chung, còn trừ bao nhiêu gam thì server tự
+          xử lý (subtractTareWeight), không phải thứ họ cần nhớ lúc đang cân. */}
+      <p className="text-sm text-amber-600">Cân cả vỏ</p>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 

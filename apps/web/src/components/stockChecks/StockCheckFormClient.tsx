@@ -10,7 +10,6 @@ import { useCreateStockCheck, useUpdateStockCheck } from "@/hooks/useStockChecks
 import { ApiError } from "@/lib/api-client";
 import { nowForDatetimeLocal, toDatetimeLocal } from "@/lib/dateRange";
 import { sanitizeExcelRow } from "@/lib/excelExport";
-import { formatNumber } from "@/lib/format";
 import type { FinishedGoodItem, Product, ProductType, StockCheck, StockCheckType } from "@/types";
 import ExcelJS from "exceljs";
 import { ChevronDown, Download } from "lucide-react";
@@ -154,12 +153,6 @@ function MaterialGroupTable({ groupKey, label, items, filter, onFilterChange, en
                             />
                             {product.recipeUnit?.name && <span className="text-xs text-slate-400">{product.recipeUnit.name}</span>}
                           </div>
-                          {product.tareWeight != null && Number(product.tareWeight) > 0 && (
-                            <span className="text-xs text-amber-600">
-                              Cân cả vỏ — tự trừ {formatNumber(product.tareWeight)}
-                              {product.recipeUnit?.name}
-                            </span>
-                          )}
                         </div>
                       </td>
                       <td className="border border-slate-200 px-3 py-2">
@@ -672,6 +665,12 @@ export function StockCheckFormClient({ existing }: StockCheckFormClientProps) {
         entryFor={finishedEntryFor}
         onUpdateEntry={updateFinishedEntry}
       />
+
+      {/* Trước đây mỗi dòng hàng hoá có vỏ đều tự nhắc "Cân cả vỏ — tự trừ N gam", lặp lại rất
+          nhiều lần trên một bảng dài. Gom thành một dòng duy nhất ở cuối phiếu: người kiểm chỉ
+          cần biết quy tắc chung là cân cả vỏ, phần trừ bao nhiêu hệ thống tự lo (subtractTareWeight
+          ở server), không phải thông tin họ cần nhớ lúc đang cân. */}
+      <p className="text-sm text-amber-600">Cân cả vỏ</p>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
       {warning && <p className="text-sm text-amber-600">{warning}</p>}

@@ -10,7 +10,6 @@ import { useProductSupplierPrices } from "@/hooks/useProductSupplierPrices";
 import { useUsers } from "@/hooks/useUsers";
 import { ApiError } from "@/lib/api-client";
 import { nowForDatetimeLocal, toDatetimeLocal } from "@/lib/dateRange";
-import { formatNumber } from "@/lib/format";
 import { filterSuggestions } from "@/lib/searchSuggestions";
 import type { MaterialTransfer, Product } from "@/types";
 import { Trash2 } from "lucide-react";
@@ -274,12 +273,6 @@ export function MaterialTransferFormClient({ existing }: MaterialTransferFormCli
                           />
                           {row.product.recipeUnit?.name && <span className="text-xs text-slate-400">{row.product.recipeUnit.name}</span>}
                         </div>
-                        {row.product.tareWeight != null && Number(row.product.tareWeight) > 0 && (
-                          <span className="text-xs text-amber-600">
-                            Cân cả vỏ — tự trừ {formatNumber(row.product.tareWeight)}
-                            {row.product.recipeUnit?.name}
-                          </span>
-                        )}
                       </div>
                     </td>
                     <td className="border border-slate-200 px-3 py-2">
@@ -321,6 +314,11 @@ export function MaterialTransferFormClient({ existing }: MaterialTransferFormCli
           )}
         </CardBody>
       </Card>
+
+      {/* Gom lời nhắc cân cả vỏ thành MỘT dòng ở cuối phiếu thay vì lặp ở từng dòng hàng
+          hoá có vỏ. Người nhập chỉ cần biết quy tắc chung, còn trừ bao nhiêu gam thì server tự
+          xử lý (subtractTareWeight), không phải thứ họ cần nhớ lúc đang cân. */}
+      <p className="text-sm text-amber-600">Cân cả vỏ</p>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
