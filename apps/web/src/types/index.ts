@@ -69,6 +69,15 @@ export interface ProductSupplierPrice {
   supplier: Supplier;
   importPrice: string | number;
   exportPrice: string | number;
+  /** Đơn vị gọi NCC (vd Thùng) khi khác đơn vị chính của hàng hoá — null nghĩa là gọi theo đơn vị chính. */
+  purchaseUnitId?: string | null;
+  purchaseUnit?: Unit | null;
+  /** 1 đơn vị gọi = bao nhiêu đơn vị chính (vd 1 Thùng = 12 Hộp). */
+  baseUnitsPerPurchaseUnit?: string | number | null;
+  /** Số lượng đặt tối thiểu, tính theo đơn vị gọi. */
+  minQuantity?: string | number | null;
+  /** Thứ tự ưu tiên gọi NCC cho hàng hoá này: 1 = gọi trước. */
+  priority?: number | null;
 }
 
 export interface Customer {
@@ -193,6 +202,28 @@ export interface ReportSummaryRow {
   quantity: number;
   costPrice: number;
   costAmount: number;
+}
+
+/** Một dòng của trang Tổng hợp đặt NCC — xem getPurchaseSummary ở apps/server. */
+export interface PurchaseSummaryRow {
+  stt: number;
+  supplier: Supplier | null;
+  product: { id: string; code: string; name: string };
+  productGroup: ProductGroup;
+  unit: Unit;
+  purchaseUnit: Unit | null;
+  baseUnitsPerPurchaseUnit: number | null;
+  /** Tổng số lượng các quán gọi, theo đơn vị chính. */
+  orderedBaseQty: number;
+  minQuantity: number | null;
+  /** Số lượng phải đặt NCC, theo đơn vị gọi nếu có khai, ngược lại theo đơn vị chính. */
+  purchaseQty: number;
+  /** purchaseQty quy ngược về đơn vị chính, để đối chiếu và tính tiền. */
+  finalBaseQty: number;
+  roundedUpToPack: boolean;
+  raisedToMinimum: boolean;
+  importPrice: number;
+  amount: number;
 }
 
 export interface InventoryCountRow {

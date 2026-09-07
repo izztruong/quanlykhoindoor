@@ -5,7 +5,7 @@ import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
-import { useProducts, useSuppliers } from "@/hooks/useCatalog";
+import { useProducts, useSuppliers, useUnits } from "@/hooks/useCatalog";
 import { useProductSupplierPrices, useSaveProductSupplierPrices } from "@/hooks/useProductSupplierPrices";
 import { ApiError } from "@/lib/api-client";
 import { useCurrentUser } from "@/lib/auth";
@@ -18,12 +18,19 @@ import { useEffect, useMemo, useRef, useState } from "react";
 interface RowInput {
   importPrice: string;
   exportPrice: string;
+  purchaseUnitId: string;
+  baseUnitsPerPurchaseUnit: string;
+  minQuantity: string;
+  priority: string;
 }
+
+type RowField = keyof RowInput;
 
 export default function ProductSupplierPricesPage() {
   const { data: currentUser } = useCurrentUser();
   const { data: suppliers = [] } = useSuppliers();
   const { data: products = [] } = useProducts();
+  const { data: units = [] } = useUnits();
   const [supplierId, setSupplierId] = useState("");
   const { data: prices = [] } = useProductSupplierPrices(supplierId || undefined);
   const savePrices = useSaveProductSupplierPrices();
@@ -55,12 +62,14 @@ export default function ProductSupplierPricesPage() {
 
   const savedByProductId = useMemo(() => new Map(prices.map((p) => [p.productId, p])), [prices]);
 
-  function valueFor(productId: string, field: "importPrice" | "exportPrice"): string {
+  function valueFor(productId: string, field: RowField): string {
     const override = overrides[productId]?.[field];
     if (override !== undefined) return override;
     const saved = savedByProductId.get(productId);
     if (!saved) return "";
-    return String(field === "importPrice" ? saved.importPrice : saved.exportPrice);
+    // priority luôn có giá trị dưới DB (mặc định 1); ba field còn lại nullable nên null hiện ô trống.
+    const value = saved[field];
+    return value === null || value === undefined ? "" : String(value);
   }
 
   function selectSupplier(id: string) {
@@ -69,7 +78,7 @@ export default function ProductSupplierPricesPage() {
     setSaved(false);
   }
 
-  function setRow(productId: string, field: "importPrice" | "exportPrice", value: string) {
+  function setRow(productId: string, field: RowField, value: string) {
     setSaved(false);
     setOverrides((prev) => ({ ...prev, [productId]: { ...prev[productId], [field]: value } }));
   }
@@ -88,10 +97,18 @@ export default function ProductSupplierPricesPage() {
       .map((productId) => {
         const importPrice = valueFor(productId, "importPrice").trim();
         const exportPrice = valueFor(productId, "exportPrice").trim();
+        const purchaseUnitId = valueFor(productId, "purchaseUnitId").trim();
+        const packSize = valueFor(productId, "baseUnitsPerPurchaseUnit").trim();
+        const minQuantity = valueFor(productId, "minQuantity").trim();
+        const priority = valueFor(productId, "priority").trim();
         return {
           productId,
           importPrice: importPrice ? Number(importPrice) : null,
           exportPrice: exportPrice ? Number(exportPrice) : null,
+          purchaseUnitId: purchaseUnitId || null,
+          baseUnitsPerPurchaseUnit: packSize ? Number(packSize) : null,
+          minQuantity: minQuantity ? Number(minQuantity) : null,
+          priority: priority ? Number(priority) : null,
         };
       });
 
@@ -116,9 +133,11 @@ export default function ProductSupplierPricesPage() {
   async function downloadTemplate() {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Giá theo NCC");
-    sheet.columns = ["Mã hàng hoá*", "Giá nhập", "Giá xuất"].map((header) => ({ header, width: 22 }));
+    sheet.columns = ["Mã hàng hoá*", "Giá nhập", "Giá xuất", "Mã đơn vị gọi", "Quy đổi", "SL tối thiểu", "Ưu tiên"].map(
+      (header) => ({ header, width: 22 }),
+    );
     sheet.getRow(1).font = { bold: true };
-    sheet.addRow(sanitizeExcelRow([products[0]?.code ?? "SP001", 0, 0]));
+    sheet.addRow(sanitizeExcelRow([products[0]?.code ?? "SP001", 0, 0, units[0]?.code ?? "", "", "", 1]));
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     const url = URL.createObjectURL(blob);
@@ -149,6 +168,7 @@ export default function ProductSupplierPricesPage() {
       }
 
       const productByCode = new Map(products.map((p) => [p.code.trim().toLowerCase(), p]));
+      const unitByCode = new Map(units.map((u) => [u.code.trim().toLowerCase(), u]));
       const errors: string[] = [];
       let updated = 0;
       const nextOverrides = { ...overrides };
@@ -158,6 +178,10 @@ export default function ProductSupplierPricesPage() {
         const code = String(row.getCell(1).value ?? "").trim();
         const importRaw = row.getCell(2).value;
         const exportRaw = row.getCell(3).value;
+        const purchaseUnitRaw = String(row.getCell(4).value ?? "").trim();
+        const packSizeRaw = row.getCell(5).value;
+        const minQuantityRaw = row.getCell(6).value;
+        const priorityRaw = row.getCell(7).value;
         if (!code) return;
 
         const product = productByCode.get(code.toLowerCase());
@@ -173,7 +197,33 @@ export default function ProductSupplierPricesPage() {
           return;
         }
 
-        nextOverrides[product.id] = { importPrice, exportPrice };
+        const purchaseUnit = purchaseUnitRaw ? unitByCode.get(purchaseUnitRaw.toLowerCase()) : undefined;
+        if (purchaseUnitRaw && !purchaseUnit) {
+          errors.push(`Dòng ${rowNumber}: không tìm thấy đơn vị có mã "${purchaseUnitRaw}"`);
+          return;
+        }
+
+        const numeric = (raw: ExcelJS.CellValue) => (raw === null || raw === undefined || raw === "" ? "" : String(Number(raw)));
+        const baseUnitsPerPurchaseUnit = numeric(packSizeRaw);
+        const minQuantity = numeric(minQuantityRaw);
+        const priority = numeric(priorityRaw);
+        if ([baseUnitsPerPurchaseUnit, minQuantity, priority].some((v) => v && Number.isNaN(Number(v)))) {
+          errors.push(`Dòng ${rowNumber}: quy đổi / SL tối thiểu / ưu tiên không hợp lệ`);
+          return;
+        }
+        if (purchaseUnit && !(Number(baseUnitsPerPurchaseUnit) > 0)) {
+          errors.push(`Dòng ${rowNumber}: đã chọn đơn vị gọi thì phải nhập quy đổi lớn hơn 0`);
+          return;
+        }
+
+        nextOverrides[product.id] = {
+          importPrice,
+          exportPrice,
+          purchaseUnitId: purchaseUnit?.id ?? "",
+          baseUnitsPerPurchaseUnit,
+          minQuantity,
+          priority,
+        };
         updated++;
       });
 
@@ -195,6 +245,10 @@ export default function ProductSupplierPricesPage() {
       { header: "ĐVT", value: (p) => p.unit?.name ?? "-" },
       { header: "Giá nhập", value: (p) => valueFor(p.id, "importPrice") },
       { header: "Giá xuất", value: (p) => valueFor(p.id, "exportPrice") },
+      { header: "Mã đơn vị gọi", value: (p) => units.find((u) => u.id === valueFor(p.id, "purchaseUnitId"))?.code ?? "" },
+      { header: "Quy đổi", value: (p) => valueFor(p.id, "baseUnitsPerPurchaseUnit") },
+      { header: "SL tối thiểu", value: (p) => valueFor(p.id, "minQuantity") },
+      { header: "Ưu tiên", value: (p) => valueFor(p.id, "priority") },
     ];
     await exportRowsToExcel("Giá theo NCC", columns, products, "gia-theo-ncc.xlsx");
   }
@@ -214,6 +268,10 @@ export default function ProductSupplierPricesPage() {
         <p className="text-sm text-slate-500">
           Thiết lập giá nhập / giá xuất cho từng hàng hoá theo từng nhà cung cấp. Một hàng hoá có thể có giá khác nhau ở mỗi
           NCC; để trống nghĩa là hàng hoá đó không lấy từ NCC này.
+        </p>
+        <p className="mt-1 text-sm text-slate-500">
+          Đơn vị gọi, quy đổi và SL tối thiểu là những gì NCC quy định khi đặt hàng (vd gọi theo Thùng, 1 Thùng = 12 Hộp, tối
+          thiểu 3 Thùng) — trang Tổng hợp đặt NCC dựa vào đó để làm tròn số lượng. Ưu tiên 1 là NCC được gọi trước.
         </p>
       </div>
 
@@ -269,7 +327,7 @@ export default function ProductSupplierPricesPage() {
               onChange={(e) => setSearch(e.target.value)}
               className="max-w-sm"
             />
-            <table className="w-full min-w-[640px] border-collapse text-sm">
+            <table className="w-full min-w-[1180px] border-collapse text-sm">
               <thead>
                 <tr className="text-left text-xs font-medium uppercase text-slate-500">
                   <th className="border border-slate-200 px-3 py-2">Mã</th>
@@ -277,6 +335,10 @@ export default function ProductSupplierPricesPage() {
                   <th className="border border-slate-200 px-3 py-2">ĐVT</th>
                   <th className="border border-slate-200 px-3 py-2">Giá nhập</th>
                   <th className="border border-slate-200 px-3 py-2">Giá xuất</th>
+                  <th className="border border-slate-200 px-3 py-2">Đơn vị gọi</th>
+                  <th className="border border-slate-200 px-3 py-2">Quy đổi</th>
+                  <th className="border border-slate-200 px-3 py-2">SL tối thiểu</th>
+                  <th className="border border-slate-200 px-3 py-2">Ưu tiên</th>
                 </tr>
               </thead>
               <tbody>
@@ -305,6 +367,56 @@ export default function ProductSupplierPricesPage() {
                         onChange={(e) => setRow(p.id, "exportPrice", e.target.value)}
                       />
                     </td>
+                    <td className="border border-slate-200 px-3 py-2">
+                      <Select
+                        className="w-28"
+                        value={valueFor(p.id, "purchaseUnitId")}
+                        onChange={(e) => setRow(p.id, "purchaseUnitId", e.target.value)}
+                      >
+                        <option value="">{p.unit?.name ?? "-"}</option>
+                        {units.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.name}
+                          </option>
+                        ))}
+                      </Select>
+                    </td>
+                    <td className="border border-slate-200 px-3 py-2">
+                      {/* Nhắc đơn vị chính ngay cạnh ô để người nhập không điền ngược chiều quy đổi. */}
+                      <div className="flex items-center gap-1 whitespace-nowrap">
+                        <span className="text-xs text-slate-400">= 1 gọi ×</span>
+                        <Input
+                          type="number"
+                          step="0.0001"
+                          min="0"
+                          className="w-20"
+                          value={valueFor(p.id, "baseUnitsPerPurchaseUnit")}
+                          onChange={(e) => setRow(p.id, "baseUnitsPerPurchaseUnit", e.target.value)}
+                          disabled={!valueFor(p.id, "purchaseUnitId")}
+                        />
+                        <span className="text-xs text-slate-400">{p.unit?.name ?? ""}</span>
+                      </div>
+                    </td>
+                    <td className="border border-slate-200 px-3 py-2">
+                      <Input
+                        type="number"
+                        step="0.001"
+                        min="0"
+                        className="w-24"
+                        value={valueFor(p.id, "minQuantity")}
+                        onChange={(e) => setRow(p.id, "minQuantity", e.target.value)}
+                      />
+                    </td>
+                    <td className="border border-slate-200 px-3 py-2">
+                      <Input
+                        type="number"
+                        step="1"
+                        min="1"
+                        className="w-20"
+                        value={valueFor(p.id, "priority")}
+                        onChange={(e) => setRow(p.id, "priority", e.target.value)}
+                      />
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -328,9 +440,10 @@ export default function ProductSupplierPricesPage() {
         <Modal title="Nhập giá từ Excel" onClose={() => setImportOpen(false)}>
           <div className="flex flex-col gap-3">
             <p className="text-sm text-slate-600">
-              Chọn file Excel theo đúng thứ tự cột trong file mẫu: Mã hàng hoá*, Giá nhập, Giá xuất (cột có dấu * là bắt buộc
-              phải điền; để trống Giá nhập/Giá xuất nghĩa là xoá giá của hàng hoá đó cho NCC này). Dữ liệu chỉ được áp dụng cho
-              NCC đang chọn, cần bấm &quot;Lưu giá&quot; để lưu lại.
+              Chọn file Excel theo đúng thứ tự cột trong file mẫu: Mã hàng hoá*, Giá nhập, Giá xuất, Mã đơn vị gọi, Quy đổi, SL
+              tối thiểu, Ưu tiên (cột có dấu * là bắt buộc phải điền; để trống Giá nhập/Giá xuất nghĩa là xoá giá của hàng hoá đó
+              cho NCC này; để trống Mã đơn vị gọi nghĩa là gọi theo đơn vị chính của hàng hoá). Dữ liệu chỉ được áp dụng cho NCC
+              đang chọn, cần bấm &quot;Lưu giá&quot; để lưu lại.
             </p>
             <Button type="button" variant="secondary" size="sm" className="self-start" onClick={downloadTemplate}>
               <Download size={14} />

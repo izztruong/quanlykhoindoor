@@ -6,6 +6,10 @@ export interface ProductSupplierPriceItemInput {
   productId: string;
   importPrice: number | null;
   exportPrice: number | null;
+  purchaseUnitId: string | null;
+  baseUnitsPerPurchaseUnit: number | null;
+  minQuantity: number | null;
+  priority: number | null;
 }
 
 /** Omit supplierId to get every price row (used for per-line supplier lookups on stock exports). */

@@ -98,9 +98,10 @@ model Unit {
   code String @unique
   name String
 
-  products             Product[]
-  finishedGoodItems    FinishedGoodItem[]
-  productsAsRecipeUnit Product[]          @relation("ProductRecipeUnit")
+  products              Product[]
+  finishedGoodItems     FinishedGoodItem[]
+  productsAsRecipeUnit  Product[]              @relation("ProductRecipeUnit")
+  supplierPurchaseUnits ProductSupplierPrice[] @relation("SupplierPurchaseUnit")
 }
 
 // Nhóm món cho Check Cost (doanh thu/chi phí tách theo nhóm) — để trống với món chưa phân loại.
@@ -209,7 +210,19 @@ model ProductSupplierPrice {
   exportPrice Decimal  @db.Decimal(18, 2)
   createdAt   DateTime @default(now())
 
+  // Đơn vị gọi NCC (vd Thùng) khi khác đơn vị chính của hàng hoá (vd Hộp) — để trống nghĩa là gọi
+  // thẳng theo đơn vị chính. Đối xứng với Product.recipeUnit nhưng quy đổi lên đơn vị lớn hơn:
+  // 1 purchaseUnit = baseUnitsPerPurchaseUnit đơn vị chính.
+  purchaseUnitId           String?
+  purchaseUnit             Unit?    @relation("SupplierPurchaseUnit", fields: [purchaseUnitId], references: [id])
+  baseUnitsPerPurchaseUnit Decimal? @db.Decimal(18, 4)
+  // Số lượng đặt tối thiểu NCC quy định, tính theo đơn vị gọi ở trên. Null = không ràng buộc.
+  minQuantity              Decimal? @db.Decimal(18, 3)
+  // Thứ tự ưu tiên gọi NCC cho mặt hàng này: 1 = gọi trước.
+  priority                 Int      @default(1)
+
   @@unique([productId, supplierId])
+  @@index([purchaseUnitId])
 }
 
 // Per-user reorder thresholds for "Order nhanh": each user has their own

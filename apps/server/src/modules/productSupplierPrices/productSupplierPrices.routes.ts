@@ -8,6 +8,7 @@ export const productSupplierPricesRouter = Router();
 const priceInclude = {
   product: { include: { unit: true, productGroup: true } },
   supplier: true,
+  purchaseUnit: true,
 };
 
 // GET /?supplierId=X returns just that supplier's price list (for the price-list
@@ -44,11 +45,20 @@ productSupplierPricesRouter.put("/", async (req, res) => {
     );
   }
   for (const it of toUpsert) {
+    // Đơn vị gọi đi liền hệ số quy đổi: bỏ chọn đơn vị thì xoá luôn hệ số, tránh để lại một hệ
+    // số mồ côi khiến phần tổng hợp đặt NCC quy đổi theo con số không còn đơn vị nào ứng với nó.
+    const purchaseUnitId = it.purchaseUnitId ?? null;
+    const packaging = {
+      purchaseUnitId,
+      baseUnitsPerPurchaseUnit: purchaseUnitId ? (it.baseUnitsPerPurchaseUnit ?? null) : null,
+      minQuantity: it.minQuantity ?? null,
+      priority: it.priority ?? 1,
+    };
     operations.push(
       prisma.productSupplierPrice.upsert({
         where: { productId_supplierId: { productId: it.productId, supplierId } },
-        create: { supplierId, productId: it.productId, importPrice: it.importPrice!, exportPrice: it.exportPrice! },
-        update: { importPrice: it.importPrice!, exportPrice: it.exportPrice! },
+        create: { supplierId, productId: it.productId, importPrice: it.importPrice!, exportPrice: it.exportPrice!, ...packaging },
+        update: { importPrice: it.importPrice!, exportPrice: it.exportPrice!, ...packaging },
       }),
     );
   }
