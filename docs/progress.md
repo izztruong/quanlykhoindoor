@@ -1,6 +1,6 @@
 # Tiến độ dự án
 
-Cập nhật: 2026-08-20 · nhánh `staging` @ `5126d77`
+Cập nhật: 2026-08-20
 
 Ghi lại **trạng thái thật**, không phải kế hoạch mong muốn. Mục "Còn lại" chỉ gồm những việc đã
 được nêu ra và gác lại có chủ đích — không phải lộ trình tự nghĩ ra.
@@ -65,10 +65,6 @@ tiêu đề để đóng/mở, đổi route thì xoá hết ghi đè nên không
 
 Đã qua typecheck và `eslint` sạch, nhưng **chưa ai mở trên trình duyệt lần nào**. Cần bấm thử
 đóng/mở vài nhóm và điều hướng chéo sang nhóm khác — typecheck không bắt được lỗi hành vi.
-
-### Chưa push
-`staging` đi trước `origin/staging` 4 commit: `7dfa309`, `3b29d57` (CLAUDE.md),
-`bc4f18f` (chính file này), `5126d77` (Sidebar). `main` chưa có commit nào trong số đó.
 
 ---
 
