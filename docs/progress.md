@@ -1,6 +1,6 @@
 # Tiến độ dự án
 
-Cập nhật: 2026-08-20 · nhánh `staging` @ `3b29d57`
+Cập nhật: 2026-08-20 · nhánh `staging` @ `5126d77`
 
 Ghi lại **trạng thái thật**, không phải kế hoạch mong muốn. Mục "Còn lại" chỉ gồm những việc đã
 được nêu ra và gác lại có chủ đích — không phải lộ trình tự nghĩ ra.
@@ -59,15 +59,16 @@ server, phân trang mọi danh sách (20 dòng), chống chèn công thức Exce
 
 ## Đang dở
 
-### Sidebar thu gọn theo nhóm — chưa commit
-`apps/web/src/components/layout/Sidebar.tsx` (+60/−28) đang ở working tree.
-Nhóm chứa trang đang xem tự mở, bấm tiêu đề để đóng/mở, đổi route thì xoá ghi đè.
+### Sidebar thu gọn theo nhóm — đã commit, CHƯA kiểm thử trên trình duyệt
+`5126d77`. Sidebar 27 mục trong 6 nhóm giờ gập lại được: nhóm chứa trang đang xem tự mở, bấm
+tiêu đề để đóng/mở, đổi route thì xoá hết ghi đè nên không bao giờ giấu mất trang vừa mở.
 
-Trạng thái: **typecheck sạch, nhìn có vẻ hoàn chỉnh**, nhưng chưa chạy thử trên trình duyệt và
-chưa commit. Cần bấm thử qua vài nhóm rồi mới commit.
+Đã qua typecheck và `eslint` sạch, nhưng **chưa ai mở trên trình duyệt lần nào**. Cần bấm thử
+đóng/mở vài nhóm và điều hướng chéo sang nhóm khác — typecheck không bắt được lỗi hành vi.
 
 ### Chưa push
-`staging` đang đi trước `origin/staging` 2 commit (`7dfa309`, `3b29d57`).
+`staging` đi trước `origin/staging` 4 commit: `7dfa309`, `3b29d57` (CLAUDE.md),
+`bc4f18f` (chính file này), `5126d77` (Sidebar). `main` chưa có commit nào trong số đó.
 
 ---
 
