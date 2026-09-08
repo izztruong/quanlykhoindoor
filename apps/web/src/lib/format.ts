@@ -95,3 +95,18 @@ export const labels = {
 /** Derived from the label maps above so the dropdown/Excel option lists and display labels never drift apart. */
 export const PRODUCT_TYPE_OPTIONS = Object.entries(productTypeLabel).map(([value, label]) => ({ value, label }));
 export const FINISHED_GOOD_CATEGORY_OPTIONS = Object.entries(finishedGoodCategoryLabel).map(([value, label]) => ({ value, label }));
+
+/**
+ * dd/MM/yyyy cho cột DATE (không có phần giờ). Đọc theo UTC chứ không phải giờ máy: chuỗi trả về
+ * là "2026-09-01T00:00:00.000Z", lấy theo giờ địa phương ở múi giờ âm sẽ lùi mất một ngày.
+ */
+export function formatDateOnly(value: string) {
+  const d = new Date(value);
+  return `${pad2(d.getUTCDate())}/${pad2(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`;
+}
+
+/** Ngược lại formatDateOnly: chuỗi ISO -> "YYYY-MM-DD" để đổ vào <input type="date">. */
+export function toDateInput(value: string) {
+  const d = new Date(value);
+  return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
+}

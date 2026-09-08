@@ -20,6 +20,7 @@ import { productSupplierPricesRouter } from "./modules/productSupplierPrices/pro
 import { reorderThresholdsRouter } from "./modules/reorderThresholds/reorderThresholds.routes";
 import { reportsRouter } from "./modules/reports/reports.routes";
 import { salesOrdersRouter } from "./modules/salesOrders/salesOrders.routes";
+import { shiftExpensesRouter } from "./modules/shiftExpenses/shiftExpenses.routes";
 import { stockChecksRouter } from "./modules/stockChecks/stockChecks.routes";
 import { stockExportsRouter } from "./modules/stock/stockExports.routes";
 import { stockImportsRouter } from "./modules/stock/stockImports.routes";
@@ -54,10 +55,11 @@ app.use("/api/reorder-thresholds", reorderThresholdsRouter);
 // Đọc mở cho cả nhân viên (để hiện nhắc hạn nộp), ghi chỉ admin — chặn bên trong router.
 app.use("/api/deadlines", deadlinesRouter);
 
-// Sales orders, phiếu kiểm (stock checks) và phiếu huỷ nguyên liệu: open to both roles, ownership-scoped for staff inside the router.
+// Sales orders, phiếu kiểm (stock checks), phiếu huỷ nguyên liệu và chi chốt ca: open to both roles, ownership-scoped for staff inside the router.
 app.use("/api/sales-orders", salesOrdersRouter);
 app.use("/api/stock-checks", stockChecksRouter);
 app.use("/api/material-waste", materialWasteRouter);
+app.use("/api/shift-expenses", shiftExpensesRouter);
 
 // Staff has no use for these at all — admin only, both read and write.
 app.use("/api/product-groups", requireRole("ADMIN"), productGroupsRouter);

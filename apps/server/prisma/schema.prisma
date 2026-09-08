@@ -31,6 +31,7 @@ model User {
   reorderThresholds        ProductReorderThreshold[]
   stockChecks              StockCheck[]
   materialWastes           MaterialWaste[]
+  shiftExpenses            ShiftExpense[]
   costChecks               CostCheck[]               @relation("CostCheckShop")
   costChecksCreated        CostCheck[]               @relation("CostCheckCreatedBy")
   materialTransfersFrom    MaterialTransfer[]        @relation("MaterialTransferFrom")
@@ -588,6 +589,31 @@ model MaterialWasteFinishedItem {
   note               String?
 
   @@unique([materialWasteId, finishedGoodItemId])
+}
+
+// Sổ chi tại quán ("Chi chốt ca"): mỗi lần chi là MỘT bản ghi phẳng chứ không phải phiếu nhiều
+// dòng — quán ghi rải rác trong ca, mỗi khoản có ngày riêng. Nội dung/đơn vị để text tự do vì có
+// khoản không nằm trong danh mục hàng hoá (vd "Ship sữa dừa sang Xuân La", đơn vị "lần").
+// Không có `code` như các phiếu khác: đây là dòng sổ, không phải chứng từ để tra theo mã.
+model ShiftExpense {
+  id          String   @id @default(cuid())
+  // Ngày chi do quán khai. Kiểu DATE (không có phần giờ) nên không dính lệch múi giờ như DateTime.
+  spentAt     DateTime @db.Date
+  content     String
+  unit        String?
+  quantity    Decimal  @db.Decimal(18, 3)
+  unitPrice   Decimal  @db.Decimal(18, 2)
+  // Thành tiền = SL × đơn giá, tính ở SERVER lúc ghi rồi lưu lại — giống StockImportItem.costAmount.
+  // Cố ý lưu (khác StockCheckItem tính lúc hiển thị) vì "Tổng chi" phải cộng trên toàn bộ bộ lọc
+  // chứ không chỉ 20 dòng đang hiển thị; có cột này thì dùng thẳng aggregate _sum.
+  amount      Decimal  @db.Decimal(18, 2)
+  note        String?
+  createdById String?
+  createdBy   User?    @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([createdById, spentAt])
 }
 
 enum CostCheckStatus {

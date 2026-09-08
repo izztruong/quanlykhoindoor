@@ -461,3 +461,19 @@ export interface MaterialTransfer {
   createdAt: string;
   items?: MaterialTransferItemRow[];
 }
+
+/** Một dòng trong sổ "Chi chốt ca" của quán — bản ghi phẳng, không phải phiếu nhiều dòng. */
+export interface ShiftExpense {
+  id: string;
+  /** Chỉ có ngày (cột DATE ở server), phần giờ trong chuỗi ISO không mang ý nghĩa. */
+  spentAt: string;
+  content: string;
+  unit?: string | null;
+  quantity: string | number;
+  unitPrice: string | number;
+  /** Thành tiền server tính và lưu, không phải client gửi lên. */
+  amount: string | number;
+  note?: string | null;
+  createdBy?: { id: string; name: string } | null;
+  createdAt: string;
+}

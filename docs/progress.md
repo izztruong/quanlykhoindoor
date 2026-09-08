@@ -1,6 +1,6 @@
 # Tiến độ dự án
 
-Cập nhật: 2026-08-20
+Cập nhật: 2026-09-08
 
 Ghi lại **trạng thái thật**, không phải kế hoạch mong muốn. Mục "Còn lại" chỉ gồm những việc đã
 được nêu ra và gác lại có chủ đích — không phải lộ trình tự nghĩ ra.
@@ -53,18 +53,44 @@ phiếu tháng 12:00 mùng 1. Dấu chốt lúc tạo bản ghi nên đổi lị
 ### Nền tảng
 Đăng nhập cookie JWT có `tokenVersion`, phân quyền ADMIN/STAFF, giới hạn theo chủ sở hữu ép ở
 server, phân trang mọi danh sách (20 dòng), chống chèn công thức Excel, rate limit đăng nhập.
-42 migration.
+43 migration.
 
 ---
 
 ## Đang dở
 
-### Sidebar thu gọn theo nhóm — đã commit, CHƯA kiểm thử trên trình duyệt
-`5126d77`. Sidebar 27 mục trong 6 nhóm giờ gập lại được: nhóm chứa trang đang xem tự mở, bấm
+### Chi chốt ca — code xong, CHƯA kiểm thử trên trình duyệt
+Sổ chi tiêu của quán, nằm trong nhóm Kiểm kê quán. Mỗi khoản chi là **một bản ghi phẳng** (ngày ·
+nội dung chi · ĐVT · số lượng · đơn giá · thành tiền), không phải phiếu nhiều dòng — đúng như file
+Excel quán đang dùng, mỗi dòng một ngày riêng. Thêm/sửa bằng modal ngay trên danh sách; quán tự
+sửa/xoá dòng của mình, admin đụng được tất cả. Có nhập Excel, xuất Excel và file mẫu.
+
+Bốn điểm đã chốt, đổi thì hỏng thứ khác:
+
+- **Nội dung và đơn vị để text tự do** — có khoản không nằm trong danh mục hàng hoá ("Ship sữa dừa
+  sang Xuân La", đơn vị "lần").
+- **Không đưa vào Check Cost**: đây là sổ ghi chi riêng, không cộng vào tổng hợp tài chính.
+- **`amount` lưu sẵn** (tính ở server, giống `StockImportItem.costAmount`) chứ không tính lúc hiển
+  thị: "Tổng chi" phải cộng trên cả bộ lọc, không chỉ 20 dòng đang xem.
+- **Nhập Excel chỉ thêm mới, không ghi đè** — khoản chi không có mã để so trùng, nên nhập lại cùng
+  một file sẽ nhân đôi dòng. Modal nhập có cảnh báo sẵn.
+
+Đã kiểm bằng typecheck + lint sạch và gọi API bằng curl: server tự tính thành tiền và bỏ qua
+`amount`/`createdById` client gửi lên; `totalAmount` ra đúng 1.241.000 và không đổi khi sang trang;
+bulk-import có một dòng lỗi thì trả 400 và không ghi dòng nào; STAFF nhận 403 với dòng của quán
+khác nhưng sửa/xoá được dòng của mình. 23 trường hợp bóc tách ngày/số/tiêu đề Excel đều đúng, gồm
+cả `1/9`, `06/09/2026` và ô Date thật của Excel (không bị lùi một ngày).
+
+**Chưa ai mở trên trình duyệt.** Cần thử: thêm/sửa/xoá một khoản, lọc theo ngày và theo quán, nhập
+file Excel mẫu rồi đối chiếu Tổng chi = 1.241.000, xuất ra rồi nhập lại chính file đó.
+
+### Sidebar thu gọn theo nhóm — đã kiểm thử trên trình duyệt, CHƯA lên production
+`5126d77`. Sidebar 28 mục trong 6 nhóm giờ gập lại được: nhóm chứa trang đang xem tự mở, bấm
 tiêu đề để đóng/mở, đổi route thì xoá hết ghi đè nên không bao giờ giấu mất trang vừa mở.
 
-Đã qua typecheck và `eslint` sạch, nhưng **chưa ai mở trên trình duyệt lần nào**. Cần bấm thử
-đóng/mở vài nhóm và điều hướng chéo sang nhóm khác — typecheck không bắt được lỗi hành vi.
+Đã qua typecheck, `eslint` sạch, và **đã bấm thử trên trình duyệt**: đóng/mở nhóm cùng điều hướng
+chéo sang nhóm khác đều đúng như thiết kế. Việc còn lại chỉ là đưa lên staging rồi merge lên
+`main` — chừng nào chưa deploy thì mục này chưa thuộc "Đã xong".
 
 ---
 

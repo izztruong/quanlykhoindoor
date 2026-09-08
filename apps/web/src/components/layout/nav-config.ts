@@ -53,6 +53,7 @@ export const navSections: NavSection[] = [
     items: [
       { label: "Phiếu kiểm kê", href: "/stock-checks" },
       { label: "Phiếu huỷ nguyên liệu", href: "/material-waste" },
+      { label: "Chi chốt ca", href: "/shift-expenses" },
     ],
   },
   {

@@ -67,6 +67,13 @@ Repo **không có** vitest/jest/playwright và **không có `npm test`**. Cách 
 3. Với logic thuần (tính hạn, tính ngày…): viết script `tsx` tạm ở `apps/server/`, chạy, rồi **xoá đi** — đừng để lại file rác.
 4. Dữ liệu tạo ra khi thử phải dọn sạch sau khi xong.
 
+### Trước mỗi commit
+
+Cập nhật `docs/progress.md` cho khớp trạng thái thật (Đã xong / Đang dở / Còn lại) và commit chung
+với code — **không tách thành commit riêng**, để tài liệu không bao giờ tụt lại sau code. Mục "Đã
+xong" chỉ dành cho thứ đã chạy trên `main`; code xong mà chưa deploy thì vẫn nằm ở "Đang dở".
+## Quy tắc
+ Thêm chức năng mới = tạo module mới, không nhét vào module có sẵn
 ## Quy ước đặt tên
 
 - **Module server**: `modules/<camelCase>/<cùng tên>.routes.ts` + `.service.ts` + `.schemas.ts`. Chỉ tách `.service.ts` khi có logic nghiệp vụ thật — module danh mục thuần CRUD chỉ có `.routes.ts`.
