@@ -2,11 +2,11 @@
 
 import { cn } from "@/lib/cn";
 import type { AuthUser } from "@/types";
-import { Store, X } from "lucide-react";
+import { ChevronDown, Store, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect } from "react";
-import { navSections } from "./nav-config";
+import { useEffect, useState } from "react";
+import { navSections, type NavSection } from "./nav-config";
 
 interface SidebarProps {
   user: AuthUser;
@@ -17,6 +17,26 @@ interface SidebarProps {
 export function Sidebar({ user, open, onClose }: SidebarProps) {
   const pathname = usePathname();
   const visibleSections = navSections.filter((section) => !section.adminOnly || user.role === "ADMIN");
+
+  // Nhóm nào chứa trang đang xem thì mở, bấm vào tiêu đề thì ghi đè, và mỗi lần đổi route thì
+  // xoá hết ghi đè để nhóm của trang mới luôn hiện ra — nếu không, một nhóm đã thu tay sẽ giấu
+  // mất chính mục vừa điều hướng tới. Cố tình so sánh lastPath ngay trong thân component chứ
+  // không dùng useEffect: repo bật rule react-hooks/set-state-in-effect, và đây đúng là mẫu
+  // React khuyến nghị để chỉnh state theo giá trị thay đổi.
+  const [overrides, setOverrides] = useState<Record<string, boolean>>({});
+  const [lastPath, setLastPath] = useState(pathname);
+  if (lastPath !== pathname) {
+    setLastPath(pathname);
+    setOverrides({});
+  }
+
+  const isActiveItem = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
+  const hasActiveItem = (section: NavSection) => section.items.some((item) => isActiveItem(item.href));
+  const isOpen = (section: NavSection) => overrides[section.label] ?? hasActiveItem(section);
+
+  function toggleSection(section: NavSection) {
+    setOverrides((prev) => ({ ...prev, [section.label]: !isOpen(section) }));
+  }
 
   // Close the mobile drawer whenever the route changes.
   useEffect(() => {
@@ -46,32 +66,44 @@ export function Sidebar({ user, open, onClose }: SidebarProps) {
           </button>
         </div>
 
-        <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-5">
-          {visibleSections.map((section) => (
-            <div key={section.label}>
-              <div className="flex items-center gap-2 px-2 pb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                <section.icon size={14} />
-                {section.label}
+        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-5">
+          {visibleSections.map((section) => {
+            const sectionOpen = isOpen(section);
+            return (
+              <div key={section.label}>
+                <button
+                  type="button"
+                  onClick={() => toggleSection(section)}
+                  aria-expanded={sectionOpen}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-lg px-2 py-2 text-xs font-semibold uppercase tracking-wide hover:bg-slate-50",
+                    hasActiveItem(section) ? "text-slate-600" : "text-slate-400",
+                  )}
+                >
+                  <section.icon size={14} />
+                  <span className="flex-1 text-left">{section.label}</span>
+                  <ChevronDown size={14} className={cn("transition-transform", sectionOpen && "rotate-180")} />
+                </button>
+
+                {sectionOpen && (
+                  <div className="space-y-0.5 pb-2">
+                    {section.items.map((item) => (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className={cn(
+                          "block rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50",
+                          isActiveItem(item.href) && "bg-indigo-50 text-indigo-700",
+                        )}
+                      >
+                        {item.label}
+                      </Link>
+                    ))}
+                  </div>
+                )}
               </div>
-              <div className="space-y-0.5">
-                {section.items.map((item) => {
-                  const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={cn(
-                        "block rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50",
-                        active && "bg-indigo-50 text-indigo-700",
-                      )}
-                    >
-                      {item.label}
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </nav>
       </aside>
     </>
