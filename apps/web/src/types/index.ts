@@ -463,11 +463,15 @@ export interface MaterialTransfer {
   items?: MaterialTransferItemRow[];
 }
 
+/** NVL = nguyên vật liệu, OTHER = khoản chi khác (ship, sửa chữa…). */
+export type ShiftExpenseType = "MATERIAL" | "OTHER";
+
 /** Một dòng trong sổ "Chi chốt ca" của quán — bản ghi phẳng, không phải phiếu nhiều dòng. */
 export interface ShiftExpense {
   id: string;
   /** Chỉ có ngày (cột DATE ở server), phần giờ trong chuỗi ISO không mang ý nghĩa. */
   spentAt: string;
+  type: ShiftExpenseType;
   content: string;
   unit?: string | null;
   quantity: string | number;

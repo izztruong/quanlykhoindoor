@@ -53,7 +53,7 @@ phiếu tháng 12:00 mùng 1. Dấu chốt lúc tạo bản ghi nên đổi lị
 ### Nền tảng
 Đăng nhập cookie JWT có `tokenVersion`, phân quyền ADMIN/STAFF, giới hạn theo chủ sở hữu ép ở
 server, phân trang mọi danh sách (20 dòng), chống chèn công thức Excel, rate limit đăng nhập.
-43 migration.
+44 migration.
 
 ---
 
@@ -97,11 +97,19 @@ thị — đủ 5 mục Loại, 5 nhóm con trong Nguyên vật liệu, đủ c�
 sạch sau khi xem xong** (phiếu, kiểm kê, hàng hoá, nhóm và tài khoản thử). Việc còn lại chỉ là đưa
 lên staging rồi merge lên `main`; chừng nào chưa deploy thì mục này chưa thuộc "Đã xong".
 
-### Chi chốt ca — code xong, CHƯA kiểm thử trên trình duyệt
+### Chi chốt ca — code xong, phần Loại chi CHƯA kiểm thử trên trình duyệt
 Sổ chi tiêu của quán, nằm trong nhóm Kiểm kê quán. Mỗi khoản chi là **một bản ghi phẳng** (ngày ·
-nội dung chi · ĐVT · số lượng · đơn giá · thành tiền), không phải phiếu nhiều dòng — đúng như file
-Excel quán đang dùng, mỗi dòng một ngày riêng. Thêm/sửa bằng modal ngay trên danh sách; quán tự
-sửa/xoá dòng của mình, admin đụng được tất cả. Có nhập Excel, xuất Excel và file mẫu.
+**loại chi** · nội dung chi · ĐVT · số lượng · đơn giá · thành tiền), không phải phiếu nhiều dòng —
+đúng như file Excel quán đang dùng, mỗi dòng một ngày riêng. Thêm/sửa bằng modal ngay trên danh
+sách; quán tự sửa/xoá dòng của mình, admin đụng được tất cả. Có nhập Excel, xuất Excel và file mẫu.
+
+**Loại chi** có đúng hai giá trị: **NVL** (`MATERIAL`) và **Khác** (`OTHER`), kèm ô lọc theo loại
+trên danh sách. Bắt buộc khai ở mọi đường ghi (form, API, nhập Excel) — cột DB có
+`@default(MATERIAL)` nhưng đó chỉ là để thêm cột vào bảng đã có dữ liệu cho an toàn, không phải để
+client bỏ trống. Ô "Loại chi" trong Excel nhận cả `NVL`, `Nguyên vật liệu`, `Khác`, `khac` (bỏ dấu,
+không phân biệt hoa thường); chuỗi lạ thì báo lỗi đúng dòng chứ không âm thầm xếp vào NVL.
+Thêm cột này làm **file Excel mẫu cũ 6 cột không nhập được nữa** — đúng ý đồ, phần nhập chặn ở bước
+kiểm tiêu đề.
 
 Bốn điểm đã chốt, đổi thì hỏng thứ khác:
 
@@ -119,8 +127,15 @@ bulk-import có một dòng lỗi thì trả 400 và không ghi dòng nào; STAF
 khác nhưng sửa/xoá được dòng của mình. 23 trường hợp bóc tách ngày/số/tiêu đề Excel đều đúng, gồm
 cả `1/9`, `06/09/2026` và ô Date thật của Excel (không bị lùi một ngày).
 
-**Chưa ai mở trên trình duyệt.** Cần thử: thêm/sửa/xoá một khoản, lọc theo ngày và theo quán, nhập
-file Excel mẫu rồi đối chiếu Tổng chi = 1.241.000, xuất ra rồi nhập lại chính file đó.
+Riêng phần Loại chi cũng đã kiểm bằng curl: thiếu `type` hoặc gửi `"NVL"` thay vì mã enum đều trả
+400; lọc `?type=MATERIAL` / `?type=OTHER` ra đúng số dòng và `totalAmount` cộng lại khớp tổng chung;
+giá trị rác thì bỏ qua bộ lọc thay vì lỗi; sửa một dòng đổi được loại. 28 trường hợp đọc Excel đều
+đúng, gồm `NVL`/`nvl`/`Nguyên vật liệu`/`Khác`/`khac`/`KHÁC` và việc file mẫu cũ 6 cột bị từ chối.
+
+**Trên trình duyệt mới chỉ mở thử phần cũ** (máy dev còn 3 dòng nhập tay từ giao diện, đã tự nhận
+`MATERIAL` theo mặc định của cột). Phần Loại chi chưa bấm thử. Cần thử: thêm/sửa một khoản và đổi
+loại, lọc theo loại · theo ngày · theo quán, nhập file Excel mẫu rồi đối chiếu Tổng chi = 1.241.000
+(NVL 984.000 + Khác 257.000), xuất ra rồi nhập lại chính file đó.
 
 ### Sidebar thu gọn theo nhóm — đã kiểm thử trên trình duyệt, CHƯA lên production
 `5126d77`. Sidebar 28 mục trong 6 nhóm giờ gập lại được: nhóm chứa trang đang xem tự mở, bấm

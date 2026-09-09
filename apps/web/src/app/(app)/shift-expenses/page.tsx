@@ -13,8 +13,8 @@ import { useUsers } from "@/hooks/useUsers";
 import { ApiError } from "@/lib/api-client";
 import { useCurrentUser } from "@/lib/auth";
 import { clampDateRange } from "@/lib/dateRange";
-import { formatCurrency, formatDateOnly, formatNumber } from "@/lib/format";
-import type { ShiftExpense } from "@/types";
+import { SHIFT_EXPENSE_TYPE_OPTIONS, formatCurrency, formatDateOnly, formatNumber, labels } from "@/lib/format";
+import type { ShiftExpense, ShiftExpenseType } from "@/types";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -26,8 +26,8 @@ export default function ShiftExpensesPage() {
   // nghĩa với họ — và /users cũng chỉ admin gọi được.
   const { data: users = [] } = useUsers({ enabled: isAdmin });
 
-  const [filter, setFilter] = useState({ from: "", to: "", search: "" });
-  const [appliedFilter, setAppliedFilter] = useState({ from: "", to: "", search: "" });
+  const [filter, setFilter] = useState({ from: "", to: "", search: "", type: "" as ShiftExpenseType | "" });
+  const [appliedFilter, setAppliedFilter] = useState({ from: "", to: "", search: "", type: "" as ShiftExpenseType | "" });
   // Áp dụng ngay khi đổi, không chờ bấm "Lọc" như khoảng ngày — chọn xong là thấy kết quả luôn.
   const [createdById, setCreatedById] = useState("");
   const [page, setPage] = useState(1);
@@ -39,6 +39,7 @@ export default function ShiftExpensesPage() {
     from: appliedFilter.from || undefined,
     to: appliedFilter.to || undefined,
     search: appliedFilter.search || undefined,
+    type: appliedFilter.type || undefined,
     createdById: createdById || undefined,
   };
   const { data, isLoading } = useShiftExpenses({ ...queryFilter, page, pageSize });
@@ -55,6 +56,7 @@ export default function ShiftExpensesPage() {
   const columns = useMemo<ColumnDef<ShiftExpense>[]>(() => {
     const base: ColumnDef<ShiftExpense>[] = [
       { header: "Ngày", accessorFn: (row) => formatDateOnly(row.spentAt), id: "spentAt" },
+      { header: "Loại chi", accessorFn: (row) => labels.shiftExpenseType(row.type), id: "type" },
       { header: "Nội dung chi", accessorKey: "content" },
       { header: "Đơn vị tính", accessorFn: (row) => row.unit ?? "-", id: "unit" },
       {
@@ -142,6 +144,17 @@ export default function ShiftExpensesPage() {
               value={filter.to}
               onChange={(e) => setFilter((f) => ({ ...f, ...clampDateRange(f.from, e.target.value, "to") }))}
             />
+          </div>
+          <div className="w-40">
+            <label className="mb-1 block text-xs font-medium text-slate-500">Loại chi</label>
+            <Select value={filter.type} onChange={(e) => setFilter((f) => ({ ...f, type: e.target.value as ShiftExpenseType | "" }))}>
+              <option value="">Tất cả loại</option>
+              {SHIFT_EXPENSE_TYPE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </Select>
           </div>
           <div className="w-56">
             <label className="mb-1 block text-xs font-medium text-slate-500">Nội dung chi</label>

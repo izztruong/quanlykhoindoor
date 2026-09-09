@@ -4,10 +4,10 @@ import type ExcelJS from "exceljs";
  * Bố cục file Excel của "Chi chốt ca", tách khỏi component để phần đọc/ghi file kiểm chứng được
  * mà không cần dựng React.
  */
-export const TEMPLATE_HEADER = ["Ngày*", "Nội dung chi*", "Đơn vị tính", "Số lượng*", "Đơn giá*", "Ghi chú"];
+export const TEMPLATE_HEADER = ["Ngày*", "Loại chi*", "Nội dung chi*", "Đơn vị tính", "Số lượng*", "Đơn giá*", "Ghi chú"];
 
 /** Chỉ số cột (1-based), gom một chỗ để mẫu/xuất/nhập không bao giờ lệch nhau. */
-export const COL = { spentAt: 1, content: 2, unit: 3, quantity: 4, unitPrice: 5, note: 6 } as const;
+export const COL = { spentAt: 1, type: 2, content: 3, unit: 4, quantity: 5, unitPrice: 6, note: 7 } as const;
 
 function pad2(n: number) {
   return String(n).padStart(2, "0");
@@ -62,6 +62,31 @@ export function parseNumber(value: ExcelJS.CellValue, text: string): number | nu
 
   const parsed = Number(normalised);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+/** Bỏ dấu tiếng Việt và hạ về chữ thường để so chuỗi người dùng gõ tay trong Excel. */
+function foldVietnamese(text: string) {
+  return text
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/đ/g, "d");
+}
+
+const MATERIAL_WORDS = ["nvl", "nguyen vat lieu", "nguyen lieu", "material"];
+const OTHER_WORDS = ["khac", "chi khac", "other"];
+
+/**
+ * Ô "Loại chi" gõ tay nên nhận cả "NVL", "Nguyên vật liệu", "Khác", "khac"… Không đoán bừa: chuỗi
+ * lạ trả về null để phần nhập báo đúng dòng sai thay vì âm thầm xếp hết vào NVL.
+ */
+export function parseExpenseType(text: string): "MATERIAL" | "OTHER" | null {
+  const folded = foldVietnamese(text);
+  if (!folded) return null;
+  if (MATERIAL_WORDS.includes(folded)) return "MATERIAL";
+  if (OTHER_WORDS.includes(folded)) return "OTHER";
+  return null;
 }
 
 /** So khớp hàng tiêu đề với file mẫu (bỏ qua dấu *, khoảng trắng và hoa/thường). */

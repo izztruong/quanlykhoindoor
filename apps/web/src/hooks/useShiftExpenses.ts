@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
-import type { PagedResult, ShiftExpense } from "@/types";
+import type { PagedResult, ShiftExpense, ShiftExpenseType } from "@/types";
 
 export interface ShiftExpenseInput {
   /** "YYYY-MM-DD" — cột DATE ở server, không gửi kèm giờ. */
   spentAt: string;
+  type: ShiftExpenseType;
   content: string;
   unit?: string;
   quantity: number;
@@ -18,6 +19,7 @@ export type ShiftExpenseListResult = PagedResult<ShiftExpense> & { totalAmount: 
 export interface ShiftExpenseFilter {
   from?: string;
   to?: string;
+  type?: ShiftExpenseType | "";
   search?: string;
   createdById?: string;
   page?: number;

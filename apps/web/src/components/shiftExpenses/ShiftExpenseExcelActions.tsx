@@ -10,8 +10,8 @@ import {
 } from "@/hooks/useShiftExpenses";
 import { ApiError, api } from "@/lib/api-client";
 import { exportRowsToExcel, sanitizeExcelRow } from "@/lib/excelExport";
-import { formatDateOnly } from "@/lib/format";
-import { COL, TEMPLATE_HEADER, headerMatchesTemplate, parseNumber, parseSpentAt } from "@/lib/shiftExpenseExcel";
+import { formatDateOnly, labels } from "@/lib/format";
+import { COL, TEMPLATE_HEADER, headerMatchesTemplate, parseExpenseType, parseNumber, parseSpentAt } from "@/lib/shiftExpenseExcel";
 import type { ShiftExpense } from "@/types";
 import ExcelJS from "exceljs";
 import { ChevronDown, Download } from "lucide-react";
@@ -53,7 +53,7 @@ export function ShiftExpenseExcelActions({ filter, isAdmin }: ShiftExpenseExcelA
     const sheet = workbook.addWorksheet("Chi chốt ca");
     sheet.columns = TEMPLATE_HEADER.map((header) => ({ header, width: 24 }));
     sheet.getRow(1).font = { bold: true };
-    sheet.addRow(sanitizeExcelRow(["01/09/2026", "Đá", "túi", 10, 8000, ""]));
+    sheet.addRow(sanitizeExcelRow(["01/09/2026", "NVL", "Đá", "túi", 10, 8000, ""]));
 
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
@@ -80,6 +80,7 @@ export function ShiftExpenseExcelActions({ filter, isAdmin }: ShiftExpenseExcelA
         "Chi chốt ca",
         [
           { header: "Ngày", value: (row) => formatDateOnly(row.spentAt), width: 14 },
+          { header: "Loại chi", value: (row) => labels.shiftExpenseType(row.type), width: 12 },
           { header: "Nội dung chi", value: (row) => row.content, width: 34 },
           { header: "Đơn vị tính", value: (row) => row.unit ?? "", width: 14 },
           { header: "Số lượng", value: (row) => Number(row.quantity), width: 12 },
@@ -135,24 +136,28 @@ export function ShiftExpenseExcelActions({ filter, isAdmin }: ShiftExpenseExcelA
 
         const content = text(COL.content);
         const dateText = text(COL.spentAt);
+        const typeText = text(COL.type);
         const quantityText = text(COL.quantity);
         const unitPriceText = text(COL.unitPrice);
 
         // Dòng trống hoàn toàn thì bỏ qua, không tính là lỗi.
-        if (!content && !dateText && !quantityText && !unitPriceText) return;
+        if (!content && !dateText && !typeText && !quantityText && !unitPriceText) return;
 
         const spentAt = parseSpentAt(raw(COL.spentAt), dateText);
+        const type = parseExpenseType(typeText);
         const quantity = parseNumber(raw(COL.quantity), quantityText);
         const unitPrice = parseNumber(raw(COL.unitPrice), unitPriceText);
 
         if (!spentAt) errors.push(`Dòng ${rowNumber}: ngày không hợp lệ ("${dateText}")`);
         if (!content) errors.push(`Dòng ${rowNumber}: thiếu nội dung chi`);
+        if (!type) errors.push(`Dòng ${rowNumber}: loại chi phải là NVL hoặc Khác ("${typeText}")`);
         if (quantity === null || quantity <= 0) errors.push(`Dòng ${rowNumber}: số lượng không hợp lệ ("${quantityText}")`);
         if (unitPrice === null || unitPrice < 0) errors.push(`Dòng ${rowNumber}: đơn giá không hợp lệ ("${unitPriceText}")`);
-        if (!spentAt || !content || quantity === null || quantity <= 0 || unitPrice === null || unitPrice < 0) return;
+        if (!spentAt || !content || !type || quantity === null || quantity <= 0 || unitPrice === null || unitPrice < 0) return;
 
         items.push({
           spentAt,
+          type,
           content,
           unit: text(COL.unit) || undefined,
           quantity,

@@ -595,10 +595,20 @@ model MaterialWasteFinishedItem {
 // dòng — quán ghi rải rác trong ca, mỗi khoản có ngày riêng. Nội dung/đơn vị để text tự do vì có
 // khoản không nằm trong danh mục hàng hoá (vd "Ship sữa dừa sang Xuân La", đơn vị "lần").
 // Không có `code` như các phiếu khác: đây là dòng sổ, không phải chứng từ để tra theo mã.
+// NVL = nguyên vật liệu (đá, hoa quả…), OTHER = mọi khoản còn lại (ship, sửa chữa…). Chỉ hai loại
+// vì quán chỉ cần tách phần chi vào hàng hoá ra khỏi phần chi vận hành.
+enum ShiftExpenseType {
+  MATERIAL
+  OTHER
+}
+
 model ShiftExpense {
   id          String   @id @default(cuid())
   // Ngày chi do quán khai. Kiểu DATE (không có phần giờ) nên không dính lệch múi giờ như DateTime.
   spentAt     DateTime @db.Date
+  // Mặc định MATERIAL ở tầng DB chỉ để thêm cột vào bảng đã có dữ liệu cho an toàn — mọi đường ghi
+  // (form, API, nhập Excel) đều bắt buộc khai loại, không dựa vào mặc định này.
+  type        ShiftExpenseType @default(MATERIAL)
   content     String
   unit        String?
   quantity    Decimal  @db.Decimal(18, 3)

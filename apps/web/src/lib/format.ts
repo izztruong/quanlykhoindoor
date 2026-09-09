@@ -81,6 +81,11 @@ const finishedGoodCategoryLabel: Record<string, string> = {
   THANH_PHAM: "Đồ thành phẩm",
 };
 
+const shiftExpenseTypeLabel: Record<string, string> = {
+  MATERIAL: "NVL",
+  OTHER: "Khác",
+};
+
 export const labels = {
   transactionForm: (v: string) => transactionFormLabel[v] ?? v,
   transactionStatus: (v: string) => transactionStatusLabel[v] ?? v,
@@ -90,11 +95,13 @@ export const labels = {
   inventoryCountStatus: (v: string) => inventoryCountStatusLabel[v] ?? v,
   productType: (v: string) => productTypeLabel[v] ?? v,
   finishedGoodCategory: (v: string) => finishedGoodCategoryLabel[v] ?? v,
+  shiftExpenseType: (v: string) => shiftExpenseTypeLabel[v] ?? v,
 };
 
 /** Derived from the label maps above so the dropdown/Excel option lists and display labels never drift apart. */
 export const PRODUCT_TYPE_OPTIONS = Object.entries(productTypeLabel).map(([value, label]) => ({ value, label }));
 export const FINISHED_GOOD_CATEGORY_OPTIONS = Object.entries(finishedGoodCategoryLabel).map(([value, label]) => ({ value, label }));
+export const SHIFT_EXPENSE_TYPE_OPTIONS = Object.entries(shiftExpenseTypeLabel).map(([value, label]) => ({ value, label }));
 
 /**
  * dd/MM/yyyy cho cột DATE (không có phần giờ). Đọc theo UTC chứ không phải giờ máy: chuỗi trả về

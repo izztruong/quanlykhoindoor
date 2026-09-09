@@ -2,11 +2,12 @@
 
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
 import { Modal } from "@/components/ui/Modal";
 import { useCreateShiftExpense, useUpdateShiftExpense, type ShiftExpenseInput } from "@/hooks/useShiftExpenses";
 import { ApiError } from "@/lib/api-client";
-import { formatCurrency, toDateInput } from "@/lib/format";
-import type { ShiftExpense } from "@/types";
+import { SHIFT_EXPENSE_TYPE_OPTIONS, formatCurrency, toDateInput } from "@/lib/format";
+import type { ShiftExpense, ShiftExpenseType } from "@/types";
 import { useState } from "react";
 
 interface ShiftExpenseFormModalProps {
@@ -25,6 +26,8 @@ function todayForDateInput() {
 export function ShiftExpenseFormModal({ existing, onClose }: ShiftExpenseFormModalProps) {
   const isEdit = Boolean(existing);
   const [spentAt, setSpentAt] = useState(existing ? toDateInput(existing.spentAt) : todayForDateInput());
+  // Phần lớn khoản chi là nguyên vật liệu nên mặc định NVL, vẫn phải gửi tường minh lên server.
+  const [type, setType] = useState<ShiftExpenseType>(existing?.type ?? "MATERIAL");
   const [content, setContent] = useState(existing?.content ?? "");
   const [unit, setUnit] = useState(existing?.unit ?? "");
   const [quantity, setQuantity] = useState(existing ? String(Number(existing.quantity)) : "");
@@ -62,6 +65,7 @@ export function ShiftExpenseFormModal({ existing, onClose }: ShiftExpenseFormMod
 
     const payload: ShiftExpenseInput = {
       spentAt,
+      type,
       content: content.trim(),
       unit: unit.trim() || undefined,
       quantity: Number(quantity),
@@ -79,9 +83,21 @@ export function ShiftExpenseFormModal({ existing, onClose }: ShiftExpenseFormMod
   return (
     <Modal title={isEdit ? "Sửa khoản chi" : "Thêm khoản chi"} onClose={onClose}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-        <div>
-          <label className="mb-1 block text-xs font-medium text-slate-500">Ngày *</label>
-          <Input type="date" value={spentAt} onChange={(e) => setSpentAt(e.target.value)} />
+        <div className="flex gap-3">
+          <div className="w-44">
+            <label className="mb-1 block text-xs font-medium text-slate-500">Ngày *</label>
+            <Input type="date" value={spentAt} onChange={(e) => setSpentAt(e.target.value)} />
+          </div>
+          <div className="flex-1">
+            <label className="mb-1 block text-xs font-medium text-slate-500">Loại chi *</label>
+            <Select value={type} onChange={(e) => setType(e.target.value as ShiftExpenseType)}>
+              {SHIFT_EXPENSE_TYPE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </Select>
+          </div>
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-slate-500">Nội dung chi *</label>

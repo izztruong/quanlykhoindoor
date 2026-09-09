@@ -21,6 +21,7 @@ function assertOwnership(expense: { createdById: string | null }, user?: AuthUse
 function toRow(data: ShiftExpenseInput, createdById?: string) {
   return {
     spentAt: data.spentAt,
+    type: data.type,
     content: data.content,
     unit: data.unit || null,
     quantity: data.quantity,
@@ -33,11 +34,12 @@ function toRow(data: ShiftExpenseInput, createdById?: string) {
 
 shiftExpensesRouter.get("/", async (req, res) => {
   const { from, to } = parseDateRange(req);
-  const { search, createdById } = req.query as Record<string, string>;
+  const { search, createdById, type } = req.query as Record<string, string>;
   const { skip, take, page, pageSize } = parsePagination(req, 20);
 
   const where = {
     spentAt: from || to ? { gte: from, lte: to } : undefined,
+    type: type === "MATERIAL" || type === "OTHER" ? type : undefined,
     content: search ? { contains: search, mode: "insensitive" as const } : undefined,
     // Staff chỉ thấy khoản chi của chính mình; admin thấy hết, lọc theo quán qua ?createdById=.
     createdById: req.user?.role === "ADMIN" ? createdById || undefined : req.user?.id,
