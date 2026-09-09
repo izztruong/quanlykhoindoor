@@ -1,5 +1,5 @@
 import { prisma } from "../../config/db";
-import type { Prisma } from "../../generated/prisma/client";
+import type { Prisma, ProductType } from "../../generated/prisma/client";
 import type { AuthUser } from "../../middleware/auth";
 import { generateCode } from "../../utils/codeGenerator";
 import { HttpError } from "../../utils/httpError";
@@ -72,10 +72,36 @@ export async function createCostCheck(data: CostCheckCreateInput, actingUser?: A
   return { ...withSnapshot, report: rows, financialSummary: summary };
 }
 
+/** Thứ tự hiển thị Loại hàng hoá, khớp enum ProductType trong schema và productTypeLabel bên web. */
+export const PRODUCT_TYPE_ORDER: ProductType[] = ["NVL", "COC_TAKE", "BANH", "DUNG_CU", "KHAC"];
+
+/** Loại lạ (dữ liệu cũ, hàng hoá đã xoá) xếp xuống cuối thay vì lên đầu. */
+export function productTypeRank(type: ProductType | null | undefined): number {
+  const index = PRODUCT_TYPE_ORDER.indexOf(type as ProductType);
+  return index === -1 ? PRODUCT_TYPE_ORDER.length : index;
+}
+
+/**
+ * Loại → nhóm hàng hoá → tên. Dùng chung cho lúc tính mới và lúc bổ sung loại cho snapshot cũ.
+ * Đọc phòng thủ: snapshot cũ là JSON không kiểu, có phiếu chốt từ trước khi MaterialRow có
+ * productGroupName nên trường này có thể thiếu.
+ */
+export function compareMaterialRows(
+  a: Partial<Pick<MaterialRow, "productType" | "productGroupName" | "name">>,
+  b: Partial<Pick<MaterialRow, "productType" | "productGroupName" | "name">>,
+): number {
+  return (
+    productTypeRank(a.productType) - productTypeRank(b.productType) ||
+    (a.productGroupName ?? "").localeCompare(b.productGroupName ?? "") ||
+    (a.name ?? "").localeCompare(b.name ?? "")
+  );
+}
+
 export interface MaterialRow {
   productId: string;
   code: string;
   name: string;
+  productType: ProductType;
   productGroupName: string;
   unitLabel: string;
   openingQty: number;
@@ -300,6 +326,7 @@ export async function computeCostCheckReport(costCheckId: string): Promise<{ row
       productId,
       code: product.code,
       name: product.name,
+      productType: product.type,
       productGroupName: product.productGroup.name,
       unitLabel: product.recipeUnit?.name ?? product.unit.name,
       openingQty,
@@ -313,7 +340,7 @@ export async function computeCostCheckReport(costCheckId: string): Promise<{ row
     });
   }
 
-  rows.sort((a, b) => a.productGroupName.localeCompare(b.productGroupName) || a.name.localeCompare(b.name));
+  rows.sort(compareMaterialRows);
 
   // Chi phí quy ra tiền, gộp theo Loại hàng hoá: NVL -> chi phí NVL Trà, COC_TAKE -> cốc &
   // ống hút, BANH -> chi phí ĐAV (qua công thức 1 dòng trỏ tới đúng hàng hoá Bánh đó).

@@ -371,6 +371,7 @@ export interface CostCheckReportRow {
   productId: string;
   code: string;
   name: string;
+  productType: ProductType;
   productGroupName: string;
   unitLabel: string;
   openingQty: number;

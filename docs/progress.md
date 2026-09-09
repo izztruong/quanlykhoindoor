@@ -1,6 +1,6 @@
 # Tiến độ dự án
 
-Cập nhật: 2026-09-08
+Cập nhật: 2026-09-09
 
 Ghi lại **trạng thái thật**, không phải kế hoạch mong muốn. Mục "Còn lại" chỉ gồm những việc đã
 được nêu ra và gác lại có chủ đích — không phải lộ trình tự nghĩ ra.
@@ -58,6 +58,44 @@ server, phân trang mọi danh sách (20 dòng), chống chèn công thức Exce
 ---
 
 ## Đang dở
+
+### Bảng Báo cáo Check Cost: đổi công thức % và gộp hai cấp — đã kiểm thử trên trình duyệt, CHƯA lên production
+Trong chi tiết phiếu Check Cost, hai thay đổi:
+
+- **Cột "% chênh lệch thực"** đổi từ `(Theo công thức − Thực tế dùng) / Thực tế dùng` sang
+  **`Thực tế dùng / Theo công thức`** — đọc thẳng ra "quán dùng bằng bao nhiêu phần trăm định mức",
+  100% là khớp, trên 100% là dùng vượt. Hàng hoá không nằm trong công thức nào (mẫu số 0) hiện
+  **`-`**, không phải `0,0%`: hiện 0% sẽ bị đọc nhầm thành "dùng đúng định mức".
+- **Danh sách nguyên liệu gộp hai cấp**: Loại hàng hoá ở ngoài, Nhóm hàng hoá ở trong, sắp xếp
+  `loại → nhóm → tên`. Xếp cùng trục với phần tổng hợp tài chính bên dưới (cũng chia theo
+  `Product.type`) nên đối chiếu được hai bảng. Excel xuất ra thêm cột "Loại hàng hoá" thành cột 1.
+- **Chú thích ba màu chữ** thành một dải ngay dưới tiêu đề bảng: đỏ dùng nhiều hơn định mức, xanh
+  dùng ít hơn, xám đúng bằng. Trước đó màu không được giải thích ở đâu cả, mà vì
+  `variance = Thực tế dùng − Theo công thức` nên rất dễ đoán ngược. Dải nằm **ngoài** `CardBody` vì
+  `CardBody` là vùng cuộn của bảng; ba lớp màu trong chú thích phải trùng đúng chữ với biến `tone`
+  trong bảng, đổi một chỗ mà quên chỗ kia là hỏng.
+
+Hai điểm đã chốt, đổi thì hỏng thứ khác:
+
+- **Bổ sung nhãn cho snapshot cũ, không đụng con số.** `reportSnapshot` chốt cứng nên phiếu cũ
+  không có `productType`; `GET /:id` tra danh mục bổ sung nhãn rồi lưu lại một lần, đúng khuôn mẫu
+  nhánh "phiếu chưa có snapshot" đã có sẵn. Chỉ thêm khoá phân loại và sắp lại thứ tự dòng — mọi
+  giá trị số giữ nguyên, nên sửa danh mục về sau vẫn không làm đổi số liệu phiếu đã tạo.
+- **Bổ sung cả `productGroupName`.** Hoá ra 8/9 phiếu đang có trên máy dev được chốt từ trước khi
+  `MaterialRow` có trường này, nên chúng vẫn đang hiển thị một hàng tiêu đề nhóm trống. Không xử lý
+  thì code sắp xếp mới sẽ ném 500 trên đúng những phiếu đó. `compareMaterialRows` cũng đọc phòng
+  thủ vì snapshot là JSON không kiểu.
+
+Đã kiểm bằng typecheck (server + web) và lint sạch, cùng đối chứng qua API trên cả 9 phiếu có sẵn:
+diff snapshot trước/sau cho thấy **không một con số nào đổi**, chỉ thêm `productType` +
+`productGroupName`; `financialSummary` giống hệt; gọi lần hai cho kết quả y nguyên (bổ sung chỉ
+chạy một lần). 42 dòng đều đủ nhãn và đúng thứ tự `loại → nhóm → tên`; 7 dòng có mẫu số 0 sẽ hiện
+`-`. Đối chiếu tay: dùng 400 trên định mức 200 ra 200,0%, khớp định mức ra 100,0%.
+
+**Đã bấm thử trên trình duyệt và đạt.** Để thử, đã dựng tạm một phiếu demo chạm hết mọi nhánh hiển
+thị — đủ 5 mục Loại, 5 nhóm con trong Nguyên vật liệu, đủ cả ba màu và dòng mẫu số 0 — rồi **xoá
+sạch sau khi xem xong** (phiếu, kiểm kê, hàng hoá, nhóm và tài khoản thử). Việc còn lại chỉ là đưa
+lên staging rồi merge lên `main`; chừng nào chưa deploy thì mục này chưa thuộc "Đã xong".
 
 ### Chi chốt ca — code xong, CHƯA kiểm thử trên trình duyệt
 Sổ chi tiêu của quán, nằm trong nhóm Kiểm kê quán. Mỗi khoản chi là **một bản ghi phẳng** (ngày ·

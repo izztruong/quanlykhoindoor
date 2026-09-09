@@ -6,8 +6,8 @@ import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { useCostCheck, useUpdateCostCheckStatus } from "@/hooks/useCostChecks";
 import { ApiError } from "@/lib/api-client";
 import { sanitizeExcelRow } from "@/lib/excelExport";
-import { formatCurrency, formatDateTime, formatNumber, formatPercent } from "@/lib/format";
-import type { CostCheck, CostCheckFinancialSummary, CostCheckReportRow } from "@/types";
+import { formatCurrency, formatDateTime, formatNumber, formatPercent, labels } from "@/lib/format";
+import type { CostCheck, CostCheckFinancialSummary, CostCheckReportRow, ProductType } from "@/types";
 import ExcelJS from "exceljs";
 import { Ban, FileSpreadsheet, RotateCcw } from "lucide-react";
 import Link from "next/link";
@@ -19,9 +19,13 @@ interface CostRatioRow {
   pct: number;
 }
 
-/** % chênh lệch thực = (SL công thức - SL thực tế) / SL thực tế — trả về dạng phân số để dùng chung với formatPercent. */
-function varianceActualPct(row: { theoretical: number; actualUsed: number }): number {
-  return row.actualUsed !== 0 ? (row.theoretical - row.actualUsed) / row.actualUsed : 0;
+/**
+ * % chênh lệch thực = SL thực tế dùng / SL theo công thức — dạng phân số để dùng chung với
+ * formatPercent. null khi hàng hoá không nằm trong công thức nào (mẫu số 0): không có định mức
+ * để so thì bỏ trống, hiện 0% sẽ bị đọc nhầm thành "dùng đúng định mức".
+ */
+function actualOverTheoreticalPct(row: { theoretical: number; actualUsed: number }): number | null {
+  return row.theoretical !== 0 ? row.actualUsed / row.theoretical : null;
 }
 
 function buildCostRatioRows(s: CostCheckFinancialSummary): CostRatioRow[] {
@@ -83,6 +87,7 @@ async function exportCostCheckToExcel(costCheck: CostCheck) {
 
   const reportSheet = workbook.addWorksheet("Báo cáo Check Cost");
   reportSheet.columns = [
+    { header: "Loại hàng hoá", width: 18 },
     { header: "Nhóm hàng hoá", width: 20 },
     { header: "Nguyên liệu", width: 28 },
     { header: "Đơn vị", width: 12 },
@@ -98,8 +103,10 @@ async function exportCostCheckToExcel(costCheck: CostCheck) {
   ];
   reportSheet.getRow(1).font = { bold: true };
   (costCheck.report ?? []).forEach((row) => {
+    const pct = actualOverTheoreticalPct(row);
     const excelRow = reportSheet.addRow(
       sanitizeExcelRow([
+        labels.productType(row.productType),
         row.productGroupName,
         row.name,
         row.unitLabel,
@@ -111,10 +118,10 @@ async function exportCostCheckToExcel(costCheck: CostCheck) {
         row.actualUsed,
         row.theoretical,
         row.variance,
-        varianceActualPct(row),
+        pct,
       ]),
     );
-    excelRow.getCell(12).numFmt = "0.0%";
+    if (pct !== null) excelRow.getCell(13).numFmt = "0.0%";
   });
 
   const buffer = await workbook.xlsx.writeBuffer();
@@ -135,14 +142,18 @@ export function CostCheckDetailClient({ id }: { id: string }) {
   const [exporting, setExporting] = useState(false);
   const [statusError, setStatusError] = useState<string | null>(null);
 
-  const reportByGroup = useMemo(() => {
-    const groups = new Map<string, CostCheckReportRow[]>();
+  // Server đã trả rows theo đúng thứ tự loại → nhóm → tên, nên chỉ cần gộp tuần tự theo thứ tự
+  // gặp (Map giữ nguyên insertion order), không sắp xếp lại ở client.
+  const reportByTypeAndGroup = useMemo(() => {
+    const byType = new Map<ProductType, Map<string, CostCheckReportRow[]>>();
     for (const row of costCheck?.report ?? []) {
+      const groups = byType.get(row.productType) ?? new Map<string, CostCheckReportRow[]>();
       const list = groups.get(row.productGroupName) ?? [];
       list.push(row);
       groups.set(row.productGroupName, list);
+      byType.set(row.productType, groups);
     }
-    return [...groups.entries()];
+    return [...byType.entries()].map(([type, groups]) => ({ type, groups: [...groups.entries()] }));
   }, [costCheck?.report]);
 
   if (isLoading || !costCheck) {
@@ -317,6 +328,12 @@ export function CostCheckDetailClient({ id }: { id: string }) {
         <CardHeader>
           <CardTitle>Báo cáo Check Cost</CardTitle>
         </CardHeader>
+        {/* Đặt ngoài CardBody vì CardBody là vùng cuộn của bảng — để bên trong sẽ bị cuộn khuất. */}
+        <div className="border-b border-slate-100 px-5 py-3 text-sm text-slate-600">
+          <span className="font-medium text-red-600">Đỏ</span> — dùng nhiều hơn định mức,{" "}
+          <span className="font-medium text-emerald-600">xanh</span> — dùng ít hơn định mức,{" "}
+          <span className="font-medium text-slate-600">xám</span> — đúng bằng định mức.
+        </div>
         <CardBody className="max-h-[600px] overflow-auto p-0">
           <table className="w-full min-w-[1000px] border-separate border-spacing-0 text-sm">
             <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
@@ -353,38 +370,68 @@ export function CostCheckDetailClient({ id }: { id: string }) {
               </tr>
             </thead>
             <tbody>
-              {reportByGroup.map(([groupName, groupRows]) => (
-                <Fragment key={groupName}>
-                  <tr className="bg-slate-50">
+              {reportByTypeAndGroup.map(({ type, groups }) => (
+                <Fragment key={type}>
+                  <tr className="bg-slate-100">
                     <td
                       colSpan={11}
-                      className="sticky left-0 z-10 whitespace-nowrap border border-slate-200 bg-slate-50 px-4 py-1.5 text-xs font-semibold uppercase text-slate-600"
+                      className="sticky left-0 z-10 whitespace-nowrap border border-slate-200 bg-slate-100 px-4 py-2 text-xs font-bold uppercase tracking-wide text-slate-700"
                     >
-                      {groupName}
+                      {labels.productType(type)}
                     </td>
                   </tr>
-                  {groupRows.map((row) => {
-                    const tone = row.variance > 1e-6 ? "text-red-600" : row.variance < -1e-6 ? "text-emerald-600" : "text-slate-600";
-                    return (
-                      <tr key={row.productId}>
-                        <td className="sticky left-0 z-10 whitespace-nowrap border border-slate-200 bg-white px-4 py-2">{row.name}</td>
-                        <td className="whitespace-nowrap border border-slate-200 px-4 py-2">{row.unitLabel}</td>
-                        <td className="whitespace-nowrap border border-slate-200 px-4 py-2 text-right">{formatNumber(row.openingQty)}</td>
-                        <td className="whitespace-nowrap border border-slate-200 px-4 py-2 text-right">{formatNumber(row.receivedQty)}</td>
-                        <td className="whitespace-nowrap border border-slate-200 px-4 py-2 text-right">{formatNumber(row.wastedQty)}</td>
-                        <td className="whitespace-nowrap border border-slate-200 px-4 py-2 text-right">{formatNumber(row.transferOutQty)}</td>
-                        <td className="whitespace-nowrap border border-slate-200 px-4 py-2 text-right">{formatNumber(row.closingQty)}</td>
-                        <td className="whitespace-nowrap border border-slate-200 px-4 py-2 text-right">{formatNumber(row.actualUsed)}</td>
-                        <td className="whitespace-nowrap border border-slate-200 px-4 py-2 text-right">{formatNumber(row.theoretical)}</td>
-                        <td className={`whitespace-nowrap border border-slate-200 px-4 py-2 text-right font-medium ${tone}`}>
-                          {formatNumber(row.variance)}
-                        </td>
-                        <td className={`whitespace-nowrap border border-slate-200 px-4 py-2 text-right font-medium ${tone}`}>
-                          {formatPercent(varianceActualPct(row))}
+                  {groups.map(([groupName, groupRows]) => (
+                    <Fragment key={groupName}>
+                      <tr className="bg-slate-50">
+                        <td
+                          colSpan={11}
+                          className="sticky left-0 z-10 whitespace-nowrap border border-slate-200 bg-slate-50 py-1.5 pl-8 pr-4 text-xs font-semibold uppercase text-slate-600"
+                        >
+                          {groupName}
                         </td>
                       </tr>
-                    );
-                  })}
+                      {groupRows.map((row) => {
+                        const tone =
+                          row.variance > 1e-6 ? "text-red-600" : row.variance < -1e-6 ? "text-emerald-600" : "text-slate-600";
+                        const pct = actualOverTheoreticalPct(row);
+                        return (
+                          <tr key={row.productId}>
+                            <td className="sticky left-0 z-10 whitespace-nowrap border border-slate-200 bg-white px-4 py-2">
+                              {row.name}
+                            </td>
+                            <td className="whitespace-nowrap border border-slate-200 px-4 py-2">{row.unitLabel}</td>
+                            <td className="whitespace-nowrap border border-slate-200 px-4 py-2 text-right">
+                              {formatNumber(row.openingQty)}
+                            </td>
+                            <td className="whitespace-nowrap border border-slate-200 px-4 py-2 text-right">
+                              {formatNumber(row.receivedQty)}
+                            </td>
+                            <td className="whitespace-nowrap border border-slate-200 px-4 py-2 text-right">
+                              {formatNumber(row.wastedQty)}
+                            </td>
+                            <td className="whitespace-nowrap border border-slate-200 px-4 py-2 text-right">
+                              {formatNumber(row.transferOutQty)}
+                            </td>
+                            <td className="whitespace-nowrap border border-slate-200 px-4 py-2 text-right">
+                              {formatNumber(row.closingQty)}
+                            </td>
+                            <td className="whitespace-nowrap border border-slate-200 px-4 py-2 text-right">
+                              {formatNumber(row.actualUsed)}
+                            </td>
+                            <td className="whitespace-nowrap border border-slate-200 px-4 py-2 text-right">
+                              {formatNumber(row.theoretical)}
+                            </td>
+                            <td className={`whitespace-nowrap border border-slate-200 px-4 py-2 text-right font-medium ${tone}`}>
+                              {formatNumber(row.variance)}
+                            </td>
+                            <td className={`whitespace-nowrap border border-slate-200 px-4 py-2 text-right font-medium ${tone}`}>
+                              {pct === null ? "-" : formatPercent(pct)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </Fragment>
+                  ))}
                 </Fragment>
               ))}
               {(costCheck.report ?? []).length === 0 && (
