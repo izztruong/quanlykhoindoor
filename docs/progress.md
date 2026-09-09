@@ -27,7 +27,8 @@ Giá theo từng nhà cung cấp (`ProductSupplierPrice`), có giá nhập và g
 - Xác nhận đơn tự sinh phiếu xuất kho liên kết
 - **Ngày nhận theo từng dòng hàng** (`SalesOrderItem.receivedAt`) — Check Cost tính theo mốc này
 - Lọc theo tài khoản, xuất Excel (danh sách hàng hoá thuần), in hoá đơn (mẫu đầy đủ)
-- **Tổng hợp đặt NCC**: gộp các đơn đang mở thành số lượng theo từng NCC, làm tròn theo quy cách bán
+- **Tổng hợp đặt NCC**: gộp các đơn đang mở thành số lượng theo từng NCC, làm tròn theo quy cách bán,
+  lọc theo khoảng ngày / quán / trạng thái đơn
 
 ### Kiểm kê quán
 - Phiếu kiểm kê quán (nguyên liệu + đồ thành phẩm), phiếu huỷ nguyên liệu

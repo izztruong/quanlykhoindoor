@@ -283,7 +283,8 @@ export async function getInventoryCountReport(filter: InventoryCountFilter) {
 export interface PurchaseSummaryFilter {
   from?: Date;
   to?: Date;
-  productGroupId?: string;
+  /** Quán đã đặt đơn — SalesOrder.createdById. Bỏ trống là gộp mọi quán. */
+  createdById?: string;
   statuses: SalesOrderStatus[];
   skip: number;
   take: number;
@@ -295,6 +296,7 @@ export async function getPurchaseSummary(filter: PurchaseSummaryFilter) {
     where: {
       salesOrder: {
         status: { in: filter.statuses },
+        createdById: filter.createdById || undefined,
         orderDate: filter.from || filter.to ? { gte: filter.from, lte: filter.to } : undefined,
       },
     },
@@ -307,7 +309,7 @@ export async function getPurchaseSummary(filter: PurchaseSummaryFilter) {
 
   const [products, prices] = await Promise.all([
     prisma.product.findMany({
-      where: { id: { in: productIds }, productGroupId: filter.productGroupId || undefined },
+      where: { id: { in: productIds } },
       include: { unit: true, productGroup: true },
     }),
     prisma.productSupplierPrice.findMany({

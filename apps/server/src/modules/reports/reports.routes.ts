@@ -44,7 +44,7 @@ const SALES_ORDER_STATUSES: SalesOrderStatus[] = ["DRAFT", "PENDING_CONFIRM", "C
 reportsRouter.get("/purchase-summary", async (req, res) => {
   const { from, to } = parseDateRange(req);
   const { skip, take, page, pageSize } = parsePagination(req, 20);
-  const productGroupId = (req.query.productGroupId as string) || undefined;
+  const createdById = (req.query.createdById as string) || undefined;
 
   const requested = String(req.query.status ?? "DRAFT")
     .split(",")
@@ -53,7 +53,7 @@ reportsRouter.get("/purchase-summary", async (req, res) => {
   const statuses = requested.filter((s): s is SalesOrderStatus => (SALES_ORDER_STATUSES as string[]).includes(s));
   if (statuses.length === 0) throw new HttpError(400, "Trạng thái đơn hàng không hợp lệ");
 
-  const { items, total } = await reportsService.getPurchaseSummary({ from, to, productGroupId, statuses, skip, take });
+  const { items, total } = await reportsService.getPurchaseSummary({ from, to, createdById, statuses, skip, take });
   res.json({ items, total, page, pageSize });
 });
 

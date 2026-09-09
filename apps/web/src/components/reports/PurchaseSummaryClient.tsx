@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Select } from "@/components/ui/Select";
-import { useProductGroups } from "@/hooks/useCatalog";
+import { useUsers } from "@/hooks/useUsers";
 import { api } from "@/lib/api-client";
 import { clampDateRange } from "@/lib/dateRange";
 import { exportPurchaseSummaryToExcel } from "@/lib/exportPurchaseSummaryExcel";
@@ -23,7 +23,8 @@ const STATUS_OPTIONS = ["DRAFT", "PENDING_CONFIRM", "CONFIRMED", "SHORT", "COMPL
 interface FilterValues {
   from: string;
   to: string;
-  productGroupId: string;
+  /** Lọc theo quán đã đặt đơn; rỗng là gộp mọi quán. */
+  createdById: string;
   statuses: string[];
 }
 
@@ -34,7 +35,7 @@ function defaultFilter(): FilterValues {
   return {
     from: first.toISOString().slice(0, 10),
     to: last.toISOString().slice(0, 10),
-    productGroupId: "",
+    createdById: "",
     // Đơn chưa xác nhận chính là phần còn phải đi đặt, nên đó là mặc định.
     statuses: ["DRAFT"],
   };
@@ -53,12 +54,13 @@ export function PurchaseSummaryClient() {
   const [pageSize, setPageSize] = useState(20);
   const [exporting, setExporting] = useState(false);
 
-  const { data: productGroups = [] } = useProductGroups();
+  // Trang đã chặn ở mức ADMIN nên không cần điều kiện enabled như trang danh sách đơn hàng.
+  const { data: users = [] } = useUsers();
 
   const queryParams = {
     from: appliedFilter.from,
     to: appliedFilter.to,
-    productGroupId: appliedFilter.productGroupId,
+    createdById: appliedFilter.createdById,
     status: appliedFilter.statuses.join(","),
   };
 
@@ -184,16 +186,16 @@ export function PurchaseSummaryClient() {
             </div>
 
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-500">Nhóm hàng hoá</label>
+              <label className="text-xs font-medium text-slate-500">Quán</label>
               <Select
-                value={filter.productGroupId}
-                onChange={(e) => setFilter((prev) => ({ ...prev, productGroupId: e.target.value }))}
+                value={filter.createdById}
+                onChange={(e) => setFilter((prev) => ({ ...prev, createdById: e.target.value }))}
                 className="w-48"
               >
-                <option value="">Tất cả</option>
-                {productGroups.map((group) => (
-                  <option key={group.id} value={group.id}>
-                    {group.name}
+                <option value="">Tất cả quán</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}
                   </option>
                 ))}
               </Select>
