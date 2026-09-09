@@ -72,6 +72,11 @@ Repo **không có** vitest/jest/playwright và **không có `npm test`**. Cách 
 Cập nhật `docs/progress.md` cho khớp trạng thái thật (Đã xong / Đang dở / Còn lại) và commit chung
 với code — **không tách thành commit riêng**, để tài liệu không bao giờ tụt lại sau code. Mục "Đã
 xong" chỉ dành cho thứ đã chạy trên `main`; code xong mà chưa deploy thì vẫn nằm ở "Đang dở".
+
+**Viết ngắn.** File đó chỉ ghi thứ `git log` không trả lời được — chủ yếu là *đã kiểm thử trên
+trình duyệt chưa, đã lên `main` chưa*. Lý do thiết kế thuộc về commit message; chép sang đây là
+trùng lặp và file sẽ phình (đã từng lên 4.400 token, hơn cả CLAUDE.md). Mỗi mục "Đang dở" tối đa
+3–4 dòng; "Đã xong" chỉ liệt kê tên chức năng.
 ## Quy tắc
  Thêm chức năng mới = tạo module mới, không nhét vào module có sẵn
 ## Quy ước đặt tên
