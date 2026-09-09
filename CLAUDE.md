@@ -96,6 +96,23 @@ xong" chỉ dành cho thứ đã chạy trên `main`; code xong mà chưa deploy
 
 Những điều dưới đây đều có lý do cụ thể — đổi mà không nắm lý do sẽ làm hỏng thứ khác.
 
+### Liên kết dễ bỏ sót giữa các module
+
+Đọc mục này trước khi sửa một chức năng — đây là những ràng buộc grep không tự chỉ ra, vì chúng là
+**quy tắc phải tuân theo**, không phải lời gọi có sẵn trong code.
+
+- Sửa hoặc xoá phiếu ở `stockChecks` | `materialWaste` | `materialTransfers` → **phải gọi**
+  `utils/costCheckImpact` để cảnh báo admin tạo lại phiếu Check Cost bị ảnh hưởng.
+- `costChecks` đọc dữ liệu của 5 module khác (`StockCheck`, `MaterialWasteItem`,
+  `MaterialTransferItem`, `SalesOrderItem`, `FinishedGoodRecipeItem`) — đổi schema mấy bảng đó thì
+  phải ngó lại Check Cost.
+- `salesOrders` và `products/productStock.routes.ts` cùng dùng
+  `reports.service.getInventoryCountReport()` để kiểm tồn. Đây là **chỗ duy nhất** trong dự án một
+  module gọi service của module khác.
+- Xác nhận đơn hàng **tự sinh phiếu xuất kho**, nên sửa `salesOrders` là đụng tới tồn kho.
+- SL lẻ ở `stockChecks`, `materialWaste`, `materialTransfers` luôn đi qua `utils/tareWeight`.
+- `utils/deadlines` được gọi lúc tạo đơn (`salesOrders`) và lúc tạo/sửa phiếu (`stockChecks`).
+
 ### Xác thực và phân quyền
 
 - **`next.config.ts` rewrite `/api/*` sang `API_ORIGIN`** để trình duyệt chỉ nói chuyện với một origin, giữ cookie xác thực ở dạng same-site (Safari ITP chặn cookie khác domain). Hệ quả khi gỡ lỗi: backend chết thì API trả **502 từ proxy**, không phải lỗi kết nối.
