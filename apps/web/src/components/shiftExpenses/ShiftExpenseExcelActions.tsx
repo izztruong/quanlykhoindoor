@@ -74,7 +74,7 @@ export function ShiftExpenseExcelActions({ filter, isAdmin }: ShiftExpenseExcelA
       // Xuất theo bộ lọc đang áp, không phải 20 dòng của trang đang xem.
       const data = await api.get<ShiftExpenseListResult>("/shift-expenses", { ...filter, page: 1, pageSize: 500 });
 
-      // 6 cột đầu trùng file mẫu để xuất ra rồi nhập ngược lại được; cột thêm phía sau bị phần
+      // 7 cột đầu trùng file mẫu để xuất ra rồi nhập ngược lại được; cột thêm phía sau bị phần
       // nhập bỏ qua vì nó chỉ đọc theo COL.
       await exportRowsToExcel<ShiftExpense>(
         "Chi chốt ca",

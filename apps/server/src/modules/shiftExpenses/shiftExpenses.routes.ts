@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { prisma } from "../../config/db";
+import type { Prisma } from "../../generated/prisma/client";
 import type { AuthUser } from "../../middleware/auth";
 import { HttpError } from "../../utils/httpError";
 import { parseDateRange, parsePagination } from "../../utils/pagination";
@@ -37,10 +38,14 @@ shiftExpensesRouter.get("/", async (req, res) => {
   const { search, createdById, type } = req.query as Record<string, string>;
   const { skip, take, page, pageSize } = parsePagination(req, 20);
 
-  const where = {
+  // Chú kiểu tường minh: không có nó, TypeScript nới literal đã lọc của `type` thành `string` rồi
+  // Prisma từ chối cả where — mà vì `where` là biến nên phép kiểm thuộc tính thừa không bắt được,
+  // client Prisma cũ sẽ cho qua im lặng.
+  const where: Prisma.ShiftExpenseWhereInput = {
     spentAt: from || to ? { gte: from, lte: to } : undefined,
+    // Giá trị lạ thì bỏ qua bộ lọc thay vì trả lỗi — query string do người dùng gõ tay được.
     type: type === "MATERIAL" || type === "OTHER" ? type : undefined,
-    content: search ? { contains: search, mode: "insensitive" as const } : undefined,
+    content: search ? { contains: search, mode: "insensitive" } : undefined,
     // Staff chỉ thấy khoản chi của chính mình; admin thấy hết, lọc theo quán qua ?createdById=.
     createdById: req.user?.role === "ADMIN" ? createdById || undefined : req.user?.id,
   };

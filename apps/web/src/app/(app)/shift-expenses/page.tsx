@@ -26,10 +26,11 @@ export default function ShiftExpensesPage() {
   // nghĩa với họ — và /users cũng chỉ admin gọi được.
   const { data: users = [] } = useUsers({ enabled: isAdmin });
 
-  const [filter, setFilter] = useState({ from: "", to: "", search: "", type: "" as ShiftExpenseType | "" });
-  const [appliedFilter, setAppliedFilter] = useState({ from: "", to: "", search: "", type: "" as ShiftExpenseType | "" });
-  // Áp dụng ngay khi đổi, không chờ bấm "Lọc" như khoảng ngày — chọn xong là thấy kết quả luôn.
-  const [createdById, setCreatedById] = useState("");
+  // Mọi ô lọc đều chờ bấm "Lọc" mới có hiệu lực — hai ô cạnh nhau mà một ô áp ngay, một ô chờ nút
+  // thì không đoán được.
+  const emptyFilter = { from: "", to: "", search: "", type: "" as ShiftExpenseType | "", createdById: "" };
+  const [filter, setFilter] = useState(emptyFilter);
+  const [appliedFilter, setAppliedFilter] = useState(emptyFilter);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [modalExpense, setModalExpense] = useState<ShiftExpense | "new" | null>(null);
@@ -40,7 +41,7 @@ export default function ShiftExpensesPage() {
     to: appliedFilter.to || undefined,
     search: appliedFilter.search || undefined,
     type: appliedFilter.type || undefined,
-    createdById: createdById || undefined,
+    createdById: appliedFilter.createdById || undefined,
   };
   const { data, isLoading } = useShiftExpenses({ ...queryFilter, page, pageSize });
   const deleteExpense = useDeleteShiftExpense();
@@ -167,13 +168,7 @@ export default function ShiftExpensesPage() {
           {isAdmin && (
             <div className="w-48">
               <label className="mb-1 block text-xs font-medium text-slate-500">Quán</label>
-              <Select
-                value={createdById}
-                onChange={(e) => {
-                  setCreatedById(e.target.value);
-                  setPage(1);
-                }}
-              >
+              <Select value={filter.createdById} onChange={(e) => setFilter((f) => ({ ...f, createdById: e.target.value }))}>
                 <option value="">Tất cả tài khoản</option>
                 {users.map((u) => (
                   <option key={u.id} value={u.id}>

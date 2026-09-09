@@ -591,10 +591,6 @@ model MaterialWasteFinishedItem {
   @@unique([materialWasteId, finishedGoodItemId])
 }
 
-// Sổ chi tại quán ("Chi chốt ca"): mỗi lần chi là MỘT bản ghi phẳng chứ không phải phiếu nhiều
-// dòng — quán ghi rải rác trong ca, mỗi khoản có ngày riêng. Nội dung/đơn vị để text tự do vì có
-// khoản không nằm trong danh mục hàng hoá (vd "Ship sữa dừa sang Xuân La", đơn vị "lần").
-// Không có `code` như các phiếu khác: đây là dòng sổ, không phải chứng từ để tra theo mã.
 // NVL = nguyên vật liệu (đá, hoa quả…), OTHER = mọi khoản còn lại (ship, sửa chữa…). Chỉ hai loại
 // vì quán chỉ cần tách phần chi vào hàng hoá ra khỏi phần chi vận hành.
 enum ShiftExpenseType {
@@ -602,6 +598,10 @@ enum ShiftExpenseType {
   OTHER
 }
 
+// Sổ chi tại quán ("Chi chốt ca"): mỗi lần chi là MỘT bản ghi phẳng chứ không phải phiếu nhiều
+// dòng — quán ghi rải rác trong ca, mỗi khoản có ngày riêng. Nội dung/đơn vị để text tự do vì có
+// khoản không nằm trong danh mục hàng hoá (vd "Ship sữa dừa sang Xuân La", đơn vị "lần").
+// Không có `code` như các phiếu khác: đây là dòng sổ, không phải chứng từ để tra theo mã.
 model ShiftExpense {
   id          String   @id @default(cuid())
   // Ngày chi do quán khai. Kiểu DATE (không có phần giờ) nên không dính lệch múi giờ như DateTime.
