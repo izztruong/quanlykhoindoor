@@ -8,7 +8,7 @@ import { Select } from "@/components/ui/Select";
 import { useFinishedGoodItems } from "@/hooks/useCatalog";
 import { useCreateCostCheck } from "@/hooks/useCostChecks";
 import { useStockChecks } from "@/hooks/useStockChecks";
-import { useUsers } from "@/hooks/useUsers";
+import { useUserOptions } from "@/hooks/useUsers";
 import { ApiError } from "@/lib/api-client";
 import { formatDateTime } from "@/lib/format";
 import type { FinishedGoodItem } from "@/types";
@@ -29,7 +29,7 @@ const TEMPLATE_HEADER = ["Tên đồ thành phẩm/món*", "SL đã bán"];
 
 export default function NewCostCheckPage() {
   const router = useRouter();
-  const { data: users = [] } = useUsers();
+  const { data: users = [] } = useUserOptions();
   const { data: finishedGoodItems = [] } = useFinishedGoodItems();
   const createCostCheck = useCreateCostCheck();
 

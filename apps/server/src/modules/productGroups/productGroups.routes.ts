@@ -11,5 +11,7 @@ export const productGroupsRouter = createCrudRouter(prisma.productGroup, {
   createSchema,
   updateSchema: createSchema.partial(),
   searchFields: ["code", "name"],
+  resource: "PRODUCT_GROUPS",
+  publicRead: true,
   bulkImportKey: "code",
 });

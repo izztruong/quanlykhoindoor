@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { prisma } from "../../config/db";
-import type { AuthUser } from "../../middleware/auth";
-import { requireRole } from "../../middleware/auth";
+import { assertOwner, ownerWhere, requirePermission } from "../../middleware/auth";
 import { generateCode } from "../../utils/codeGenerator";
 import { findCostChecksUsingPeriodRecord } from "../../utils/costCheckImpact";
 import { HttpError } from "../../utils/httpError";
@@ -17,19 +16,13 @@ const detailInclude = {
   finishedItems: { include: { finishedGoodItem: { include: { unit: true } } } },
 };
 
-function assertOwnership(waste: { createdById: string | null }, user?: AuthUser) {
-  if (user?.role !== "ADMIN" && waste.createdById !== user?.id) {
-    throw new HttpError(403, "Bạn không có quyền truy cập phiếu huỷ này");
-  }
-}
-
-materialWasteRouter.get("/", async (req, res) => {
+materialWasteRouter.get("/", requirePermission("MATERIAL_WASTE"), async (req, res) => {
   const { from, to } = parseDateRange(req);
   const { skip, take, page, pageSize } = parsePagination(req, 20);
   const where = {
     wasteAt: from || to ? { gte: from, lte: to } : undefined,
-    // Staff only ever see their own phiếu huỷ; admins see everything.
-    createdById: req.user?.role === "ADMIN" ? undefined : req.user?.id,
+    // Phạm vi SELF chỉ thấy phiếu huỷ của mình; ALL thấy hết.
+    createdById: ownerWhere(req.user),
   };
 
   const [items, total] = await Promise.all([
@@ -45,14 +38,14 @@ materialWasteRouter.get("/", async (req, res) => {
   res.json({ items, total, page, pageSize });
 });
 
-materialWasteRouter.get("/:id", async (req, res) => {
+materialWasteRouter.get("/:id", requirePermission("MATERIAL_WASTE"), async (req, res) => {
   const item = await prisma.materialWaste.findUnique({ where: { id: req.params.id }, include: detailInclude });
   if (!item) throw new HttpError(404, "Không tìm thấy phiếu huỷ");
-  assertOwnership(item, req.user);
+  assertOwner(item, req.user, "Không tìm thấy phiếu huỷ");
   res.json(item);
 });
 
-materialWasteRouter.post("/", async (req, res) => {
+materialWasteRouter.post("/", requirePermission("MATERIAL_WASTE"), async (req, res) => {
   const data = materialWasteCreateSchema.parse(req.body);
   const items = await subtractTareWeight(data.items);
 
@@ -90,16 +83,17 @@ materialWasteRouter.post("/", async (req, res) => {
   res.status(201).json(item);
 });
 
-// Chỉ admin được sửa. Phiếu huỷ không liên kết trực tiếp tới Check Cost (được gộp theo kỳ lúc
+// Cần MATERIAL_WASTE.EDIT — vai trò "Quán" mặc định không có. Phiếu huỷ không liên kết trực tiếp tới Check Cost (được gộp theo kỳ lúc
 // tính), nên tìm phiếu Check Cost bị ảnh hưởng dựa trên quán + thời điểm huỷ TRƯỚC khi sửa —
 // số liệu các phiếu đó không tự cập nhật lại, trả về danh sách để frontend báo cho admin.
-materialWasteRouter.put("/:id", requireRole("ADMIN"), async (req, res) => {
+materialWasteRouter.put("/:id", requirePermission("MATERIAL_WASTE"), async (req, res) => {
   const id = req.params.id as string;
   const data = materialWasteCreateSchema.parse(req.body);
   const items = await subtractTareWeight(data.items);
 
   const existing = await prisma.materialWaste.findUnique({ where: { id } });
   if (!existing) throw new HttpError(404, "Không tìm thấy phiếu huỷ");
+  assertOwner(existing, req.user, "Không tìm thấy phiếu huỷ");
 
   const affectedCostChecks = await findCostChecksUsingPeriodRecord([existing.createdById], existing.wasteAt);
 

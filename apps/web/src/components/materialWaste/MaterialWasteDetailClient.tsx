@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { useMaterialWaste } from "@/hooks/useMaterialWaste";
 import { useCurrentUser } from "@/lib/auth";
+import { can } from "@/lib/permissions";
 import { formatDateTime, formatNumber } from "@/lib/format";
 import { Pencil } from "lucide-react";
 import Link from "next/link";
@@ -27,7 +28,7 @@ export function MaterialWasteDetailClient({ id }: { id: string }) {
           <h1 className="text-xl font-semibold text-slate-800">Phiếu huỷ {waste.code}</h1>
           <p className="text-sm text-slate-500">Thời gian huỷ: {formatDateTime(waste.wasteAt)}</p>
         </div>
-        {currentUser?.role === "ADMIN" && (
+        {can(currentUser, "MATERIAL_WASTE", "EDIT") && (
           <Link href={`/material-waste/${waste.id}/edit`}>
             <Button type="button" variant="secondary" size="sm">
               <Pencil size={14} />

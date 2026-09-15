@@ -56,6 +56,7 @@ export default function FinishedGoodItemsPage() {
   return (
     <CatalogPage<FinishedGoodItem>
       title="Đồ thành phẩm"
+      resource="FINISHED_GOODS"
       description="Danh sách đồ thành phẩm/vật tư dùng khi kiểm kê quán (nước pha sẵn, ly, ống hút, nắp...)."
       endpoint="/finished-good-items"
       queryKey="finished-good-items"

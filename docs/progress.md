@@ -1,6 +1,6 @@
 # Tiến độ dự án
 
-Cập nhật: 2026-09-09
+Cập nhật: 2026-09-15
 
 Ghi **đúng những gì git không tự trả lời được**. Lý do thiết kế đã nằm trong commit message, đừng
 chép lại vào đây. Mỗi mục "Đang dở" tối đa 3–4 dòng, và dòng quan trọng nhất luôn là: *đã kiểm thử
@@ -30,6 +30,12 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 ---
 
 ## Đang dở
+
+### Phân quyền theo vai trò — CHƯA kiểm thử trên trình duyệt, chưa lên `staging`/`main`
+Thay ADMIN/STAFF bằng vai trò tuỳ biến; migration `20260915030600_roles_and_permissions` chuyển
+tài khoản cũ sang `Quản trị viên`/`Quán`. Đã kiểm typecheck, `migrate deploy` trên db trắng, curl
+(chặn route, phạm vi quán, thu hồi tức thì, chống leo quyền). Trình duyệt mới mở sơ trang Vai trò; cần
+thử kỹ: menu tick quyền, sửa tài khoản, menu/nút của tài khoản Quán y như cũ, vai trò hẹp chỉ thấy đúng trang.
 
 ### Chi chốt ca — đã lên `main`, phần Loại chi CHƯA kiểm thử trên trình duyệt
 Sổ chi tiêu của quán, mỗi khoản là một bản ghi phẳng. Có nhập/xuất Excel.
@@ -87,6 +93,10 @@ Cơ chế chấm muộn chỉ đánh dấu được bản ghi **có tồn tại*
 sang tuần sau thì không bắt được — đó là bài toán "thiếu phiếu", không phải "nộp muộn". Người dùng
 xác nhận việc bỏ phiếu tuần sẽ không xảy ra nên không xử lý. Đã chặn được đường lách dễ nhất (khai
 ngày kiểm ở tương lai).
+
+### Giới hạn theo quán cho Check Cost và Phiếu điều chuyển
+Hai trang này không chịu mã `DATA.SCOPE_ALL`: ai có quyền Xem là thấy phiếu của mọi quán. Đã lên kế
+hoạch sửa (Check Cost theo `userId`, điều chuyển theo quán gửi/nhận), người dùng quyết định giữ nguyên.
 
 ### Ô lọc "đúng hạn / muộn"
 Chỉ cần chấm màu, không cần lọc.

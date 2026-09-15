@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../../config/db";
 import type { Prisma } from "../../generated/prisma/client";
-import { requireRole } from "../../middleware/auth";
+import { can, requirePermission } from "../../middleware/auth";
 import { HttpError } from "../../utils/httpError";
 import { reorderThresholdsPutSchema } from "./reorderThresholds.schemas";
 
@@ -11,7 +11,7 @@ const thresholdInclude = { product: { include: { unit: true, productGroup: true 
 
 reorderThresholdsRouter.get("/", async (req, res) => {
   const requestedUserId = (req.query.userId as string) || undefined;
-  if (requestedUserId && requestedUserId !== req.user!.id && req.user!.role !== "ADMIN") {
+  if (requestedUserId && requestedUserId !== req.user!.id && !can(req.user, "REORDER_THRESHOLDS", "VIEW")) {
     throw new HttpError(403, "Không có quyền xem định lượng của tài khoản khác");
   }
   const userId = requestedUserId || req.user!.id;
@@ -23,7 +23,7 @@ reorderThresholdsRouter.get("/", async (req, res) => {
   res.json({ items });
 });
 
-reorderThresholdsRouter.put("/", requireRole("ADMIN"), async (req, res) => {
+reorderThresholdsRouter.put("/", requirePermission("REORDER_THRESHOLDS", "EDIT"), async (req, res) => {
   const { userId, items } = reorderThresholdsPutSchema.parse(req.body);
 
   // The page always submits every product in the list, so a save with

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
 import { api, ApiError } from "@/lib/api-client";
+import { useCan } from "@/lib/permissions";
 import type { PagedResult } from "@/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -31,6 +32,8 @@ export interface CatalogFilterConfig {
 interface CatalogPageProps<T extends { id: string }> {
   title: string;
   description: string;
+  /** Mã resource phân quyền (vd "UNITS") — ẩn nút Thêm/Sửa/Xoá theo quyền ADD/EDIT/DELETE. */
+  resource: string;
   endpoint: string;
   queryKey: string;
   columns: ColumnDef<T>[];
@@ -67,6 +70,7 @@ function buildPayload(fields: CatalogFieldConfig[], values: Record<string, strin
 export function CatalogPage<T extends { id: string }>({
   title,
   description,
+  resource,
   endpoint,
   queryKey,
   columns,
@@ -78,6 +82,10 @@ export function CatalogPage<T extends { id: string }>({
   filters,
 }: CatalogPageProps<T>) {
   const queryClient = useQueryClient();
+  const { can } = useCan();
+  const canAdd = can(resource, "ADD");
+  const canEdit = can(resource, "EDIT");
+  const canDelete = can(resource, "DELETE");
   const [internalSearch, setInternalSearch] = useState("");
   const search = controlledSearch ?? internalSearch;
   const setSearch = onSearchChange ?? setInternalSearch;
@@ -151,30 +159,38 @@ export function CatalogPage<T extends { id: string }>({
 
   const tableColumns: ColumnDef<T>[] = [
     ...columns,
-    {
-      header: "Thao tác",
-      id: "actions",
-      cell: ({ row }) => (
-        <div className="flex gap-1">
-          <button
-            type="button"
-            onClick={() => openEdit(row.original)}
-            className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-indigo-600"
-          >
-            <Pencil size={14} />
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (confirm("Xoá bản ghi này?")) deleteMutation.mutate(row.original.id);
-            }}
-            className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
-          >
-            <Trash2 size={14} />
-          </button>
-        </div>
-      ),
-    },
+    ...(canEdit || canDelete
+      ? [
+          {
+            header: "Thao tác",
+            id: "actions",
+            cell: ({ row }) => (
+              <div className="flex gap-1">
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={() => openEdit(row.original)}
+                    className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-indigo-600"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                )}
+                {canDelete && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm("Xoá bản ghi này?")) deleteMutation.mutate(row.original.id);
+                    }}
+                    className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
+            ),
+          } satisfies ColumnDef<T>,
+        ]
+      : []),
   ];
 
   return (
@@ -186,10 +202,12 @@ export function CatalogPage<T extends { id: string }>({
         </div>
         <div className="flex items-center gap-2">
           {headerExtra}
-          <Button onClick={openCreate}>
-            <Plus size={16} />
-            Thêm mới
-          </Button>
+          {canAdd && (
+            <Button onClick={openCreate}>
+              <Plus size={16} />
+              Thêm mới
+            </Button>
+          )}
         </div>
       </div>
 

@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Select } from "@/components/ui/Select";
-import { useUsers } from "@/hooks/useUsers";
+import { useUserOptions } from "@/hooks/useUsers";
 import { api } from "@/lib/api-client";
 import { clampDateRange } from "@/lib/dateRange";
 import { exportPurchaseSummaryToExcel } from "@/lib/exportPurchaseSummaryExcel";
@@ -55,7 +55,7 @@ export function PurchaseSummaryClient() {
   const [exporting, setExporting] = useState(false);
 
   // Trang đã chặn ở mức ADMIN nên không cần điều kiện enabled như trang danh sách đơn hàng.
-  const { data: users = [] } = useUsers();
+  const { data: users = [] } = useUserOptions();
 
   const queryParams = {
     from: appliedFilter.from,

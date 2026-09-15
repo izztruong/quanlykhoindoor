@@ -15,6 +15,7 @@ export default function CustomersPage() {
   return (
     <CatalogPage<Customer>
       title="Khách hàng"
+      resource="CUSTOMERS"
       description="Danh sách khách hàng."
       endpoint="/customers"
       queryKey="customers"

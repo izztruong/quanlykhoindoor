@@ -8,7 +8,6 @@ import { useSuppliers } from "@/hooks/useCatalog";
 import { useProductSupplierPrices } from "@/hooks/useProductSupplierPrices";
 import { useConfirmSalesOrderWithExport, useSalesOrder } from "@/hooks/useSalesOrders";
 import { ApiError } from "@/lib/api-client";
-import { useCurrentUser } from "@/lib/auth";
 import { nowForDatetimeLocal } from "@/lib/dateRange";
 import { formatNumber } from "@/lib/format";
 import type { SalesOrderItem } from "@/types";
@@ -32,7 +31,6 @@ function nextSplitLineKey() {
 
 export function OrderConfirmClient({ id }: { id: string }) {
   const router = useRouter();
-  const { data: currentUser } = useCurrentUser();
   const { data: order, isLoading } = useSalesOrder(id);
   const { data: suppliers = [] } = useSuppliers();
   const { data: prices = [] } = useProductSupplierPrices();
@@ -43,14 +41,6 @@ export function OrderConfirmClient({ id }: { id: string }) {
   const [datesByItemId, setDatesByItemId] = useState<Record<string, string>>({});
   const [bulkReceivedAt, setBulkReceivedAt] = useState(nowForDatetimeLocal);
   const [error, setError] = useState<string | null>(null);
-
-  if (currentUser && currentUser.role !== "ADMIN") {
-    return (
-      <Card>
-        <CardBody className="text-sm text-slate-500">Bạn không có quyền truy cập trang này.</CardBody>
-      </Card>
-    );
-  }
 
   if (isLoading || !order) {
     return <p className="text-slate-400">Đang tải...</p>;

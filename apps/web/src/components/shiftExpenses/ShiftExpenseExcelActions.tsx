@@ -20,7 +20,7 @@ import { useEffect, useRef, useState } from "react";
 interface ShiftExpenseExcelActionsProps {
   /** Bộ lọc đang áp trên danh sách — file xuất ra bám đúng bộ lọc này, không phải trang đang xem. */
   filter: ShiftExpenseFilter;
-  isAdmin: boolean;
+  scopeAll: boolean;
 }
 
 interface ImportResult {
@@ -28,7 +28,7 @@ interface ImportResult {
   errors: string[];
 }
 
-export function ShiftExpenseExcelActions({ filter, isAdmin }: ShiftExpenseExcelActionsProps) {
+export function ShiftExpenseExcelActions({ filter, scopeAll }: ShiftExpenseExcelActionsProps) {
   const importExpenses = useImportShiftExpenses();
 
   const [menuOpen, setMenuOpen] = useState(false);
@@ -87,7 +87,7 @@ export function ShiftExpenseExcelActions({ filter, isAdmin }: ShiftExpenseExcelA
           { header: "Đơn giá", value: (row) => Number(row.unitPrice), width: 14 },
           { header: "Ghi chú", value: (row) => row.note ?? "", width: 24 },
           { header: "Thành tiền", value: (row) => Number(row.amount), width: 16 },
-          ...(isAdmin ? [{ header: "Quán", value: (row: ShiftExpense) => row.createdBy?.name ?? "", width: 20 }] : []),
+          ...(scopeAll ? [{ header: "Quán", value: (row: ShiftExpense) => row.createdBy?.name ?? "", width: 20 }] : []),
         ],
         data.items,
         "chi-chot-ca.xlsx",

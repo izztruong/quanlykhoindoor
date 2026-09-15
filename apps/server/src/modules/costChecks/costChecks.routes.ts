@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { prisma } from "../../config/db";
+import { requirePermission } from "../../middleware/auth";
 import type { Prisma } from "../../generated/prisma/client";
 import { HttpError } from "../../utils/httpError";
 import { parseDateRange, parsePagination } from "../../utils/pagination";
@@ -14,10 +15,10 @@ import {
 } from "./costChecks.service";
 import { costCheckCreateSchema, costCheckStatusSchema } from "./costChecks.schemas";
 
-// Mounted under requireRole("ADMIN") in app.ts — Check Cost is admin-only, staff have no access at all.
+// Không gắn phạm vi quán: người có COST_CHECKS.* thao tác trên mọi quán (Check Cost là nghiệp vụ tổng hợp).
 export const costChecksRouter = Router();
 
-costChecksRouter.get("/", async (req, res) => {
+costChecksRouter.get("/", requirePermission("COST_CHECKS"), async (req, res) => {
   const { from, to } = parseDateRange(req);
   const { skip, take, page, pageSize } = parsePagination(req, 20);
   const where = { createdAt: from || to ? { gte: from, lte: to } : undefined };
@@ -29,7 +30,7 @@ costChecksRouter.get("/", async (req, res) => {
   res.json({ items, total, page, pageSize });
 });
 
-costChecksRouter.get("/:id", async (req, res) => {
+costChecksRouter.get("/:id", requirePermission("COST_CHECKS"), async (req, res) => {
   const item = await prisma.costCheck.findUnique({ where: { id: req.params.id }, include: costCheckDetailInclude });
   if (!item) throw new HttpError(404, "Không tìm thấy phiếu Check Cost");
 
@@ -75,14 +76,14 @@ costChecksRouter.get("/:id", async (req, res) => {
   res.json({ ...rest, report: snapshot.rows, financialSummary: snapshot.summary });
 });
 
-costChecksRouter.post("/", async (req, res) => {
+costChecksRouter.post("/", requirePermission("COST_CHECKS"), async (req, res) => {
   const data = costCheckCreateSchema.parse(req.body);
   const item = await createCostCheck(data, req.user);
   res.status(201).json(item);
 });
 
-// Huỷ mềm — giữ lại lịch sử thay vì xoá hẳn (router đã admin-only toàn bộ).
-costChecksRouter.patch("/:id/status", async (req, res) => {
+// Huỷ mềm — giữ lại lịch sử thay vì xoá hẳn (cần COST_CHECKS.EDIT).
+costChecksRouter.patch("/:id/status", requirePermission("COST_CHECKS"), async (req, res) => {
   const { status } = costCheckStatusSchema.parse(req.body);
   const existing = await prisma.costCheck.findUnique({ where: { id: req.params.id } });
   if (!existing) throw new HttpError(404, "Không tìm thấy phiếu Check Cost");

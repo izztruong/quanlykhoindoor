@@ -107,6 +107,7 @@ export default function ProductsPage() {
   return (
     <CatalogPage<Product>
       title="Hàng hoá"
+      resource="PRODUCTS"
       description="Danh mục hàng hoá dùng trong nhập/xuất kho, kiểm kê và đơn hàng."
       endpoint="/products"
       queryKey="products"

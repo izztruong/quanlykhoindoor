@@ -12,5 +12,6 @@ export const warehousesRouter = createCrudRouter(prisma.warehouse, {
   createSchema,
   updateSchema: createSchema.partial(),
   searchFields: ["code", "name"],
-  writeRoles: ["ADMIN"],
+  resource: "WAREHOUSES",
+  publicRead: true,
 });

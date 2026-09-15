@@ -2,7 +2,31 @@ export interface AuthUser {
   id: string;
   email: string;
   name: string;
-  role: "ADMIN" | "STAFF";
+  roleId: string;
+  roleName: string;
+  /** Vai trò hệ thống — bỏ qua mọi kiểm tra quyền. */
+  isSystem: boolean;
+  /** Mã quyền dạng "RESOURCE.ACTION". Kiểm bằng `can()` trong lib/permissions.ts. */
+  permissions: string[];
+  /** "ALL" = dữ liệu mọi quán, "SELF" = chỉ dữ liệu của chính mình. */
+  scope: "ALL" | "SELF";
+}
+
+export type PermissionAction = "VIEW" | "ADD" | "EDIT" | "DELETE" | "RECEIVE" | "APPROVE";
+
+export interface PermissionCatalog {
+  resources: { resource: string; label: string; group: string; actions: PermissionAction[] }[];
+  actionLabels: Record<PermissionAction, string>;
+  scopeAll: { code: string; label: string };
+}
+
+export interface Role {
+  id: string;
+  name: string;
+  isSystem: boolean;
+  permissions: string[];
+  createdAt: string;
+  _count: { users: number };
 }
 
 export interface Warehouse {

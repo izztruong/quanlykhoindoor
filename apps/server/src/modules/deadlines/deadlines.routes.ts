@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../../config/db";
-import { requireRole } from "../../middleware/auth";
+import { requirePermission } from "../../middleware/auth";
 
 export const deadlinesRouter = Router();
 
@@ -18,7 +18,7 @@ const deadlineUpsertSchema = z.object({
 });
 
 // Cả nhân viên cũng đọc được: form tạo đơn/phiếu sau này có thể hiện nhắc "hạn nộp 22:00".
-// Ghi thì chỉ admin, chặn ở từng route bên dưới.
+// Ghi cần DEADLINES.EDIT, chặn ở từng route bên dưới.
 deadlinesRouter.get("/", async (_req, res) => {
   const items = await prisma.deadline.findMany();
   res.json({ items });
@@ -28,7 +28,7 @@ deadlinesRouter.get("/", async (_req, res) => {
  * Upsert theo `kind` thay vì POST/PUT tách riêng: mỗi loại chỉ có đúng một dòng (cột `kind` là
  * unique), nên không có khái niệm "thêm dòng mới" — admin chỉ đang sửa 3 quy tắc cố định.
  */
-deadlinesRouter.put("/", requireRole("ADMIN"), async (req, res) => {
+deadlinesRouter.put("/", requirePermission("DEADLINES", "EDIT"), async (req, res) => {
   const data = deadlineUpsertSchema.parse(req.body);
   // Chỉ phiếu kiểm tuần mới cần thứ; hai loại kia lưu null cho khỏi hiểu nhầm là có ý nghĩa.
   const isWeekly = data.kind === "STOCK_CHECK_WEEKLY";

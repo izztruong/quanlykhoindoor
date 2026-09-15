@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { prisma } from "../../config/db";
+import { assertOwner, ownerWhere, requireAnyPermission, requirePermission } from "../../middleware/auth";
 import { HttpError } from "../../utils/httpError";
 import { parseDateRange, parsePagination } from "../../utils/pagination";
 import {
@@ -10,7 +11,6 @@ import {
   salesOrderStatusSchema,
 } from "./salesOrders.schemas";
 import {
-  assertOwnership,
   completeSalesOrderReceiving,
   confirmOrderReportedQuantities,
   confirmSalesOrderWithExport,
@@ -24,7 +24,7 @@ import {
 
 export const salesOrdersRouter = Router();
 
-salesOrdersRouter.get("/", async (req, res) => {
+salesOrdersRouter.get("/", requirePermission("ORDERS", "VIEW"), async (req, res) => {
   const { warehouseId, status, createdById } = req.query as Record<string, string>;
   const { from, to } = parseDateRange(req);
   const { skip, take, page, pageSize } = parsePagination(req, 20);
@@ -33,8 +33,8 @@ salesOrdersRouter.get("/", async (req, res) => {
     warehouseId: warehouseId || undefined,
     status: (status || undefined) as any,
     orderDate: from || to ? { gte: from, lte: to } : undefined,
-    // Staff only ever see their own orders; admins see everything, optionally narrowed to one account.
-    createdById: req.user?.role === "ADMIN" ? createdById || undefined : req.user?.id,
+    // Phạm vi SELF chỉ thấy đơn của mình; ALL thấy hết, lọc theo tài khoản qua ?createdById=.
+    createdById: ownerWhere(req.user, createdById),
   };
 
   const [rows, total] = await Promise.all([
@@ -58,51 +58,52 @@ salesOrdersRouter.get("/", async (req, res) => {
   res.json({ items, total, page, pageSize });
 });
 
-salesOrdersRouter.get("/:id", async (req, res) => {
+salesOrdersRouter.get("/:id", requirePermission("ORDERS", "VIEW"), async (req, res) => {
   const item = await prisma.salesOrder.findUnique({ where: { id: req.params.id }, include: salesOrderDetailInclude });
   if (!item) throw new HttpError(404, "Không tìm thấy đơn hàng");
-  assertOwnership(item, req.user);
+  assertOwner(item, req.user, "Không tìm thấy đơn hàng");
   res.json(item);
 });
 
-salesOrdersRouter.post("/", async (req, res) => {
+salesOrdersRouter.post("/", requirePermission("ORDERS", "ADD"), async (req, res) => {
   const data = salesOrderCreateSchema.parse(req.body);
   const item = await createSalesOrder(data, req.user?.id);
   res.status(201).json(item);
 });
 
-salesOrdersRouter.put("/:id", async (req, res) => {
+salesOrdersRouter.put("/:id", requirePermission("ORDERS", "ADD"), async (req, res) => {
   const data = salesOrderCreateSchema.parse(req.body);
   const item = await replaceSalesOrderItems(req.params.id, data, req.user);
   res.json(item);
 });
 
-salesOrdersRouter.patch("/:id/status", async (req, res) => {
+// ADD huỷ được đơn nháp của mình, APPROVE chuyển được mọi trạng thái — phân biệt trong service.
+salesOrdersRouter.patch("/:id/status", requireAnyPermission("ORDERS.ADD", "ORDERS.APPROVE"), async (req, res) => {
   const { status } = salesOrderStatusSchema.parse(req.body);
   const item = await updateSalesOrderStatus(req.params.id, status, req.user);
   res.json(item);
 });
 
-salesOrdersRouter.patch("/:id/receiving", async (req, res) => {
+salesOrdersRouter.patch("/:id/receiving", requirePermission("ORDERS", "RECEIVE"), async (req, res) => {
   const data = salesOrderReceivingSchema.parse(req.body);
   const item = await completeSalesOrderReceiving(req.params.id, data, req.user);
   res.json(item);
 });
 
-salesOrdersRouter.patch("/:id/confirm", async (req, res) => {
+salesOrdersRouter.patch("/:id/confirm", requirePermission("ORDERS", "APPROVE"), async (req, res) => {
   const data = salesOrderConfirmSchema.parse(req.body);
   const item = await confirmSalesOrderWithExport(req.params.id, data, req.user);
   res.json(item);
 });
 
-salesOrdersRouter.patch("/:id/confirm-quantities", async (req, res) => {
+salesOrdersRouter.patch("/:id/confirm-quantities", requirePermission("ORDERS", "RECEIVE"), async (req, res) => {
   const item = await confirmOrderReportedQuantities(req.params.id, req.user);
   res.json(item);
 });
 
 // Tách riêng khỏi /receiving: chỉ ghi ngày nhận, không đụng số lượng/trạng thái/phiếu xuất kho.
-// Quyền admin được kiểm trong service (kèm cả kiểm tra trạng thái đơn).
-salesOrdersRouter.patch("/:id/received-dates", async (req, res) => {
+// Cần ORDERS.APPROVE; kiểm tra trạng thái đơn nằm trong service.
+salesOrdersRouter.patch("/:id/received-dates", requirePermission("ORDERS", "APPROVE"), async (req, res) => {
   const data = salesOrderReceivedDatesSchema.parse(req.body);
   const item = await updateSalesOrderReceivedDates(req.params.id, data, req.user);
   res.json(item);

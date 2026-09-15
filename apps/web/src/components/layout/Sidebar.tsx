@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/cn";
+import { hasPermission } from "@/lib/permissions";
 import type { AuthUser } from "@/types";
 import { ChevronDown, Store, X } from "lucide-react";
 import Link from "next/link";
@@ -16,7 +17,10 @@ interface SidebarProps {
 
 export function Sidebar({ user, open, onClose }: SidebarProps) {
   const pathname = usePathname();
-  const visibleSections = navSections.filter((section) => !section.adminOnly || user.role === "ADMIN");
+  // Ẩn từng mục thiếu quyền, rồi ẩn luôn nhóm không còn mục nào.
+  const visibleSections = navSections
+    .map((section) => ({ ...section, items: section.items.filter((item) => hasPermission(user, item.permission)) }))
+    .filter((section) => section.items.length > 0);
 
   // Nhóm nào chứa trang đang xem thì mở, bấm vào tiêu đề thì ghi đè, và mỗi lần đổi route thì
   // xoá hết ghi đè để nhóm của trang mới luôn hiện ra — nếu không, một nhóm đã thu tay sẽ giấu

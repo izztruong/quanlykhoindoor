@@ -19,6 +19,7 @@ export default function UnitsPage() {
   return (
     <CatalogPage<Unit>
       title="Đơn vị tính"
+      resource="UNITS"
       description="Đơn vị tính của hàng hoá (Kg, Túi, Chai...)."
       endpoint="/units"
       queryKey="units"

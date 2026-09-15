@@ -22,7 +22,7 @@ apps/server/src
   modules/<tên>/     routes + schemas + service của một nghiệp vụ
   utils/             crudFactory, deadlines, costCheckImpact, codeGenerator, tareWeight, pagination
   config/            env.ts, db.ts (Prisma client)
-  middleware/        auth.ts (requireAuth, requireRole), error.ts
+  middleware/        auth.ts (requireAuth, requirePermission, ownerWhere/assertOwner), error.ts
   generated/prisma   Prisma client sinh ra — gitignore
 apps/server/prisma   schema.prisma, migrations/, seed.ts
 
@@ -122,12 +122,15 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
 
 - **`next.config.ts` rewrite `/api/*` sang `API_ORIGIN`** để trình duyệt chỉ nói chuyện với một origin, giữ cookie xác thực ở dạng same-site (Safari ITP chặn cookie khác domain). Hệ quả khi gỡ lỗi: backend chết thì API trả **502 từ proxy**, không phải lỗi kết nối.
 - **`proxy.ts` cố ý chỉ pass-through.** Chặn truy cập thật nằm ở `app/(app)/layout.tsx`, qua hook `useCurrentUser()` (`lib/auth.ts` → `/api/auth/me`) — middleware không đọc được cookie khác domain nên sẽ đá mọi request về `/login`. Lý do ghi sẵn trong file.
-- **Hai tầng quyền**: `requireAuth` áp cho toàn bộ `/api` trong `app.ts`, rồi từng router gắn `requireRole("ADMIN")`. JWT nằm trong cookie, có `tokenVersion` để đổi mật khẩu là vô hiệu hoá ngay mọi phiên cũ.
-- **Giới hạn theo chủ sở hữu ép ở server**: router ghi đè `createdById` bằng `req.user.id` thay vì tin tham số client gửi lên. Ẩn ô lọc trên giao diện chỉ là chuyện hiển thị, **không phải lớp bảo vệ**.
+- **Phân quyền theo vai trò** (`Role.permissions` là mảng mã `RESOURCE.ACTION`, danh sách hợp lệ ở `modules/roles/permissions.ts`). `requireAuth` áp cho toàn bộ `/api`, đọc quyền **tươi từ DB mỗi request** — JWT chỉ mang `id` + `tokenVersion`, nên gỡ quyền có hiệu lực ngay. Vai trò `isSystem` (`role_admin`) bỏ qua mọi kiểm tra và không sửa/xoá được.
+- **Thêm trang/nghiệp vụ mới = 3 bước**: khai resource trong `permissions.ts` · gắn `requirePermission("RESOURCE")` cho **mọi** route kể cả GET (action suy từ method, route nghiệp vụ truyền tường minh) · gắn `permission` cho mục trong `nav-config.ts` (layout dùng nó chặn trang). Quên bước 2 là hở API.
+- **Ngoại lệ có chủ đích**: GET danh mục tra cứu (`publicRead` trong `crudFactory`, `product-stock`, `deadlines`, `users/options`) chỉ cần đăng nhập, vì form của quán phải đọc chúng. Bảng giá NCC dùng `requireAnyPermission` cho các form cần giá.
+- **Không cấp được quyền mình không có**: sửa vai trò chỉ được thêm/bớt mã chính mình nắm (`sanitizePermissions`), gán vai trò chỉ được vai trò hẹp hơn mình. Không sửa được vai trò đang giữ.
+- **Phạm vi dữ liệu theo quán ép ở server**: mã `DATA.SCOPE_ALL` quyết định thấy mọi quán hay chỉ bản ghi mình tạo — dùng `ownerWhere` (danh sách) + `assertOwner` (chi tiết/sửa/xoá, ngoài phạm vi trả **404**). Mã phạm vi **không** dùng trong `requirePermission`. Check Cost và phiếu điều chuyển **cố ý không** áp phạm vi (người dùng đã quyết định). Ẩn ô lọc trên giao diện chỉ là hiển thị, **không phải lớp bảo vệ**.
 
 ### Dữ liệu và nghiệp vụ
 
-- **`utils/crudFactory.ts`** sinh nguyên router CRUD cho danh mục (`writeRoles`, `filterFields`, `bulkImportKey`, mặc định `orderBy: { name: "asc" }`). Thêm danh mục mới thì dùng nó, đừng viết tay.
+- **`utils/crudFactory.ts`** sinh nguyên router CRUD cho danh mục (`resource`, `publicRead`, `filterFields`, `bulkImportKey`, mặc định `orderBy: { name: "asc" }`). Thêm danh mục mới thì dùng nó, đừng viết tay.
 - **Check Cost chốt cứng số liệu**: `CostCheck.reportSnapshot` ghi lúc tạo phiếu, nên sửa giá vốn hay công thức về sau không làm đổi phiếu đã tạo. Vì vậy khi sửa/xoá phiếu kiểm kê, huỷ, điều chuyển **phải gọi `utils/costCheckImpact.ts`** để cảnh báo admin tạo lại phiếu Check Cost bị ảnh hưởng.
 - **Đánh dấu muộn chốt lúc tạo**: `dueAt`/`isLate` đóng dấu ngay khi tạo bản ghi, không tính lại lúc hiển thị — nhờ đó lọc được bằng SQL và đổi lịch không viết lại lịch sử. Kỳ của phiếu kiểm suy từ `checkedAt` (quán tự khai), còn hạn lấy từ lịch admin đặt; đo muộn bằng `createdAt` vì hai cột kia người dùng sửa được. Bản ghi chưa từng được đánh giá thì `dueAt = null` và hiển thị **chấm xám**, không phải xanh.
 - **Include cho danh sách tách khỏi include cho chi tiết**: `salesOrderListInclude` cố ý nhẹ hơn `salesOrderDetailInclude`. Dùng chung từng làm payload danh sách phình lên 187 KB cho 20 đơn.

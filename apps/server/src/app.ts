@@ -2,7 +2,7 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
 import { env } from "./config/env";
-import { requireAuth, requireRole } from "./middleware/auth";
+import { requireAuth } from "./middleware/auth";
 import { errorHandler, notFoundHandler } from "./middleware/error";
 import { authRouter } from "./modules/auth/auth.routes";
 import { costChecksRouter } from "./modules/costChecks/costChecks.routes";
@@ -19,6 +19,7 @@ import { productsRouter } from "./modules/products/products.routes";
 import { productSupplierPricesRouter } from "./modules/productSupplierPrices/productSupplierPrices.routes";
 import { reorderThresholdsRouter } from "./modules/reorderThresholds/reorderThresholds.routes";
 import { reportsRouter } from "./modules/reports/reports.routes";
+import { rolesRouter } from "./modules/roles/roles.routes";
 import { salesOrdersRouter } from "./modules/salesOrders/salesOrders.routes";
 import { shiftExpensesRouter } from "./modules/shiftExpenses/shiftExpenses.routes";
 import { stockChecksRouter } from "./modules/stockChecks/stockChecks.routes";
@@ -43,37 +44,36 @@ app.use("/api/auth", authRouter);
 // Everything below requires an authenticated session.
 app.use("/api", requireAuth);
 
-// Read access needed by staff placing orders (pick warehouse/customer/product);
-// write access is still ADMIN-only (enforced inside each router via writeRoles).
+// Phân quyền nằm trong từng router: mỗi route gắn requirePermission("RESOURCE") (xem
+// modules/roles/permissions.ts), dữ liệu gắn với quán thu hẹp thêm qua ownerWhere/assertOwner.
+// Ngoại lệ có chủ đích: GET danh mục tra cứu (kho, hàng hoá, khách hàng, đơn vị, nhóm, NCC, đồ thành
+// phẩm, tồn kho, hạn nộp) chỉ cần đăng nhập, vì form tạo đơn/phiếu của quán phải đọc chúng.
 app.use("/api/warehouses", warehousesRouter);
 app.use("/api/customers", customersRouter);
 app.use("/api/products", productsRouter);
 app.use("/api/product-stock", productStockRouter);
 app.use("/api/finished-good-items", finishedGoodItemsRouter);
-// Read is self-scoped (or any user for admin) inside the router; write is admin-only inside the router.
 app.use("/api/reorder-thresholds", reorderThresholdsRouter);
-// Đọc mở cho cả nhân viên (để hiện nhắc hạn nộp), ghi chỉ admin — chặn bên trong router.
 app.use("/api/deadlines", deadlinesRouter);
+app.use("/api/product-groups", productGroupsRouter);
+app.use("/api/units", unitsRouter);
+app.use("/api/suppliers", suppliersRouter);
 
-// Sales orders, phiếu kiểm (stock checks), phiếu huỷ nguyên liệu và chi chốt ca: open to both roles, ownership-scoped for staff inside the router.
 app.use("/api/sales-orders", salesOrdersRouter);
 app.use("/api/stock-checks", stockChecksRouter);
 app.use("/api/material-waste", materialWasteRouter);
 app.use("/api/shift-expenses", shiftExpensesRouter);
 
-// Staff has no use for these at all — admin only, both read and write.
-app.use("/api/product-groups", requireRole("ADMIN"), productGroupsRouter);
-app.use("/api/units", requireRole("ADMIN"), unitsRouter);
-app.use("/api/suppliers", requireRole("ADMIN"), suppliersRouter);
-app.use("/api/stock-imports", requireRole("ADMIN"), stockImportsRouter);
-app.use("/api/stock-exports", requireRole("ADMIN"), stockExportsRouter);
-app.use("/api/product-supplier-prices", requireRole("ADMIN"), productSupplierPricesRouter);
-app.use("/api/finished-good-recipes", requireRole("ADMIN"), finishedGoodRecipesRouter);
-app.use("/api/cost-checks", requireRole("ADMIN"), costChecksRouter);
-app.use("/api/material-transfers", requireRole("ADMIN"), materialTransfersRouter);
-app.use("/api/inventory-counts", requireRole("ADMIN"), inventoryCountsRouter);
-app.use("/api/reports", requireRole("ADMIN"), reportsRouter);
-app.use("/api/users", requireRole("ADMIN"), usersRouter);
+app.use("/api/stock-imports", stockImportsRouter);
+app.use("/api/stock-exports", stockExportsRouter);
+app.use("/api/product-supplier-prices", productSupplierPricesRouter);
+app.use("/api/finished-good-recipes", finishedGoodRecipesRouter);
+app.use("/api/cost-checks", costChecksRouter);
+app.use("/api/material-transfers", materialTransfersRouter);
+app.use("/api/inventory-counts", inventoryCountsRouter);
+app.use("/api/reports", reportsRouter);
+app.use("/api/users", usersRouter);
+app.use("/api/roles", rolesRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

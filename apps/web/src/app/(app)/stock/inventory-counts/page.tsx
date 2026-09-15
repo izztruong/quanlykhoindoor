@@ -11,6 +11,7 @@ import { useWarehouses } from "@/hooks/useCatalog";
 import { useInventoryCounts } from "@/hooks/useInventoryCounts";
 import { clampDateRange } from "@/lib/dateRange";
 import { labels } from "@/lib/format";
+import { useCan } from "@/lib/permissions";
 import type { InventoryCount } from "@/types";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus } from "lucide-react";
@@ -24,6 +25,7 @@ const statusTone: Record<string, "gray" | "green" | "red" | "yellow" | "blue"> =
 };
 
 export default function InventoryCountsPage() {
+  const { canOpen } = useCan();
   const { data: warehouses = [] } = useWarehouses();
   const [warehouseId, setWarehouseId] = useState("");
   const [filter, setFilter] = useState({ from: "", to: "" });
@@ -70,12 +72,14 @@ export default function InventoryCountsPage() {
           <h1 className="text-xl font-semibold text-slate-800">Phiếu kiểm kê</h1>
           <p className="text-sm text-slate-500">Tạo và thực hiện kiểm kê hàng hoá định kỳ, đối chiếu tồn hệ thống với tồn thực tế.</p>
         </div>
-        <Link href="/stock/inventory-counts/new">
-          <Button>
-            <Plus size={16} />
-            Tạo phiếu kiểm kê
-          </Button>
-        </Link>
+        {canOpen("/stock/inventory-counts/new") && (
+          <Link href="/stock/inventory-counts/new">
+            <Button>
+              <Plus size={16} />
+              Tạo phiếu kiểm kê
+            </Button>
+          </Link>
+        )}
       </div>
 
       <Card>

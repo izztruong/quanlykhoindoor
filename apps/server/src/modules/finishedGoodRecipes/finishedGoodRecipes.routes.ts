@@ -1,11 +1,12 @@
 import { Router } from "express";
 import { prisma } from "../../config/db";
+import { requirePermission } from "../../middleware/auth";
 import { HttpError } from "../../utils/httpError";
 import { recipeUpdateSchema } from "./finishedGoodRecipes.schemas";
 
 export const finishedGoodRecipesRouter = Router();
 
-finishedGoodRecipesRouter.get("/:finishedGoodItemId", async (req, res) => {
+finishedGoodRecipesRouter.get("/:finishedGoodItemId", requirePermission("FINISHED_GOODS"), async (req, res) => {
   const items = await prisma.finishedGoodRecipeItem.findMany({
     where: { finishedGoodItemId: req.params.finishedGoodItemId },
     include: { product: { include: { unit: true, recipeUnit: true } } },
@@ -14,7 +15,7 @@ finishedGoodRecipesRouter.get("/:finishedGoodItemId", async (req, res) => {
   res.json({ items });
 });
 
-finishedGoodRecipesRouter.put("/:finishedGoodItemId", async (req, res) => {
+finishedGoodRecipesRouter.put("/:finishedGoodItemId", requirePermission("FINISHED_GOODS"), async (req, res) => {
   const { finishedGoodItemId } = req.params;
   const data = recipeUpdateSchema.parse(req.body);
 

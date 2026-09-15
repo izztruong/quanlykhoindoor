@@ -17,6 +17,7 @@ export const finishedGoodItemsRouter = createCrudRouter(prisma.finishedGoodItem,
   updateSchema: schema.partial(),
   searchFields: ["code", "name"],
   include: { unit: true },
-  writeRoles: ["ADMIN"],
+  resource: "FINISHED_GOODS",
+  publicRead: true,
   bulkImportKey: "code",
 });

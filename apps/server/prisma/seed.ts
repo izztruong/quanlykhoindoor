@@ -11,7 +11,8 @@ async function main() {
   await prisma.user.upsert({
     where: { email: "admin@quanly.local" },
     update: {},
-    create: { email: "admin@quanly.local", passwordHash, name: "Quản trị viên", role: "ADMIN" },
+    // Vai trò role_admin được migration 20260915030600_roles_and_permissions chèn sẵn.
+    create: { email: "admin@quanly.local", passwordHash, name: "Quản trị viên", roleId: "role_admin" },
   });
 
   const unitDefs = [

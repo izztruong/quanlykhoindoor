@@ -13,10 +13,11 @@ import {
 } from "@/hooks/useSalesOrders";
 import { ApiError } from "@/lib/api-client";
 import { useCurrentUser } from "@/lib/auth";
+import { can } from "@/lib/permissions";
 import { nowForDatetimeLocal, toDatetimeLocal } from "@/lib/dateRange";
 import { exportOrderToExcel } from "@/lib/exportOrderExcel";
 import { formatDateTime, formatNumber, labels } from "@/lib/format";
-import type { AuthUser, SalesOrderItem, SalesOrderStatus } from "@/types";
+import type { SalesOrderItem, SalesOrderStatus } from "@/types";
 import { FileSpreadsheet, Printer } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -37,21 +38,21 @@ interface StatusAction {
 }
 
 /**
- * Only admins cancel a confirmed/short order. Staff may cancel their own
- * order before it's confirmed. Confirming an order is no longer a bare
+ * ORDERS.APPROVE cancels an order at any open status. ORDERS.ADD may only
+ * cancel an order before it's confirmed (server also enforces ownership). Confirming an order is no longer a bare
  * status flip — it's a Link to the dedicated confirm-and-create-export page
  * (see the "Xác nhận đơn" render below), and completing one goes through the
  * receiving checklist further down once the order is CONFIRMED or SHORT.
  */
-function getAvailableActions(status: SalesOrderStatus, role?: AuthUser["role"]): StatusAction[] {
-  if (role === "ADMIN") {
+function getAvailableActions(status: SalesOrderStatus, canApprove: boolean, canAdd: boolean): StatusAction[] {
+  if (canApprove) {
     if (status === "DRAFT" || status === "PENDING_CONFIRM" || status === "CONFIRMED" || status === "SHORT") {
       return [{ status: "CANCELLED", label: "Huỷ đơn", variant: "danger" }];
     }
     return [];
   }
 
-  if (status === "DRAFT") {
+  if (canAdd && status === "DRAFT") {
     return [{ status: "CANCELLED", label: "Huỷ đơn", variant: "danger" }];
   }
   return [];
@@ -78,12 +79,13 @@ export function OrderDetailClient({ id }: { id: string }) {
     return <p className="text-slate-400">Đang tải...</p>;
   }
 
-  const actions = getAvailableActions(order.status, currentUser?.role);
-  const canReceive = order.status === "CONFIRMED" || order.status === "SHORT";
-  const isAdmin = currentUser?.role === "ADMIN";
-  // Chỉ admin được đặt ngày nhận; quán chỉ điền số lượng. Sửa được ở mọi trạng thái sau khi đơn
+  const canApprove = can(currentUser, "ORDERS", "APPROVE");
+  const canReceiveOrders = can(currentUser, "ORDERS", "RECEIVE");
+  const actions = getAvailableActions(order.status, canApprove, can(currentUser, "ORDERS", "ADD"));
+  const canReceive = canReceiveOrders && (order.status === "CONFIRMED" || order.status === "SHORT");
+  // Chỉ ORDERS.APPROVE được đặt ngày nhận; quán chỉ điền số lượng. Sửa được ở mọi trạng thái sau khi đơn
   // đã xác nhận (kể cả Hoàn thành), nếu không thì ngày sai sẽ bị khoá cứng.
-  const canEditDates = isAdmin && (canReceive || order.status === "COMPLETED");
+  const canEditDates = canApprove && (order.status === "CONFIRMED" || order.status === "SHORT" || order.status === "COMPLETED");
   const showDateColumn = canEditDates || order.status === "COMPLETED";
 
   function receivedQuantityFor(item: SalesOrderItem): string {
@@ -223,7 +225,7 @@ export function OrderDetailClient({ id }: { id: string }) {
             <FileSpreadsheet size={14} />
             Xuất Excel
           </Button>
-          {currentUser?.role === "ADMIN" && (
+          {canApprove && (
             <a href={`/print/orders/${id}`} target="_blank" rel="noreferrer">
               <Button variant="secondary" size="sm">
                 <Printer size={14} />
@@ -367,12 +369,12 @@ export function OrderDetailClient({ id }: { id: string }) {
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <div className="flex justify-end gap-2">
-        {currentUser?.role === "ADMIN" && order.status === "DRAFT" && (
+        {canApprove && order.status === "DRAFT" && (
           <Link href={`/orders/${id}/confirm`}>
             <Button>Xác nhận đơn</Button>
           </Link>
         )}
-        {order.status === "PENDING_CONFIRM" && (
+        {canReceiveOrders && order.status === "PENDING_CONFIRM" && (
           <Button onClick={handleConfirmQuantities} disabled={confirmQuantities.isPending}>
             {confirmQuantities.isPending ? "Đang lưu..." : "Xác nhận"}
           </Button>

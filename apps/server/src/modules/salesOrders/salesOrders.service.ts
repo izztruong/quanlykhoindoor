@@ -1,6 +1,6 @@
 import { prisma } from "../../config/db";
 import { Prisma } from "../../generated/prisma/client";
-import type { AuthUser } from "../../middleware/auth";
+import { assertOwner, can, type AuthUser } from "../../middleware/auth";
 import { generateCode } from "../../utils/codeGenerator";
 import { type AffectedCostCheck, findCostChecksUsingPeriodRecord } from "../../utils/costCheckImpact";
 import { stampSalesOrderLateness } from "../../utils/deadlines";
@@ -45,13 +45,6 @@ type SalesOrderCreateInput = z.infer<typeof salesOrderCreateSchema>;
 type SalesOrderReceivingInput = z.infer<typeof salesOrderReceivingSchema>;
 type SalesOrderConfirmInput = z.infer<typeof salesOrderConfirmSchema>;
 type SalesOrderReceivedDatesInput = z.infer<typeof salesOrderReceivedDatesSchema>;
-
-/** Staff may only see/act on orders they created themselves; admins see everything. */
-export function assertOwnership(order: { createdById: string | null }, user?: AuthUser) {
-  if (user?.role !== "ADMIN" && order.createdById !== user?.id) {
-    throw new HttpError(403, "Bạn không có quyền truy cập đơn hàng này");
-  }
-}
 
 /**
  * An order can't ask for more of a product than is currently on hand in its
@@ -109,7 +102,7 @@ export async function replaceSalesOrderItems(orderId: string, data: SalesOrderCr
   return prisma.$transaction(async (tx) => {
     const order = await tx.salesOrder.findUnique({ where: { id: orderId } });
     if (!order) throw new HttpError(404, "Không tìm thấy đơn hàng");
-    assertOwnership(order, actingUser);
+    assertOwner(order, actingUser, "Không tìm thấy đơn hàng");
     if (order.status !== "DRAFT") throw new HttpError(409, "Chỉ có thể sửa đơn hàng ở trạng thái nháp");
 
     await tx.salesOrderItem.deleteMany({ where: { salesOrderId: orderId } });
@@ -133,8 +126,8 @@ export async function replaceSalesOrderItems(orderId: string, data: SalesOrderCr
 }
 
 /**
- * Staff may only cancel their own order before an admin has confirmed it
- * (still DRAFT). Cancelling a confirmed/short one stays admin-only. Setting
+ * ORDERS.ADD may only cancel an order still DRAFT (ownership is checked by the
+ * caller). Any other transition needs ORDERS.APPROVE. Setting
  * CONFIRMED is never allowed here at all, for anyone — see
  * confirmSalesOrderWithExport, which is the only path onto that status.
  * Staff complete an order through the dedicated receiving checklist
@@ -144,11 +137,11 @@ function assertStatusTransitionAllowed(order: { status: string }, status: string
   if (status === "CONFIRMED") {
     throw new HttpError(400, "Xác nhận đơn hàng phải qua bước tạo phiếu xuất kho");
   }
-  if (actingUser?.role === "ADMIN") return;
+  if (can(actingUser, "ORDERS", "APPROVE")) return;
 
-  const staffAllowed = order.status === "DRAFT" && status === "CANCELLED";
+  const draftCancelAllowed = can(actingUser, "ORDERS", "ADD") && order.status === "DRAFT" && status === "CANCELLED";
 
-  if (!staffAllowed) {
+  if (!draftCancelAllowed) {
     throw new HttpError(403, "Bạn không có quyền chuyển đơn hàng sang trạng thái này");
   }
 }
@@ -250,7 +243,7 @@ export async function updateSalesOrderStatus(orderId: string, status: string, ac
       include: { items: { include: { product: true } }, stockExport: true },
     });
     if (!order) throw new HttpError(404, "Không tìm thấy đơn hàng");
-    assertOwnership(order, actingUser);
+    assertOwner(order, actingUser, "Không tìm thấy đơn hàng");
     if (order.status === "COMPLETED" || order.status === "CANCELLED") {
       throw new HttpError(409, "Đơn hàng đã đóng, không thể đổi trạng thái");
     }
@@ -283,7 +276,7 @@ export async function completeSalesOrderReceiving(orderId: string, data: SalesOr
     include: { items: { include: { product: true } }, stockExport: { include: { items: true } } },
   });
   if (!order) throw new HttpError(404, "Không tìm thấy đơn hàng");
-  assertOwnership(order, actingUser);
+  assertOwner(order, actingUser, "Không tìm thấy đơn hàng");
   if (order.status !== "CONFIRMED" && order.status !== "SHORT") {
     throw new HttpError(409, "Chỉ có thể nhận hàng khi đơn đã được xác nhận");
   }
@@ -314,9 +307,9 @@ export async function completeSalesOrderReceiving(orderId: string, data: SalesOr
   const operations: Prisma.PrismaPromise<unknown>[] = [];
   if (data.items.length > 0) {
     const submittedAt = new Date();
-    // Chỉ admin được đặt ngày nhận — quán chỉ điền số lượng. Chặn ở server chứ không chỉ ẩn ô
+    // Chỉ ORDERS.APPROVE được đặt ngày nhận — quán chỉ điền số lượng. Chặn ở server chứ không chỉ ẩn ô
     // trên giao diện, vì ai cũng gọi thẳng API được.
-    const canSetDate = actingUser?.role === "ADMIN";
+    const canSetDate = can(actingUser, "ORDERS", "APPROVE");
     const rows = data.items.map((update) => {
       const orderItem = itemById.get(update.itemId)!;
       const received = update.receivedQuantity >= Number(orderItem.quantity);
@@ -384,7 +377,7 @@ export async function completeSalesOrderReceiving(orderId: string, data: SalesOr
  * quantity: admin reports whatever was actually obtained from suppliers.
  */
 export async function confirmSalesOrderWithExport(orderId: string, data: SalesOrderConfirmInput, actingUser?: AuthUser) {
-  if (actingUser?.role !== "ADMIN") {
+  if (!can(actingUser, "ORDERS", "APPROVE")) {
     throw new HttpError(403, "Chỉ quản trị viên mới được xác nhận đơn hàng");
   }
 
@@ -496,7 +489,7 @@ export async function confirmOrderReportedQuantities(orderId: string, actingUser
     include: { items: true, stockExport: { include: { items: true } } },
   });
   if (!order) throw new HttpError(404, "Không tìm thấy đơn hàng");
-  assertOwnership(order, actingUser);
+  assertOwner(order, actingUser, "Không tìm thấy đơn hàng");
   if (order.status !== "PENDING_CONFIRM") {
     throw new HttpError(409, "Đơn hàng không ở trạng thái chờ xác nhận");
   }
@@ -545,7 +538,7 @@ export async function confirmOrderReportedQuantities(orderId: string, actingUser
  * Số của các phiếu đó đã chốt cứng nên không tự đổi — admin cần tự tạo lại nếu muốn số đúng.
  */
 export async function updateSalesOrderReceivedDates(orderId: string, data: SalesOrderReceivedDatesInput, actingUser?: AuthUser) {
-  if (actingUser?.role !== "ADMIN") {
+  if (!can(actingUser, "ORDERS", "APPROVE")) {
     throw new HttpError(403, "Chỉ quản trị viên mới được sửa ngày nhận");
   }
 

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/Input";
 import { useMaterialTransferList } from "@/hooks/useMaterialTransfers";
 import { clampDateRange } from "@/lib/dateRange";
 import { formatDateTime } from "@/lib/format";
+import { useCan } from "@/lib/permissions";
 import type { MaterialTransfer } from "@/types";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus } from "lucide-react";
@@ -15,6 +16,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 export default function MaterialTransfersPage() {
+  const { canOpen } = useCan();
   const [filter, setFilter] = useState({ from: "", to: "" });
   const [appliedFilter, setAppliedFilter] = useState({ from: "", to: "" });
   const [page, setPage] = useState(1);
@@ -53,12 +55,14 @@ export default function MaterialTransfersPage() {
           <h1 className="text-xl font-semibold text-slate-800">Phiếu điều chuyển</h1>
           <p className="text-sm text-slate-500">Điều chuyển nguyên liệu giữa các quán, không qua kho trung tâm.</p>
         </div>
-        <Link href="/material-transfers/new">
-          <Button>
-            <Plus size={16} />
-            Tạo phiếu điều chuyển
-          </Button>
-        </Link>
+        {canOpen("/material-transfers/new") && (
+          <Link href="/material-transfers/new">
+            <Button>
+              <Plus size={16} />
+              Tạo phiếu điều chuyển
+            </Button>
+          </Link>
+        )}
       </div>
 
       <Card>

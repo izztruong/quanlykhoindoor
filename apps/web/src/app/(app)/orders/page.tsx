@@ -9,8 +9,9 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Select } from "@/components/ui/Select";
 import { useSalesOrders } from "@/hooks/useSalesOrders";
-import { useUsers } from "@/hooks/useUsers";
+import { useUserOptions } from "@/hooks/useUsers";
 import { useCurrentUser } from "@/lib/auth";
+import { hasScopeAll, useCan } from "@/lib/permissions";
 import { formatDateTime, formatNumber, labels } from "@/lib/format";
 import type { SalesOrderListRow } from "@/types";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -28,9 +29,11 @@ const statusTone: Record<string, "gray" | "green" | "red" | "yellow" | "blue"> =
 };
 
 export default function OrdersPage() {
+  const { canOpen } = useCan();
   const { data: currentUser } = useCurrentUser();
-  const isAdmin = currentUser?.role === "ADMIN";
-  const { data: users = [] } = useUsers({ enabled: isAdmin });
+  // Chỉ tài khoản thấy dữ liệu mọi quán mới cần ô lọc theo quán.
+  const scopeAll = hasScopeAll(currentUser);
+  const { data: users = [] } = useUserOptions({ enabled: scopeAll });
   const [status, setStatus] = useState("");
   const [createdById, setCreatedById] = useState("");
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
@@ -39,7 +42,7 @@ export default function OrdersPage() {
   useEffect(() => setPage(1), [status, createdById, dateRange.from, dateRange.to]);
   const { data, isLoading } = useSalesOrders({
     status,
-    createdById: isAdmin ? createdById || undefined : undefined,
+    createdById: scopeAll ? createdById || undefined : undefined,
     from: dateRange.from || undefined,
     to: dateRange.to || undefined,
     page,
@@ -84,12 +87,14 @@ export default function OrdersPage() {
           <p className="text-sm text-slate-500">Quản lý đơn hàng nội bộ theo tài khoản.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Link href="/orders/new">
-            <Button>
-              <Plus size={16} />
-              Tạo đơn hàng
-            </Button>
-          </Link>
+          {canOpen("/orders/new") && (
+            <Link href="/orders/new">
+              <Button>
+                <Plus size={16} />
+                Tạo đơn hàng
+              </Button>
+            </Link>
+          )}
         </div>
       </div>
 
@@ -109,7 +114,7 @@ export default function OrdersPage() {
               </Select>
             </div>
           </div>
-          {isAdmin && (
+          {scopeAll && (
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-slate-500">Tài khoản</label>
               <div className="w-48">

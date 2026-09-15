@@ -7,9 +7,8 @@ import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
 import { useProducts } from "@/hooks/useCatalog";
 import { useReorderThresholds, useSaveReorderThresholds } from "@/hooks/useReorderThresholds";
-import { useUsers } from "@/hooks/useUsers";
+import { useUserOptions } from "@/hooks/useUsers";
 import { ApiError } from "@/lib/api-client";
-import { useCurrentUser } from "@/lib/auth";
 import { type ExcelColumn, exportRowsToExcel, sanitizeExcelRow } from "@/lib/excelExport";
 import type { Product } from "@/types";
 import ExcelJS from "exceljs";
@@ -22,8 +21,7 @@ interface RowInput {
 }
 
 export default function ReorderThresholdsPage() {
-  const { data: currentUser } = useCurrentUser();
-  const { data: users = [] } = useUsers();
+  const { data: users = [] } = useUserOptions();
   const { data: products = [] } = useProducts();
   const [userId, setUserId] = useState("");
   const { data: thresholds = [] } = useReorderThresholds(userId || undefined);
@@ -198,14 +196,6 @@ export default function ReorderThresholdsPage() {
       { header: "Tối đa", value: (p) => valueFor(p.id, "max") },
     ];
     await exportRowsToExcel("Định lượng", columns, products, "dinh-luong-order-nhanh.xlsx");
-  }
-
-  if (currentUser && currentUser.role !== "ADMIN") {
-    return (
-      <Card>
-        <CardBody className="text-sm text-slate-500">Bạn không có quyền truy cập trang này.</CardBody>
-      </Card>
-    );
   }
 
   return (

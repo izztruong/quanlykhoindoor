@@ -7,7 +7,7 @@ import { Select } from "@/components/ui/Select";
 import { useProducts, useSuppliers } from "@/hooks/useCatalog";
 import { useCreateMaterialTransfer, useUpdateMaterialTransfer } from "@/hooks/useMaterialTransfers";
 import { useProductSupplierPrices } from "@/hooks/useProductSupplierPrices";
-import { useUsers } from "@/hooks/useUsers";
+import { useUserOptions } from "@/hooks/useUsers";
 import { ApiError } from "@/lib/api-client";
 import { nowForDatetimeLocal, toDatetimeLocal } from "@/lib/dateRange";
 import { filterSuggestions } from "@/lib/searchSuggestions";
@@ -47,7 +47,7 @@ interface MaterialTransferFormClientProps {
 export function MaterialTransferFormClient({ existing }: MaterialTransferFormClientProps) {
   const isEdit = Boolean(existing);
   const router = useRouter();
-  const { data: users = [] } = useUsers();
+  const { data: users = [] } = useUserOptions();
   const { data: products = [] } = useProducts({ activeOnly: true });
   const { data: suppliers = [] } = useSuppliers();
   const { data: prices = [] } = useProductSupplierPrices();

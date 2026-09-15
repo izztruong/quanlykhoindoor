@@ -6,11 +6,6 @@ import { LogOut, Menu, Search } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-const roleLabel: Record<AuthUser["role"], string> = {
-  ADMIN: "Quản trị viên",
-  STAFF: "Nhân viên",
-};
-
 export function Topbar({ user, onMenuClick }: { user: AuthUser; onMenuClick: () => void }) {
   const router = useRouter();
   const logout = useLogout();
@@ -37,7 +32,7 @@ export function Topbar({ user, onMenuClick }: { user: AuthUser; onMenuClick: () 
         <Link href="/profile" className="flex items-center gap-3 rounded-lg px-1 py-1 hover:bg-slate-50">
           <div className="hidden text-right sm:block">
             <div className="text-sm font-semibold text-slate-800">{user.name}</div>
-            <div className="text-xs text-slate-400">{roleLabel[user.role]}</div>
+            <div className="text-xs text-slate-400">{user.roleName}</div>
           </div>
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-indigo-600 text-sm font-semibold text-white">
             {user.name.slice(0, 1).toUpperCase()}

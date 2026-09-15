@@ -6,7 +6,7 @@ import { z } from "zod";
 import { prisma } from "../../config/db";
 import { env } from "../../config/env";
 import { HttpError } from "../../utils/httpError";
-import { requireAuth, type AuthUser } from "../../middleware/auth";
+import { loadAuthUser, requireAuth, type TokenPayload } from "../../middleware/auth";
 
 export const authRouter = Router();
 
@@ -30,8 +30,9 @@ const changePasswordSchema = z.object({
   newPassword: z.string().min(6, "Mật khẩu mới tối thiểu 6 ký tự"),
 });
 
-function setAuthCookie(res: import("express").Response, user: AuthUser) {
-  const token = jwt.sign(user, env.jwtSecret, { expiresIn: env.jwtExpiresIn as any });
+function setAuthCookie(res: import("express").Response, payload: TokenPayload) {
+  // Token chỉ mang định danh; quyền đọc lại từ DB mỗi request (xem requireAuth).
+  const token = jwt.sign(payload, env.jwtSecret, { expiresIn: env.jwtExpiresIn as any });
   // Frontend and API live on different domains in production (e.g. Vercel +
   // Render), so the cookie must be SameSite=None to survive cross-site
   // fetch — which browsers only allow when Secure is also set. Locally
@@ -54,8 +55,8 @@ authRouter.post("/login", loginRateLimit, async (req, res) => {
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) throw new HttpError(401, "Email hoặc mật khẩu không đúng");
 
-  const authUser: AuthUser = { id: user.id, email: user.email, name: user.name, role: user.role, tokenVersion: user.tokenVersion };
-  setAuthCookie(res, authUser);
+  setAuthCookie(res, { id: user.id, tokenVersion: user.tokenVersion });
+  const { tokenVersion: _tokenVersion, ...authUser } = (await loadAuthUser(user.id))!;
   res.json({ user: authUser });
 });
 

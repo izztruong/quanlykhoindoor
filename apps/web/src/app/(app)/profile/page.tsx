@@ -4,14 +4,8 @@ import { ChangePasswordForm } from "@/components/layout/ChangePasswordForm";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { useCurrentUser } from "@/lib/auth";
-import type { AuthUser } from "@/types";
 import { ChevronDown } from "lucide-react";
 import { useState } from "react";
-
-const roleLabel: Record<AuthUser["role"], string> = {
-  ADMIN: "Quản trị viên",
-  STAFF: "Nhân viên",
-};
 
 export default function ProfilePage() {
   const { data: user, isLoading } = useCurrentUser();
@@ -39,7 +33,7 @@ export default function ProfilePage() {
             </div>
             <div>
               <div className="text-base font-semibold text-slate-800">{user.name}</div>
-              <Badge tone={user.role === "ADMIN" ? "blue" : "gray"}>{roleLabel[user.role]}</Badge>
+              <Badge tone={user.isSystem ? "blue" : "gray"}>{user.roleName}</Badge>
             </div>
           </div>
 

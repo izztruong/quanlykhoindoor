@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../config/db";
-import { requireRole, type AuthUser } from "../middleware/auth";
+import { requirePermission } from "../middleware/auth";
+import type { PermissionResource } from "../modules/roles/permissions";
 import { HttpError } from "./httpError";
 import { parsePagination } from "./pagination";
 
@@ -21,8 +22,14 @@ interface CrudOptions {
   searchFields?: string[];
   orderBy?: Record<string, "asc" | "desc">;
   include?: Record<string, unknown>;
-  /** Roles allowed to create/update/delete. Read (GET) stays open to anyone authenticated. */
-  writeRoles?: AuthUser["role"][];
+  /** Mã resource phân quyền (modules/roles/permissions.ts). POST → ADD, PUT → EDIT, DELETE → DELETE, GET → VIEW. */
+  resource: PermissionResource;
+  /**
+   * Bỏ cổng VIEW ở GET, chỉ cần đăng nhập — dành cho danh mục TRA CỨU mà form tạo đơn/phiếu của
+   * quán phải đọc (kho, hàng hoá, khách hàng…). Chặn GET bằng `*.VIEW` thì gỡ quyền xem trang
+   * "Hàng hoá" là hỏng luôn form Order. Khi đó `*.VIEW` chỉ còn điều khiển menu/trang ở web.
+   */
+  publicRead?: boolean;
   /**
    * Enables POST /bulk-import, upserting rows by this unique field (e.g.
    * "code"): existing values are updated in place, new ones are created.
@@ -47,9 +54,10 @@ interface CrudOptions {
 export function createCrudRouter(delegate: Delegate, options: CrudOptions): Router {
   const router = Router();
   const orderBy = options.orderBy ?? { name: "asc" };
-  const writeGuard = options.writeRoles ? [requireRole(...options.writeRoles)] : [];
+  const readGuard = options.publicRead ? [] : [requirePermission(options.resource, "VIEW")];
+  const writeGuard = [requirePermission(options.resource)];
 
-  router.get("/", async (req, res) => {
+  router.get("/", ...readGuard, async (req, res) => {
     const { search, ...queryFields } = req.query as Record<string, string>;
     const { skip, take, page, pageSize } = parsePagination(req, 100);
     const searchWhere =
@@ -71,7 +79,7 @@ export function createCrudRouter(delegate: Delegate, options: CrudOptions): Rout
     res.json({ items, total, page, pageSize });
   });
 
-  router.get("/:id", async (req, res) => {
+  router.get("/:id", ...readGuard, async (req, res) => {
     const item = await delegate.findUnique({ where: { id: req.params.id }, include: options.include });
     if (!item) throw new HttpError(404, "Không tìm thấy bản ghi");
     res.json(item);
@@ -98,7 +106,8 @@ export function createCrudRouter(delegate: Delegate, options: CrudOptions): Rout
     const key = options.bulkImportKey;
     const bulkImportSchema = z.object({ items: z.array(options.createSchema).min(1) });
 
-    router.post("/bulk-import", ...writeGuard, async (req, res) => {
+    // Upsert: vừa thêm dòng mới vừa ghi đè dòng trùng mã, nên cần cả ADD lẫn EDIT.
+    router.post("/bulk-import", requirePermission(options.resource, "ADD"), requirePermission(options.resource, "EDIT"), async (req, res) => {
       const { items } = bulkImportSchema.parse(req.body);
 
       // If the same key appears twice in the file, the last occurrence wins —

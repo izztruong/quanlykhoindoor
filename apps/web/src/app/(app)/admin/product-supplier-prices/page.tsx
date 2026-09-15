@@ -8,7 +8,6 @@ import { Select } from "@/components/ui/Select";
 import { useProducts, useSuppliers, useUnits } from "@/hooks/useCatalog";
 import { useProductSupplierPrices, useSaveProductSupplierPrices } from "@/hooks/useProductSupplierPrices";
 import { ApiError } from "@/lib/api-client";
-import { useCurrentUser } from "@/lib/auth";
 import { type ExcelColumn, exportRowsToExcel, sanitizeExcelRow } from "@/lib/excelExport";
 import type { Product } from "@/types";
 import ExcelJS from "exceljs";
@@ -27,7 +26,6 @@ interface RowInput {
 type RowField = keyof RowInput;
 
 export default function ProductSupplierPricesPage() {
-  const { data: currentUser } = useCurrentUser();
   const { data: suppliers = [] } = useSuppliers();
   const { data: products = [] } = useProducts();
   const { data: units = [] } = useUnits();
@@ -251,14 +249,6 @@ export default function ProductSupplierPricesPage() {
       { header: "Ưu tiên", value: (p) => valueFor(p.id, "priority") },
     ];
     await exportRowsToExcel("Giá theo NCC", columns, products, "gia-theo-ncc.xlsx");
-  }
-
-  if (currentUser && currentUser.role !== "ADMIN") {
-    return (
-      <Card>
-        <CardBody className="text-sm text-slate-500">Bạn không có quyền truy cập trang này.</CardBody>
-      </Card>
-    );
   }
 
   return (

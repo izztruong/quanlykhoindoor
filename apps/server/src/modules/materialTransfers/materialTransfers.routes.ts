@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { prisma } from "../../config/db";
+import { requirePermission } from "../../middleware/auth";
 import { generateCode } from "../../utils/codeGenerator";
 import { findCostChecksUsingPeriodRecord } from "../../utils/costCheckImpact";
 import { HttpError } from "../../utils/httpError";
@@ -7,7 +8,7 @@ import { parseDateRange, parsePagination } from "../../utils/pagination";
 import { subtractTareWeight } from "../../utils/tareWeight";
 import { materialTransferCreateSchema } from "./materialTransfers.schemas";
 
-// Mounted under requireRole("ADMIN") in app.ts — chỉ admin tạo/xem, không có bước quán nhận xác nhận.
+// Không có bước quán nhận xác nhận; người có MATERIAL_TRANSFERS.* thao tác trên mọi quán.
 export const materialTransfersRouter = Router();
 
 const listInclude = {
@@ -21,7 +22,7 @@ const detailInclude = {
   items: { include: { product: { include: { unit: true, recipeUnit: true } }, supplier: true } },
 };
 
-materialTransfersRouter.get("/", async (req, res) => {
+materialTransfersRouter.get("/", requirePermission("MATERIAL_TRANSFERS"), async (req, res) => {
   const { from, to } = parseDateRange(req);
   const { skip, take, page, pageSize } = parsePagination(req, 20);
   const where = { transferAt: from || to ? { gte: from, lte: to } : undefined };
@@ -33,13 +34,13 @@ materialTransfersRouter.get("/", async (req, res) => {
   res.json({ items, total, page, pageSize });
 });
 
-materialTransfersRouter.get("/:id", async (req, res) => {
+materialTransfersRouter.get("/:id", requirePermission("MATERIAL_TRANSFERS"), async (req, res) => {
   const item = await prisma.materialTransfer.findUnique({ where: { id: req.params.id }, include: detailInclude });
   if (!item) throw new HttpError(404, "Không tìm thấy phiếu điều chuyển");
   res.json(item);
 });
 
-materialTransfersRouter.post("/", async (req, res) => {
+materialTransfersRouter.post("/", requirePermission("MATERIAL_TRANSFERS"), async (req, res) => {
   const data = materialTransferCreateSchema.parse(req.body);
   const items = await subtractTareWeight(data.items);
 
@@ -73,10 +74,10 @@ materialTransfersRouter.post("/", async (req, res) => {
   res.status(201).json(item);
 });
 
-// Router đã admin-only toàn bộ (mounted ở app.ts). Phiếu điều chuyển không liên kết trực tiếp tới
+// Cần MATERIAL_TRANSFERS.EDIT. Phiếu điều chuyển không liên kết trực tiếp tới
 // Check Cost — tìm phiếu bị ảnh hưởng dựa trên CẢ quán gửi lẫn quán nhận (mỗi bên đều có thể đã
 // dùng phiếu này khi tính Check Cost của họ) + thời điểm điều chuyển TRƯỚC khi sửa.
-materialTransfersRouter.put("/:id", async (req, res) => {
+materialTransfersRouter.put("/:id", requirePermission("MATERIAL_TRANSFERS"), async (req, res) => {
   const id = req.params.id as string;
   const data = materialTransferCreateSchema.parse(req.body);
   const items = await subtractTareWeight(data.items);

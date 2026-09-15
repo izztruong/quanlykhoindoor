@@ -21,6 +21,7 @@ export default function SuppliersPage() {
   return (
     <CatalogPage<Supplier>
       title="Nhà cung cấp"
+      resource="SUPPLIERS"
       description="Danh sách nhà cung cấp hàng hoá."
       endpoint="/suppliers"
       queryKey="suppliers"

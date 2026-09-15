@@ -1,5 +1,6 @@
 import { Router, type Request } from "express";
 import type { SalesOrderStatus } from "../../generated/prisma/client";
+import { requireAnyPermission, requirePermission } from "../../middleware/auth";
 import { HttpError } from "../../utils/httpError";
 import { parseDateRange, parsePagination } from "../../utils/pagination";
 import * as reportsService from "./reports.service";
@@ -13,25 +14,25 @@ function parseCommonFilter(req: Request) {
   return { warehouseId, productId, productGroupId, code, from, to, skip, take, page, pageSize };
 }
 
-reportsRouter.get("/export-summary", async (req, res) => {
+reportsRouter.get("/export-summary", requirePermission("AUDIT_REPORTS"), async (req, res) => {
   const filter = parseCommonFilter(req);
   const { items, total } = await reportsService.getExportSummary(filter);
   res.json({ items, total, page: filter.page, pageSize: filter.pageSize });
 });
 
-reportsRouter.get("/export-detail", async (req, res) => {
+reportsRouter.get("/export-detail", requirePermission("AUDIT_REPORTS"), async (req, res) => {
   const filter = parseCommonFilter(req);
   const { items, total } = await reportsService.getExportDetail(filter);
   res.json({ items, total, page: filter.page, pageSize: filter.pageSize });
 });
 
-reportsRouter.get("/import-summary", async (req, res) => {
+reportsRouter.get("/import-summary", requirePermission("AUDIT_REPORTS"), async (req, res) => {
   const filter = parseCommonFilter(req);
   const { items, total } = await reportsService.getImportSummary(filter);
   res.json({ items, total, page: filter.page, pageSize: filter.pageSize });
 });
 
-reportsRouter.get("/import-detail", async (req, res) => {
+reportsRouter.get("/import-detail", requirePermission("AUDIT_REPORTS"), async (req, res) => {
   const filter = parseCommonFilter(req);
   const { items, total } = await reportsService.getImportDetail(filter);
   res.json({ items, total, page: filter.page, pageSize: filter.pageSize });
@@ -41,7 +42,7 @@ const SALES_ORDER_STATUSES: SalesOrderStatus[] = ["DRAFT", "PENDING_CONFIRM", "C
 
 // Mặc định chỉ gộp đơn DRAFT: đó là các đơn quán vừa gửi mà admin chưa chốt NCC, tức đúng phần
 // còn phải đi đặt. Vẫn cho chọn trạng thái khác để đối chiếu lại những kỳ đã đặt xong.
-reportsRouter.get("/purchase-summary", async (req, res) => {
+reportsRouter.get("/purchase-summary", requirePermission("PURCHASE_SUMMARY"), async (req, res) => {
   const { from, to } = parseDateRange(req);
   const { skip, take, page, pageSize } = parsePagination(req, 20);
   const createdById = (req.query.createdById as string) || undefined;
@@ -57,7 +58,8 @@ reportsRouter.get("/purchase-summary", async (req, res) => {
   res.json({ items, total, page, pageSize });
 });
 
-reportsRouter.get("/inventory-count", async (req, res) => {
+// Phiếu kiểm kê kho cũng đọc báo cáo này để lấy tồn hệ thống tại ngày kiểm.
+reportsRouter.get("/inventory-count", requireAnyPermission("AUDIT_REPORTS.VIEW", "INVENTORY_COUNTS.VIEW"), async (req, res) => {
   const { warehouseId, productId, productGroupId, inventoryCountId } = req.query as Record<string, string>;
   const { from, to } = parseDateRange(req);
   if (!warehouseId) throw new HttpError(400, "Thiếu tham số warehouseId");

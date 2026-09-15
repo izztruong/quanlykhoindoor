@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { prisma } from "../../config/db";
+import { requirePermission } from "../../middleware/auth";
 import type { Prisma } from "../../generated/prisma/client";
 import { generateCode } from "../../utils/codeGenerator";
 import { HttpError } from "../../utils/httpError";
@@ -8,7 +9,7 @@ import { inventoryCountCreateSchema, inventoryCountItemsSchema, inventoryCountSt
 
 export const inventoryCountsRouter = Router();
 
-inventoryCountsRouter.get("/", async (req, res) => {
+inventoryCountsRouter.get("/", requirePermission("INVENTORY_COUNTS"), async (req, res) => {
   const { warehouseId } = req.query as Record<string, string>;
   const { from, to } = parseDateRange(req);
   const { skip, take, page, pageSize } = parsePagination(req, 20);
@@ -30,7 +31,7 @@ inventoryCountsRouter.get("/", async (req, res) => {
   res.json({ items, total, page, pageSize });
 });
 
-inventoryCountsRouter.get("/:id", async (req, res) => {
+inventoryCountsRouter.get("/:id", requirePermission("INVENTORY_COUNTS"), async (req, res) => {
   const item = await prisma.inventoryCount.findUnique({
     where: { id: req.params.id },
     include: {
@@ -43,7 +44,7 @@ inventoryCountsRouter.get("/:id", async (req, res) => {
   res.json(item);
 });
 
-inventoryCountsRouter.post("/", async (req, res) => {
+inventoryCountsRouter.post("/", requirePermission("INVENTORY_COUNTS"), async (req, res) => {
   const data = inventoryCountCreateSchema.parse(req.body);
   const item = await prisma.inventoryCount.create({
     data: {
@@ -57,7 +58,7 @@ inventoryCountsRouter.post("/", async (req, res) => {
   res.status(201).json(item);
 });
 
-inventoryCountsRouter.put("/:id/items", async (req, res) => {
+inventoryCountsRouter.put("/:id/items", requirePermission("INVENTORY_COUNTS"), async (req, res) => {
   const { items } = inventoryCountItemsSchema.parse(req.body);
 
   const count = await prisma.inventoryCount.findUnique({ where: { id: req.params.id } });
@@ -85,7 +86,7 @@ inventoryCountsRouter.put("/:id/items", async (req, res) => {
   res.json(item);
 });
 
-inventoryCountsRouter.delete("/:id/items/:itemId", async (req, res) => {
+inventoryCountsRouter.delete("/:id/items/:itemId", requirePermission("INVENTORY_COUNTS", "EDIT"), async (req, res) => {
   const count = await prisma.inventoryCount.findUnique({ where: { id: req.params.id } });
   if (!count) throw new HttpError(404, "Không tìm thấy phiếu kiểm kê");
   if (count.status !== "DRAFT") throw new HttpError(400, "Phiếu đã lưu số liệu hoặc đã huỷ, không thể chỉnh sửa");
@@ -94,7 +95,7 @@ inventoryCountsRouter.delete("/:id/items/:itemId", async (req, res) => {
   res.status(204).send();
 });
 
-inventoryCountsRouter.patch("/:id/status", async (req, res) => {
+inventoryCountsRouter.patch("/:id/status", requirePermission("INVENTORY_COUNTS"), async (req, res) => {
   const { status } = inventoryCountStatusSchema.parse(req.body);
   const count = await prisma.inventoryCount.findUnique({ where: { id: req.params.id } });
   if (!count) throw new HttpError(404, "Không tìm thấy phiếu kiểm kê");

@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { prisma } from "../../config/db";
+import { requirePermission } from "../../middleware/auth";
 import { generateCode } from "../../utils/codeGenerator";
 import { parseDateRange, parsePagination } from "../../utils/pagination";
 import { HttpError } from "../../utils/httpError";
@@ -15,7 +16,7 @@ const detailInclude = {
   items: { include: { product: { include: { unit: true, productGroup: true } }, supplier: true } },
 };
 
-stockExportsRouter.get("/", async (req, res) => {
+stockExportsRouter.get("/", requirePermission("STOCK_EXPORTS"), async (req, res) => {
   const { warehouseId, status, type } = req.query as Record<string, string>;
   const { from, to } = parseDateRange(req);
   const { skip, take, page, pageSize } = parsePagination(req, 20);
@@ -41,13 +42,13 @@ stockExportsRouter.get("/", async (req, res) => {
   res.json({ items, total, page, pageSize });
 });
 
-stockExportsRouter.get("/:id", async (req, res) => {
+stockExportsRouter.get("/:id", requirePermission("STOCK_EXPORTS"), async (req, res) => {
   const item = await prisma.stockExport.findUnique({ where: { id: req.params.id }, include: detailInclude });
   if (!item) throw new HttpError(404, "Không tìm thấy phiếu xuất kho");
   res.json(item);
 });
 
-stockExportsRouter.post("/", async (req, res) => {
+stockExportsRouter.post("/", requirePermission("STOCK_EXPORTS"), async (req, res) => {
   const data = stockExportCreateSchema.parse(req.body);
 
   const lineSuppliers = data.items.filter((it): it is typeof it & { supplierId: string } => Boolean(it.supplierId));

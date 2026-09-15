@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/Input";
 import { useMaterialWasteList } from "@/hooks/useMaterialWaste";
 import { clampDateRange } from "@/lib/dateRange";
 import { formatDateTime } from "@/lib/format";
+import { useCan } from "@/lib/permissions";
 import type { MaterialWaste } from "@/types";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus } from "lucide-react";
@@ -15,6 +16,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 export default function MaterialWastePage() {
+  const { canOpen } = useCan();
   const [filter, setFilter] = useState({ from: "", to: "" });
   const [appliedFilter, setAppliedFilter] = useState({ from: "", to: "" });
   const [page, setPage] = useState(1);
@@ -52,12 +54,14 @@ export default function MaterialWastePage() {
           <h1 className="text-xl font-semibold text-slate-800">Phiếu huỷ nguyên liệu</h1>
           <p className="text-sm text-slate-500">Ghi nhận nguyên liệu hỏng/đổ bỏ tại quán — dùng để tính Check Cost.</p>
         </div>
-        <Link href="/material-waste/new">
-          <Button>
-            <Plus size={16} />
-            Tạo phiếu huỷ
-          </Button>
-        </Link>
+        {canOpen("/material-waste/new") && (
+          <Link href="/material-waste/new">
+            <Button>
+              <Plus size={16} />
+              Tạo phiếu huỷ
+            </Button>
+          </Link>
+        )}
       </div>
 
       <Card>

@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { prisma } from "../../config/db";
+import { requireAnyPermission, requirePermission } from "../../middleware/auth";
 import type { Prisma } from "../../generated/prisma/client";
 import { productSupplierPricesPutSchema } from "./productSupplierPrices.schemas";
 
@@ -14,9 +15,18 @@ const priceInclude = {
 // GET /?supplierId=X returns just that supplier's price list (for the price-list
 // admin page, and for the stock-import product picker). No supplierId returns
 // every price row (for the stock-export line-level "which suppliers sell this
-// product" lookup). Whole router is admin-only, mounted the same way as
-// stock-imports/stock-exports — only admins ever touch this data.
-productSupplierPricesRouter.get("/", async (req, res) => {
+// product" lookup). Bảng giá là dữ liệu nhạy cảm nên không mở cho mọi tài khoản như danh mục tra
+// cứu — chỉ trang bảng giá và những form thật sự cần giá (phiếu nhập/xuất, điều chuyển, xác nhận đơn).
+const readPricesGuard = requireAnyPermission(
+  "SUPPLIER_PRICES.VIEW",
+  "STOCK_IMPORTS.ADD",
+  "STOCK_EXPORTS.ADD",
+  "MATERIAL_TRANSFERS.ADD",
+  "MATERIAL_TRANSFERS.EDIT",
+  "ORDERS.APPROVE",
+);
+
+productSupplierPricesRouter.get("/", readPricesGuard, async (req, res) => {
   const supplierId = (req.query.supplierId as string) || undefined;
   const items = await prisma.productSupplierPrice.findMany({
     where: { supplierId },
@@ -25,7 +35,7 @@ productSupplierPricesRouter.get("/", async (req, res) => {
   res.json({ items });
 });
 
-productSupplierPricesRouter.put("/", async (req, res) => {
+productSupplierPricesRouter.put("/", requirePermission("SUPPLIER_PRICES", "EDIT"), async (req, res) => {
   const { supplierId, items } = productSupplierPricesPutSchema.parse(req.body);
 
   // Same fix as reorder-thresholds: the page submits every product every

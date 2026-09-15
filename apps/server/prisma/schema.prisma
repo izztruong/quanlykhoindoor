@@ -9,9 +9,23 @@ datasource db {
   provider = "postgresql"
 }
 
-enum UserRole {
-  ADMIN
-  STAFF
+/**
+ * Vai trò = một bộ mã quyền `RESOURCE.ACTION` (danh sách hợp lệ ở
+ * src/modules/roles/permissions.ts). Mảng chuỗi thay vì bảng nối: thêm quyền mới chỉ là thêm một
+ * chuỗi, không cần migration. Không có mã = không có quyền.
+ *
+ * `isSystem` là vai trò "vua": bỏ qua mọi kiểm tra và không ai sửa/xoá được — phao cứu sinh khi
+ * cấu hình sai khoá hết mọi người ra ngoài. Dòng `role_admin` được chèn sẵn trong migration.
+ */
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  isSystem    Boolean  @default(false)
+  permissions String[] @default([])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users User[]
 }
 
 model User {
@@ -19,7 +33,8 @@ model User {
   email        String   @unique
   passwordHash String
   name         String
-  role         UserRole @default(STAFF)
+  roleId       String
+  role         Role     @relation(fields: [roleId], references: [id], onDelete: Restrict)
   // Bumped on password change so any JWT issued before that moment is rejected —
   // otherwise a stolen cookie would stay valid for its full 7-day life post-reset.
   tokenVersion Int      @default(0)

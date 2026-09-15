@@ -9,8 +9,9 @@ import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { useStockChecks } from "@/hooks/useStockChecks";
-import { useUsers } from "@/hooks/useUsers";
+import { useUserOptions } from "@/hooks/useUsers";
 import { useCurrentUser } from "@/lib/auth";
+import { hasScopeAll, useCan } from "@/lib/permissions";
 import { clampDateRange } from "@/lib/dateRange";
 import { formatDateTime } from "@/lib/format";
 import type { StockCheck } from "@/types";
@@ -20,11 +21,12 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 export default function StockChecksPage() {
+  const { canOpen } = useCan();
   const { data: currentUser } = useCurrentUser();
-  const isAdmin = currentUser?.role === "ADMIN";
-  // Nhân viên chỉ thấy phiếu của chính mình (router tự ép theo req.user), nên ô lọc này vô nghĩa
-  // với họ — và /users cũng chỉ admin gọi được.
-  const { data: users = [] } = useUsers({ enabled: isAdmin });
+  // Phạm vi SELF chỉ thấy phiếu của chính mình (router tự ép theo req.user), nên ô lọc theo quán
+  // vô nghĩa với họ.
+  const scopeAll = hasScopeAll(currentUser);
+  const { data: users = [] } = useUserOptions({ enabled: scopeAll });
 
   const [filter, setFilter] = useState({ from: "", to: "" });
   const [appliedFilter, setAppliedFilter] = useState({ from: "", to: "" });
@@ -79,12 +81,14 @@ export default function StockChecksPage() {
           <h1 className="text-xl font-semibold text-slate-800">Phiếu kiểm kê</h1>
           <p className="text-sm text-slate-500">Kiểm tồn kho hiện có, không cần chọn kho hàng.</p>
         </div>
-        <Link href="/stock-checks/new">
-          <Button>
-            <Plus size={16} />
-            Tạo phiếu kiểm kê
-          </Button>
-        </Link>
+        {canOpen("/stock-checks/new") && (
+          <Link href="/stock-checks/new">
+            <Button>
+              <Plus size={16} />
+              Tạo phiếu kiểm kê
+            </Button>
+          </Link>
+        )}
       </div>
 
       <Card>
@@ -101,7 +105,7 @@ export default function StockChecksPage() {
             <label className="mb-1 block text-xs font-medium text-slate-500">Đến ngày</label>
             <Input type="date" value={filter.to} onChange={(e) => setFilter((f) => clampDateRange(f.from, e.target.value, "to"))} />
           </div>
-          {isAdmin && (
+          {scopeAll && (
             <div className="w-48">
               <label className="mb-1 block text-xs font-medium text-slate-500">Người tạo</label>
               <Select

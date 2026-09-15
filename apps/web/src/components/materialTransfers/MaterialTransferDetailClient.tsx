@@ -4,11 +4,13 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { useMaterialTransfer } from "@/hooks/useMaterialTransfers";
 import { formatDateTime, formatNumber } from "@/lib/format";
+import { useCan } from "@/lib/permissions";
 import { Pencil } from "lucide-react";
 import Link from "next/link";
 
 export function MaterialTransferDetailClient({ id }: { id: string }) {
   const { data: transfer, isLoading } = useMaterialTransfer(id);
+  const { can } = useCan();
 
   if (isLoading || !transfer) {
     return <p className="text-slate-400">Đang tải...</p>;
@@ -27,12 +29,14 @@ export function MaterialTransferDetailClient({ id }: { id: string }) {
             {transfer.fromUser?.name ?? "-"} → {transfer.toUser?.name ?? "-"} · {formatDateTime(transfer.transferAt)}
           </p>
         </div>
-        <Link href={`/material-transfers/${transfer.id}/edit`}>
-          <Button type="button" variant="secondary" size="sm">
-            <Pencil size={14} />
-            Sửa
-          </Button>
-        </Link>
+        {can("MATERIAL_TRANSFERS", "EDIT") && (
+          <Link href={`/material-transfers/${transfer.id}/edit`}>
+            <Button type="button" variant="secondary" size="sm">
+              <Pencil size={14} />
+              Sửa
+            </Button>
+          </Link>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">

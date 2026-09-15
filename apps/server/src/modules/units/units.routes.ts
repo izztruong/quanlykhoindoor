@@ -11,5 +11,7 @@ export const unitsRouter = createCrudRouter(prisma.unit, {
   createSchema,
   updateSchema: createSchema.partial(),
   searchFields: ["code", "name"],
+  resource: "UNITS",
+  publicRead: true,
   bulkImportKey: "code",
 });

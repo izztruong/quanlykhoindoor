@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Select } from "@/components/ui/Select";
 import { formatCurrency, formatDateTime, labels } from "@/lib/format";
+import { useCan } from "@/lib/permissions";
 import type { PagedResult, StockTransaction } from "@/types";
 import type { UseQueryResult } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -36,6 +37,7 @@ interface StockTransactionListProps {
 }
 
 export function StockTransactionList({ title, description, useList, newHref, typeLabel }: StockTransactionListProps) {
+  const { canOpen } = useCan();
   const [status, setStatus] = useState("");
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
   const [page, setPage] = useState(1);
@@ -78,12 +80,14 @@ export function StockTransactionList({ title, description, useList, newHref, typ
           <h1 className="text-xl font-semibold text-slate-800">{title}</h1>
           <p className="text-sm text-slate-500">{description}</p>
         </div>
-        <Link href={newHref}>
-          <Button>
-            <Plus size={16} />
-            Tạo phiếu
-          </Button>
-        </Link>
+        {canOpen(newHref) && (
+          <Link href={newHref}>
+            <Button>
+              <Plus size={16} />
+              Tạo phiếu
+            </Button>
+          </Link>
+        )}
       </div>
 
       <Card>

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { useCostCheckList } from "@/hooks/useCostChecks";
 import { formatDateTime } from "@/lib/format";
+import { useCan } from "@/lib/permissions";
 import type { CostCheck } from "@/types";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus } from "lucide-react";
@@ -14,6 +15,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 export default function CostChecksPage() {
+  const { canOpen } = useCan();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const { data, isLoading } = useCostCheckList({ page, pageSize });
@@ -51,12 +53,14 @@ export default function CostChecksPage() {
           <h1 className="text-xl font-semibold text-slate-800">Check Cost</h1>
           <p className="text-sm text-slate-500">Đối soát nguyên liệu tiêu hao thực tế so với công thức, theo từng quán.</p>
         </div>
-        <Link href="/cost-checks/new">
-          <Button>
-            <Plus size={16} />
-            Tạo phiếu Check Cost
-          </Button>
-        </Link>
+        {canOpen("/cost-checks/new") && (
+          <Link href="/cost-checks/new">
+            <Button>
+              <Plus size={16} />
+              Tạo phiếu Check Cost
+            </Button>
+          </Link>
+        )}
       </div>
 
       <Card>

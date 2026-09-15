@@ -13,5 +13,6 @@ export const customersRouter = createCrudRouter(prisma.customer, {
   createSchema,
   updateSchema: createSchema.partial(),
   searchFields: ["code", "name", "phone"],
-  writeRoles: ["ADMIN"],
+  resource: "CUSTOMERS",
+  publicRead: true,
 });

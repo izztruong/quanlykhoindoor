@@ -13,5 +13,7 @@ export const suppliersRouter = createCrudRouter(prisma.supplier, {
   createSchema,
   updateSchema: createSchema.partial(),
   searchFields: ["code", "name", "phone"],
+  resource: "SUPPLIERS",
+  publicRead: true,
   bulkImportKey: "code",
 });

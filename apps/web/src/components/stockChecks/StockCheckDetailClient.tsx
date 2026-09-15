@@ -6,6 +6,7 @@ import { useStockCheck } from "@/hooks/useStockChecks";
 import { sanitizeExcelRow } from "@/lib/excelExport";
 import { formatCurrency, formatDateTime, formatNumber } from "@/lib/format";
 import { useCurrentUser } from "@/lib/auth";
+import { can } from "@/lib/permissions";
 import { Download, Pencil } from "lucide-react";
 import ExcelJS from "exceljs";
 import Link from "next/link";
@@ -102,7 +103,7 @@ export function StockCheckDetailClient({ id }: { id: string }) {
           <p className="text-sm text-slate-500">Thời gian kiểm: {formatDateTime(check.checkedAt)}</p>
         </div>
         <div className="flex items-center gap-2">
-          {currentUser?.role === "ADMIN" && (
+          {can(currentUser, "STOCK_CHECKS", "EDIT") && (
             <Link href={`/stock-checks/${check.id}/edit`}>
               <Button type="button" variant="secondary" size="sm">
                 <Pencil size={14} />

@@ -14,6 +14,7 @@ export default function WarehousesPage() {
   return (
     <CatalogPage<Warehouse>
       title="Kho hàng"
+      resource="WAREHOUSES"
       description="Danh sách kho hàng dùng để nhập/xuất, kiểm kê."
       endpoint="/warehouses"
       queryKey="warehouses"

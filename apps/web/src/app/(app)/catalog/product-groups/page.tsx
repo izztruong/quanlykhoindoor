@@ -19,6 +19,7 @@ export default function ProductGroupsPage() {
   return (
     <CatalogPage<ProductGroup>
       title="Nhóm hàng hoá"
+      resource="PRODUCT_GROUPS"
       description="Phân nhóm hàng hoá để lọc và báo cáo."
       endpoint="/product-groups"
       queryKey="product-groups"

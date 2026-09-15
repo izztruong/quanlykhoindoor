@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { useDeadlines, useSaveDeadline, type DeadlineInput } from "@/hooks/useDeadlines";
 import { ApiError } from "@/lib/api-client";
-import { useCurrentUser } from "@/lib/auth";
 import { WEEKDAYS, deadlineKindLabel, describeDeadline } from "@/lib/deadlines";
 import type { DeadlineKind } from "@/types";
 import { Save } from "lucide-react";
@@ -25,7 +24,6 @@ const FALLBACK: Record<DeadlineKind, DeadlineInput> = {
 };
 
 export default function DeadlinesPage() {
-  const { data: currentUser } = useCurrentUser();
   const { data: deadlines, isLoading } = useDeadlines();
   const saveDeadline = useSaveDeadline();
 
@@ -64,14 +62,6 @@ export default function DeadlinesPage() {
       onSuccess: () => setSavedKind(kind),
       onError: (err) => setError(err instanceof ApiError ? err.message : "Lưu hạn thất bại"),
     });
-  }
-
-  if (currentUser && currentUser.role !== "ADMIN") {
-    return (
-      <Card>
-        <CardBody className="text-sm text-slate-500">Bạn không có quyền truy cập trang này.</CardBody>
-      </Card>
-    );
   }
 
   return (

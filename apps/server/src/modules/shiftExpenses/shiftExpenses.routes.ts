@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../../config/db";
 import type { Prisma } from "../../generated/prisma/client";
-import type { AuthUser } from "../../middleware/auth";
+import { assertOwner, ownerWhere, requirePermission } from "../../middleware/auth";
 import { HttpError } from "../../utils/httpError";
 import { parseDateRange, parsePagination } from "../../utils/pagination";
 import { shiftExpenseBulkImportSchema, shiftExpenseCreateSchema, type ShiftExpenseInput } from "./shiftExpenses.schemas";
@@ -9,14 +9,6 @@ import { shiftExpenseBulkImportSchema, shiftExpenseCreateSchema, type ShiftExpen
 export const shiftExpensesRouter = Router();
 
 const listInclude = { createdBy: { select: { id: true, name: true } } };
-
-// Khác phiếu kiểm/phiếu huỷ (chỉ admin được sửa): sổ chi hay gõ nhầm số nên quán tự sửa/xoá dòng
-// của mình được, admin thì đụng được tất cả.
-function assertOwnership(expense: { createdById: string | null }, user?: AuthUser) {
-  if (user?.role !== "ADMIN" && expense.createdById !== user?.id) {
-    throw new HttpError(403, "Bạn không có quyền truy cập khoản chi này");
-  }
-}
 
 /** Thành tiền chốt ở server, không tin số client gửi lên — giống costAmount của phiếu nhập/xuất. */
 function toRow(data: ShiftExpenseInput, createdById?: string) {
@@ -33,7 +25,7 @@ function toRow(data: ShiftExpenseInput, createdById?: string) {
   };
 }
 
-shiftExpensesRouter.get("/", async (req, res) => {
+shiftExpensesRouter.get("/", requirePermission("SHIFT_EXPENSES"), async (req, res) => {
   const { from, to } = parseDateRange(req);
   const { search, createdById, type } = req.query as Record<string, string>;
   const { skip, take, page, pageSize } = parsePagination(req, 20);
@@ -46,8 +38,8 @@ shiftExpensesRouter.get("/", async (req, res) => {
     // Giá trị lạ thì bỏ qua bộ lọc thay vì trả lỗi — query string do người dùng gõ tay được.
     type: type === "MATERIAL" || type === "OTHER" ? type : undefined,
     content: search ? { contains: search, mode: "insensitive" } : undefined,
-    // Staff chỉ thấy khoản chi của chính mình; admin thấy hết, lọc theo quán qua ?createdById=.
-    createdById: req.user?.role === "ADMIN" ? createdById || undefined : req.user?.id,
+    // Phạm vi SELF chỉ thấy khoản chi của mình; ALL thấy hết, lọc theo quán qua ?createdById=.
+    createdById: ownerWhere(req.user, createdById),
   };
 
   const [items, total, sum] = await Promise.all([
@@ -66,7 +58,7 @@ shiftExpensesRouter.get("/", async (req, res) => {
   res.json({ items, total, totalAmount: sum._sum.amount ?? 0, page, pageSize });
 });
 
-shiftExpensesRouter.post("/", async (req, res) => {
+shiftExpensesRouter.post("/", requirePermission("SHIFT_EXPENSES"), async (req, res) => {
   const data = shiftExpenseCreateSchema.parse(req.body);
   const item = await prisma.shiftExpense.create({
     data: toRow(data, req.user?.id),
@@ -78,7 +70,7 @@ shiftExpensesRouter.post("/", async (req, res) => {
 // Nhập từ Excel. Khác bulk-import của crudFactory: khoản chi không có khoá tự nhiên (không có mã
 // phiếu) để so trùng, nên đây là THÊM MỚI thuần — nhập lại cùng một file sẽ tạo thêm một bộ dòng.
 // Giao diện phải nói rõ điều đó. Ghi một lần bằng createMany để cả file vào hết hoặc không dòng nào vào.
-shiftExpensesRouter.post("/bulk-import", async (req, res) => {
+shiftExpensesRouter.post("/bulk-import", requirePermission("SHIFT_EXPENSES"), async (req, res) => {
   const { items } = shiftExpenseBulkImportSchema.parse(req.body);
   const result = await prisma.shiftExpense.createMany({
     data: items.map((item) => toRow(item, req.user?.id)),
@@ -86,13 +78,15 @@ shiftExpensesRouter.post("/bulk-import", async (req, res) => {
   res.status(201).json({ created: result.count });
 });
 
-shiftExpensesRouter.put("/:id", async (req, res) => {
+// Khác phiếu kiểm/phiếu huỷ: sổ chi hay gõ nhầm số nên vai trò "Quán" mặc định có sẵn
+// SHIFT_EXPENSES.EDIT/DELETE — sửa/xoá được dòng của mình, phạm vi ALL thì đụng được tất cả.
+shiftExpensesRouter.put("/:id", requirePermission("SHIFT_EXPENSES"), async (req, res) => {
   const id = req.params.id as string;
   const data = shiftExpenseCreateSchema.parse(req.body);
 
   const existing = await prisma.shiftExpense.findUnique({ where: { id } });
   if (!existing) throw new HttpError(404, "Không tìm thấy khoản chi");
-  assertOwnership(existing, req.user);
+  assertOwner(existing, req.user, "Không tìm thấy khoản chi");
 
   // createdById giữ nguyên chủ cũ: sửa hộ thì khoản chi vẫn thuộc về quán đã ghi.
   const { createdById: _ignored, ...row } = toRow(data);
@@ -100,12 +94,12 @@ shiftExpensesRouter.put("/:id", async (req, res) => {
   res.json(item);
 });
 
-shiftExpensesRouter.delete("/:id", async (req, res) => {
+shiftExpensesRouter.delete("/:id", requirePermission("SHIFT_EXPENSES"), async (req, res) => {
   const id = req.params.id as string;
 
   const existing = await prisma.shiftExpense.findUnique({ where: { id } });
   if (!existing) throw new HttpError(404, "Không tìm thấy khoản chi");
-  assertOwnership(existing, req.user);
+  assertOwner(existing, req.user, "Không tìm thấy khoản chi");
 
   await prisma.shiftExpense.delete({ where: { id } });
   res.status(204).end();

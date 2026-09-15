@@ -9,9 +9,10 @@ import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { useDeleteShiftExpense, useShiftExpenses } from "@/hooks/useShiftExpenses";
-import { useUsers } from "@/hooks/useUsers";
+import { useUserOptions } from "@/hooks/useUsers";
 import { ApiError } from "@/lib/api-client";
 import { useCurrentUser } from "@/lib/auth";
+import { can, hasScopeAll } from "@/lib/permissions";
 import { clampDateRange } from "@/lib/dateRange";
 import { SHIFT_EXPENSE_TYPE_OPTIONS, formatCurrency, formatDateOnly, formatNumber, labels } from "@/lib/format";
 import type { ShiftExpense, ShiftExpenseType } from "@/types";
@@ -21,10 +22,13 @@ import { useMemo, useState } from "react";
 
 export default function ShiftExpensesPage() {
   const { data: currentUser } = useCurrentUser();
-  const isAdmin = currentUser?.role === "ADMIN";
-  // Nhân viên chỉ thấy khoản chi của chính mình (router tự ép theo req.user), nên ô lọc này vô
-  // nghĩa với họ — và /users cũng chỉ admin gọi được.
-  const { data: users = [] } = useUsers({ enabled: isAdmin });
+  // Phạm vi SELF chỉ thấy khoản chi của chính mình (router tự ép theo req.user), nên ô lọc theo
+  // quán vô nghĩa với họ.
+  const scopeAll = hasScopeAll(currentUser);
+  const canAdd = can(currentUser, "SHIFT_EXPENSES", "ADD");
+  const canEdit = can(currentUser, "SHIFT_EXPENSES", "EDIT");
+  const canDelete = can(currentUser, "SHIFT_EXPENSES", "DELETE");
+  const { data: users = [] } = useUserOptions({ enabled: scopeAll });
 
   // Mọi ô lọc đều chờ bấm "Lọc" mới có hiệu lực — hai ô cạnh nhau mà một ô áp ngay, một ô chờ nút
   // thì không đoán được.
@@ -78,7 +82,7 @@ export default function ShiftExpensesPage() {
       { header: "Ghi chú", accessorFn: (row) => row.note ?? "-", id: "note" },
     ];
 
-    if (isAdmin) {
+    if (scopeAll) {
       base.push({ header: "Quán", accessorFn: (row) => row.createdBy?.name ?? "-", id: "createdBy" });
     }
 
@@ -87,22 +91,26 @@ export default function ShiftExpensesPage() {
       id: "actions",
       cell: ({ row }) => (
         <span className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => setModalExpense(row.original)}
-            className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-            title="Sửa"
-          >
-            <Pencil size={14} />
-          </button>
-          <button
-            type="button"
-            onClick={() => handleDelete(row.original)}
-            className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
-            title="Xoá"
-          >
-            <Trash2 size={14} />
-          </button>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => setModalExpense(row.original)}
+              className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              title="Sửa"
+            >
+              <Pencil size={14} />
+            </button>
+          )}
+          {canDelete && (
+            <button
+              type="button"
+              onClick={() => handleDelete(row.original)}
+              className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+              title="Xoá"
+            >
+              <Trash2 size={14} />
+            </button>
+          )}
         </span>
       ),
     });
@@ -110,7 +118,7 @@ export default function ShiftExpensesPage() {
     return base;
     // handleDelete đổi mỗi lần render nhưng chỉ gọi mutation — thêm vào deps sẽ dựng lại cột vô ích.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin]);
+  }, [scopeAll, canEdit, canDelete]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -120,11 +128,13 @@ export default function ShiftExpensesPage() {
           <p className="text-sm text-slate-500">Ghi các khoản chi tại quán: mỗi khoản là một dòng, có ngày riêng.</p>
         </div>
         <div className="flex items-center gap-2">
-          <ShiftExpenseExcelActions filter={queryFilter} isAdmin={Boolean(isAdmin)} />
-          <Button onClick={() => setModalExpense("new")}>
-            <Plus size={16} />
-            Thêm khoản chi
-          </Button>
+          <ShiftExpenseExcelActions filter={queryFilter} scopeAll={scopeAll} />
+          {canAdd && (
+            <Button onClick={() => setModalExpense("new")}>
+              <Plus size={16} />
+              Thêm khoản chi
+            </Button>
+          )}
         </div>
       </div>
 
@@ -165,7 +175,7 @@ export default function ShiftExpensesPage() {
               placeholder="Tìm theo nội dung"
             />
           </div>
-          {isAdmin && (
+          {scopeAll && (
             <div className="w-48">
               <label className="mb-1 block text-xs font-medium text-slate-500">Quán</label>
               <Select value={filter.createdById} onChange={(e) => setFilter((f) => ({ ...f, createdById: e.target.value }))}>
