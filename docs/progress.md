@@ -32,9 +32,9 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 ## Đang dở
 
 ### Phiếu đề xuất chi & tạm ứng — CHƯA kiểm thử trên trình duyệt, chưa lên `staging`/`main`
-Nhóm menu Tài chính. Đã kiểm typecheck, lint, `migrate deploy` trên db trắng, curl (đủ 2 luồng người
-lập chi / kế toán chi, 409 khi sai thứ tự, 403 thiếu quyền, 404 ngoài phạm vi, tổng + tạm ứng khớp tính tay).
-Cần thử: đổi Người chi thì ô tạm ứng ẩn/hiện, thêm/xoá dòng hạng mục, nút theo trạng thái, trang Vai trò có cột "Tạm ứng / Đã chi".
+Nhóm menu Tài chính (Chi chốt ca cũng chuyển sang đây). Quán chi là ô chọn tài khoản quán. Đã kiểm typecheck, lint,
+`migrate deploy` trên db trắng, curl (2 luồng người lập chi / kế toán chi, sai thứ tự 409, thiếu quyền 403, quán chi không phải quán 400).
+Cần thử: đổi Người chi thì ô tạm ứng ẩn/hiện, ô chọn quán chọn sẵn quán đang đăng nhập, thêm/xoá dòng, nút theo trạng thái.
 
 ### Cờ "Là quán" trên vai trò — CHƯA kiểm thử trên trình duyệt, chưa lên `staging`/`main`
 Ô chọn/lọc quán chỉ hiện tài khoản thuộc vai trò có tick (admin bị ẩn); lọc Người lập ở đề xuất chi vẫn thấy mọi tài khoản.

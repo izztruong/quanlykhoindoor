@@ -59,6 +59,7 @@ model User {
   expenseProposalsApproved ExpenseProposal[]         @relation("ExpenseProposalApprovedBy")
   expenseProposalsAdvanced ExpenseProposal[]         @relation("ExpenseProposalAdvancedBy")
   expenseProposalsSpent    ExpenseProposal[]         @relation("ExpenseProposalSpentBy")
+  expenseProposalsShop     ExpenseProposal[]         @relation("ExpenseProposalShop")
 }
 
 enum DeadlineKind {
@@ -747,8 +748,8 @@ enum ExpensePayer {
   ACCOUNTANT
 }
 
-// Phiếu đề xuất chi & tạm ứng: quán xin tiền, admin duyệt. Quán chi / nội dung / đơn vị là text tự
-// do vì khoản xin chi thường không nằm trong danh mục hàng hoá.
+// Phiếu đề xuất chi & tạm ứng: quán xin tiền, admin duyệt. Nội dung / đơn vị là text tự do vì khoản
+// xin chi thường không nằm trong danh mục hàng hoá.
 model ExpenseProposal {
   id             String                @id @default(cuid())
   code           String                @unique
@@ -757,7 +758,10 @@ model ExpenseProposal {
   // createdAt mới là lúc lưu thật và không sửa được.
   proposalDate   DateTime              @db.Date
   payer          ExpensePayer
-  shopName       String
+  // Quán chi: tài khoản thuộc vai trò "là quán" (server kiểm lúc ghi). Nullable chỉ vì phiếu cũ lưu
+  // tên quán dạng chữ không khớp tài khoản nào — mọi đường ghi mới đều bắt buộc có.
+  shopId         String?
+  shop           User?                 @relation("ExpenseProposalShop", fields: [shopId], references: [id])
   purpose        String
   // Tổng và tiền tạm ứng tính ở SERVER lúc ghi rồi lưu lại, không tin số client gửi.
   totalAmount    Decimal               @db.Decimal(18, 2)
@@ -785,6 +789,7 @@ model ExpenseProposal {
 
   @@index([createdById, proposalDate])
   @@index([status])
+  @@index([shopId])
 }
 
 model ExpenseProposalItem {

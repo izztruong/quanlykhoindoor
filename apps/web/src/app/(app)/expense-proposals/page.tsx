@@ -11,7 +11,7 @@ import { useExpenseProposals } from "@/hooks/useExpenseProposals";
 import { useUserOptions } from "@/hooks/useUsers";
 import { clampDateRange } from "@/lib/dateRange";
 import { EXPENSE_PAYER_LABEL, EXPENSE_PROPOSAL_STATUS_LABEL, EXPENSE_PROPOSAL_STATUS_TONE } from "@/lib/expenseProposal";
-import { formatCurrency, formatDateOnly, formatNumber } from "@/lib/format";
+import { formatCurrency, formatDateOnly } from "@/lib/format";
 import { hasScopeAll, useCan } from "@/lib/permissions";
 import type { ExpenseProposal, ExpenseProposalStatus } from "@/types";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -45,7 +45,7 @@ export default function ExpenseProposalsPage() {
       { header: "Mã phiếu", accessorKey: "code" },
       { header: "Ngày tạo phiếu", accessorFn: (row) => formatDateOnly(row.proposalDate), id: "proposalDate" },
       { header: "Người lập", accessorFn: (row) => row.createdBy?.name ?? "-", id: "createdBy" },
-      { header: "Quán chi", accessorKey: "shopName" },
+      { header: "Quán chi", accessorFn: (row) => row.shop?.name ?? "-", id: "shop" },
       {
         header: "Mục đích sử dụng",
         id: "purpose",
@@ -60,19 +60,6 @@ export default function ExpenseProposalsPage() {
         header: "Tổng tiền",
         id: "totalAmount",
         cell: ({ row }) => <span className="block text-right font-medium">{formatCurrency(row.original.totalAmount)}</span>,
-      },
-      {
-        header: "Tạm ứng",
-        id: "advance",
-        cell: ({ row }) =>
-          row.original.advanceAmount != null ? (
-            <span className="block text-right">
-              {formatCurrency(row.original.advanceAmount)}
-              <span className="text-xs text-slate-400"> ({formatNumber(row.original.advancePercent ?? 0)}%)</span>
-            </span>
-          ) : (
-            <span className="block text-right text-slate-400">-</span>
-          ),
       },
       {
         header: "Trạng thái",

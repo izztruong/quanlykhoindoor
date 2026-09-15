@@ -7,6 +7,7 @@ import { HttpError } from "../../utils/httpError";
 import { parseDateRange, parsePagination } from "../../utils/pagination";
 import { expenseProposalRejectSchema, expenseProposalSchema } from "./expenseProposals.schemas";
 import {
+  assertShop,
   expenseProposalDetailInclude,
   expenseProposalListInclude,
   findOwnedProposal,
@@ -53,7 +54,9 @@ expenseProposalsRouter.get("/:id", requirePermission("EXPENSE_PROPOSALS"), async
 });
 
 expenseProposalsRouter.post("/", requirePermission("EXPENSE_PROPOSALS"), async (req, res) => {
-  const { header, items } = toProposalData(expenseProposalSchema.parse(req.body));
+  const data = expenseProposalSchema.parse(req.body);
+  await assertShop(data.shopId);
+  const { header, items } = toProposalData(data);
   const item = await prisma.expenseProposal.create({
     data: {
       ...header,
@@ -70,7 +73,9 @@ expenseProposalsRouter.post("/", requirePermission("EXPENSE_PROPOSALS"), async (
 // createdById giữ nguyên — sửa hộ thì phiếu vẫn thuộc về quán đã lập.
 expenseProposalsRouter.put("/:id", requirePermission("EXPENSE_PROPOSALS"), async (req, res) => {
   const id = req.params.id as string;
-  const { header, items } = toProposalData(expenseProposalSchema.parse(req.body));
+  const data = expenseProposalSchema.parse(req.body);
+  await assertShop(data.shopId);
+  const { header, items } = toProposalData(data);
 
   const existing = await findOwnedProposal(id, req.user);
   if (existing.status !== "PENDING") throw new HttpError(409, "Chỉ sửa được phiếu đang chờ duyệt");

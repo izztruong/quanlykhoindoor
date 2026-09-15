@@ -14,7 +14,8 @@ export interface ExpenseProposalInput {
   /** "YYYY-MM-DD" */
   proposalDate: string;
   payer: ExpensePayer;
-  shopName: string;
+  /** Tài khoản quán (vai trò có cờ "là quán"). */
+  shopId: string;
   purpose: string;
   items: ExpenseProposalItemInput[];
   /** Chỉ gửi khi payer = ACCOUNTANT — server bỏ qua với người lập tự chi. */

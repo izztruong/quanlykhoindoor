@@ -35,6 +35,7 @@ export const PERMISSION_RESOURCES = [
     group: "Tài chính",
     actions: ["VIEW", "ADD", "EDIT", "DELETE", "APPROVE", "PAY"],
   },
+  { resource: "SHIFT_EXPENSES", label: "Chi chốt ca", group: "Tài chính", actions: CRUD },
 
   // ADD = tạo đơn, sửa & huỷ đơn nháp của mình · RECEIVE = nhận hàng, xác nhận SL báo ·
   // APPROVE = xác nhận đơn (sinh phiếu xuất kho), huỷ đơn ở mọi trạng thái, sửa ngày nhận.
@@ -48,7 +49,6 @@ export const PERMISSION_RESOURCES = [
 
   { resource: "STOCK_CHECKS", label: "Phiếu kiểm kê quán", group: "Kiểm kê quán", actions: ["VIEW", "ADD", "EDIT"] },
   { resource: "MATERIAL_WASTE", label: "Phiếu huỷ nguyên liệu", group: "Kiểm kê quán", actions: ["VIEW", "ADD", "EDIT"] },
-  { resource: "SHIFT_EXPENSES", label: "Chi chốt ca", group: "Kiểm kê quán", actions: CRUD },
 
   { resource: "PRODUCTS", label: "Hàng hoá", group: "Danh mục", actions: CRUD },
   { resource: "PRODUCT_GROUPS", label: "Nhóm hàng hoá", group: "Danh mục", actions: CRUD },

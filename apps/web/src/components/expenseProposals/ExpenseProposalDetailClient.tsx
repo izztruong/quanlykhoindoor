@@ -179,7 +179,7 @@ export function ExpenseProposalDetailClient({ id }: { id: string }) {
               <Field label="Ngày tạo phiếu">{formatDateOnly(proposal.proposalDate)}</Field>
               <Field label="Người lập phiếu">{proposal.createdBy?.name ?? "-"}</Field>
               <Field label="Người chi">{EXPENSE_PAYER_LABEL[payer]}</Field>
-              <Field label="Quán chi">{proposal.shopName}</Field>
+              <Field label="Quán chi">{proposal.shop?.name ?? "-"}</Field>
               <div className="md:col-span-2">
                 <Field label="Mục đích sử dụng">
                   <span className="whitespace-pre-line">{proposal.purpose}</span>

@@ -32,7 +32,10 @@ export const navSections: NavSection[] = [
   {
     label: "Tài chính",
     icon: Wallet,
-    items: [{ label: "Phiếu đề xuất chi", href: "/expense-proposals", permission: "EXPENSE_PROPOSALS.VIEW" }],
+    items: [
+      { label: "Phiếu đề xuất chi", href: "/expense-proposals", permission: "EXPENSE_PROPOSALS.VIEW" },
+      { label: "Chi chốt ca", href: "/shift-expenses", permission: "SHIFT_EXPENSES.VIEW" },
+    ],
   },
   {
     label: "Order",
@@ -60,7 +63,6 @@ export const navSections: NavSection[] = [
     items: [
       { label: "Phiếu kiểm kê", href: "/stock-checks", permission: "STOCK_CHECKS.VIEW" },
       { label: "Phiếu huỷ nguyên liệu", href: "/material-waste", permission: "MATERIAL_WASTE.VIEW" },
-      { label: "Chi chốt ca", href: "/shift-expenses", permission: "SHIFT_EXPENSES.VIEW" },
     ],
   },
   {

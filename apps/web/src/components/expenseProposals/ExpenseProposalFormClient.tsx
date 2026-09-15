@@ -5,6 +5,7 @@ import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { useCreateExpenseProposal, useUpdateExpenseProposal } from "@/hooks/useExpenseProposals";
+import { useUserOptions } from "@/hooks/useUsers";
 import { ApiError } from "@/lib/api-client";
 import { useCurrentUser } from "@/lib/auth";
 import { EXPENSE_PAYER_LABEL, computeExpenseTotals, todayForDateInput } from "@/lib/expenseProposal";
@@ -48,7 +49,14 @@ export function ExpenseProposalFormClient({ existing }: { existing?: ExpenseProp
 
   const [proposalDate, setProposalDate] = useState(() => (existing ? toDateInput(existing.proposalDate) : todayForDateInput()));
   const [payer, setPayer] = useState<ExpensePayer>(existing?.payer ?? "CREATOR");
-  const [shopName, setShopName] = useState(existing?.shopName ?? "");
+  // Chỉ tài khoản thuộc vai trò "là quán" (mặc định của /users/options).
+  const { data: shops = [] } = useUserOptions();
+  // null = chưa đụng tới ô chọn: phiếu mới thì chọn sẵn chính người lập nếu họ là quán. Phải tính lúc
+  // render vì danh sách quán và tài khoản đăng nhập tải về sau khi form đã khởi tạo state.
+  const [pickedShopId, setPickedShopId] = useState<string | null>(existing ? (existing.shopId ?? "") : null);
+  const wantedShopId = pickedShopId ?? currentUser?.id ?? "";
+  // Quán không còn trong danh sách (vd vai trò đã bỏ cờ "là quán") thì coi như chưa chọn, bắt chọn lại.
+  const shopId = shops.some((s) => s.id === wantedShopId) ? wantedShopId : "";
   const [purpose, setPurpose] = useState(existing?.purpose ?? "");
   const [rows, setRows] = useState<ItemRow[]>(() =>
     existing?.items?.length
@@ -85,7 +93,7 @@ export function ExpenseProposalFormClient({ existing }: { existing?: ExpenseProp
     setError(null);
 
     if (!proposalDate) return setError("Vui lòng chọn ngày tạo phiếu.");
-    if (!shopName.trim()) return setError("Vui lòng nhập quán chi.");
+    if (!shopId) return setError("Vui lòng chọn quán chi.");
     if (!purpose.trim()) return setError("Vui lòng nhập mục đích sử dụng.");
 
     const filled = rows.map((row, index) => ({ row, stt: index + 1 })).filter(({ row }) => !isBlankRow(row));
@@ -104,7 +112,7 @@ export function ExpenseProposalFormClient({ existing }: { existing?: ExpenseProp
     const payload = {
       proposalDate,
       payer,
-      shopName: shopName.trim(),
+      shopId,
       purpose: purpose.trim(),
       items: filled.map(({ row }) => ({
         content: row.content.trim(),
@@ -165,7 +173,14 @@ export function ExpenseProposalFormClient({ existing }: { existing?: ExpenseProp
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-slate-600">Quán chi</label>
-            <Input value={shopName} onChange={(e) => setShopName(e.target.value)} placeholder="Tên quán chi" />
+            <Select value={shopId} onChange={(e) => setPickedShopId(e.target.value)}>
+              <option value="">— Chọn quán —</option>
+              {shops.map((shop) => (
+                <option key={shop.id} value={shop.id}>
+                  {shop.name}
+                </option>
+              ))}
+            </Select>
           </div>
           <div className="flex flex-col gap-1 md:col-span-2">
             <label className="text-sm font-medium text-slate-600">Mục đích sử dụng</label>

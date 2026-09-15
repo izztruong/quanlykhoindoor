@@ -564,7 +564,9 @@ export interface ExpenseProposal {
   /** Chỉ có ngày (cột DATE), đọc bằng formatDateOnly. */
   proposalDate: string;
   payer: ExpensePayer;
-  shopName: string;
+  /** Quán chi. Null ở phiếu cũ lưu tên quán dạng chữ không khớp tài khoản nào. */
+  shopId: string | null;
+  shop?: UserRef;
   purpose: string;
   totalAmount: string | number;
   /** Ba trường tạm ứng chỉ có khi payer = ACCOUNTANT. */

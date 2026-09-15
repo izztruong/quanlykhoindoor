@@ -8,10 +8,11 @@ export const NOT_FOUND_MESSAGE = "Không tìm thấy phiếu đề xuất chi";
 
 const userName = { select: { id: true, name: true } };
 
-export const expenseProposalListInclude = { createdBy: userName } satisfies Prisma.ExpenseProposalInclude;
+export const expenseProposalListInclude = { createdBy: userName, shop: userName } satisfies Prisma.ExpenseProposalInclude;
 
 export const expenseProposalDetailInclude = {
   createdBy: userName,
+  shop: userName,
   approvedBy: userName,
   advancedBy: userName,
   spentBy: userName,
@@ -42,7 +43,7 @@ export function toProposalData(data: ExpenseProposalInput) {
     header: {
       proposalDate: data.proposalDate,
       payer: data.payer,
-      shopName: data.shopName,
+      shopId: data.shopId,
       purpose: data.purpose,
       totalAmount,
       advancePercent,
@@ -52,6 +53,12 @@ export function toProposalData(data: ExpenseProposalInput) {
     },
     items,
   };
+}
+
+/** Quán chi phải là tài khoản thuộc vai trò "là quán" — ô chọn chỉ liệt kê những tài khoản đó, server kiểm lại. */
+export async function assertShop(shopId: string) {
+  const shop = await prisma.user.findFirst({ where: { id: shopId, role: { isShop: true } }, select: { id: true } });
+  if (!shop) throw new HttpError(400, "Quán chi không hợp lệ");
 }
 
 /** Đọc phiếu và chốt phạm vi quán — ngoài phạm vi trả 404 như không tồn tại. */
