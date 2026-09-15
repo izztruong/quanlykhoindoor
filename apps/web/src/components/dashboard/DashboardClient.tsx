@@ -66,11 +66,8 @@ export function DashboardClient() {
     <div className="relative -m-6 min-h-full p-6">
       <SkyBackdrop />
       <div className="relative flex flex-col gap-4">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-semibold text-slate-800">Trang chủ</h1>
-            <p className="text-sm text-slate-500">Tổng quan đơn hàng, huỷ hàng và chi phí nguyên vật liệu.</p>
-          </div>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-xl font-semibold text-slate-800">Trang chủ</h1>
           {scopeAll && !nothingToShow && (
             <div className="flex items-center gap-2">
               <label htmlFor="dashboard-user" className="text-sm font-medium text-slate-500">
