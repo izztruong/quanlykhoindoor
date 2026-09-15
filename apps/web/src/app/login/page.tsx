@@ -1,11 +1,9 @@
 "use client";
 
-import { navSections } from "@/components/layout/nav-config";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { ApiError } from "@/lib/api-client";
 import { useLogin } from "@/lib/auth";
-import { hasPermission } from "@/lib/permissions";
 import { Store } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
@@ -23,12 +21,8 @@ export default function LoginPage() {
     login.mutate(
       { email, password },
       {
-        // Vào trang đầu tiên trong menu mà tài khoản được thấy; không thấy trang nào thì về hồ sơ.
-        onSuccess: (user) =>
-          router.replace(
-            navSections.flatMap((section) => section.items).find((item) => hasPermission(user, item.permission))?.href ??
-              "/profile",
-          ),
+        // Trang chủ mở được với mọi tài khoản (từng ô tự ẩn theo quyền) nên luôn vào đó.
+        onSuccess: () => router.replace("/"),
         onError: (err) => setError(err instanceof ApiError ? err.message : "Đăng nhập thất bại"),
       },
     );

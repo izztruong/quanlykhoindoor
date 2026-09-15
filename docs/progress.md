@@ -31,6 +31,12 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
+### Trang chủ — CHƯA kiểm thử trên trình duyệt, chưa lên `staging`/`main`
+Ô đơn chưa xác nhận, huỷ hàng 7 ngày, chi phí NVL tháng + biểu đồ tỷ lệ theo năm (từ Check Cost), lọc
+theo quán. Đã kiểm typecheck, lint, curl (khớp số với danh sách đơn và chi tiết Check Cost, tiền huỷ
+tính tay, 403 khi thiếu quyền, phạm vi SELF). Cần thử trên trình duyệt: đổi quán/năm, tooltip, màn hẹp,
+nền trời có mây trông ổn chưa.
+
 ### Phân quyền theo vai trò — CHƯA kiểm thử trên trình duyệt, chưa lên `staging`/`main`
 Thay ADMIN/STAFF bằng vai trò tuỳ biến; migration `20260915030600_roles_and_permissions` chuyển
 tài khoản cũ sang `Quản trị viên`/`Quán`. Đã kiểm typecheck, `migrate deploy` trên db trắng, curl

@@ -3,7 +3,7 @@
 import { cn } from "@/lib/cn";
 import { hasPermission } from "@/lib/permissions";
 import type { AuthUser } from "@/types";
-import { ChevronDown, Store, X } from "lucide-react";
+import { ChevronDown, Home, Store, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -71,6 +71,18 @@ export function Sidebar({ user, open, onClose }: SidebarProps) {
         </div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-5">
+          {/* Đứng ngoài navSections: trang chủ không cần quyền, và nav-config còn dùng để chặn trang. */}
+          <Link
+            href="/"
+            className={cn(
+              "flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50",
+              pathname === "/" && "bg-indigo-50 text-indigo-700",
+            )}
+          >
+            <Home size={16} />
+            Trang chủ
+          </Link>
+
           {visibleSections.map((section) => {
             const sectionOpen = isOpen(section);
             return (

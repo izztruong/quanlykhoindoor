@@ -506,3 +506,31 @@ export interface ShiftExpense {
   createdBy?: { id: string; name: string } | null;
   createdAt: string;
 }
+
+/** Ô "Huỷ hàng" ở trang chủ — tiền tính theo giá vốn hiện tại, không phải số chốt. */
+export interface DashboardWasteSummary {
+  value: number;
+  slipCount: number;
+  /** Số hàng hoá + đồ thành phẩm khác nhau bị huỷ. */
+  itemCount: number;
+  days: number;
+}
+
+/** Chi phí NVL của một tháng, cộng từ snapshot các phiếu Check Cost chốt kỳ trong tháng đó. */
+export interface DashboardCostMonth {
+  year: number;
+  month: number;
+  /** 0 = tháng không có phiếu Check Cost nào (không có số liệu), khác với chi phí bằng 0. */
+  checkCount: number;
+  cost: number;
+  netRevenue: number;
+  pct: number;
+}
+
+export interface DashboardCostSummary {
+  year: number;
+  months: DashboardCostMonth[];
+  current: DashboardCostMonth;
+  previousMonth: DashboardCostMonth;
+  sameMonthLastYear: DashboardCostMonth;
+}

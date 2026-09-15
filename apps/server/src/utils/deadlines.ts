@@ -7,7 +7,7 @@ import { HttpError } from "./httpError";
  * tuyệt đối, không cần Intl. Mọi phép tính hạn đều phải làm theo giờ VN chứ không theo giờ máy
  * chủ: Render chạy UTC, để nguyên thì "hạn 22:00" sẽ thành 05:00 sáng hôm sau.
  */
-const VN_OFFSET_MS = 7 * 60 * 60 * 1000;
+export const VN_OFFSET_MS = 7 * 60 * 60 * 1000;
 
 interface VnParts {
   year: number;
