@@ -31,6 +31,17 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
+### Đăng nhập bằng Google + tự đổi email — CHƯA kiểm thử trên trình duyệt, chưa lên `staging`/`main`
+Chỉ vào được tài khoản có sẵn trùng email Gmail; đổi email ở Thông tin tài khoản (cần mật khẩu). Đã kiểm typecheck, lint,
+curl (token rác 401, sai mật khẩu 401, trùng email khác hoa thường 409, đổi xong đăng nhập bằng email mới). Cần: bấm nút Google
+thật (Gmail có/không có tài khoản); đặt `GOOGLE_CLIENT_ID` trên Render, `NEXT_PUBLIC_GOOGLE_CLIENT_ID` trên Vercel rồi redeploy, thêm domain vào Authorized JavaScript origins.
+
+### Rate limit đăng nhập tách theo IP thật (`trust proxy`) — chưa lên `staging`/`main`
+Trước đây mọi request đứng sau proxy chung một bộ đếm: một quán sai 10 lần khoá cả chuỗi. Đã kiểm
+bằng curl ở local: hai IP có bộ đếm riêng, đổi IP giả ở đầu `X-Forwarded-For` không lách được.
+Cần thử trên staging: từ một máy gọi đăng nhập sai qua cả link Vercel lẫn thẳng `onrender.com` —
+lượt còn lại phải trừ nối tiếp nhau (tức Render nhận đúng IP thật chứ không phải IP proxy trung gian).
+
 ### Phiếu đề xuất chi & tạm ứng — CHƯA kiểm thử trên trình duyệt, chưa lên `staging`/`main`
 Nhóm menu Tài chính (Chi chốt ca cũng chuyển sang đây). Quán chi là ô chọn tài khoản quán. Đã kiểm typecheck, lint,
 `migrate deploy` trên db trắng, curl (2 luồng người lập chi / kế toán chi, sai thứ tự 409, thiếu quyền 403, quán chi không phải quán 400).

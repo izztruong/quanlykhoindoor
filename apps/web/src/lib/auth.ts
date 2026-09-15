@@ -21,6 +21,18 @@ export function useLogin() {
   });
 }
 
+/** `credential` là ID token do nút Google Identity Services trả về. */
+export function useGoogleLogin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (credential: string) =>
+      api.post<{ user: AuthUser }>("/auth/google", { credential }).then((r) => r.user),
+    onSuccess: (user) => {
+      queryClient.setQueryData(["auth", "me"], user);
+    },
+  });
+}
+
 export function useLogout() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -35,5 +47,16 @@ export function useLogout() {
 export function useChangePassword() {
   return useMutation({
     mutationFn: (data: { currentPassword: string; newPassword: string }) => api.patch<void>("/auth/password", data),
+  });
+}
+
+export function useChangeEmail() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { email: string; currentPassword: string }) =>
+      api.patch<{ user: AuthUser }>("/profile/email", data).then((r) => r.user),
+    onSuccess: (user) => {
+      queryClient.setQueryData(["auth", "me"], user);
+    },
   });
 }

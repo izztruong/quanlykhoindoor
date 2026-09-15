@@ -19,4 +19,6 @@ export const env = {
   webOrigin: process.env.WEB_ORIGIN ?? "http://localhost:3000",
   cookieName: process.env.COOKIE_NAME ?? "kho_token",
   nodeEnv: process.env.NODE_ENV ?? "development",
+  // Không bắt buộc: để trống thì đăng nhập Google trả 503, đăng nhập mật khẩu vẫn chạy.
+  googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",
 };

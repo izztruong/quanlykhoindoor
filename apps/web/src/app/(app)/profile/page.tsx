@@ -1,5 +1,6 @@
 "use client";
 
+import { ChangeEmailForm } from "@/components/layout/ChangeEmailForm";
 import { ChangePasswordForm } from "@/components/layout/ChangePasswordForm";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -9,6 +10,7 @@ import { useState } from "react";
 
 export default function ProfilePage() {
   const { data: user, isLoading } = useCurrentUser();
+  const [changeEmailOpen, setChangeEmailOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
 
   if (isLoading || !user) {
@@ -19,7 +21,7 @@ export default function ProfilePage() {
     <div className="flex flex-col gap-4">
       <div>
         <h1 className="text-xl font-semibold text-slate-800">Thông tin tài khoản</h1>
-        <p className="text-sm text-slate-500">Thông tin cá nhân và thay đổi mật khẩu đăng nhập.</p>
+        <p className="text-sm text-slate-500">Thông tin cá nhân, email và mật khẩu đăng nhập.</p>
       </div>
 
       <Card>
@@ -48,6 +50,25 @@ export default function ProfilePage() {
             </div>
           </div>
         </CardBody>
+      </Card>
+
+      <Card>
+        <button
+          type="button"
+          onClick={() => setChangeEmailOpen((v) => !v)}
+          className="flex w-full items-center justify-between px-5 py-4"
+        >
+          <CardTitle>Đổi email</CardTitle>
+          <ChevronDown
+            size={18}
+            className={`text-slate-400 transition-transform ${changeEmailOpen ? "rotate-180" : ""}`}
+          />
+        </button>
+        {changeEmailOpen && (
+          <CardBody className="border-t border-slate-100">
+            <ChangeEmailForm currentEmail={user.email} />
+          </CardBody>
+        )}
       </Card>
 
       <Card>

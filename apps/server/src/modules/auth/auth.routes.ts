@@ -1,12 +1,12 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
 import { rateLimit } from "express-rate-limit";
 import { z } from "zod";
 import { prisma } from "../../config/db";
 import { env } from "../../config/env";
+import { authCookieOptions, setAuthCookie } from "../../utils/authCookie";
 import { HttpError } from "../../utils/httpError";
-import { loadAuthUser, requireAuth, type TokenPayload } from "../../middleware/auth";
+import { loadAuthUser, requireAuth } from "../../middleware/auth";
 
 export const authRouter = Router();
 
@@ -30,22 +30,6 @@ const changePasswordSchema = z.object({
   newPassword: z.string().min(6, "Mật khẩu mới tối thiểu 6 ký tự"),
 });
 
-function setAuthCookie(res: import("express").Response, payload: TokenPayload) {
-  // Token chỉ mang định danh; quyền đọc lại từ DB mỗi request (xem requireAuth).
-  const token = jwt.sign(payload, env.jwtSecret, { expiresIn: env.jwtExpiresIn as any });
-  // Frontend and API live on different domains in production (e.g. Vercel +
-  // Render), so the cookie must be SameSite=None to survive cross-site
-  // fetch — which browsers only allow when Secure is also set. Locally
-  // they're same-site over http, where None+non-secure would be rejected,
-  // so "lax" without Secure is used instead.
-  res.cookie(env.cookieName, token, {
-    httpOnly: true,
-    sameSite: env.nodeEnv === "production" ? "none" : "lax",
-    secure: env.nodeEnv === "production",
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-  });
-}
-
 authRouter.post("/login", loginRateLimit, async (req, res) => {
   const { email, password } = loginSchema.parse(req.body);
 
@@ -61,11 +45,7 @@ authRouter.post("/login", loginRateLimit, async (req, res) => {
 });
 
 authRouter.post("/logout", (_req, res) => {
-  res.clearCookie(env.cookieName, {
-    httpOnly: true,
-    sameSite: env.nodeEnv === "production" ? "none" : "lax",
-    secure: env.nodeEnv === "production",
-  });
+  res.clearCookie(env.cookieName, authCookieOptions);
   res.status(204).send();
 });
 

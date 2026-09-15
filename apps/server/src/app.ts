@@ -12,6 +12,7 @@ import { deadlinesRouter } from "./modules/deadlines/deadlines.routes";
 import { expenseProposalsRouter } from "./modules/expenseProposals/expenseProposals.routes";
 import { finishedGoodItemsRouter } from "./modules/finishedGoodItems/finishedGoodItems.routes";
 import { finishedGoodRecipesRouter } from "./modules/finishedGoodRecipes/finishedGoodRecipes.routes";
+import { googleAuthRouter } from "./modules/googleAuth/googleAuth.routes";
 import { inventoryCountsRouter } from "./modules/inventoryCounts/inventoryCounts.routes";
 import { materialTransfersRouter } from "./modules/materialTransfers/materialTransfers.routes";
 import { materialWasteRouter } from "./modules/materialWaste/materialWaste.routes";
@@ -19,6 +20,7 @@ import { productGroupsRouter } from "./modules/productGroups/productGroups.route
 import { productStockRouter } from "./modules/products/productStock.routes";
 import { productsRouter } from "./modules/products/products.routes";
 import { productSupplierPricesRouter } from "./modules/productSupplierPrices/productSupplierPrices.routes";
+import { profileRouter } from "./modules/profile/profile.routes";
 import { reorderThresholdsRouter } from "./modules/reorderThresholds/reorderThresholds.routes";
 import { reportsRouter } from "./modules/reports/reports.routes";
 import { rolesRouter } from "./modules/roles/roles.routes";
@@ -34,6 +36,17 @@ import { warehousesRouter } from "./modules/warehouses/warehouses.routes";
 
 export const app = express();
 
+// Tin đúng MỘT tầng proxy đứng ngay trước app (load balancer của Render, hoặc nginx nếu chạy VPS)
+// để req.ip là IP thật của người gọi. Thiếu dòng này thì req.ip là IP của chính proxy, nên rate
+// limit đăng nhập (khoá theo IP) gộp mọi quán làm một: một quán gõ sai 10 lần là khoá đăng nhập
+// của cả chuỗi 15 phút.
+//
+// Cố ý là số 1 chứ không phải `true`: `true` tin cả chuỗi X-Forwarded-For, mà phần đầu chuỗi do
+// client tự điền — mỗi lần gửi một IP giả là lách được rate limit. Với 1, Express chỉ lấy địa chỉ
+// do proxy tự ghi thêm vào cuối chuỗi, client không sửa được. Đổi lại, app phải chỉ nhận request
+// đi qua proxy: nếu chạy VPS thì không mở cổng 4000 ra internet.
+app.set("trust proxy", 1);
+
 app.use(cors({ origin: env.webOrigin, credentials: true }));
 // Default 100kb limit is too small for bulk imports (e.g. ~1000 product rows).
 app.use(express.json({ limit: "10mb" }));
@@ -41,6 +54,7 @@ app.use(cookieParser());
 
 app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
 
+app.use("/api/auth/google", googleAuthRouter);
 app.use("/api/auth", authRouter);
 
 // Everything below requires an authenticated session.
@@ -78,6 +92,8 @@ app.use("/api/inventory-counts", inventoryCountsRouter);
 app.use("/api/reports", reportsRouter);
 app.use("/api/users", usersRouter);
 app.use("/api/roles", rolesRouter);
+// Tự sửa tài khoản của chính mình — chỉ cần đăng nhập.
+app.use("/api/profile", profileRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

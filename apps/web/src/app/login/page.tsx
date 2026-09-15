@@ -1,9 +1,10 @@
 "use client";
 
+import { GoogleLoginButton } from "@/components/auth/GoogleLoginButton";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { ApiError } from "@/lib/api-client";
-import { useLogin } from "@/lib/auth";
+import { useGoogleLogin, useLogin } from "@/lib/auth";
 import { Store } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
@@ -11,6 +12,7 @@ import { FormEvent, useState } from "react";
 export default function LoginPage() {
   const router = useRouter();
   const login = useLogin();
+  const googleLogin = useGoogleLogin();
   const [email, setEmail] = useState("admin@quanly.local");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -26,6 +28,14 @@ export default function LoginPage() {
         onError: (err) => setError(err instanceof ApiError ? err.message : "Đăng nhập thất bại"),
       },
     );
+  }
+
+  function handleGoogleCredential(credential: string) {
+    setError(null);
+    googleLogin.mutate(credential, {
+      onSuccess: () => router.replace("/"),
+      onError: (err) => setError(err instanceof ApiError ? err.message : "Đăng nhập bằng Google thất bại"),
+    });
   }
 
   return (
@@ -55,6 +65,18 @@ export default function LoginPage() {
             {login.isPending ? "Đang đăng nhập..." : "Đăng nhập"}
           </Button>
         </form>
+
+        {process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID && (
+          <>
+            <div className="my-5 flex items-center gap-3 text-xs text-slate-400">
+              <div className="h-px flex-1 bg-slate-200" />
+              hoặc
+              <div className="h-px flex-1 bg-slate-200" />
+            </div>
+            <GoogleLoginButton onCredential={handleGoogleCredential} />
+            {googleLogin.isPending && <p className="mt-2 text-center text-sm text-slate-400">Đang đăng nhập...</p>}
+          </>
+        )}
       </div>
     </div>
   );
