@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Boxes, ClipboardCheck, ClipboardList, ShieldCheck, ShoppingCart, Warehouse } from "lucide-react";
+import { Boxes, ClipboardCheck, ClipboardList, ShieldCheck, ShoppingCart, Wallet, Warehouse } from "lucide-react";
 
 export interface NavItem {
   label: string;
@@ -28,6 +28,11 @@ export const navSections: NavSection[] = [
       { label: "Chi tiết nhập", href: "/audit/import-detail", permission: "AUDIT_REPORTS.VIEW" },
       { label: "Tổng hợp nhập", href: "/audit/import-summary", permission: "AUDIT_REPORTS.VIEW" },
     ],
+  },
+  {
+    label: "Tài chính",
+    icon: Wallet,
+    items: [{ label: "Phiếu đề xuất chi", href: "/expense-proposals", permission: "EXPENSE_PROPOSALS.VIEW" }],
   },
   {
     label: "Order",
@@ -101,6 +106,8 @@ const extraPageRules: { pattern: RegExp; permission: string }[] = [
   { pattern: /^\/material-waste\/new(\/|$)/, permission: "MATERIAL_WASTE.ADD" },
   { pattern: /^\/material-waste\/[^/]+\/edit(\/|$)/, permission: "MATERIAL_WASTE.EDIT" },
   { pattern: /^\/orders\/[^/]+\/confirm(\/|$)/, permission: "ORDERS.APPROVE" },
+  { pattern: /^\/expense-proposals\/new(\/|$)/, permission: "EXPENSE_PROPOSALS.ADD" },
+  { pattern: /^\/expense-proposals\/[^/]+\/edit(\/|$)/, permission: "EXPENSE_PROPOSALS.EDIT" },
 ];
 
 /** Mã quyền cần để mở một đường dẫn, hoặc null nếu trang không bị giới hạn (vd /profile). */

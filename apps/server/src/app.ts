@@ -9,6 +9,7 @@ import { costChecksRouter } from "./modules/costChecks/costChecks.routes";
 import { customersRouter } from "./modules/customers/customers.routes";
 import { dashboardRouter } from "./modules/dashboard/dashboard.routes";
 import { deadlinesRouter } from "./modules/deadlines/deadlines.routes";
+import { expenseProposalsRouter } from "./modules/expenseProposals/expenseProposals.routes";
 import { finishedGoodItemsRouter } from "./modules/finishedGoodItems/finishedGoodItems.routes";
 import { finishedGoodRecipesRouter } from "./modules/finishedGoodRecipes/finishedGoodRecipes.routes";
 import { inventoryCountsRouter } from "./modules/inventoryCounts/inventoryCounts.routes";
@@ -64,6 +65,7 @@ app.use("/api/sales-orders", salesOrdersRouter);
 app.use("/api/stock-checks", stockChecksRouter);
 app.use("/api/material-waste", materialWasteRouter);
 app.use("/api/shift-expenses", shiftExpensesRouter);
+app.use("/api/expense-proposals", expenseProposalsRouter);
 app.use("/api/dashboard", dashboardRouter);
 
 app.use("/api/stock-imports", stockImportsRouter);

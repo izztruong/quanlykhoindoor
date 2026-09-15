@@ -52,6 +52,10 @@ model User {
   materialTransfersFrom    MaterialTransfer[]        @relation("MaterialTransferFrom")
   materialTransfersTo      MaterialTransfer[]        @relation("MaterialTransferTo")
   materialTransfersCreated MaterialTransfer[]        @relation("MaterialTransferCreatedBy")
+  expenseProposals         ExpenseProposal[]         @relation("ExpenseProposalCreatedBy")
+  expenseProposalsApproved ExpenseProposal[]         @relation("ExpenseProposalApprovedBy")
+  expenseProposalsAdvanced ExpenseProposal[]         @relation("ExpenseProposalAdvancedBy")
+  expenseProposalsSpent    ExpenseProposal[]         @relation("ExpenseProposalSpentBy")
 }
 
 enum DeadlineKind {
@@ -723,4 +727,74 @@ model MaterialTransferItem {
   note               String?
 
   @@index([productId])
+}
+
+// Chờ duyệt → Đã duyệt | Từ chối. Sau khi duyệt: người lập tự chi thì bấm thẳng Đã chi; kế toán
+// chi thì phải qua Đã tạm ứng rồi mới Đã chi.
+enum ExpenseProposalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  ADVANCED
+  SPENT
+}
+
+enum ExpensePayer {
+  CREATOR
+  ACCOUNTANT
+}
+
+// Phiếu đề xuất chi & tạm ứng: quán xin tiền, admin duyệt. Quán chi / nội dung / đơn vị là text tự
+// do vì khoản xin chi thường không nằm trong danh mục hàng hoá.
+model ExpenseProposal {
+  id             String                @id @default(cuid())
+  code           String                @unique
+  status         ExpenseProposalStatus @default(PENDING)
+  // Ngày trên phiếu do người lập khai (mặc định hôm nay). Kiểu DATE nên không lệch múi giờ;
+  // createdAt mới là lúc lưu thật và không sửa được.
+  proposalDate   DateTime              @db.Date
+  payer          ExpensePayer
+  shopName       String
+  purpose        String
+  // Tổng và tiền tạm ứng tính ở SERVER lúc ghi rồi lưu lại, không tin số client gửi.
+  totalAmount    Decimal               @db.Decimal(18, 2)
+  // Ba cột tạm ứng chỉ có giá trị khi payer = ACCOUNTANT; người lập tự chi thì luôn null.
+  advancePercent Decimal?              @db.Decimal(5, 2)
+  advanceAmount  Decimal?              @db.Decimal(18, 2)
+  invoiceDueDate DateTime?             @db.Date
+  rejectReason   String?
+  createdById    String?
+  createdBy      User?                 @relation("ExpenseProposalCreatedBy", fields: [createdById], references: [id])
+  // Dùng chung cho cả duyệt và từ chối — status cho biết là quyết định nào.
+  approvedById   String?
+  approvedBy     User?                 @relation("ExpenseProposalApprovedBy", fields: [approvedById], references: [id])
+  approvedAt     DateTime?
+  advancedById   String?
+  advancedBy     User?                 @relation("ExpenseProposalAdvancedBy", fields: [advancedById], references: [id])
+  advancedAt     DateTime?
+  spentById      String?
+  spentBy        User?                 @relation("ExpenseProposalSpentBy", fields: [spentById], references: [id])
+  spentAt        DateTime?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  items ExpenseProposalItem[]
+
+  @@index([createdById, proposalDate])
+  @@index([status])
+}
+
+model ExpenseProposalItem {
+  id                String          @id @default(cuid())
+  expenseProposalId String
+  expenseProposal   ExpenseProposal @relation(fields: [expenseProposalId], references: [id], onDelete: Cascade)
+  sortOrder         Int
+  content           String
+  unitPrice         Decimal         @db.Decimal(18, 2)
+  unit              String?
+  quantity          Decimal         @db.Decimal(18, 3)
+  amount            Decimal         @db.Decimal(18, 2)
+  note              String?
+
+  @@index([expenseProposalId, sortOrder])
 }

@@ -9,7 +9,7 @@ import { HttpError } from "../../utils/httpError";
  *   2. gắn `requirePermission("TÊN")` cho MỌI route của nó (kể cả GET),
  *   3. gắn `permission` cho mục menu trong apps/web/src/components/layout/nav-config.ts.
  */
-export const PERMISSION_ACTIONS = ["VIEW", "ADD", "EDIT", "DELETE", "RECEIVE", "APPROVE"] as const;
+export const PERMISSION_ACTIONS = ["VIEW", "ADD", "EDIT", "DELETE", "RECEIVE", "APPROVE", "PAY"] as const;
 export type PermissionAction = (typeof PERMISSION_ACTIONS)[number];
 
 export const ACTION_LABELS: Record<PermissionAction, string> = {
@@ -19,12 +19,22 @@ export const ACTION_LABELS: Record<PermissionAction, string> = {
   DELETE: "Xoá",
   RECEIVE: "Nhận hàng",
   APPROVE: "Duyệt đơn",
+  PAY: "Tạm ứng / Đã chi",
 };
 
 const CRUD: PermissionAction[] = ["VIEW", "ADD", "EDIT", "DELETE"];
 
 export const PERMISSION_RESOURCES = [
   { resource: "AUDIT_REPORTS", label: "Báo cáo kiểm toán", group: "Kiểm toán", actions: ["VIEW"] },
+
+  // EDIT/DELETE chỉ áp cho phiếu còn Chờ duyệt · APPROVE = duyệt hoặc từ chối ·
+  // PAY = bấm Đã tạm ứng / Đã chi sau khi phiếu được duyệt.
+  {
+    resource: "EXPENSE_PROPOSALS",
+    label: "Phiếu đề xuất chi & tạm ứng",
+    group: "Tài chính",
+    actions: ["VIEW", "ADD", "EDIT", "DELETE", "APPROVE", "PAY"],
+  },
 
   // ADD = tạo đơn, sửa & huỷ đơn nháp của mình · RECEIVE = nhận hàng, xác nhận SL báo ·
   // APPROVE = xác nhận đơn (sinh phiếu xuất kho), huỷ đơn ở mọi trạng thái, sửa ngày nhận.

@@ -96,6 +96,7 @@ trùng lặp và file sẽ phình (đã từng lên 4.400 token, hơn cả CLAUD
 |---|---|---|---|
 | `PN` nhập kho | `PX` xuất kho | `DH` đơn hàng | `KT` kiểm kê quán |
 | `KK` kiểm kê kho | `PH` huỷ nguyên liệu | `DC` điều chuyển | `CC` Check Cost |
+| `DX` đề xuất chi | | | |
 
 ## Quyết định thiết kế đã chốt
 

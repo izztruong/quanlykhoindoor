@@ -534,3 +534,49 @@ export interface DashboardCostSummary {
   previousMonth: DashboardCostMonth;
   sameMonthLastYear: DashboardCostMonth;
 }
+
+export type ExpenseProposalStatus = "PENDING" | "APPROVED" | "REJECTED" | "ADVANCED" | "SPENT";
+
+/** CREATOR = người lập phiếu tự chi, ACCOUNTANT = kế toán chi (có tạm ứng). */
+export type ExpensePayer = "CREATOR" | "ACCOUNTANT";
+
+export interface ExpenseProposalItem {
+  id: string;
+  sortOrder: number;
+  content: string;
+  unitPrice: string | number;
+  unit?: string | null;
+  quantity: string | number;
+  /** Thành tiền server tính và lưu. */
+  amount: string | number;
+  note?: string | null;
+}
+
+type UserRef = { id: string; name: string } | null;
+
+/** Phiếu đề xuất chi & tạm ứng. `items` và các người thao tác chỉ có ở API chi tiết. */
+export interface ExpenseProposal {
+  id: string;
+  code: string;
+  status: ExpenseProposalStatus;
+  /** Chỉ có ngày (cột DATE), đọc bằng formatDateOnly. */
+  proposalDate: string;
+  payer: ExpensePayer;
+  shopName: string;
+  purpose: string;
+  totalAmount: string | number;
+  /** Ba trường tạm ứng chỉ có khi payer = ACCOUNTANT. */
+  advancePercent?: string | number | null;
+  advanceAmount?: string | number | null;
+  invoiceDueDate?: string | null;
+  rejectReason?: string | null;
+  createdBy?: UserRef;
+  approvedBy?: UserRef;
+  approvedAt?: string | null;
+  advancedBy?: UserRef;
+  advancedAt?: string | null;
+  spentBy?: UserRef;
+  spentAt?: string | null;
+  createdAt: string;
+  items?: ExpenseProposalItem[];
+}

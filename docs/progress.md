@@ -31,6 +31,11 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
+### Phiếu đề xuất chi & tạm ứng — CHƯA kiểm thử trên trình duyệt, chưa lên `staging`/`main`
+Nhóm menu Tài chính. Đã kiểm typecheck, lint, `migrate deploy` trên db trắng, curl (đủ 2 luồng người
+lập chi / kế toán chi, 409 khi sai thứ tự, 403 thiếu quyền, 404 ngoài phạm vi, tổng + tạm ứng khớp tính tay).
+Cần thử: đổi Người chi thì ô tạm ứng ẩn/hiện, thêm/xoá dòng hạng mục, nút theo trạng thái, trang Vai trò có cột "Tạm ứng / Đã chi".
+
 ### Trang chủ — CHƯA kiểm thử trên trình duyệt, chưa lên `staging`/`main`
 Ô đơn chưa xác nhận, huỷ hàng 7 ngày, chi phí NVL tháng + biểu đồ tỷ lệ theo năm (từ Check Cost), lọc
 theo quán. Đã kiểm typecheck, lint, curl (khớp số với danh sách đơn và chi tiết Check Cost, tiền huỷ
