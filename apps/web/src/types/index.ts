@@ -24,6 +24,8 @@ export interface Role {
   id: string;
   name: string;
   isSystem: boolean;
+  /** Tài khoản thuộc vai trò này hiện trong các ô chọn/lọc quán. */
+  isShop: boolean;
   permissions: string[];
   createdAt: string;
   _count: { users: number };

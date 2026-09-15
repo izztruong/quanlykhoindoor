@@ -21,6 +21,9 @@ model Role {
   id          String   @id @default(cuid())
   name        String   @unique
   isSystem    Boolean  @default(false)
+  // Tài khoản thuộc vai trò này là một quán: chỉ những tài khoản đó hiện trong các ô chọn/lọc quán
+  // (GET /api/users/options). Vai trò chỉ để dùng một chức năng (vd đề xuất chi) để false.
+  isShop      Boolean  @default(false)
   permissions String[] @default([])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

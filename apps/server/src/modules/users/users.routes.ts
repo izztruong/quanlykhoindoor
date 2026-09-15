@@ -45,8 +45,15 @@ async function assertManageableUser(target: { role: { isSystem: boolean; permiss
 
 // Danh sách quán cho ô lọc / chọn quán ở các trang nghiệp vụ — chỉ id, tên, email nên chỉ cần đăng nhập.
 // Tách khỏi GET "/" để trang đơn hàng, Check Cost, điều chuyển… không phải có quyền USERS.VIEW.
-usersRouter.get("/options", async (_req, res) => {
-  const items = await prisma.user.findMany({ select: { id: true, name: true, email: true }, orderBy: { createdAt: "asc" } });
+// Mặc định chỉ tài khoản thuộc vai trò "là quán" (Role.isShop) — admin hay tài khoản chỉ lập đề xuất
+// chi không lẫn vào ô chọn quán. `?all=1` trả mọi tài khoản, cho ô lọc theo người lập.
+usersRouter.get("/options", async (req, res) => {
+  const all = req.query.all === "1";
+  const items = await prisma.user.findMany({
+    where: all ? undefined : { role: { isShop: true } },
+    select: { id: true, name: true, email: true },
+    orderBy: { createdAt: "asc" },
+  });
   res.json({ items });
 });
 

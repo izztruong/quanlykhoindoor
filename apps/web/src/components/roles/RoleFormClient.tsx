@@ -29,6 +29,7 @@ export function RoleFormClient({ catalog, currentUser, existing, onDone }: RoleF
   const createRole = useCreateRole();
   const updateRole = useUpdateRole();
   const [name, setName] = useState(existing?.name ?? "");
+  const [isShop, setIsShop] = useState(existing?.isShop ?? false);
   const [selected, setSelected] = useState<Set<string>>(() => new Set(existing?.permissions ?? []));
   const [openResource, setOpenResource] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -88,7 +89,7 @@ export function RoleFormClient({ catalog, currentUser, existing, onDone }: RoleF
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    const payload = { name: name.trim(), permissions: Array.from(selected) };
+    const payload = { name: name.trim(), isShop, permissions: Array.from(selected) };
     const onError = (err: unknown) => setError(err instanceof ApiError ? err.message : "Lưu vai trò thất bại");
     if (existing) updateRole.mutate({ id: existing.id, ...payload }, { onSuccess: onDone, onError });
     else createRole.mutate(payload, { onSuccess: onDone, onError });
@@ -102,6 +103,17 @@ export function RoleFormClient({ catalog, currentUser, existing, onDone }: RoleF
         <label className="text-sm font-medium text-slate-600">Tên vai trò</label>
         <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="VD: Kế toán" required />
       </div>
+
+      <label className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+        <input type="checkbox" className="mt-0.5" checked={isShop} onChange={(e) => setIsShop(e.target.checked)} />
+        <span>
+          <span className="font-medium text-slate-700">Tài khoản thuộc vai trò này là quán</span>
+          <span className="block text-xs text-slate-500">
+            Chỉ tài khoản là quán mới hiện trong các ô chọn/lọc quán (đơn hàng, điều chuyển, Check Cost…). Bỏ tick với vai trò
+            chỉ dùng một chức năng, vd tài khoản chỉ lập phiếu đề xuất chi.
+          </span>
+        </span>
+      </label>
 
       <label className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
         <input

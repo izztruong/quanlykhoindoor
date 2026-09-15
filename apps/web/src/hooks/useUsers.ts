@@ -38,11 +38,15 @@ export function useUsers(options?: { enabled?: boolean }) {
   });
 }
 
-/** Chỉ id, tên, email — cho ô chọn/lọc theo quán ở các trang nghiệp vụ — mọi tài khoản đăng nhập đều gọi được. */
-export function useUserOptions(options?: { enabled?: boolean }) {
+/**
+ * Chỉ id, tên, email — cho ô chọn/lọc theo quán ở các trang nghiệp vụ — mọi tài khoản đăng nhập đều gọi được.
+ * Mặc định chỉ tài khoản thuộc vai trò "là quán"; `all` lấy mọi tài khoản (vd lọc theo người lập phiếu).
+ */
+export function useUserOptions(options?: { enabled?: boolean; all?: boolean }) {
+  const all = options?.all ?? false;
   return useQuery({
-    queryKey: ["users", "options"],
-    queryFn: () => api.get<{ items: UserOption[] }>("/users/options").then((r) => r.items),
+    queryKey: ["users", "options", { all }],
+    queryFn: () => api.get<{ items: UserOption[] }>("/users/options", { all: all ? 1 : undefined }).then((r) => r.items),
     enabled: options?.enabled ?? true,
   });
 }

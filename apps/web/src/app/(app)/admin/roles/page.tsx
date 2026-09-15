@@ -39,6 +39,7 @@ export default function RolesPage() {
           <span className="flex items-center gap-2">
             {row.original.name}
             {row.original.isSystem && <Badge tone="blue">Hệ thống</Badge>}
+            {row.original.isShop && <Badge tone="green">Quán</Badge>}
           </span>
         ),
       },

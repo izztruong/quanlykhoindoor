@@ -12,6 +12,7 @@ const roleSelect = {
   id: true,
   name: true,
   isSystem: true,
+  isShop: true,
   permissions: true,
   createdAt: true,
   _count: { select: { users: true } },
@@ -49,7 +50,7 @@ rolesRouter.get("/", requirePermission("ROLES"), async (req, res) => {
 rolesRouter.post("/", requirePermission("ROLES"), async (req, res) => {
   const data = roleUpsertSchema.parse(req.body);
   const permissions = sanitizePermissions(data.permissions, req.user!);
-  const role = await prisma.role.create({ data: { name: data.name, permissions }, select: roleSelect });
+  const role = await prisma.role.create({ data: { name: data.name, isShop: data.isShop, permissions }, select: roleSelect });
   res.status(201).json(role);
 });
 
@@ -66,7 +67,11 @@ rolesRouter.put("/:id", requirePermission("ROLES"), async (req, res) => {
   if (existing.id === req.user!.roleId) throw new HttpError(400, "Không thể sửa vai trò bạn đang giữ");
 
   const permissions = sanitizePermissions(data.permissions, req.user!, existing.permissions);
-  const role = await prisma.role.update({ where: { id }, data: { name: data.name, permissions }, select: roleSelect });
+  const role = await prisma.role.update({
+    where: { id },
+    data: { name: data.name, isShop: data.isShop, permissions },
+    select: roleSelect,
+  });
   res.json(role);
 });
 
