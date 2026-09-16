@@ -64,14 +64,13 @@ tài khoản cũ sang `Quản trị viên`/`Quán`. Đã kiểm typecheck, `migr
 (chặn route, phạm vi quán, thu hồi tức thì, chống leo quyền). Trình duyệt mới mở sơ trang Vai trò; cần
 thử kỹ: menu tick quyền, sửa tài khoản, menu/nút của tài khoản Quán y như cũ, vai trò hẹp chỉ thấy đúng trang.
 
-### Chi chốt ca: Loại chi + ảnh chứng từ — CHƯA kiểm thử trên trình duyệt
-Sổ chi đã lên `main`; hai phần thêm sau thì chưa: Loại chi (NVL/Khác) và ảnh chứng từ (tối đa 5
-ảnh, nén ở trình duyệt, lưu trên Cloudflare R2 với URL ký hạn 1 giờ). Đã kiểm typecheck, lint, curl
-và trọn vòng R2 thật (tải lên, xem, chặn URL không chữ ký, quá 5 ảnh / sai định dạng / quá nặng,
-khác quán 404, xoá ảnh và xoá khoản chi đều dọn sạch file). Cần thử: đính ảnh chụp điện thoại thật
-rồi xem/xoá; đổi và lọc Loại chi; nhập file Excel mẫu (Tổng chi 1.241.000). **Phải đặt 4 biến
-`R2_*` trên Render cả hai service** — để trống thì phần ảnh tự tắt; file Excel mẫu 6 cột cũ cũng
-không nhập được nữa.
+### Chi chốt ca: Loại chi + ảnh chứng từ — đã kiểm thử trên trình duyệt, chưa lên `staging`/`main`
+Sổ chi đã lên `main` từ trước; hai phần thêm sau thì chưa: Loại chi (NVL/Khác) và ảnh chứng từ (tối
+đa 5 ảnh, nén ở trình duyệt, lưu trên Cloudflare R2 với URL ký hạn 1 giờ). Đã kiểm typecheck, lint,
+curl, trọn vòng R2 thật (chặn URL không chữ ký, quá 5 ảnh / sai định dạng / quá nặng, khác quán
+404, xoá ảnh và xoá khoản chi đều dọn sạch file) và **đã bấm thử trên trình duyệt, chạy tốt**.
+Trước khi deploy **phải đặt 4 biến `R2_*` trên Render cả hai service** — chưa đặt thì phần ảnh tự
+tắt (phần còn lại vẫn chạy). Lưu ý file Excel mẫu 6 cột cũ không nhập được nữa.
 
 ---
 
