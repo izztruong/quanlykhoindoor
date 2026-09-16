@@ -48,6 +48,7 @@ export function toProposalData(data: ExpenseProposalInput) {
     header: {
       proposalDate: data.proposalDate,
       payer: data.payer,
+      category: data.category,
       shopId: data.shopId,
       approverId: data.approverId,
       purpose: data.purpose,

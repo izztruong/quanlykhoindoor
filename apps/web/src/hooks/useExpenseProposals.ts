@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
-import type { ExpensePayer, ExpenseProposal, ExpenseProposalStatus, PagedResult } from "@/types";
+import type { ExpensePayer, ExpenseProposal, ExpenseProposalCategory, ExpenseProposalStatus, PagedResult } from "@/types";
 
 export interface ExpenseProposalItemInput {
   content: string;
@@ -14,6 +14,7 @@ export interface ExpenseProposalInput {
   /** "YYYY-MM-DD" */
   proposalDate: string;
   payer: ExpensePayer;
+  category: ExpenseProposalCategory;
   /** Tài khoản quán (vai trò có cờ "là quán"). */
   shopId: string;
   /** Người xác nhận — tài khoản không phải quán. */
@@ -29,6 +30,7 @@ export interface ExpenseProposalFilter {
   from?: string;
   to?: string;
   status?: ExpenseProposalStatus;
+  category?: ExpenseProposalCategory;
   createdById?: string;
   page?: number;
   pageSize?: number;

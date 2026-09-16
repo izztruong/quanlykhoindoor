@@ -3,7 +3,10 @@ import { z } from "zod";
 // Ngày không có giờ ("YYYY-MM-DD") — cột DATE trong DB, xem chú thích ở model ExpenseProposal.
 const dateOnly = (message: string) => z.string().regex(/^\d{4}-\d{2}-\d{2}$/, message).transform((s) => new Date(s));
 
-const emptyToUndefined = (value: unknown) => (value === "" || value === null ? undefined : value);
+/** MKT · Vận hành · CSVC — dùng chung cho schema ghi và bộ lọc danh sách. */
+export const EXPENSE_PROPOSAL_CATEGORIES = ["MKT", "OPERATION", "FACILITY"] as const;
+
+const emptyToUndefined =(value: unknown) => (value === "" || value === null ? undefined : value);
 
 export const expenseProposalItemSchema = z.object({
   content: z.string().trim().min(1, "Nội dung hạng mục không được để trống"),
@@ -17,6 +20,7 @@ export const expenseProposalSchema = z
   .object({
     proposalDate: dateOnly("Ngày tạo phiếu không hợp lệ"),
     payer: z.enum(["CREATOR", "ACCOUNTANT"], { message: "Người chi phải là người lập phiếu hoặc kế toán" }),
+    category: z.enum(EXPENSE_PROPOSAL_CATEGORIES, { message: "Vui lòng chọn loại phiếu" }),
     shopId: z.string({ message: "Vui lòng chọn quán chi" }).trim().min(1, "Vui lòng chọn quán chi"),
     approverId: z.string({ message: "Vui lòng chọn người xác nhận" }).trim().min(1, "Vui lòng chọn người xác nhận"),
     purpose: z.string().trim().min(1, "Mục đích sử dụng không được để trống"),

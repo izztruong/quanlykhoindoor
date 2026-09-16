@@ -11,7 +11,12 @@ import {
   useExpenseProposalAction,
 } from "@/hooks/useExpenseProposals";
 import { ApiError } from "@/lib/api-client";
-import { EXPENSE_PAYER_LABEL, EXPENSE_PROPOSAL_STATUS_LABEL, EXPENSE_PROPOSAL_STATUS_TONE } from "@/lib/expenseProposal";
+import {
+  EXPENSE_PAYER_LABEL,
+  EXPENSE_PROPOSAL_CATEGORY_LABEL,
+  EXPENSE_PROPOSAL_STATUS_LABEL,
+  EXPENSE_PROPOSAL_STATUS_TONE,
+} from "@/lib/expenseProposal";
 import { formatCurrency, formatDateOnly, formatDateTime, formatNumber } from "@/lib/format";
 import { useCan } from "@/lib/permissions";
 import type { ExpenseProposal } from "@/types";
@@ -178,6 +183,7 @@ export function ExpenseProposalDetailClient({ id }: { id: string }) {
             <CardBody className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <Field label="Ngày tạo phiếu">{formatDateOnly(proposal.proposalDate)}</Field>
               <Field label="Người lập phiếu">{proposal.createdBy?.name ?? "-"}</Field>
+              <Field label="Loại phiếu">{proposal.category ? EXPENSE_PROPOSAL_CATEGORY_LABEL[proposal.category] : "-"}</Field>
               <Field label="Người chi">{EXPENSE_PAYER_LABEL[payer]}</Field>
               <Field label="Quán chi">{proposal.shop?.name ?? "-"}</Field>
               <Field label="Người xác nhận">{proposal.approver?.name ?? "-"}</Field>

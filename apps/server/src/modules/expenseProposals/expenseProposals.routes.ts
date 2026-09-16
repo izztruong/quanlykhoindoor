@@ -5,7 +5,7 @@ import { assertOwner, ownerWhere, requirePermission } from "../../middleware/aut
 import { generateCode } from "../../utils/codeGenerator";
 import { HttpError } from "../../utils/httpError";
 import { parseDateRange, parsePagination } from "../../utils/pagination";
-import { expenseProposalRejectSchema, expenseProposalSchema } from "./expenseProposals.schemas";
+import { EXPENSE_PROPOSAL_CATEGORIES, expenseProposalRejectSchema, expenseProposalSchema } from "./expenseProposals.schemas";
 import {
   assertParties,
   expenseProposalDetailInclude,
@@ -22,13 +22,14 @@ const STATUSES = ["PENDING", "APPROVED", "REJECTED", "ADVANCED", "SPENT"] as con
 
 expenseProposalsRouter.get("/", requirePermission("EXPENSE_PROPOSALS"), async (req, res) => {
   const { from, to } = parseDateRange(req);
-  const { status, createdById } = req.query as Record<string, string>;
+  const { status, category, createdById } = req.query as Record<string, string>;
   const { skip, take, page, pageSize } = parsePagination(req, 20);
 
   const where: Prisma.ExpenseProposalWhereInput = {
     proposalDate: from || to ? { gte: from, lte: to } : undefined,
     // Giá trị lạ thì bỏ qua bộ lọc — query string gõ tay được.
     status: STATUSES.find((s) => s === status),
+    category: EXPENSE_PROPOSAL_CATEGORIES.find((c) => c === category),
     // Phạm vi SELF chỉ thấy phiếu của mình; ALL thấy hết, lọc theo quán qua ?createdById=.
     createdById: ownerWhere(req.user, createdById),
   };

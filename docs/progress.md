@@ -43,10 +43,10 @@ Cần thử trên staging: từ một máy gọi đăng nhập sai qua cả link
 lượt còn lại phải trừ nối tiếp nhau (tức Render nhận đúng IP thật chứ không phải IP proxy trung gian).
 
 ### Phiếu đề xuất chi & tạm ứng — CHƯA kiểm thử trên trình duyệt, chưa lên `staging`/`main`
-Nhóm menu Tài chính (Chi chốt ca cũng chuyển sang đây). Quán chi chọn tài khoản quán, người xác nhận chọn tài khoản không phải
-quán (chỉ ghi nhận, không chặn ai bấm Duyệt). Đã kiểm typecheck, lint, `migrate deploy` trên db trắng, curl (2 luồng người lập
-chi / kế toán chi, sai thứ tự 409, thiếu quyền 403, quán chi hoặc người xác nhận sai vai trò 400).
-Cần thử: ô tạm ứng ẩn/hiện theo Người chi, hai ô chọn quán và người xác nhận, thêm/xoá dòng, nút theo trạng thái.
+Nhóm menu Tài chính (Chi chốt ca cũng chuyển sang đây). Có Loại phiếu (MKT / Vận hành / CSVC, lọc được), quán chi chọn tài khoản
+quán, người xác nhận chọn tài khoản không phải quán (chỉ ghi nhận). Đã kiểm typecheck, lint, `migrate deploy` trên db trắng, curl
+(2 luồng người lập chi / kế toán chi, sai thứ tự 409, thiếu quyền 403, sai vai trò hoặc thiếu loại phiếu 400, lọc theo loại).
+Cần thử: ô tạm ứng ẩn/hiện theo Người chi, các ô chọn loại / quán / người xác nhận, lọc theo loại, thêm/xoá dòng, nút theo trạng thái.
 
 ### Cờ "Là quán" trên vai trò — CHƯA kiểm thử trên trình duyệt, chưa lên `staging`/`main`
 Ô chọn/lọc quán chỉ hiện tài khoản thuộc vai trò có tick (admin bị ẩn); lọc Người lập ở đề xuất chi vẫn thấy mọi tài khoản.

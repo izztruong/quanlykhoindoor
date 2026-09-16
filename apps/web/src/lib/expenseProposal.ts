@@ -1,4 +1,4 @@
-import type { ExpensePayer, ExpenseProposalStatus } from "@/types";
+import type { ExpensePayer, ExpenseProposalCategory, ExpenseProposalStatus } from "@/types";
 
 export const EXPENSE_PROPOSAL_STATUS_LABEL: Record<ExpenseProposalStatus, string> = {
   PENDING: "Chờ duyệt",
@@ -19,6 +19,12 @@ export const EXPENSE_PROPOSAL_STATUS_TONE: Record<ExpenseProposalStatus, "gray" 
 export const EXPENSE_PAYER_LABEL: Record<ExpensePayer, string> = {
   CREATOR: "Người lập phiếu",
   ACCOUNTANT: "Kế toán",
+};
+
+export const EXPENSE_PROPOSAL_CATEGORY_LABEL: Record<ExpenseProposalCategory, string> = {
+  MKT: "MKT",
+  OPERATION: "Vận hành",
+  FACILITY: "CSVC",
 };
 
 const roundMoney = (value: number) => Math.round(value * 100) / 100;
