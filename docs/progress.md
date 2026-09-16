@@ -1,6 +1,6 @@
 # Tiến độ dự án
 
-Cập nhật: 2026-09-15
+Cập nhật: 2026-09-16
 
 Ghi **đúng những gì git không tự trả lời được**. Lý do thiết kế đã nằm trong commit message, đừng
 chép lại vào đây. Mỗi mục "Đang dở" tối đa 3–4 dòng, và dòng quan trọng nhất luôn là: *đã kiểm thử
@@ -64,18 +64,14 @@ tài khoản cũ sang `Quản trị viên`/`Quán`. Đã kiểm typecheck, `migr
 (chặn route, phạm vi quán, thu hồi tức thì, chống leo quyền). Trình duyệt mới mở sơ trang Vai trò; cần
 thử kỹ: menu tick quyền, sửa tài khoản, menu/nút của tài khoản Quán y như cũ, vai trò hẹp chỉ thấy đúng trang.
 
-### Chi chốt ca — đã lên `main`, phần Loại chi CHƯA kiểm thử trên trình duyệt
-Sổ chi tiêu của quán, mỗi khoản là một bản ghi phẳng. Có nhập/xuất Excel.
-
-Đã kiểm bằng typecheck, lint và curl (kể cả phần Loại chi NVL/Khác). **Trên trình duyệt mới chỉ mở
-phần cũ**, chưa bấm thử Loại chi.
-
-Cần thử: thêm/sửa một khoản và đổi loại; lọc theo loại · ngày · quán; nhập file Excel mẫu rồi đối
-chiếu Tổng chi = 1.241.000 (NVL 984.000 + Khác 257.000); xuất ra rồi nhập lại chính file đó.
-
-**Lưu ý khi nhập Excel**: thêm cột Loại chi làm file mẫu cũ 6 cột không nhập được nữa — đúng ý đồ,
-bị chặn ở bước kiểm tiêu đề. Nhập Excel chỉ thêm mới, không ghi đè, nên nhập lại cùng file sẽ nhân
-đôi dòng.
+### Chi chốt ca: Loại chi + ảnh chứng từ — CHƯA kiểm thử trên trình duyệt
+Sổ chi đã lên `main`; hai phần thêm sau thì chưa: Loại chi (NVL/Khác) và ảnh chứng từ (tối đa 5
+ảnh, nén ở trình duyệt, lưu trên Cloudflare R2 với URL ký hạn 1 giờ). Đã kiểm typecheck, lint, curl
+và trọn vòng R2 thật (tải lên, xem, chặn URL không chữ ký, quá 5 ảnh / sai định dạng / quá nặng,
+khác quán 404, xoá ảnh và xoá khoản chi đều dọn sạch file). Cần thử: đính ảnh chụp điện thoại thật
+rồi xem/xoá; đổi và lọc Loại chi; nhập file Excel mẫu (Tổng chi 1.241.000). **Phải đặt 4 biến
+`R2_*` trên Render cả hai service** — để trống thì phần ảnh tự tắt; file Excel mẫu 6 cột cũ cũng
+không nhập được nữa.
 
 ---
 

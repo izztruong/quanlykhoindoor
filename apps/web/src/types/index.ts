@@ -507,6 +507,16 @@ export interface ShiftExpense {
   note?: string | null;
   createdBy?: { id: string; name: string } | null;
   createdAt: string;
+  /** Số ảnh chứng từ đã đính. Danh sách chỉ đếm; URL xem ảnh lấy riêng qua GET /:id/images. */
+  imageCount?: number;
+}
+
+/** Ảnh chứng từ kèm URL đã ký, sống 1 giờ kể từ lúc gọi API. */
+export interface ShiftExpenseImage {
+  id: string;
+  url: string;
+  contentType: string;
+  size: number;
 }
 
 /** Ô "Huỷ hàng" ở trang chủ — tiền tính theo giá vốn hiện tại, không phải số chốt. */

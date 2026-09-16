@@ -21,4 +21,10 @@ export const env = {
   nodeEnv: process.env.NODE_ENV ?? "development",
   // Không bắt buộc: để trống thì đăng nhập Google trả 503, đăng nhập mật khẩu vẫn chạy.
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",
+  // Cloudflare R2 để lưu ảnh chứng từ. Cùng lối với googleClientId: thiếu bất kỳ biến nào thì
+  // tính năng đính ảnh tự tắt, phần còn lại của app chạy bình thường.
+  r2AccountId: process.env.R2_ACCOUNT_ID ?? "",
+  r2Bucket: process.env.R2_BUCKET_NAME ?? "",
+  r2AccessKeyId: process.env.R2_ACCESS_KEY_ID ?? "",
+  r2SecretAccessKey: process.env.R2_SECRET_ACCESS_KEY ?? "",
 };

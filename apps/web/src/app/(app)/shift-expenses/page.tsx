@@ -4,6 +4,7 @@ import { DataTable } from "@/components/data-table/DataTable";
 import { Pagination } from "@/components/data-table/Pagination";
 import { ShiftExpenseExcelActions } from "@/components/shiftExpenses/ShiftExpenseExcelActions";
 import { ShiftExpenseFormModal } from "@/components/shiftExpenses/ShiftExpenseFormModal";
+import { ShiftExpenseImagesModal } from "@/components/shiftExpenses/ShiftExpenseImagesModal";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
@@ -17,7 +18,7 @@ import { clampDateRange } from "@/lib/dateRange";
 import { SHIFT_EXPENSE_TYPE_OPTIONS, formatCurrency, formatDateOnly, formatNumber, labels } from "@/lib/format";
 import type { ShiftExpense, ShiftExpenseType } from "@/types";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { ImageIcon, Pencil, Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 
 export default function ShiftExpensesPage() {
@@ -38,6 +39,7 @@ export default function ShiftExpensesPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [modalExpense, setModalExpense] = useState<ShiftExpense | "new" | null>(null);
+  const [imagesOf, setImagesOf] = useState<ShiftExpense | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const queryFilter = {
@@ -80,6 +82,24 @@ export default function ShiftExpensesPage() {
         cell: ({ row }) => <span className="block text-right font-medium">{formatCurrency(row.original.amount)}</span>,
       },
       { header: "Ghi chú", accessorFn: (row) => row.note ?? "-", id: "note" },
+      {
+        header: "Ảnh",
+        id: "images",
+        cell: ({ row }) =>
+          row.original.imageCount ? (
+            <button
+              type="button"
+              onClick={() => setImagesOf(row.original)}
+              className="flex items-center gap-1 text-indigo-600 hover:underline"
+              title="Xem ảnh chứng từ"
+            >
+              <ImageIcon size={14} />
+              {row.original.imageCount}
+            </button>
+          ) : (
+            <span className="text-slate-400">-</span>
+          ),
+      },
     ];
 
     if (scopeAll) {
@@ -231,6 +251,14 @@ export default function ShiftExpensesPage() {
         <ShiftExpenseFormModal
           existing={modalExpense === "new" ? undefined : modalExpense}
           onClose={() => setModalExpense(null)}
+        />
+      )}
+
+      {imagesOf && (
+        <ShiftExpenseImagesModal
+          expenseId={imagesOf.id}
+          title={imagesOf.content}
+          onClose={() => setImagesOf(null)}
         />
       )}
     </div>

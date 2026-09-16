@@ -4,11 +4,23 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Modal } from "@/components/ui/Modal";
-import { useCreateShiftExpense, useUpdateShiftExpense, type ShiftExpenseInput } from "@/hooks/useShiftExpenses";
+import {
+  useCreateShiftExpense,
+  useDeleteShiftExpenseImage,
+  useShiftExpenseImages,
+  useUpdateShiftExpense,
+  useUploadShiftExpenseImages,
+  type ShiftExpenseInput,
+} from "@/hooks/useShiftExpenses";
 import { ApiError } from "@/lib/api-client";
 import { SHIFT_EXPENSE_TYPE_OPTIONS, formatCurrency, toDateInput } from "@/lib/format";
+import { compressImage } from "@/lib/imageCompress";
 import type { ShiftExpense, ShiftExpenseType } from "@/types";
-import { useState } from "react";
+import { Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+
+/** Khớp với MAX_IMAGES_PER_EXPENSE ở server — server vẫn là nơi chốt, đây chỉ để báo sớm. */
+const MAX_IMAGES = 5;
 
 interface ShiftExpenseFormModalProps {
   /** Có thì là sửa, không có thì là thêm mới. */
@@ -35,14 +47,76 @@ export function ShiftExpenseFormModal({ existing, onClose }: ShiftExpenseFormMod
   const [note, setNote] = useState(existing?.note ?? "");
   const [error, setError] = useState<string | null>(null);
 
+  // Ảnh mới chọn, chưa gửi lên. URL xem trước phải tự thu hồi, không thì rò bộ nhớ.
+  const [pendingFiles, setPendingFiles] = useState<{ file: File; previewUrl: string }[]>([]);
+  const [uploading, setUploading] = useState(false);
+
+  // Id của bản ghi đã nằm trong DB. Với form thêm mới, nó được điền sau lần lưu đầu tiên — nhờ đó
+  // bấm Lưu lại sau khi đính ảnh hỏng sẽ SỬA bản ghi vừa tạo chứ không tạo thêm bản ghi trùng.
+  const [savedId, setSavedId] = useState<string | null>(existing?.id ?? null);
+
   const createExpense = useCreateShiftExpense();
-  const updateExpense = useUpdateShiftExpense(existing?.id ?? "");
-  const isPending = createExpense.isPending || updateExpense.isPending;
+  const updateExpense = useUpdateShiftExpense();
+  const uploadImages = useUploadShiftExpenseImages();
+  const deleteImage = useDeleteShiftExpenseImage(existing?.id ?? "");
+  const { data: savedImages = [] } = useShiftExpenseImages(existing?.id ?? "");
+  const isPending = createExpense.isPending || updateExpense.isPending || uploading;
+
+  useEffect(() => {
+    return () => {
+      for (const item of pendingFiles) URL.revokeObjectURL(item.previewUrl);
+    };
+  }, [pendingFiles]);
+
+  const totalImages = savedImages.length + pendingFiles.length;
+
+  function handlePickFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    if (picked.length === 0) return;
+
+    const room = MAX_IMAGES - totalImages;
+    if (room <= 0) {
+      setError(`Mỗi khoản chi tối đa ${MAX_IMAGES} ảnh`);
+      return;
+    }
+
+    setError(picked.length > room ? `Chỉ nhận thêm ${room} ảnh nữa (tối đa ${MAX_IMAGES})` : null);
+    setPendingFiles((prev) => [
+      ...prev,
+      ...picked.slice(0, room).map((file) => ({ file, previewUrl: URL.createObjectURL(file) })),
+    ]);
+  }
+
+  function removePendingFile(previewUrl: string) {
+    setPendingFiles((prev) => {
+      const next = prev.filter((item) => item.previewUrl !== previewUrl);
+      URL.revokeObjectURL(previewUrl);
+      return next;
+    });
+  }
+
+  /**
+   * Gửi ảnh sau khi đã có id khoản chi. Trả về câu lỗi nếu hỏng, `null` nếu xong — cố ý KHÔNG ném:
+   * khoản chi đã lưu rồi, người dùng cần biết điều đó thay vì tưởng mất trắng.
+   */
+  async function uploadPendingImages(expenseId: string): Promise<string | null> {
+    if (pendingFiles.length === 0) return null;
+
+    try {
+      const images = await Promise.all(pendingFiles.map((item) => compressImage(item.file)));
+      await uploadImages.mutateAsync({ id: expenseId, images });
+      return null;
+    } catch (err) {
+      if (err instanceof ApiError) return err.message;
+      return err instanceof Error ? err.message : "Tải ảnh thất bại";
+    }
+  }
 
   // Chỉ để người nhập nhìn cho yên tâm — số chốt vẫn do server tính lại khi lưu.
   const previewAmount = Number(quantity) * Number(unitPrice);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
 
@@ -73,11 +147,31 @@ export function ShiftExpenseFormModal({ existing, onClose }: ShiftExpenseFormMod
       note: note.trim() || undefined,
     };
 
-    const mutation = isEdit ? updateExpense : createExpense;
-    mutation.mutate(payload, {
-      onSuccess: () => onClose(),
-      onError: (err) => setError(err instanceof ApiError ? err.message : "Lưu khoản chi thất bại"),
-    });
+    // Hai bước, vì khoản chi mới chưa có id cho tới khi server trả về: lưu bản ghi trước, lấy id,
+    // rồi mới đẩy ảnh lên. Bước hai hỏng cũng không được nuốt mất bước một.
+    let expenseId: string;
+    try {
+      const saved = savedId
+        ? await updateExpense.mutateAsync({ id: savedId, data: payload })
+        : await createExpense.mutateAsync(payload);
+      expenseId = saved.id;
+      setSavedId(saved.id);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Lưu khoản chi thất bại");
+      return;
+    }
+
+    setUploading(true);
+    const uploadError = await uploadPendingImages(expenseId);
+    setUploading(false);
+
+    if (uploadError) {
+      setError(`Đã lưu khoản chi nhưng tải ảnh thất bại: ${uploadError}`);
+      // Không đóng modal: ảnh vẫn còn trong danh sách chờ để bấm lưu lại, và khoản chi thì đã an toàn.
+      return;
+    }
+
+    onClose();
   }
 
   return (
@@ -122,6 +216,64 @@ export function ShiftExpenseFormModal({ existing, onClose }: ShiftExpenseFormMod
           <Input value={note} onChange={(e) => setNote(e.target.value)} />
         </div>
 
+        <div>
+          <label className="mb-1 block text-xs font-medium text-slate-500">
+            Ảnh chứng từ ({totalImages}/{MAX_IMAGES})
+          </label>
+
+          {(savedImages.length > 0 || pendingFiles.length > 0) && (
+            <div className="mb-2 flex flex-wrap gap-2">
+              {savedImages.map((image) => (
+                <div key={image.id} className="relative">
+                  {/* Ảnh trên R2 dùng URL ký có hạn nên để thẻ img thường, khỏi khai remotePatterns. */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={image.url} alt="Ảnh chứng từ" className="h-20 w-20 rounded border border-slate-200 object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!window.confirm("Xoá ảnh này?")) return;
+                      deleteImage.mutate(image.id);
+                    }}
+                    className="absolute -right-1 -top-1 rounded-full bg-white p-1 text-slate-400 shadow hover:text-red-600"
+                    title="Xoá ảnh"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              ))}
+
+              {pendingFiles.map((item) => (
+                <div key={item.previewUrl} className="relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={item.previewUrl}
+                    alt="Ảnh sắp tải lên"
+                    className="h-20 w-20 rounded border border-dashed border-indigo-300 object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removePendingFile(item.previewUrl)}
+                    className="absolute -right-1 -top-1 rounded-full bg-white p-1 text-slate-400 shadow hover:text-red-600"
+                    title="Bỏ ảnh"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={handlePickFiles}
+            disabled={totalImages >= MAX_IMAGES}
+            className="text-sm"
+          />
+          <p className="mt-1 text-xs text-slate-400">Ảnh được nén trước khi gửi nên chụp bằng điện thoại thoải mái.</p>
+        </div>
+
         <div className="flex justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
           <span className="text-slate-500">Thành tiền</span>
           <span className="font-semibold text-slate-800">
@@ -136,7 +288,7 @@ export function ShiftExpenseFormModal({ existing, onClose }: ShiftExpenseFormMod
             Huỷ
           </Button>
           <Button type="submit" disabled={isPending}>
-            {isPending ? "Đang lưu..." : isEdit ? "Lưu thay đổi" : "Thêm khoản chi"}
+            {uploading ? "Đang tải ảnh..." : isPending ? "Đang lưu..." : isEdit ? "Lưu thay đổi" : "Thêm khoản chi"}
           </Button>
         </div>
       </form>

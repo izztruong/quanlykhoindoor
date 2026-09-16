@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
-import type { PagedResult, ShiftExpense, ShiftExpenseType } from "@/types";
+import type { PagedResult, ShiftExpense, ShiftExpenseImage, ShiftExpenseType } from "@/types";
 
 export interface ShiftExpenseInput {
   /** "YYYY-MM-DD" — cột DATE ở server, không gửi kèm giờ. */
@@ -41,10 +41,12 @@ export function useCreateShiftExpense() {
   });
 }
 
-export function useUpdateShiftExpense(id: string) {
+/** Nhận id lúc gọi: form còn phải sửa lại chính bản ghi vừa tạo nếu bước đính ảnh hỏng. */
+export function useUpdateShiftExpense() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: ShiftExpenseInput) => api.put<ShiftExpense>(`/shift-expenses/${id}`, data),
+    mutationFn: ({ id, data }: { id: string; data: ShiftExpenseInput }) =>
+      api.put<ShiftExpense>(`/shift-expenses/${id}`, data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["shift-expenses"] }),
   });
 }
@@ -62,5 +64,41 @@ export function useImportShiftExpenses() {
   return useMutation({
     mutationFn: (items: ShiftExpenseInput[]) => api.post<{ created: number }>("/shift-expenses/bulk-import", { items }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["shift-expenses"] }),
+  });
+}
+
+/** URL ảnh chỉ ký khi thực sự cần xem — vì vậy tách hẳn khỏi truy vấn danh sách. */
+export function useShiftExpenseImages(id: string) {
+  return useQuery({
+    queryKey: ["shift-expenses", id, "images"],
+    queryFn: () => api.get<ShiftExpenseImage[]>(`/shift-expenses/${id}/images`),
+    enabled: Boolean(id),
+  });
+}
+
+export interface ShiftExpenseImageInput {
+  contentType: string;
+  dataBase64: string;
+}
+
+/** Nhận id lúc gọi chứ không lúc tạo hook: khoản chi mới chưa có id cho tới khi server trả về. */
+export function useUploadShiftExpenseImages() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, images }: { id: string; images: ShiftExpenseImageInput[] }) =>
+      api.post<{ created: number }>(`/shift-expenses/${id}/images`, { images }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["shift-expenses"] });
+    },
+  });
+}
+
+export function useDeleteShiftExpenseImage(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (imageId: string) => api.delete<void>(`/shift-expenses/${id}/images/${imageId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["shift-expenses"] });
+    },
   });
 }

@@ -645,7 +645,25 @@ model ShiftExpense {
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
+  images      ShiftExpenseImage[]
+
   @@index([createdById, spentAt])
+}
+
+// Ảnh chứng từ của một khoản chi (hóa đơn chụp lại). Chỉ lưu KHOÁ object trong R2, không lưu URL:
+// URL phát ra là URL ký có hạn nên lưu lại vô nghĩa, còn đổi bucket về sau chỉ phải sửa cấu hình.
+// Xoá dòng này KHÔNG xoá file trên R2 — chỗ nào xoá cũng phải gọi deleteImages (utils/objectStorage).
+model ShiftExpenseImage {
+  id             String       @id @default(cuid())
+  shiftExpenseId String
+  shiftExpense   ShiftExpense @relation(fields: [shiftExpenseId], references: [id], onDelete: Cascade)
+  objectKey      String       @unique
+  contentType    String
+  size           Int
+  sortOrder      Int          @default(0)
+  createdAt      DateTime     @default(now())
+
+  @@index([shiftExpenseId])
 }
 
 enum CostCheckStatus {

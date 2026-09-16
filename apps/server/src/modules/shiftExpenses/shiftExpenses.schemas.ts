@@ -18,3 +18,24 @@ export const shiftExpenseBulkImportSchema = z.object({
 });
 
 export type ShiftExpenseInput = z.infer<typeof shiftExpenseCreateSchema>;
+
+/** Tối đa 5 ảnh mỗi khoản chi — đủ cho hóa đơn nhiều trang mà không ai đẩy lên hàng chục tấm. */
+export const MAX_IMAGES_PER_EXPENSE = 5;
+
+/** Trình duyệt đã nén xuống ~200 KB trước khi gửi, 1,5 MB là trần rộng rãi cho ảnh lọt lưới nén. */
+export const MAX_IMAGE_BYTES = 1_500_000;
+
+export const IMAGE_CONTENT_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+
+export const shiftExpenseImageUploadSchema = z.object({
+  images: z
+    .array(
+      z.object({
+        contentType: z.enum(IMAGE_CONTENT_TYPES, { message: "Chỉ nhận ảnh JPG, PNG hoặc WEBP" }),
+        // Chỉ phần dữ liệu base64, không kèm tiền tố "data:image/jpeg;base64,".
+        dataBase64: z.string().min(1, "Ảnh rỗng"),
+      }),
+    )
+    .min(1, "Chưa chọn ảnh nào")
+    .max(MAX_IMAGES_PER_EXPENSE, `Mỗi khoản chi tối đa ${MAX_IMAGES_PER_EXPENSE} ảnh`),
+});
