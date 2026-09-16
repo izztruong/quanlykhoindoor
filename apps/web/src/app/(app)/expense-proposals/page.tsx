@@ -56,6 +56,7 @@ export default function ExpenseProposalsPage() {
         ),
       },
       { header: "Người chi", accessorFn: (row) => EXPENSE_PAYER_LABEL[row.payer], id: "payer" },
+      { header: "Người xác nhận", accessorFn: (row) => row.approver?.name ?? "-", id: "approver" },
       {
         header: "Tổng tiền",
         id: "totalAmount",
