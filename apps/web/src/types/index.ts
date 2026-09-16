@@ -567,6 +567,9 @@ export interface ExpenseProposal {
   /** Quán chi. Null ở phiếu cũ lưu tên quán dạng chữ không khớp tài khoản nào. */
   shopId: string | null;
   shop?: UserRef;
+  /** Người được đề nghị xác nhận (tài khoản không phải quán). Chỉ ghi nhận, không quyết định ai bấm Duyệt. */
+  approverId: string | null;
+  approver?: UserRef;
   purpose: string;
   totalAmount: string | number;
   /** Ba trường tạm ứng chỉ có khi payer = ACCOUNTANT. */

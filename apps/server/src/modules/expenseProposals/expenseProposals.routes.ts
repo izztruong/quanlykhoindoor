@@ -7,7 +7,7 @@ import { HttpError } from "../../utils/httpError";
 import { parseDateRange, parsePagination } from "../../utils/pagination";
 import { expenseProposalRejectSchema, expenseProposalSchema } from "./expenseProposals.schemas";
 import {
-  assertShop,
+  assertParties,
   expenseProposalDetailInclude,
   expenseProposalListInclude,
   findOwnedProposal,
@@ -55,7 +55,7 @@ expenseProposalsRouter.get("/:id", requirePermission("EXPENSE_PROPOSALS"), async
 
 expenseProposalsRouter.post("/", requirePermission("EXPENSE_PROPOSALS"), async (req, res) => {
   const data = expenseProposalSchema.parse(req.body);
-  await assertShop(data.shopId);
+  await assertParties(data);
   const { header, items } = toProposalData(data);
   const item = await prisma.expenseProposal.create({
     data: {
@@ -74,7 +74,7 @@ expenseProposalsRouter.post("/", requirePermission("EXPENSE_PROPOSALS"), async (
 expenseProposalsRouter.put("/:id", requirePermission("EXPENSE_PROPOSALS"), async (req, res) => {
   const id = req.params.id as string;
   const data = expenseProposalSchema.parse(req.body);
-  await assertShop(data.shopId);
+  await assertParties(data);
   const { header, items } = toProposalData(data);
 
   const existing = await findOwnedProposal(id, req.user);

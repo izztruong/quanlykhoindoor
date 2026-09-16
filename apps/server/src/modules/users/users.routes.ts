@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import { Router } from "express";
 import { prisma } from "../../config/db";
+import type { Prisma } from "../../generated/prisma/client";
 import { requirePermission, type AuthUser } from "../../middleware/auth";
 import { HttpError } from "../../utils/httpError";
 import { parsePagination } from "../../utils/pagination";
@@ -43,14 +44,22 @@ async function assertManageableUser(target: { role: { isSystem: boolean; permiss
   }
 }
 
-// Danh sách quán cho ô lọc / chọn quán ở các trang nghiệp vụ — chỉ id, tên, email nên chỉ cần đăng nhập.
+// Danh sách tài khoản cho ô lọc / ô chọn ở các trang nghiệp vụ — chỉ id, tên, email nên chỉ cần đăng nhập.
 // Tách khỏi GET "/" để trang đơn hàng, Check Cost, điều chuyển… không phải có quyền USERS.VIEW.
-// Mặc định chỉ tài khoản thuộc vai trò "là quán" (Role.isShop) — admin hay tài khoản chỉ lập đề xuất
-// chi không lẫn vào ô chọn quán. `?all=1` trả mọi tài khoản, cho ô lọc theo người lập.
+// `?scope=`: mặc định "shop" = chỉ tài khoản thuộc vai trò là quán (Role.isShop), để admin hay tài
+// khoản chỉ lập đề xuất chi không lẫn vào ô chọn quán · "other" = ngược lại, dùng cho ô chọn người
+// xác nhận · "all" = mọi tài khoản, cho ô lọc theo người lập.
+const OPTION_SCOPES = {
+  shop: { role: { isShop: true } },
+  other: { role: { isShop: false } },
+  all: undefined,
+} satisfies Record<string, Prisma.UserWhereInput | undefined>;
+
 usersRouter.get("/options", async (req, res) => {
-  const all = req.query.all === "1";
+  const scope = String(req.query.scope ?? "shop");
+  const where = scope in OPTION_SCOPES ? OPTION_SCOPES[scope as keyof typeof OPTION_SCOPES] : OPTION_SCOPES.shop;
   const items = await prisma.user.findMany({
-    where: all ? undefined : { role: { isShop: true } },
+    where,
     select: { id: true, name: true, email: true },
     orderBy: { createdAt: "asc" },
   });

@@ -57,6 +57,10 @@ export function ExpenseProposalFormClient({ existing }: { existing?: ExpenseProp
   const wantedShopId = pickedShopId ?? currentUser?.id ?? "";
   // Quán không còn trong danh sách (vd vai trò đã bỏ cờ "là quán") thì coi như chưa chọn, bắt chọn lại.
   const shopId = shops.some((s) => s.id === wantedShopId) ? wantedShopId : "";
+  // Người xác nhận: ngược lại với quán — chỉ tài khoản KHÔNG phải quán.
+  const { data: approvers = [] } = useUserOptions({ scope: "other" });
+  const [pickedApproverId, setPickedApproverId] = useState(existing?.approverId ?? "");
+  const approverId = approvers.some((a) => a.id === pickedApproverId) ? pickedApproverId : "";
   const [purpose, setPurpose] = useState(existing?.purpose ?? "");
   const [rows, setRows] = useState<ItemRow[]>(() =>
     existing?.items?.length
@@ -94,6 +98,7 @@ export function ExpenseProposalFormClient({ existing }: { existing?: ExpenseProp
 
     if (!proposalDate) return setError("Vui lòng chọn ngày tạo phiếu.");
     if (!shopId) return setError("Vui lòng chọn quán chi.");
+    if (!approverId) return setError("Vui lòng chọn người xác nhận.");
     if (!purpose.trim()) return setError("Vui lòng nhập mục đích sử dụng.");
 
     const filled = rows.map((row, index) => ({ row, stt: index + 1 })).filter(({ row }) => !isBlankRow(row));
@@ -113,6 +118,7 @@ export function ExpenseProposalFormClient({ existing }: { existing?: ExpenseProp
       proposalDate,
       payer,
       shopId,
+      approverId,
       purpose: purpose.trim(),
       items: filled.map(({ row }) => ({
         content: row.content.trim(),
@@ -178,6 +184,17 @@ export function ExpenseProposalFormClient({ existing }: { existing?: ExpenseProp
               {shops.map((shop) => (
                 <option key={shop.id} value={shop.id}>
                   {shop.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-slate-600">Người xác nhận</label>
+            <Select value={approverId} onChange={(e) => setPickedApproverId(e.target.value)}>
+              <option value="">— Chọn người xác nhận —</option>
+              {approvers.map((approver) => (
+                <option key={approver.id} value={approver.id}>
+                  {approver.name}
                 </option>
               ))}
             </Select>

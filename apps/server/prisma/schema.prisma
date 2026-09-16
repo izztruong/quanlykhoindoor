@@ -13,7 +13,6 @@ datasource db {
  * Vai trò = một bộ mã quyền `RESOURCE.ACTION` (danh sách hợp lệ ở
  * src/modules/roles/permissions.ts). Mảng chuỗi thay vì bảng nối: thêm quyền mới chỉ là thêm một
  * chuỗi, không cần migration. Không có mã = không có quyền.
- *
  * `isSystem` là vai trò "vua": bỏ qua mọi kiểm tra và không ai sửa/xoá được — phao cứu sinh khi
  * cấu hình sai khoá hết mọi người ra ngoài. Dòng `role_admin` được chèn sẵn trong migration.
  */
@@ -44,22 +43,23 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  inventoryCounts          InventoryCount[]
-  salesOrders              SalesOrder[]
-  reorderThresholds        ProductReorderThreshold[]
-  stockChecks              StockCheck[]
-  materialWastes           MaterialWaste[]
-  shiftExpenses            ShiftExpense[]
-  costChecks               CostCheck[]               @relation("CostCheckShop")
-  costChecksCreated        CostCheck[]               @relation("CostCheckCreatedBy")
-  materialTransfersFrom    MaterialTransfer[]        @relation("MaterialTransferFrom")
-  materialTransfersTo      MaterialTransfer[]        @relation("MaterialTransferTo")
-  materialTransfersCreated MaterialTransfer[]        @relation("MaterialTransferCreatedBy")
-  expenseProposals         ExpenseProposal[]         @relation("ExpenseProposalCreatedBy")
-  expenseProposalsApproved ExpenseProposal[]         @relation("ExpenseProposalApprovedBy")
-  expenseProposalsAdvanced ExpenseProposal[]         @relation("ExpenseProposalAdvancedBy")
-  expenseProposalsSpent    ExpenseProposal[]         @relation("ExpenseProposalSpentBy")
-  expenseProposalsShop     ExpenseProposal[]         @relation("ExpenseProposalShop")
+  inventoryCounts           InventoryCount[]
+  salesOrders               SalesOrder[]
+  reorderThresholds         ProductReorderThreshold[]
+  stockChecks               StockCheck[]
+  materialWastes            MaterialWaste[]
+  shiftExpenses             ShiftExpense[]
+  costChecks                CostCheck[]               @relation("CostCheckShop")
+  costChecksCreated         CostCheck[]               @relation("CostCheckCreatedBy")
+  materialTransfersFrom     MaterialTransfer[]        @relation("MaterialTransferFrom")
+  materialTransfersTo       MaterialTransfer[]        @relation("MaterialTransferTo")
+  materialTransfersCreated  MaterialTransfer[]        @relation("MaterialTransferCreatedBy")
+  expenseProposals          ExpenseProposal[]         @relation("ExpenseProposalCreatedBy")
+  expenseProposalsApproved  ExpenseProposal[]         @relation("ExpenseProposalApprovedBy")
+  expenseProposalsAdvanced  ExpenseProposal[]         @relation("ExpenseProposalAdvancedBy")
+  expenseProposalsSpent     ExpenseProposal[]         @relation("ExpenseProposalSpentBy")
+  expenseProposalsShop      ExpenseProposal[]         @relation("ExpenseProposalShop")
+  expenseProposalsToApprove ExpenseProposal[]         @relation("ExpenseProposalApprover")
 }
 
 enum DeadlineKind {
@@ -70,16 +70,15 @@ enum DeadlineKind {
 
 /**
  * Lịch hạn nộp, dùng chung cho mọi quán — đúng một dòng cho mỗi loại.
- *
  * Giờ lưu bằng hai cột số nguyên chứ KHÔNG phải DateTime: một mốc giờ đi qua ô nhập
  * datetime-local rồi lưu lại sẽ bị trừ đi phần lệch múi giờ mỗi lần lưu (xem chú thích ở
  * apps/web/src/lib/dateRange.ts), tức "22:00" tụt dần thành 15:00 rồi 08:00.
  */
 model Deadline {
-  id        String       @id @default(cuid())
-  kind      DeadlineKind @unique
+  id            String       @id @default(cuid())
+  kind          DeadlineKind @unique
   // Thứ phải nộp, 1 = Thứ 2 … 7 = Chủ nhật (ISO-8601). Chỉ dùng cho STOCK_CHECK_WEEKLY.
-  weekday   Int?
+  weekday       Int?
   // Thứ quy định đi kiểm — mốc MỞ KỲ, cũng chỉ dùng cho STOCK_CHECK_WEEKLY.
   //
   // Không thể suy ra kỳ từ tuần lịch cố định (bắt đầu Thứ 2): nếu quy định kiểm Chủ nhật và hạn
@@ -89,10 +88,10 @@ model Deadline {
   periodWeekday Int?
   // Số ngày ân hạn sau khi kỳ kết thúc. Chỉ dùng cho STOCK_CHECK_MONTHLY (1 = 12h ngày mùng 1
   // tháng sau). SALES_ORDER luôn là trong ngày nên không dùng.
-  graceDays Int          @default(0)
-  hour      Int
-  minute    Int
-  updatedAt DateTime     @updatedAt
+  graceDays     Int          @default(0)
+  hour          Int
+  minute        Int
+  updatedAt     DateTime     @updatedAt
 }
 
 model Warehouse {
@@ -197,7 +196,7 @@ model Product {
 
   // Hàng hoá ngừng dùng (active=false) vẫn giữ nguyên lịch sử, chỉ bị ẩn khỏi các ô chọn hàng
   // hoá khi tạo phiếu/đơn hàng mới — không ảnh hưởng gì tới trang quản lý danh mục (vẫn hiện đủ).
-  active         Boolean      @default(true)
+  active Boolean @default(true)
 
   // Quy đổi cho công thức/check cost: 1 [đơn vị chính] = recipeUnitsPerBaseUnit [recipeUnit, vd gam].
   // Để trống nếu công thức dùng thẳng đơn vị chính (hệ số quy đổi = 1).
@@ -423,8 +422,8 @@ model SalesOrder {
 
   // Hạn đặt hàng của chính ngày tạo đơn, chốt ngay lúc tạo. Đo theo createdAt chứ không theo
   // orderDate: orderDate do người đặt tự chọn nên lùi ngày là thoát, createdAt thì không sửa được.
-  dueAt       DateTime?
-  isLate      Boolean          @default(false)
+  dueAt  DateTime?
+  isLate Boolean   @default(false)
 
   items       SalesOrderItem[]
   stockExport StockExport?
@@ -520,9 +519,9 @@ model StockCheck {
   // Hạn nộp của KỲ mà phiếu này báo cáo, chốt ngay lúc tạo. Kỳ suy ra từ checkedAt (quán khai
   // kiểm ngày nào), còn hạn thì lấy từ lịch admin đặt — cố tình KHÔNG tính từ checkedAt, nếu
   // không quán chỉ cần khai muộn ngày kiểm là hạn tự lùi theo và luôn đúng hạn.
-  dueAt       DateTime?
+  dueAt  DateTime?
   // Bằng createdAt > dueAt, nhưng lưu sẵn thành cột riêng để lọc/đánh dấu được bằng SQL.
-  isLate      Boolean         @default(false)
+  isLate Boolean   @default(false)
 
   items               StockCheckItem[]
   finishedItems       StockCheckFinishedItem[]
@@ -626,25 +625,25 @@ enum ShiftExpenseType {
 // khoản không nằm trong danh mục hàng hoá (vd "Ship sữa dừa sang Xuân La", đơn vị "lần").
 // Không có `code` như các phiếu khác: đây là dòng sổ, không phải chứng từ để tra theo mã.
 model ShiftExpense {
-  id          String   @id @default(cuid())
+  id          String           @id @default(cuid())
   // Ngày chi do quán khai. Kiểu DATE (không có phần giờ) nên không dính lệch múi giờ như DateTime.
-  spentAt     DateTime @db.Date
+  spentAt     DateTime         @db.Date
   // Mặc định MATERIAL ở tầng DB chỉ để thêm cột vào bảng đã có dữ liệu cho an toàn — mọi đường ghi
   // (form, API, nhập Excel) đều bắt buộc khai loại, không dựa vào mặc định này.
   type        ShiftExpenseType @default(MATERIAL)
   content     String
   unit        String?
-  quantity    Decimal  @db.Decimal(18, 3)
-  unitPrice   Decimal  @db.Decimal(18, 2)
+  quantity    Decimal          @db.Decimal(18, 3)
+  unitPrice   Decimal          @db.Decimal(18, 2)
   // Thành tiền = SL × đơn giá, tính ở SERVER lúc ghi rồi lưu lại — giống StockImportItem.costAmount.
   // Cố ý lưu (khác StockCheckItem tính lúc hiển thị) vì "Tổng chi" phải cộng trên toàn bộ bộ lọc
   // chứ không chỉ 20 dòng đang hiển thị; có cột này thì dùng thẳng aggregate _sum.
-  amount      Decimal  @db.Decimal(18, 2)
+  amount      Decimal          @db.Decimal(18, 2)
   note        String?
   createdById String?
-  createdBy   User?    @relation(fields: [createdById], references: [id])
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdBy   User?            @relation(fields: [createdById], references: [id])
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 
   @@index([createdById, spentAt])
 }
@@ -762,6 +761,11 @@ model ExpenseProposal {
   // tên quán dạng chữ không khớp tài khoản nào — mọi đường ghi mới đều bắt buộc có.
   shopId         String?
   shop           User?                 @relation("ExpenseProposalShop", fields: [shopId], references: [id])
+  // Người được đề nghị xác nhận phiếu: tài khoản KHÔNG phải quán. Chỉ để ghi nhận và hiển thị —
+  // ai bấm Duyệt vẫn do quyền EXPENSE_PROPOSALS.APPROVE quyết định, xem approvedById.
+  // Nullable vì phiếu lập trước khi có trường này; mọi đường ghi mới đều bắt buộc có.
+  approverId     String?
+  approver       User?                 @relation("ExpenseProposalApprover", fields: [approverId], references: [id])
   purpose        String
   // Tổng và tiền tạm ứng tính ở SERVER lúc ghi rồi lưu lại, không tin số client gửi.
   totalAmount    Decimal               @db.Decimal(18, 2)
@@ -790,6 +794,7 @@ model ExpenseProposal {
   @@index([createdById, proposalDate])
   @@index([status])
   @@index([shopId])
+  @@index([approverId])
 }
 
 model ExpenseProposalItem {

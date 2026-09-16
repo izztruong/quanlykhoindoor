@@ -18,6 +18,7 @@ export const expenseProposalSchema = z
     proposalDate: dateOnly("Ngày tạo phiếu không hợp lệ"),
     payer: z.enum(["CREATOR", "ACCOUNTANT"], { message: "Người chi phải là người lập phiếu hoặc kế toán" }),
     shopId: z.string({ message: "Vui lòng chọn quán chi" }).trim().min(1, "Vui lòng chọn quán chi"),
+    approverId: z.string({ message: "Vui lòng chọn người xác nhận" }).trim().min(1, "Vui lòng chọn người xác nhận"),
     purpose: z.string().trim().min(1, "Mục đích sử dụng không được để trống"),
     items: z.array(expenseProposalItemSchema).min(1, "Phiếu phải có ít nhất 1 hạng mục"),
     // Chỉ đọc khi payer = ACCOUNTANT; người lập tự chi thì bỏ qua dù client có gửi. Ô trống ("")

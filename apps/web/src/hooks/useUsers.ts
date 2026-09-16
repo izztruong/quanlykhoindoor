@@ -38,15 +38,18 @@ export function useUsers(options?: { enabled?: boolean }) {
   });
 }
 
+/** "shop" = tài khoản quán · "other" = tài khoản không phải quán (vd người xác nhận) · "all" = tất cả. */
+export type UserOptionScope = "shop" | "other" | "all";
+
 /**
- * Chỉ id, tên, email — cho ô chọn/lọc theo quán ở các trang nghiệp vụ — mọi tài khoản đăng nhập đều gọi được.
- * Mặc định chỉ tài khoản thuộc vai trò "là quán"; `all` lấy mọi tài khoản (vd lọc theo người lập phiếu).
+ * Chỉ id, tên, email — cho ô chọn/lọc tài khoản ở các trang nghiệp vụ — mọi tài khoản đăng nhập đều
+ * gọi được. Mặc định chỉ tài khoản thuộc vai trò "là quán" (Role.isShop).
  */
-export function useUserOptions(options?: { enabled?: boolean; all?: boolean }) {
-  const all = options?.all ?? false;
+export function useUserOptions(options?: { enabled?: boolean; scope?: UserOptionScope }) {
+  const scope = options?.scope ?? "shop";
   return useQuery({
-    queryKey: ["users", "options", { all }],
-    queryFn: () => api.get<{ items: UserOption[] }>("/users/options", { all: all ? 1 : undefined }).then((r) => r.items),
+    queryKey: ["users", "options", { scope }],
+    queryFn: () => api.get<{ items: UserOption[] }>("/users/options", { scope }).then((r) => r.items),
     enabled: options?.enabled ?? true,
   });
 }

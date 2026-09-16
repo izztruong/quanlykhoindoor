@@ -8,11 +8,16 @@ export const NOT_FOUND_MESSAGE = "Không tìm thấy phiếu đề xuất chi";
 
 const userName = { select: { id: true, name: true } };
 
-export const expenseProposalListInclude = { createdBy: userName, shop: userName } satisfies Prisma.ExpenseProposalInclude;
+export const expenseProposalListInclude = {
+  createdBy: userName,
+  shop: userName,
+  approver: userName,
+} satisfies Prisma.ExpenseProposalInclude;
 
 export const expenseProposalDetailInclude = {
   createdBy: userName,
   shop: userName,
+  approver: userName,
   approvedBy: userName,
   advancedBy: userName,
   spentBy: userName,
@@ -44,6 +49,7 @@ export function toProposalData(data: ExpenseProposalInput) {
       proposalDate: data.proposalDate,
       payer: data.payer,
       shopId: data.shopId,
+      approverId: data.approverId,
       purpose: data.purpose,
       totalAmount,
       advancePercent,
@@ -55,10 +61,18 @@ export function toProposalData(data: ExpenseProposalInput) {
   };
 }
 
-/** Quán chi phải là tài khoản thuộc vai trò "là quán" — ô chọn chỉ liệt kê những tài khoản đó, server kiểm lại. */
-export async function assertShop(shopId: string) {
-  const shop = await prisma.user.findFirst({ where: { id: shopId, role: { isShop: true } }, select: { id: true } });
+/**
+ * Quán chi phải là tài khoản thuộc vai trò "là quán", người xác nhận phải là tài khoản KHÔNG phải
+ * quán — ô chọn đã lọc sẵn, server kiểm lại. Người xác nhận chỉ để ghi nhận: nó không quyết định ai
+ * bấm được Duyệt, quyền EXPENSE_PROPOSALS.APPROVE mới quyết định.
+ */
+export async function assertParties(data: { shopId: string; approverId: string }) {
+  const [shop, approver] = await Promise.all([
+    prisma.user.findFirst({ where: { id: data.shopId, role: { isShop: true } }, select: { id: true } }),
+    prisma.user.findFirst({ where: { id: data.approverId, role: { isShop: false } }, select: { id: true } }),
+  ]);
   if (!shop) throw new HttpError(400, "Quán chi không hợp lệ");
+  if (!approver) throw new HttpError(400, "Người xác nhận không hợp lệ");
 }
 
 /** Đọc phiếu và chốt phạm vi quán — ngoài phạm vi trả 404 như không tồn tại. */

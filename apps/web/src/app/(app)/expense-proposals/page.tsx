@@ -24,7 +24,7 @@ export default function ExpenseProposalsPage() {
   // Phạm vi SELF chỉ thấy phiếu của mình (server tự ép), nên ô lọc theo người lập vô nghĩa với họ.
   // Lấy mọi tài khoản chứ không chỉ quán: người lập có thể là tài khoản chỉ dùng chức năng đề xuất chi.
   const scopeAll = hasScopeAll(user);
-  const { data: users = [] } = useUserOptions({ enabled: scopeAll, all: true });
+  const { data: users = [] } = useUserOptions({ enabled: scopeAll, scope: "all" });
 
   const emptyFilter = { from: "", to: "", status: "" as ExpenseProposalStatus | "", createdById: "" };
   const [filter, setFilter] = useState(emptyFilter);

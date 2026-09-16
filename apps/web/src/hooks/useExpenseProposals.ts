@@ -16,6 +16,8 @@ export interface ExpenseProposalInput {
   payer: ExpensePayer;
   /** Tài khoản quán (vai trò có cờ "là quán"). */
   shopId: string;
+  /** Người xác nhận — tài khoản không phải quán. */
+  approverId: string;
   purpose: string;
   items: ExpenseProposalItemInput[];
   /** Chỉ gửi khi payer = ACCOUNTANT — server bỏ qua với người lập tự chi. */
