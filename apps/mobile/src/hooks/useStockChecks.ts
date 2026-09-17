@@ -29,10 +29,12 @@ export interface StockCheckCreateInput {
 
 export function useStockChecks(
   filter: { from?: string; to?: string; createdById?: string; page?: number; pageSize?: number } = {},
+  options: { enabled?: boolean } = {},
 ) {
   return useQuery({
     queryKey: ["stock-checks", filter],
     queryFn: () => api.get<PagedResult<StockCheck>>("/stock-checks", { ...filter, pageSize: filter.pageSize ?? 20 }),
+    enabled: options.enabled ?? true,
   });
 }
 

@@ -24,7 +24,11 @@ costChecksRouter.get("/", requirePermission("COST_CHECKS"), async (req, res) => 
   const where = { createdAt: from || to ? { gte: from, lte: to } : undefined };
 
   const [items, total] = await Promise.all([
-    prisma.costCheck.findMany({ where, orderBy: { createdAt: "desc" }, skip, take, include: costCheckListInclude }),
+    prisma.costCheck.findMany({
+      where, orderBy: { createdAt: "desc" }, skip, take,
+      include: costCheckListInclude,
+      omit: { reportSnapshot: true },
+    }),
     prisma.costCheck.count({ where }),
   ]);
   res.json({ items, total, page, pageSize });
@@ -88,6 +92,11 @@ costChecksRouter.patch("/:id/status", requirePermission("COST_CHECKS"), async (r
   const existing = await prisma.costCheck.findUnique({ where: { id: req.params.id } });
   if (!existing) throw new HttpError(404, "Không tìm thấy phiếu Check Cost");
 
-  const item = await prisma.costCheck.update({ where: { id: req.params.id }, data: { status }, include: costCheckListInclude });
+  const item = await prisma.costCheck.update({
+    where: { id: req.params.id },
+    data: { status },
+    include: costCheckListInclude,
+    omit: { reportSnapshot: true },
+  });
   res.json(item);
 });

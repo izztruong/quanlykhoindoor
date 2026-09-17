@@ -84,12 +84,15 @@ export async function registerPushToken(): Promise<void> {
  * Gỡ token khỏi tài khoản hiện tại. Phải gọi TRƯỚC khi phiên chết (đăng xuất, đổi mật khẩu) vì API
  * cần bearer còn sống. Lỗi thì bỏ qua: server tự chuyển token sang chủ mới ở lần đăng nhập kế tiếp.
  */
-export async function unregisterPushToken(): Promise<void> {
+export async function unregisterPushToken(sessionEnded?: AbortSignal): Promise<void> {
   try {
     const token = await SecureStore.getItemAsync(PUSH_TOKEN_KEY);
-    if (!token) return;
+    if (!token || sessionEnded?.aborted) return;
+    // Không truyền signal vào request: Render có thể cần lâu hơn thời gian app chờ đăng xuất.
+    // Bearer được lấy lúc gửi; server chỉ gỡ token còn thuộc đúng tài khoản cũ.
     await api.delete<void>(`/notifications/push-tokens/${encodeURIComponent(token)}`);
-    await SecureStore.deleteItemAsync(PUSH_TOKEN_KEY);
+    // Phản hồi về muộn không được xoá khoá push mà phiên đăng nhập mới đang dùng.
+    if (!sessionEnded?.aborted) await SecureStore.deleteItemAsync(PUSH_TOKEN_KEY);
   } catch {
     // Mất mạng hay Render đang ngủ không được chặn việc đăng xuất.
   }

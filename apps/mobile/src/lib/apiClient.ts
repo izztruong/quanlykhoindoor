@@ -50,7 +50,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     } catch {
       // ignore body parse errors, keep statusText
     }
-    if (res.status === 401) {
+    if (res.status === 401 && !options.signal?.aborted && token && token === await getAuthToken()) {
       // Đổi mật khẩu làm tăng tokenVersion ⇒ mọi token cũ chết ngay; giữ lại chỉ tổ lỗi vòng lặp.
       await clearAuthToken();
       onUnauthorized?.();
@@ -75,9 +75,9 @@ function query(params?: Record<string, string | number | undefined>) {
 export const api = {
   query,
   get: <T>(path: string, params?: Record<string, string | number | undefined>) => request<T>(`${path}${query(params)}`),
-  post: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: "POST", body: body !== undefined ? JSON.stringify(body) : undefined }),
+  post: <T>(path: string, body?: unknown, options?: { signal?: AbortSignal }) =>
+    request<T>(path, { ...options, method: "POST", body: body !== undefined ? JSON.stringify(body) : undefined }),
   put: <T>(path: string, body?: unknown) => request<T>(path, { method: "PUT", body: JSON.stringify(body) }),
   patch: <T>(path: string, body?: unknown) => request<T>(path, { method: "PATCH", body: JSON.stringify(body) }),
-  delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
+  delete: <T>(path: string, options?: { signal?: AbortSignal }) => request<T>(path, { ...options, method: "DELETE" }),
 };

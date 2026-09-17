@@ -1,8 +1,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Ionicons } from "@expo/vector-icons";
 import { Controller, useForm } from "react-hook-form";
-import { useState } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { z } from "zod";
 import { Button } from "@/components/ui/Button";
@@ -10,6 +10,7 @@ import { GoogleLoginButton } from "@/components/auth/GoogleLoginButton";
 import { Input } from "@/components/ui/Input";
 import { ApiError } from "@/lib/apiClient";
 import { useLogin } from "@/lib/auth";
+import { getRememberLogin } from "@/lib/authToken";
 import { colors, fontSize, radius, spacing } from "@/lib/theme";
 
 const schema = z.object({
@@ -22,6 +23,16 @@ type FormValues = z.infer<typeof schema>;
 export default function LoginScreen() {
   const login = useLogin();
   const [googleBusy, setGoogleBusy] = useState(false);
+  const [rememberLogin, setRememberLogin] = useState(true);
+  const [preferenceReady, setPreferenceReady] = useState(false);
+  const busy = googleBusy || login.isPending || !preferenceReady;
+  useEffect(() => {
+    let active = true;
+    void getRememberLogin().then((remember) => {
+      if (active) { setRememberLogin(remember); setPreferenceReady(true); }
+    });
+    return () => { active = false; };
+  }, []);
   const {
     control,
     handleSubmit,
@@ -33,6 +44,10 @@ export default function LoginScreen() {
 
   const errorMessage =
     login.error instanceof ApiError ? login.error.message : login.error ? "Không kết nối được máy chủ" : null;
+
+  const submit = handleSubmit((values) => {
+    if (!busy) login.mutate({ ...values, rememberLogin });
+  });
 
   return (
     <SafeAreaView style={styles.root}>
@@ -78,11 +93,18 @@ export default function LoginScreen() {
                   placeholder="••••••••"
                   secureTextEntry
                   textContentType="password"
-                  onSubmitEditing={handleSubmit((values) => { if (!googleBusy && !login.isPending) login.mutate(values); })}
+                  onSubmitEditing={submit}
                   returnKeyType="go"
                 />
               )}
             />
+
+            <Pressable accessibilityRole="checkbox" accessibilityLabel="Ghi nhớ đăng nhập"
+              accessibilityState={{ checked: rememberLogin, disabled: busy }} disabled={busy}
+              onPress={() => setRememberLogin((value) => !value)} style={styles.rememberRow}>
+              <Ionicons name={rememberLogin ? "checkbox" : "square-outline"} size={24} color={colors.primary} />
+              <Text style={styles.rememberLabel}>Ghi nhớ đăng nhập</Text>
+            </Pressable>
 
             {errorMessage ? <Text style={styles.serverError}>{errorMessage}</Text> : null}
 
@@ -90,10 +112,10 @@ export default function LoginScreen() {
               title="Đăng nhập"
               fullWidth
               loading={login.isPending}
-              disabled={googleBusy}
-              onPress={handleSubmit((values) => login.mutate(values))}
+              disabled={busy}
+              onPress={submit}
             />
-            <GoogleLoginButton disabled={login.isPending} onBusyChange={setGoogleBusy} />
+            <GoogleLoginButton disabled={login.isPending || !preferenceReady} rememberLogin={rememberLogin} onBusyChange={setGoogleBusy} />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -118,5 +140,7 @@ const styles = StyleSheet.create({
   title: { fontSize: fontSize.xxl, fontWeight: "700", color: colors.text },
   subtitle: { fontSize: fontSize.sm, color: colors.textMuted },
   form: { gap: spacing.lg },
+  rememberRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, minHeight: 44 },
+  rememberLabel: { flex: 1, fontSize: fontSize.md, color: colors.text },
   serverError: { fontSize: fontSize.sm, color: colors.danger, textAlign: "center" },
 });

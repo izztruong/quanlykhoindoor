@@ -9,7 +9,11 @@ import { colors, spacing } from "@/lib/theme";
 
 const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
 
-export function GoogleLoginButton({ disabled, onBusyChange }: { disabled?: boolean; onBusyChange?: (busy: boolean) => void }) {
+export function GoogleLoginButton({ disabled, rememberLogin, onBusyChange }: {
+  disabled?: boolean;
+  rememberLogin: boolean;
+  onBusyChange?: (busy: boolean) => void;
+}) {
   const login = useGoogleLogin();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -39,7 +43,7 @@ export function GoogleLoginButton({ disabled, onBusyChange }: { disabled?: boole
           return;
         }
         // Lỗi API đã được queryClient hiển thị bằng toast.
-        login.mutate(response.data.idToken);
+        login.mutate({ credential: response.data.idToken, rememberLogin });
       } catch (err) {
         if (isErrorWithCode(err) && (err.code === statusCodes.SIGN_IN_CANCELLED || err.code === statusCodes.IN_PROGRESS)) return;
         if (__DEV__) console.warn("[Google Sign-In] Native error code:", googleSignInErrorCode(err) ?? "UNKNOWN");

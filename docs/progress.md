@@ -31,21 +31,29 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
-### App mobile `apps/mobile` — người dùng đã chạy thử qua Expo Go, chưa lên `staging`/`main`
-Đã có: đăng nhập, trang chủ, danh mục, kiểm kê quán, huỷ NVL, đơn hàng, chi chốt ca, đề xuất chi.
-Bổ sung code: 5 báo cáo kiểm toán, nhập/xuất kho, điều chuyển, tài khoản, vai trò; bỏ menu ngoài phạm vi. CHƯA thử các màn mới trên điện thoại.
-Kiểm: typecheck mobile/server/web, bundle Android; script kiểm quyền, chặn báo cáo thiếu kho, phân trang và giữ SL lẻ khi sửa điều chuyển.
-Server đọc Bearer; danh sách điều chuyển bổ sung số dòng. Cần thử luồng tạo/sửa và cảnh báo Check Cost trên development build.
+### App mobile `apps/mobile` — bản trước đã lên `main` (`e9161bb`); đợt sửa này chưa lên
+Người dùng đã thử APK preview. Đợt mới: Check Cost, sửa đăng xuất, tên đầu trang, ô chuông; CHƯA thử trên điện thoại.
+Đã kiểm typecheck mobile/server; Check Cost đã kiểm bundle Android và script. Cần thử tạo/huỷ/bỏ huỷ, phân quyền, đối chiếu web trên APK mới (`apps/mobile/README.md`).
+Gỡ push tiếp tục sau mốc chờ 3 giây; mô phỏng phản hồi muộn thành công/lỗi/401 giữ đúng phiên mới đã qua. Chưa thử với Render đang ngủ trên điện thoại.
+Danh sách Check Cost bỏ `reportSnapshot` khỏi payload; thay đổi này cần deploy server, chưa lên `main`.
+
+### Ghi nhớ đăng nhập mobile — chưa lên `main`, CHƯA thử trên điện thoại
+Thêm tuỳ chọn cho email/mật khẩu và Google: lưu mã phiên bằng SecureStore hoặc chỉ giữ trong lần chạy hiện tại; giữ lựa chọn sau đăng xuất, không lưu mật khẩu.
+Đã kiểm typecheck mobile, bundle Android và mô phỏng bật/tắt, khởi động lại, phiên cũ, đăng xuất, lỗi lưu trữ, phản hồi đọc về muộn. Cần thử đóng/mở app và phiên hết hạn trên APK mới.
+
+### Đăng nhập lại mobile kẹt ở màn đăng nhập — chưa lên `main`, CHƯA thử trên điện thoại
+Đã tái hiện và sửa mất kết nối theo dõi query xác thực sau đăng xuất/đổi mật khẩu; bỏ toast thành công sớm, chặn `/auth/me` cũ ghi đè phiên mới.
+Typecheck mobile và 7 ca mô phỏng với QueryObserver/MutationObserver thật đã qua. Cần thử đăng xuất → đăng nhập email/Google → Trang chủ trên APK mới.
 
 ### Google Sign-In trên mobile — đã thử trên điện thoại, đang lỗi ở bước Google; chưa lên `staging`/`main`
 Web Client ID trong mobile/build/server khớp nhau. Android client đã tạo; chưa xác minh cùng project và SHA-1 bản đang cài.
 Đã bổ sung hiển thị mã lỗi native để chẩn đoán; cần tải lại Metro và thử lại để lấy mã cụ thể. Firebase push dùng project khác OAuth Web (chưa kết luận là nguyên nhân).
 Chưa đăng nhập thành công; hướng dẫn chạy/build và kiểm thử: `apps/mobile/README.md`.
 
-### Thông báo đẩy (đơn hàng + đề xuất chi) — server kiểm bằng curl; CHƯA nhận thử trên điện thoại
+### Thông báo đẩy (đơn hàng + đề xuất chi) — đã thêm `priority: "high"`, chưa deploy
 7 loại, mỗi người tự tắt/bật; migration `20260916141130_notifications` đã thử `migrate deploy` trên db trắng.
-Đã kiểm đủ người nhận từng loại, tắt loại thì thôi nhận, token đổi chủ, push lỗi không làm hỏng request.
-Cần: tài khoản Expo + Firebase, `eas build --profile development`, rồi thử nhận khi app đang đóng.
+Typecheck server đã qua. Trước đó đã kiểm người nhận từng loại, tắt loại, token đổi chủ và push lỗi không làm hỏng request.
+Xiaomi/Oppo/Realme/Vivo cần bật Tự khởi động + pin Không giới hạn. Đã nhận khi mở app, chưa nhận sau vuốt đóng; cần thử staging khi màn hình sáng/tắt và bấm mở đúng đơn. Không cần build lại APK.
 
 ### Đăng nhập bằng Google + tự đổi email — CHƯA kiểm thử trên trình duyệt, chưa lên `staging`/`main`
 Chỉ vào được tài khoản có sẵn trùng email Gmail; đổi email ở Thông tin tài khoản (cần mật khẩu). Đã kiểm typecheck, lint,

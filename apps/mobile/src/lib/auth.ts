@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import type { AuthUser } from "@/types";
 import { api } from "./apiClient";
 import { clearAuthToken, getAuthToken, setAuthToken } from "./authToken";
@@ -10,6 +10,20 @@ interface LoginResponse {
   token: string;
 }
 
+// Phiên mới chỉ được lưu sau khi tác vụ đăng xuất cũ đã xoá token và dọn cache xong.
+let pendingLogout: Promise<void> | null = null;
+let finishLogout: (() => void) | undefined;
+
+/** Giữ query mà RootNavigator đang theo dõi; clear() làm observer bị tách khỏi phiên mới. */
+function resetSessionCache(queryClient: QueryClient) {
+  void queryClient.cancelQueries({ queryKey: ["auth", "me"], exact: true });
+  queryClient.removeQueries({
+    predicate: ({ queryKey }) => !(queryKey.length === 2 && queryKey[0] === "auth" && queryKey[1] === "me"),
+  });
+  queryClient.getMutationCache().clear();
+  queryClient.setQueryData(["auth", "me"], null);
+}
+
 /**
  * `null` = chắc chắn chưa đăng nhập (không có token, hoặc token đã bị server từ chối). Khác với
  * `undefined` lúc đang tải — màn hình gác cửa dựa vào đúng khác biệt này để không nháy về /login.
@@ -18,6 +32,7 @@ export function useCurrentUser() {
   return useQuery<AuthUser | null>({
     queryKey: ["auth", "me"],
     queryFn: async () => {
+      if (pendingLogout) return null;
       // Chưa có token thì đừng gọi API: mở app lần đầu sẽ ăn một lần 401 vô ích, mà trên gói free
       // của Render lần gọi đầu còn phải chờ server thức dậy 30–60 giây.
       const token = await getAuthToken();
@@ -30,8 +45,11 @@ export function useCurrentUser() {
 
 function useStoreSession() {
   const queryClient = useQueryClient();
-  return async ({ user, token }: LoginResponse) => {
-    await setAuthToken(token);
+  return async ({ user, token }: LoginResponse, rememberLogin: boolean) => {
+    await pendingLogout;
+    await setAuthToken(token, rememberLogin);
+    // /auth/me của phiên cũ trả về muộn không được ghi đè người vừa đăng nhập.
+    await queryClient.cancelQueries({ queryKey: ["auth", "me"], exact: true });
     queryClient.setQueryData(["auth", "me"], user);
   };
 }
@@ -39,8 +57,11 @@ function useStoreSession() {
 export function useLogin() {
   const storeSession = useStoreSession();
   return useMutation({
-    mutationFn: (data: { email: string; password: string }) => api.post<LoginResponse>("/auth/login", data),
-    onSuccess: storeSession,
+    // Toast chung chạy trước onSuccess lưu phiên; điều hướng mới là dấu hiệu đăng nhập xong.
+    meta: { silent: true },
+    mutationFn: ({ email, password }: { email: string; password: string; rememberLogin: boolean }) =>
+      api.post<LoginResponse>("/auth/login", { email, password }),
+    onSuccess: (session, variables) => storeSession(session, variables.rememberLogin),
   });
 }
 
@@ -48,29 +69,53 @@ export function useLogin() {
 export function useGoogleLogin() {
   const storeSession = useStoreSession();
   return useMutation({
-    mutationFn: (credential: string) => api.post<LoginResponse>("/auth/google", { credential }),
-    onSuccess: storeSession,
+    meta: { silent: true },
+    mutationFn: ({ credential }: { credential: string; rememberLogin: boolean }) =>
+      api.post<LoginResponse>("/auth/google", { credential }),
+    onSuccess: (session, variables) => storeSession(session, variables.rememberLogin),
   });
 }
 
 export function useLogout() {
   const queryClient = useQueryClient();
   return useMutation({
+    meta: { silent: true },
+    onMutate: () => {
+      pendingLogout = new Promise<void>((resolve) => { finishLogout = resolve; });
+      // Huỷ các truy vấn cũ để /auth/me đang tải không đưa người dùng trở lại trang chủ.
+      void queryClient.cancelQueries();
+      queryClient.setQueryData(["auth", "me"], null);
+    },
     mutationFn: async () => {
-      // Xoá token trước: kể cả khi server không trả lời (mất mạng, Render đang ngủ) thì máy này
-      // cũng đã đăng xuất thật sự.
+      // Signal đánh dấu hết thời gian chờ và chặn ghi local/gọi logout muộn.
+      // unregisterPushToken không dùng signal này để huỷ yêu cầu gỡ token trên server.
+      const controller = new AbortController();
+      let timeout: ReturnType<typeof setTimeout> | undefined;
       try {
-        // Gỡ token thông báo trước, lúc bearer còn sống — không thì máy này vẫn nhận thông báo của
-        // tài khoản vừa đăng xuất.
-        await unregisterPushToken();
-        await api.post<void>("/auth/logout");
+        const cleanup = async () => {
+          await unregisterPushToken(controller.signal);
+          if (!controller.signal.aborted) {
+            await api.post<void>("/auth/logout", undefined, { signal: controller.signal });
+          }
+        };
+        await Promise.race([
+          cleanup().catch(() => undefined),
+          new Promise<void>((resolve) => {
+            timeout = setTimeout(() => { controller.abort(); resolve(); }, 3000);
+          }),
+        ]);
       } finally {
-        await clearAuthToken();
+        clearTimeout(timeout);
+        controller.abort();
+        // cached token được xoá ngay cả khi SecureStore không sẵn sàng.
+        await clearAuthToken().catch(() => undefined);
       }
     },
-    onSuccess: () => {
-      queryClient.clear();
-      queryClient.setQueryData(["auth", "me"], null);
+    onSettled: () => {
+      resetSessionCache(queryClient);
+      finishLogout?.();
+      finishLogout = undefined;
+      pendingLogout = null;
     },
   });
 }
@@ -85,8 +130,7 @@ export function useChangePassword() {
       // bỏ qua — không sao: lần đăng nhập lại, server upsert token sang đúng phiên mới.
       await unregisterPushToken();
       await clearAuthToken();
-      queryClient.clear();
-      queryClient.setQueryData(["auth", "me"], null);
+      resetSessionCache(queryClient);
     },
   });
 }

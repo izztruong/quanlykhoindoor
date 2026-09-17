@@ -5,10 +5,10 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useUnreadNotificationCount } from "@/hooks/useNotifications";
 import { useCurrentUser } from "@/lib/auth";
-import { colors, fontSize, headerGradient, radius, shadow, spacing } from "@/lib/theme";
+import { colors, fontSize, headerGradient, radius, spacing } from "@/lib/theme";
 
 /**
- * Dải đầu trang dùng chung cho các tab: chữ cái đầu của tên làm avatar, email và vai trò. Vai trò
+ * Dải đầu trang dùng chung cho các tab: chữ cái đầu của tên làm avatar, tên và vai trò. Vai trò
  * lấy từ `roleName` server trả về nên luôn khớp phân quyền thật.
  *
  * Nền chuyển màu đậm trên → nhạt dưới, điểm cuối trùng `colors.background` nên chỗ dải kết thúc
@@ -28,7 +28,7 @@ export function AppHeader({ title }: { title?: string }) {
       </View>
       <View style={styles.info}>
         <Text style={styles.primary} numberOfLines={1}>
-          {title ?? user?.email ?? ""}
+          {title ?? (user?.name || user?.email) ?? ""}
         </Text>
         <Text style={styles.secondary} numberOfLines={1}>
           {user?.roleName ?? ""}
@@ -42,7 +42,7 @@ export function AppHeader({ title }: { title?: string }) {
         hitSlop={8}
         style={({ pressed }) => [styles.bell, pressed && styles.pressed]}
       >
-        <Ionicons name="notifications" size={22} color={colors.primary} />
+        <Ionicons name="notifications" size={20} color={colors.primary} />
         {unread > 0 ? (
           <View style={styles.badge}>
             {/* Quá 99 thì chữ tràn ra ngoài chấm; con số chính xác đã có trong màn Thông báo. */}
@@ -78,10 +78,9 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: radius.md,
-    backgroundColor: colors.surface,
+    backgroundColor: "rgba(255, 255, 255, 0.6)",
     alignItems: "center",
     justifyContent: "center",
-    ...shadow.card,
   },
   pressed: { opacity: 0.7 },
   badge: {

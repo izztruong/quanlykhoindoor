@@ -131,6 +131,8 @@ async function notify({ type, recipientIds, actorId, title, body, href }: Notify
       title,
       body,
       sound: "default",
+      // Expo mặc định normal trên Android; Doze có thể giữ tin lại khi app đã đóng.
+      priority: "high",
       channelId: ANDROID_CHANNEL_ID,
       data: href ? { href } : {},
     }));

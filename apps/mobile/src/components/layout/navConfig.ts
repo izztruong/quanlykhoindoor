@@ -50,6 +50,7 @@ export const navSections: NavSection[] = [
     items: [
       { label: "Phiếu nhập kho", href: "/stock/imports", permission: "STOCK_IMPORTS.VIEW", icon: "arrow-down-circle-outline" },
       { label: "Phiếu xuất kho", href: "/stock/exports", permission: "STOCK_EXPORTS.VIEW", icon: "arrow-up-circle-outline" },
+      { label: "Phiếu Check Cost", href: "/cost-checks", permission: "COST_CHECKS.VIEW", icon: "calculator-outline" },
       { label: "Phiếu điều chuyển", href: "/material-transfers", permission: "MATERIAL_TRANSFERS.VIEW", icon: "swap-horizontal-outline" },
     ],
   },
