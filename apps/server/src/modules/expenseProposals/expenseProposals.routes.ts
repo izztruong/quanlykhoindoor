@@ -5,6 +5,7 @@ import { assertOwner, ownerWhere, requirePermission } from "../../middleware/aut
 import { generateCode } from "../../utils/codeGenerator";
 import { HttpError } from "../../utils/httpError";
 import { parseDateRange, parsePagination } from "../../utils/pagination";
+import { expenseProposalNotifications } from "../notifications/notifications.service";
 import { EXPENSE_PROPOSAL_CATEGORIES, expenseProposalRejectSchema, expenseProposalSchema } from "./expenseProposals.schemas";
 import {
   assertParties,
@@ -67,6 +68,8 @@ expenseProposalsRouter.post("/", requirePermission("EXPENSE_PROPOSALS"), async (
     },
     include: expenseProposalDetailInclude,
   });
+  // Gửi sau khi đã ghi xong, không await — lỗi thông báo không được làm hỏng việc lập phiếu.
+  if (req.user) expenseProposalNotifications.created(item, req.user);
   res.status(201).json(item);
 });
 
@@ -110,6 +113,7 @@ expenseProposalsRouter.post("/:id/approve", requirePermission("EXPENSE_PROPOSALS
     approvedById: req.user?.id,
     approvedAt: new Date(),
   });
+  if (req.user) expenseProposalNotifications.decided(item, req.user, "APPROVED");
   res.json(item);
 });
 
@@ -120,6 +124,7 @@ expenseProposalsRouter.post("/:id/reject", requirePermission("EXPENSE_PROPOSALS"
     approvedAt: new Date(),
     rejectReason: reason,
   });
+  if (req.user) expenseProposalNotifications.decided(item, req.user, "REJECTED");
   res.json(item);
 });
 
@@ -131,6 +136,7 @@ expenseProposalsRouter.post("/:id/advance", requirePermission("EXPENSE_PROPOSALS
     [{ from: "APPROVED", payer: "ACCOUNTANT", to: "ADVANCED" }],
     { advancedById: req.user?.id, advancedAt: new Date() },
   );
+  if (req.user) expenseProposalNotifications.paid(item, req.user, "ADVANCED");
   res.json(item);
 });
 
@@ -145,5 +151,6 @@ expenseProposalsRouter.post("/:id/spend", requirePermission("EXPENSE_PROPOSALS",
     ],
     { spentById: req.user?.id, spentAt: new Date() },
   );
+  if (req.user) expenseProposalNotifications.paid(item, req.user, "SPENT");
   res.json(item);
 });

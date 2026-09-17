@@ -12,6 +12,7 @@ import { materialTransferCreateSchema } from "./materialTransfers.schemas";
 export const materialTransfersRouter = Router();
 
 const listInclude = {
+  _count: { select: { items: true } },
   fromUser: { select: { id: true, name: true } },
   toUser: { select: { id: true, name: true } },
   createdBy: { select: { id: true, name: true } },

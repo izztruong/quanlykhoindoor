@@ -39,9 +39,10 @@ authRouter.post("/login", loginRateLimit, async (req, res) => {
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) throw new HttpError(401, "Email hoặc mật khẩu không đúng");
 
-  setAuthCookie(res, { id: user.id, tokenVersion: user.tokenVersion });
+  // token trả kèm cho client không phải trình duyệt (app mobile) — web bỏ qua và dùng cookie.
+  const token = setAuthCookie(res, { id: user.id, tokenVersion: user.tokenVersion });
   const { tokenVersion: _tokenVersion, ...authUser } = (await loadAuthUser(user.id))!;
-  res.json({ user: authUser });
+  res.json({ user: authUser, token });
 });
 
 authRouter.post("/logout", (_req, res) => {

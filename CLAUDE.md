@@ -9,6 +9,7 @@ Phần mềm quản lý kho cho chuỗi quán cà phê. Giao diện và mọi th
 | Tầng | Công nghệ |
 |---|---|
 | Web | Next.js 16 (App Router) · React 19 · TypeScript · Tailwind · TanStack Query + Table · react-hook-form + Zod · ExcelJS |
+| Mobile | Expo SDK 57 · expo-router · React Native 0.86 · TanStack Query · expo-notifications (thông báo đẩy) — không làm Excel |
 | API | Express 5 · TypeScript chạy trực tiếp qua `tsx` (không build) · Zod · JWT + bcrypt |
 | DB | PostgreSQL 16 · Prisma 7 với adapter `@prisma/adapter-pg` |
 | Hạ tầng | Vercel (web) + Render (API) + Neon (DB); Docker Compose cho local |
@@ -34,6 +35,10 @@ apps/web/src
   lib/               api-client, format, dateRange, excelExport, query-client
   types/index.ts     kiểu dùng chung, khớp payload API
   proxy.ts           middleware Next 16 — hiện chỉ pass-through
+
+apps/mobile
+  app/               expo-router: (tabs)/ gồm 4 tab + các màn stack theo nghiệp vụ
+  src/               components/ · hooks/ · lib/ · types/ — types, format, hook phần lớn chép từ web
 ```
 
 ## Lệnh
@@ -54,7 +59,22 @@ npm run dev                       # cổng 3000
 npm run build
 npm run lint
 npx tsc --noEmit
+
+# apps/mobile
+npm start                         # Expo; quét QR bằng Expo Go, tự gọi API qua IP LAN của máy dev
+npm run typecheck
+npx expo export --platform android   # bundle thử — bắt lỗi import mà typecheck bỏ sót
 ```
+
+### App mobile — ba cái bẫy
+
+- **Thông báo đẩy không chạy trong Expo Go trên Android** (từ SDK 53). Phải dựng development build
+  (`eas build --profile development`); code tự bỏ qua đăng ký push khi chạy trong Expo Go.
+- **`expo start` chạy lâu sẽ sinh sai `.expo/types/router.d.ts`**: thêm màn mới trong lúc nó đang chạy
+  thì typecheck báo route không tồn tại, thậm chí nhận nhầm file trong `src/` thành route. Không phải
+  lỗi code — khởi động lại `expo start`, hoặc `npx expo customize tsconfig.json` để sinh lại.
+- Kiểu, hook, `lib` chép từ web **không tự đồng bộ**: đổi payload API bên web thì phải sửa cả bên
+  mobile (đã lỡ một lần với trường `category` của phiếu đề xuất chi).
 
 Tài khoản seed: `admin@quanly.local` / `admin123`
 
@@ -118,6 +138,12 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
 - Xác nhận đơn hàng **tự sinh phiếu xuất kho**, nên sửa `salesOrders` là đụng tới tồn kho.
 - SL lẻ ở `stockChecks`, `materialWaste`, `materialTransfers` luôn đi qua `utils/tareWeight`.
 - `utils/deadlines` được gọi lúc tạo đơn (`salesOrders`) và lúc tạo/sửa phiếu (`stockChecks`).
+- **Thông báo đẩy** gắn ở route của `salesOrders` (tạo, xác nhận, nhận thiếu, huỷ) và
+  `expenseProposals` (tạo, duyệt/từ chối, tạm ứng/đã chi) qua `modules/notifications`. Sửa các luồng
+  đó phải giữ lời gọi, và luôn gọi **sau** khi ghi DB/commit, **không await** — xem chú thích
+  `notifyInBackground`. Thêm loại mới = enum `NotificationType` + một dòng `NOTIFICATION_CATALOG`.
+- Người nhận thông báo "đơn cần duyệt" phải có **cả** `ORDERS.APPROVE` lẫn `DATA.SCOPE_ALL`: thiếu
+  phạm vi thì `assertOwner` trả 404 và thông báo bấm vào không mở được đơn.
 
 ### Xác thực và phân quyền
 
@@ -125,7 +151,8 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
 - **`proxy.ts` cố ý chỉ pass-through.** Chặn truy cập thật nằm ở `app/(app)/layout.tsx`, qua hook `useCurrentUser()` (`lib/auth.ts` → `/api/auth/me`) — middleware không đọc được cookie khác domain nên sẽ đá mọi request về `/login`. Lý do ghi sẵn trong file.
 - **Phân quyền theo vai trò** (`Role.permissions` là mảng mã `RESOURCE.ACTION`, danh sách hợp lệ ở `modules/roles/permissions.ts`). `requireAuth` áp cho toàn bộ `/api`, đọc quyền **tươi từ DB mỗi request** — JWT chỉ mang `id` + `tokenVersion`, nên gỡ quyền có hiệu lực ngay. Vai trò `isSystem` (`role_admin`) bỏ qua mọi kiểm tra và không sửa/xoá được.
 - **Thêm trang/nghiệp vụ mới = 3 bước**: khai resource trong `permissions.ts` · gắn `requirePermission("RESOURCE")` cho **mọi** route kể cả GET (action suy từ method, route nghiệp vụ truyền tường minh) · gắn `permission` cho mục trong `nav-config.ts` (layout dùng nó chặn trang). Quên bước 2 là hở API.
-- **Ngoại lệ có chủ đích**: GET danh mục tra cứu (`publicRead` trong `crudFactory`, `product-stock`, `deadlines`, `users/options`) chỉ cần đăng nhập, vì form của quán phải đọc chúng. Bảng giá NCC dùng `requireAnyPermission` cho các form cần giá.
+- **Ngoại lệ có chủ đích**: GET danh mục tra cứu (`publicRead` trong `crudFactory`, `product-stock`, `deadlines`, `users/options`) chỉ cần đăng nhập, vì form của quán phải đọc chúng. Bảng giá NCC dùng `requireAnyPermission` cho các form cần giá. `/api/profile` và `/api/notifications` cũng chỉ cần đăng nhập vì mọi truy vấn lọc cứng theo `req.user.id`.
+- **App mobile mang phiên bằng `Authorization: Bearer`** (không đọc được cookie httpOnly). `requireAuth` nhận cả hai, cookie được ưu tiên; login trả thêm `token` trong body.
 - **Không cấp được quyền mình không có**: sửa vai trò chỉ được thêm/bớt mã chính mình nắm (`sanitizePermissions`), gán vai trò chỉ được vai trò hẹp hơn mình. Không sửa được vai trò đang giữ.
 - **Phạm vi dữ liệu theo quán ép ở server**: mã `DATA.SCOPE_ALL` quyết định thấy mọi quán hay chỉ bản ghi mình tạo — dùng `ownerWhere` (danh sách) + `assertOwner` (chi tiết/sửa/xoá, ngoài phạm vi trả **404**). Mã phạm vi **không** dùng trong `requirePermission`. Check Cost và phiếu điều chuyển **cố ý không** áp phạm vi (người dùng đã quyết định). Ẩn ô lọc trên giao diện chỉ là hiển thị, **không phải lớp bảo vệ**.
 

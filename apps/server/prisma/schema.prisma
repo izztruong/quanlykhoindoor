@@ -60,6 +60,9 @@ model User {
   expenseProposalsSpent     ExpenseProposal[]         @relation("ExpenseProposalSpentBy")
   expenseProposalsShop      ExpenseProposal[]         @relation("ExpenseProposalShop")
   expenseProposalsToApprove ExpenseProposal[]         @relation("ExpenseProposalApprover")
+  notifications             Notification[]
+  pushTokens                PushToken[]
+  notificationPreferences   NotificationPreference[]
 }
 
 enum DeadlineKind {
@@ -645,7 +648,7 @@ model ShiftExpense {
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
-  images      ShiftExpenseImage[]
+  images ShiftExpenseImage[]
 
   @@index([createdById, spentAt])
 }
@@ -775,46 +778,46 @@ enum ExpenseProposalCategory {
 // Phiếu đề xuất chi & tạm ứng: quán xin tiền, admin duyệt. Nội dung / đơn vị là text tự do vì khoản
 // xin chi thường không nằm trong danh mục hàng hoá.
 model ExpenseProposal {
-  id             String                @id @default(cuid())
-  code           String                @unique
-  status         ExpenseProposalStatus @default(PENDING)
+  id             String                   @id @default(cuid())
+  code           String                   @unique
+  status         ExpenseProposalStatus    @default(PENDING)
   // Ngày trên phiếu do người lập khai (mặc định hôm nay). Kiểu DATE nên không lệch múi giờ;
   // createdAt mới là lúc lưu thật và không sửa được.
-  proposalDate   DateTime              @db.Date
+  proposalDate   DateTime                 @db.Date
   payer          ExpensePayer
   // Nullable chỉ vì phiếu lập trước khi có trường này; mọi đường ghi mới đều bắt buộc có.
   category       ExpenseProposalCategory?
   // Quán chi: tài khoản thuộc vai trò "là quán" (server kiểm lúc ghi). Nullable chỉ vì phiếu cũ lưu
   // tên quán dạng chữ không khớp tài khoản nào — mọi đường ghi mới đều bắt buộc có.
   shopId         String?
-  shop           User?                 @relation("ExpenseProposalShop", fields: [shopId], references: [id])
+  shop           User?                    @relation("ExpenseProposalShop", fields: [shopId], references: [id])
   // Người được đề nghị xác nhận phiếu: tài khoản KHÔNG phải quán. Chỉ để ghi nhận và hiển thị —
   // ai bấm Duyệt vẫn do quyền EXPENSE_PROPOSALS.APPROVE quyết định, xem approvedById.
   // Nullable vì phiếu lập trước khi có trường này; mọi đường ghi mới đều bắt buộc có.
   approverId     String?
-  approver       User?                 @relation("ExpenseProposalApprover", fields: [approverId], references: [id])
+  approver       User?                    @relation("ExpenseProposalApprover", fields: [approverId], references: [id])
   purpose        String
   // Tổng và tiền tạm ứng tính ở SERVER lúc ghi rồi lưu lại, không tin số client gửi.
-  totalAmount    Decimal               @db.Decimal(18, 2)
+  totalAmount    Decimal                  @db.Decimal(18, 2)
   // Ba cột tạm ứng chỉ có giá trị khi payer = ACCOUNTANT; người lập tự chi thì luôn null.
-  advancePercent Decimal?              @db.Decimal(5, 2)
-  advanceAmount  Decimal?              @db.Decimal(18, 2)
-  invoiceDueDate DateTime?             @db.Date
+  advancePercent Decimal?                 @db.Decimal(5, 2)
+  advanceAmount  Decimal?                 @db.Decimal(18, 2)
+  invoiceDueDate DateTime?                @db.Date
   rejectReason   String?
   createdById    String?
-  createdBy      User?                 @relation("ExpenseProposalCreatedBy", fields: [createdById], references: [id])
+  createdBy      User?                    @relation("ExpenseProposalCreatedBy", fields: [createdById], references: [id])
   // Dùng chung cho cả duyệt và từ chối — status cho biết là quyết định nào.
   approvedById   String?
-  approvedBy     User?                 @relation("ExpenseProposalApprovedBy", fields: [approvedById], references: [id])
+  approvedBy     User?                    @relation("ExpenseProposalApprovedBy", fields: [approvedById], references: [id])
   approvedAt     DateTime?
   advancedById   String?
-  advancedBy     User?                 @relation("ExpenseProposalAdvancedBy", fields: [advancedById], references: [id])
+  advancedBy     User?                    @relation("ExpenseProposalAdvancedBy", fields: [advancedById], references: [id])
   advancedAt     DateTime?
   spentById      String?
-  spentBy        User?                 @relation("ExpenseProposalSpentBy", fields: [spentById], references: [id])
+  spentBy        User?                    @relation("ExpenseProposalSpentBy", fields: [spentById], references: [id])
   spentAt        DateTime?
-  createdAt      DateTime              @default(now())
-  updatedAt      DateTime              @updatedAt
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
 
   items ExpenseProposalItem[]
 
@@ -838,4 +841,66 @@ model ExpenseProposalItem {
   note              String?
 
   @@index([expenseProposalId, sortOrder])
+}
+
+/**
+ * Loại thông báo đẩy. Thêm loại mới = thêm giá trị ở đây + một dòng trong NOTIFICATION_CATALOG
+ * (src/modules/notifications/notifications.service.ts) + gọi notify() ở luồng phát sinh.
+ */
+enum NotificationType {
+  ORDER_CREATED
+  ORDER_CONFIRMED
+  ORDER_SHORT
+  ORDER_CANCELLED
+  EXPENSE_PROPOSAL_CREATED
+  EXPENSE_PROPOSAL_DECIDED
+  EXPENSE_PROPOSAL_PAID
+}
+
+/**
+ * Lịch sử thông báo của một người, cho màn Thông báo trên app. Thông báo đẩy chỉ là bản sao hiện lên máy.
+ */
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  body      String
+  // Đường dẫn trong app mobile khi bấm vào, vd "/orders/abc". Lưu sẵn đường dẫn để app không phải tự
+  // dựng lại theo từng loại.
+  href      String?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([userId, createdAt])
+}
+
+/**
+ * Token Expo Push của từng máy. Token làm khoá chính và ghi bằng upsert: máy đó đăng nhập tài khoản
+ * khác thì token tự chuyển sang chủ mới — trường hợp này không gỡ token cũ được bằng API vì phiên cũ
+ * có thể đã chết (401) trước khi kịp gọi.
+ */
+model PushToken {
+  token     String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+/**
+ * Người dùng tự tắt loại thông báo nào. KHÔNG có dòng = đang bật — nhờ vậy không phải chèn sẵn dữ
+ * liệu cho mọi tài khoản trong migration, và loại thông báo mới thêm sau tự bật cho mọi người.
+ */
+model NotificationPreference {
+  userId  String
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type    NotificationType
+  enabled Boolean
+
+  @@id([userId, type])
 }

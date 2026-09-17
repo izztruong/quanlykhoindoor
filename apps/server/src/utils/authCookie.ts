@@ -14,9 +14,21 @@ export const authCookieOptions = {
   secure: env.nodeEnv === "production",
 };
 
-/** Dùng chung cho mọi cách đăng nhập (mật khẩu, Google). */
-export function setAuthCookie(res: Response, payload: TokenPayload) {
-  // Token chỉ mang định danh; quyền đọc lại từ DB mỗi request (xem requireAuth).
-  const token = jwt.sign(payload, env.jwtSecret, { expiresIn: env.jwtExpiresIn as any });
+/**
+ * Ký token dùng chung cho cả hai cách mang phiên: cookie (web) và header Bearer (app mobile).
+ * Token chỉ mang định danh; quyền đọc lại từ DB mỗi request (xem requireAuth).
+ */
+export function signAuthToken(payload: TokenPayload): string {
+  return jwt.sign(payload, env.jwtSecret, { expiresIn: env.jwtExpiresIn as any });
+}
+
+/**
+ * Dùng chung cho mọi cách đăng nhập (mật khẩu, Google). Trả lại chính token đã ký để route đăng
+ * nhập gửi kèm trong body cho client không phải trình duyệt — app native không đọc được cookie
+ * httpOnly nên phải tự giữ token.
+ */
+export function setAuthCookie(res: Response, payload: TokenPayload): string {
+  const token = signAuthToken(payload);
   res.cookie(env.cookieName, token, { ...authCookieOptions, maxAge: 7 * 24 * 60 * 60 * 1000 });
+  return token;
 }

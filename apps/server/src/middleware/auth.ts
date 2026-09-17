@@ -63,8 +63,21 @@ export async function loadAuthUser(id: string): Promise<(AuthUser & { tokenVersi
   };
 }
 
+/**
+ * Phiên đi bằng cookie httpOnly trên trình duyệt, nhưng app native không đọc được cookie đó nên
+ * mang cùng token trong header `Authorization: Bearer`. Cookie được ưu tiên để trình duyệt không
+ * bao giờ phụ thuộc vào header client tự đặt.
+ */
+function readToken(req: Request): string | undefined {
+  const fromCookie = req.cookies?.[env.cookieName];
+  if (fromCookie) return fromCookie;
+  const header = req.headers.authorization;
+  if (header?.startsWith("Bearer ")) return header.slice(7).trim() || undefined;
+  return undefined;
+}
+
 export async function requireAuth(req: Request, _res: Response, next: NextFunction) {
-  const token = req.cookies?.[env.cookieName];
+  const token = readToken(req);
   if (!token) {
     next(new HttpError(401, "Chưa đăng nhập"));
     return;

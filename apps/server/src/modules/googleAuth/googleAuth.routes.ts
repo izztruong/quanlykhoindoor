@@ -48,7 +48,7 @@ googleAuthRouter.post("/", googleLoginRateLimit, async (req, res) => {
     throw new HttpError(401, `Gmail ${email} chưa gắn với tài khoản nào, vui lòng liên hệ quản trị viên`);
   }
 
-  setAuthCookie(res, { id: user.id, tokenVersion: user.tokenVersion });
+  const token = setAuthCookie(res, { id: user.id, tokenVersion: user.tokenVersion });
   const { tokenVersion: _tokenVersion, ...authUser } = (await loadAuthUser(user.id))!;
-  res.json({ user: authUser });
+  res.json({ user: authUser, token });
 });

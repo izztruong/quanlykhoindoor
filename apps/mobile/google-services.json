@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "327851061860",
+    "project_id": "indoor-7322a",
+    "storage_bucket": "indoor-7322a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:327851061860:android:3de951c12e128a8e7de571",
+        "android_client_info": {
+          "package_name": "com.quanlykho.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyATb1PnD0HHMERCGLkwfJPkY0X_w_r4V6g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

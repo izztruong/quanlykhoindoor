@@ -3,6 +3,7 @@ import { prisma } from "../../config/db";
 import { assertOwner, ownerWhere, requireAnyPermission, requirePermission } from "../../middleware/auth";
 import { HttpError } from "../../utils/httpError";
 import { parseDateRange, parsePagination } from "../../utils/pagination";
+import { orderNotifications } from "../notifications/notifications.service";
 import {
   salesOrderConfirmSchema,
   salesOrderCreateSchema,
@@ -68,6 +69,8 @@ salesOrdersRouter.get("/:id", requirePermission("ORDERS", "VIEW"), async (req, r
 salesOrdersRouter.post("/", requirePermission("ORDERS", "ADD"), async (req, res) => {
   const data = salesOrderCreateSchema.parse(req.body);
   const item = await createSalesOrder(data, req.user?.id);
+  // Gửi sau khi đã ghi xong, không await — lỗi thông báo không được làm hỏng việc tạo đơn.
+  if (req.user) orderNotifications.created(item, req.user);
   res.status(201).json(item);
 });
 
@@ -81,18 +84,22 @@ salesOrdersRouter.put("/:id", requirePermission("ORDERS", "ADD"), async (req, re
 salesOrdersRouter.patch("/:id/status", requireAnyPermission("ORDERS.ADD", "ORDERS.APPROVE"), async (req, res) => {
   const { status } = salesOrderStatusSchema.parse(req.body);
   const item = await updateSalesOrderStatus(req.params.id, status, req.user);
+  // Đơn đã huỷ không đổi trạng thái được nữa (409 trong service), nên không có chuyện báo huỷ hai lần.
+  if (req.user && item.status === "CANCELLED") orderNotifications.cancelled(item, req.user);
   res.json(item);
 });
 
 salesOrdersRouter.patch("/:id/receiving", requirePermission("ORDERS", "RECEIVE"), async (req, res) => {
   const data = salesOrderReceivingSchema.parse(req.body);
   const item = await completeSalesOrderReceiving(req.params.id, data, req.user);
+  if (req.user && item.status === "SHORT") orderNotifications.short(item, req.user);
   res.json(item);
 });
 
 salesOrdersRouter.patch("/:id/confirm", requirePermission("ORDERS", "APPROVE"), async (req, res) => {
   const data = salesOrderConfirmSchema.parse(req.body);
   const item = await confirmSalesOrderWithExport(req.params.id, data, req.user);
+  if (req.user) orderNotifications.confirmed(item, req.user);
   res.json(item);
 });
 

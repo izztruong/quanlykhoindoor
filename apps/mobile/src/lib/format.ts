@@ -1,0 +1,119 @@
+export function formatNumber(value: number | string) {
+  return new Intl.NumberFormat("vi-VN").format(Number(value));
+}
+
+export function formatCurrency(value: number | string) {
+  return new Intl.NumberFormat("vi-VN").format(Number(value)) + "đ";
+}
+
+export function formatPercent(value: number | string) {
+  return new Intl.NumberFormat("vi-VN", { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(Number(value) * 100) + "%";
+}
+
+export function formatDateTime(value: string) {
+  return new Date(value).toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" });
+}
+
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+/** Fixed-width dd/MM/yyyy HH:mm, matching the printed-invoice template format. */
+export function formatDateVN(value: string) {
+  const d = new Date(value);
+  return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+const transactionFormLabel: Record<string, string> = {
+  CASH: "Tiền mặt",
+  BANK_TRANSFER: "Chuyển khoản",
+  DEBT: "Công nợ",
+  OTHER: "Khác",
+};
+
+const transactionStatusLabel: Record<string, string> = {
+  DRAFT: "Nháp",
+  COMPLETED: "Hoàn thành",
+  CANCELLED: "Đã huỷ",
+};
+
+const stockImportTypeLabel: Record<string, string> = {
+  PURCHASE: "Nhập mua",
+  CUSTOMER_RETURN: "Khách trả hàng",
+  TRANSFER_IN: "Chuyển kho đến",
+  OTHER: "Khác",
+};
+
+const stockExportTypeLabel: Record<string, string> = {
+  SALE: "Xuất bán",
+  SUPPLIER_RETURN: "Trả nhà cung cấp",
+  TRANSFER_OUT: "Chuyển kho đi",
+  DAMAGE: "Xuất huỷ",
+  OTHER: "Khác",
+};
+
+const salesOrderStatusLabel: Record<string, string> = {
+  DRAFT: "Chưa xác nhận",
+  PENDING_CONFIRM: "Chờ xác nhận",
+  CONFIRMED: "Đã xác nhận",
+  SHORT: "Thiếu",
+  COMPLETED: "Hoàn thành",
+  CANCELLED: "Đã huỷ",
+};
+
+const inventoryCountStatusLabel: Record<string, string> = {
+  DRAFT: "Chưa kiểm",
+  COMPLETED: "Đã kiểm",
+  CANCELLED: "Đã huỷ",
+};
+
+const productTypeLabel: Record<string, string> = {
+  NVL: "Nguyên vật liệu",
+  COC_TAKE: "Cốc & ống hút",
+  BANH: "Bánh",
+  DUNG_CU: "Dụng cụ",
+  KHAC: "Khác",
+};
+
+const finishedGoodCategoryLabel: Record<string, string> = {
+  TRA: "Trà",
+  DAV: "Đồ ăn vặt",
+  THANH_PHAM: "Đồ thành phẩm",
+};
+
+const shiftExpenseTypeLabel: Record<string, string> = {
+  MATERIAL: "NVL",
+  OTHER: "Khác",
+};
+
+export const labels = {
+  transactionForm: (v: string) => transactionFormLabel[v] ?? v,
+  transactionStatus: (v: string) => transactionStatusLabel[v] ?? v,
+  stockImportType: (v: string) => stockImportTypeLabel[v] ?? v,
+  stockExportType: (v: string) => stockExportTypeLabel[v] ?? v,
+  salesOrderStatus: (v: string) => salesOrderStatusLabel[v] ?? v,
+  inventoryCountStatus: (v: string) => inventoryCountStatusLabel[v] ?? v,
+  productType: (v: string) => productTypeLabel[v] ?? v,
+  finishedGoodCategory: (v: string) => finishedGoodCategoryLabel[v] ?? v,
+  shiftExpenseType: (v: string) => shiftExpenseTypeLabel[v] ?? v,
+};
+
+/** Derived from the label maps above so the dropdown/Excel option lists and display labels never drift apart. */
+export const PRODUCT_TYPE_OPTIONS = Object.entries(productTypeLabel).map(([value, label]) => ({ value, label }));
+export const FINISHED_GOOD_CATEGORY_OPTIONS = Object.entries(finishedGoodCategoryLabel).map(([value, label]) => ({ value, label }));
+export const SHIFT_EXPENSE_TYPE_OPTIONS = Object.entries(shiftExpenseTypeLabel).map(([value, label]) => ({ value, label }));
+
+/**
+ * dd/MM/yyyy cho cột DATE (không có phần giờ). Đọc theo UTC chứ không phải giờ máy: chuỗi trả về
+ * là "2026-09-01T00:00:00.000Z", lấy theo giờ địa phương ở múi giờ âm sẽ lùi mất một ngày.
+ */
+export function formatDateOnly(value: string) {
+  const d = new Date(value);
+  return `${pad2(d.getUTCDate())}/${pad2(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`;
+}
+
+/** Ngược lại formatDateOnly: chuỗi ISO -> "YYYY-MM-DD" để đổ vào <input type="date">. */
+export function toDateInput(value: string) {
+  const d = new Date(value);
+  return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
+}

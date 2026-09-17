@@ -27,4 +27,7 @@ export const env = {
   r2Bucket: process.env.R2_BUCKET_NAME ?? "",
   r2AccessKeyId: process.env.R2_ACCESS_KEY_ID ?? "",
   r2SecretAccessKey: process.env.R2_SECRET_ACCESS_KEY ?? "",
+  // Chỉ cần khi bật "Enhanced push security" trên trang dự án Expo. Để trống thì vẫn gửi được thông
+  // báo đẩy bình thường.
+  expoAccessToken: process.env.EXPO_ACCESS_TOKEN ?? "",
 };

@@ -20,6 +20,7 @@ import { productGroupsRouter } from "./modules/productGroups/productGroups.route
 import { productStockRouter } from "./modules/products/productStock.routes";
 import { productsRouter } from "./modules/products/products.routes";
 import { productSupplierPricesRouter } from "./modules/productSupplierPrices/productSupplierPrices.routes";
+import { notificationsRouter } from "./modules/notifications/notifications.routes";
 import { profileRouter } from "./modules/profile/profile.routes";
 import { reorderThresholdsRouter } from "./modules/reorderThresholds/reorderThresholds.routes";
 import { reportsRouter } from "./modules/reports/reports.routes";
@@ -94,6 +95,8 @@ app.use("/api/users", usersRouter);
 app.use("/api/roles", rolesRouter);
 // Tự sửa tài khoản của chính mình — chỉ cần đăng nhập.
 app.use("/api/profile", profileRouter);
+// Thông báo của chính mình — chỉ cần đăng nhập, mọi truy vấn lọc cứng theo req.user.id.
+app.use("/api/notifications", notificationsRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

@@ -1,6 +1,6 @@
 # Tiến độ dự án
 
-Cập nhật: 2026-09-16
+Cập nhật: 2026-09-17
 
 Ghi **đúng những gì git không tự trả lời được**. Lý do thiết kế đã nằm trong commit message, đừng
 chép lại vào đây. Mỗi mục "Đang dở" tối đa 3–4 dòng, và dòng quan trọng nhất luôn là: *đã kiểm thử
@@ -30,6 +30,22 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 ---
 
 ## Đang dở
+
+### App mobile `apps/mobile` — người dùng đã chạy thử qua Expo Go, chưa lên `staging`/`main`
+Đã có: đăng nhập, trang chủ, danh mục, kiểm kê quán, huỷ NVL, đơn hàng, chi chốt ca, đề xuất chi.
+Bổ sung code: 5 báo cáo kiểm toán, nhập/xuất kho, điều chuyển, tài khoản, vai trò; bỏ menu ngoài phạm vi. CHƯA thử các màn mới trên điện thoại.
+Kiểm: typecheck mobile/server/web, bundle Android; script kiểm quyền, chặn báo cáo thiếu kho, phân trang và giữ SL lẻ khi sửa điều chuyển.
+Server đọc Bearer; danh sách điều chuyển bổ sung số dòng. Cần thử luồng tạo/sửa và cảnh báo Check Cost trên development build.
+
+### Google Sign-In trên mobile — đã thử trên điện thoại, đang lỗi ở bước Google; chưa lên `staging`/`main`
+Web Client ID trong mobile/build/server khớp nhau. Android client đã tạo; chưa xác minh cùng project và SHA-1 bản đang cài.
+Đã bổ sung hiển thị mã lỗi native để chẩn đoán; cần tải lại Metro và thử lại để lấy mã cụ thể. Firebase push dùng project khác OAuth Web (chưa kết luận là nguyên nhân).
+Chưa đăng nhập thành công; hướng dẫn chạy/build và kiểm thử: `apps/mobile/README.md`.
+
+### Thông báo đẩy (đơn hàng + đề xuất chi) — server kiểm bằng curl; CHƯA nhận thử trên điện thoại
+7 loại, mỗi người tự tắt/bật; migration `20260916141130_notifications` đã thử `migrate deploy` trên db trắng.
+Đã kiểm đủ người nhận từng loại, tắt loại thì thôi nhận, token đổi chủ, push lỗi không làm hỏng request.
+Cần: tài khoản Expo + Firebase, `eas build --profile development`, rồi thử nhận khi app đang đóng.
 
 ### Đăng nhập bằng Google + tự đổi email — CHƯA kiểm thử trên trình duyệt, chưa lên `staging`/`main`
 Chỉ vào được tài khoản có sẵn trùng email Gmail; đổi email ở Thông tin tài khoản (cần mật khẩu). Đã kiểm typecheck, lint,
