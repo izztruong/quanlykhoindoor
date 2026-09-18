@@ -25,13 +25,13 @@ export const expenseProposalSchema = z
     approverId: z.string({ message: "Vui lòng chọn người xác nhận" }).trim().min(1, "Vui lòng chọn người xác nhận"),
     purpose: z.string().trim().min(1, "Mục đích sử dụng không được để trống"),
     items: z.array(expenseProposalItemSchema).min(1, "Phiếu phải có ít nhất 1 hạng mục"),
-    // Chỉ đọc khi payer = ACCOUNTANT; người lập tự chi thì bỏ qua dù client có gửi. Ô trống ("")
+    // Chỉ lưu khi payer = CREATOR; kế toán chi thì bỏ qua dù client có gửi. Ô trống ("")
     // coi như không gửi, để form ẩn các ô này không làm hỏng cả phiếu.
     advancePercent: z.preprocess(emptyToUndefined, z.coerce.number().optional()),
     invoiceDueDate: z.preprocess(emptyToUndefined, dateOnly("Ngày trả hoá đơn không hợp lệ").optional()),
   })
   .superRefine((data, ctx) => {
-    if (data.payer !== "ACCOUNTANT") return;
+    if (data.payer !== "CREATOR") return;
     if (data.advancePercent === undefined || !(data.advancePercent > 0 && data.advancePercent <= 100)) {
       ctx.addIssue({ code: "custom", message: "Tạm ứng (%) phải lớn hơn 0 và không quá 100", path: ["advancePercent"] });
     }

@@ -84,11 +84,11 @@ export function ExpenseProposalFormClient({ existing }: { existing?: ExpenseProp
   const [invoiceDueDate, setInvoiceDueDate] = useState(existing?.invoiceDueDate ? toDateInput(existing.invoiceDueDate) : "");
   const [error, setError] = useState<string | null>(null);
 
-  const isAccountant = payer === "ACCOUNTANT";
+  const isCreator = payer === "CREATOR";
   const percent = advancePercent.trim() === "" ? null : Number(advancePercent);
   const { amounts, total, advanceAmount } = computeExpenseTotals(
     rows.map((row) => ({ unitPrice: toNumber(row.unitPrice), quantity: toNumber(row.quantity) })),
-    isAccountant && percent !== null && !Number.isNaN(percent) ? percent : null,
+    isCreator && percent !== null && !Number.isNaN(percent) ? percent : null,
   );
 
   function updateRow(key: number, patch: Partial<ItemRow>) {
@@ -116,7 +116,7 @@ export function ExpenseProposalFormClient({ existing }: { existing?: ExpenseProp
       if (!(Number(row.quantity) > 0)) return setError(`Dòng ${stt}: số lượng phải lớn hơn 0.`);
     }
 
-    if (isAccountant) {
+    if (isCreator) {
       if (percent === null || !(percent > 0 && percent <= 100)) return setError("Tạm ứng (%) phải lớn hơn 0 và không quá 100.");
       if (!invoiceDueDate) return setError("Vui lòng chọn ngày trả hoá đơn.");
     }
@@ -135,8 +135,8 @@ export function ExpenseProposalFormClient({ existing }: { existing?: ExpenseProp
         quantity: Number(row.quantity),
         note: row.note.trim() || undefined,
       })),
-      advancePercent: isAccountant ? (percent ?? undefined) : undefined,
-      invoiceDueDate: isAccountant ? invoiceDueDate : undefined,
+      advancePercent: isCreator ? (percent ?? undefined) : undefined,
+      invoiceDueDate: isCreator ? invoiceDueDate : undefined,
     };
 
     const onError = (err: unknown) => setError(err instanceof ApiError ? err.message : "Lưu phiếu thất bại");
@@ -309,14 +309,14 @@ export function ExpenseProposalFormClient({ existing }: { existing?: ExpenseProp
 
       <Card>
         <CardHeader>
-          <CardTitle>Tổng tiền{isAccountant ? " & tạm ứng" : ""}</CardTitle>
+          <CardTitle>Tổng tiền{isCreator ? " & tạm ứng" : ""}</CardTitle>
         </CardHeader>
         <CardBody className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div className="flex flex-col gap-1 md:col-span-2">
             <label className="text-sm font-medium text-slate-600">Tổng tiền đề xuất chi</label>
             <p className="text-lg font-semibold text-slate-800">{formatCurrency(total)}</p>
           </div>
-          {isAccountant && (
+          {isCreator && (
             <>
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-medium text-slate-600">Tạm ứng (%)</label>

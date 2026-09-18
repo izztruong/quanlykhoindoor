@@ -76,9 +76,9 @@ export function ExpenseProposalDetailClient({ id }: { id: string }) {
   const { status, payer } = proposal;
   const isPending = status === "PENDING";
   const canApprove = isPending && can("EXPENSE_PROPOSALS", "APPROVE");
-  const canAdvance = status === "APPROVED" && payer === "ACCOUNTANT" && can("EXPENSE_PROPOSALS", "PAY");
+  const canAdvance = status === "APPROVED" && proposal.advanceAmount != null && can("EXPENSE_PROPOSALS", "PAY");
   const canSpend =
-    ((status === "APPROVED" && payer === "CREATOR") || (status === "ADVANCED" && payer === "ACCOUNTANT")) &&
+    ((status === "APPROVED" && proposal.advanceAmount == null) || status === "ADVANCED") &&
     can("EXPENSE_PROPOSALS", "PAY");
   const busy = runAction.isPending || deleteProposal.isPending;
   const onError = (fallback: string) => (err: unknown) => setError(err instanceof ApiError ? err.message : fallback);
@@ -242,13 +242,13 @@ export function ExpenseProposalDetailClient({ id }: { id: string }) {
         <div className="flex flex-col gap-4">
           <Card>
             <CardHeader>
-              <CardTitle>{payer === "ACCOUNTANT" ? "Tổng tiền & tạm ứng" : "Tổng tiền"}</CardTitle>
+              <CardTitle>{proposal.advanceAmount != null ? "Tổng tiền & tạm ứng" : "Tổng tiền"}</CardTitle>
             </CardHeader>
             <CardBody className="flex flex-col gap-4">
               <Field label="Tổng tiền đề xuất chi">
                 <span className="text-base font-semibold">{formatCurrency(proposal.totalAmount)}</span>
               </Field>
-              {payer === "ACCOUNTANT" && (
+              {proposal.advanceAmount != null && (
                 <>
                   <Field label="Tạm ứng (%)">{formatNumber(proposal.advancePercent ?? 0)}%</Field>
                   <Field label="Số tiền tạm ứng">

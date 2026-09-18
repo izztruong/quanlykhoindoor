@@ -1,5 +1,5 @@
 import { prisma } from "../../config/db";
-import type { ExpensePayer, ExpenseProposalStatus, Prisma } from "../../generated/prisma/client";
+import type { ExpenseProposalStatus, Prisma } from "../../generated/prisma/client";
 import { assertOwner, type AuthUser } from "../../middleware/auth";
 import { HttpError } from "../../utils/httpError";
 import type { ExpenseProposalInput } from "./expenseProposals.schemas";
@@ -28,7 +28,7 @@ const roundMoney = (value: number) => Math.round(value * 100) / 100;
 
 /**
  * Chuyển dữ liệu form thành cột để ghi. Thành tiền, tổng và tiền tạm ứng chốt ở server, không tin
- * số client gửi. Người lập tự chi thì ép cả ba cột tạm ứng về null, kể cả khi client có gửi.
+ * số client gửi. Kế toán chi thì ép cả ba cột tạm ứng về null, kể cả khi client có gửi.
  */
 export function toProposalData(data: ExpenseProposalInput) {
   const items = data.items.map((item, index) => ({
@@ -41,8 +41,8 @@ export function toProposalData(data: ExpenseProposalInput) {
     note: item.note || null,
   }));
   const totalAmount = roundMoney(items.reduce((sum, item) => sum + item.amount, 0));
-  const isAccountant = data.payer === "ACCOUNTANT";
-  const advancePercent = isAccountant ? (data.advancePercent ?? null) : null;
+  const isCreator = data.payer === "CREATOR";
+  const advancePercent = isCreator ? (data.advancePercent ?? null) : null;
 
   return {
     header: {
@@ -56,7 +56,7 @@ export function toProposalData(data: ExpenseProposalInput) {
       advancePercent,
       // Tạm ứng làm tròn tới đồng — không có ai ứng lẻ hào.
       advanceAmount: advancePercent !== null ? Math.round((totalAmount * advancePercent) / 100) : null,
-      invoiceDueDate: isAccountant ? (data.invoiceDueDate ?? null) : null,
+      invoiceDueDate: isCreator ? (data.invoiceDueDate ?? null) : null,
     },
     items,
   };
@@ -86,8 +86,8 @@ export async function findOwnedProposal(id: string, user: AuthUser | undefined) 
 
 type Transition = {
   from: ExpenseProposalStatus;
-  /** Bỏ trống = áp cho cả hai kiểu người chi. */
-  payer?: ExpensePayer;
+  /** Dựa trên số tiền đã lưu, kể cả 0; bỏ trống = không ràng buộc tạm ứng. Giữ luồng phiếu cũ. */
+  hasAdvance?: boolean;
   to: ExpenseProposalStatus;
 };
 
@@ -102,11 +102,17 @@ export async function transitionProposal(
   data: Prisma.ExpenseProposalUncheckedUpdateManyInput,
 ) {
   const proposal = await findOwnedProposal(id, user);
-  const match = transitions.find((t) => t.from === proposal.status && (!t.payer || t.payer === proposal.payer));
+  const match = transitions.find(
+    (t) => t.from === proposal.status && (t.hasAdvance === undefined || t.hasAdvance === (proposal.advanceAmount !== null)),
+  );
   if (!match) throw new HttpError(409, "Phiếu không ở trạng thái cho phép thao tác này, vui lòng tải lại trang");
 
   const { count } = await prisma.expenseProposal.updateMany({
-    where: { id, status: match.from, payer: match.payer },
+    where: {
+      id,
+      status: match.from,
+      advanceAmount: match.hasAdvance === undefined ? undefined : match.hasAdvance ? { not: null } : null,
+    },
     data: { ...data, status: match.to },
   });
   if (count === 0) throw new HttpError(409, "Phiếu vừa được người khác cập nhật, vui lòng tải lại trang");

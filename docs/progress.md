@@ -90,11 +90,10 @@ bằng curl ở local: hai IP có bộ đếm riêng, đổi IP giả ở đầu
 Cần thử trên staging: từ một máy gọi đăng nhập sai qua cả link Vercel lẫn thẳng `onrender.com` —
 lượt còn lại phải trừ nối tiếp nhau (tức Render nhận đúng IP thật chứ không phải IP proxy trung gian).
 
-### Phiếu đề xuất chi & tạm ứng — CHƯA kiểm thử trên trình duyệt, đã lên `main`
-Nhóm menu Tài chính (Chi chốt ca cũng chuyển sang đây). Có Loại phiếu (MKT / Vận hành / CSVC, lọc được), quán chi chọn tài khoản
-quán, người xác nhận chọn tài khoản không phải quán (chỉ ghi nhận). Đã kiểm typecheck, lint, `migrate deploy` trên db trắng, curl
-(2 luồng người lập chi / kế toán chi, sai thứ tự 409, thiếu quyền 403, sai vai trò hoặc thiếu loại phiếu 400, lọc theo loại).
-Cần thử: ô tạm ứng ẩn/hiện theo Người chi, các ô chọn loại / quán / người xác nhận, lọc theo loại, thêm/xoá dòng, nút theo trạng thái.
+### Phiếu đề xuất chi & tạm ứng — bản trước đã lên `main`; đợt đảo tạm ứng CHƯA push/deploy
+Phiếu mới: người lập chi có tạm ứng; kế toán chi đi thẳng Đã duyệt → Đã chi. Phiếu cũ đi tiếp theo `advanceAmount` đã lưu; không migration.
+Đã đồng bộ server/web/mobile; typecheck cả ba, lint web, bundle Android và 46 kiểm tra curl trên DB local đã qua (phiếu mới/cũ, null/0, sửa, đồng thời, phân quyền); đã dọn dữ liệu thử.
+Chưa thử giao diện trên trình duyệt/điện thoại. Cần triển khai đồng bộ server/web và build mobile mới; thử đổi Người chi, nhập %, ngày trả hoá đơn và các nút theo trạng thái.
 
 ### Cờ "Là quán" trên vai trò — CHƯA kiểm thử trên trình duyệt, đã lên `main`
 Ô chọn/lọc quán chỉ hiện tài khoản thuộc vai trò có tick (admin bị ẩn); lọc Người lập ở đề xuất chi vẫn thấy mọi tài khoản.

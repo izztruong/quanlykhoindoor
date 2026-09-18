@@ -128,26 +128,26 @@ expenseProposalsRouter.post("/:id/reject", requirePermission("EXPENSE_PROPOSALS"
   res.json(item);
 });
 
-// Tạm ứng chỉ có ở phiếu kế toán chi.
+// Có tiền tạm ứng đã lưu thì phải qua bước tạm ứng, kể cả phiếu kế toán chi theo luật cũ.
 expenseProposalsRouter.post("/:id/advance", requirePermission("EXPENSE_PROPOSALS", "PAY"), async (req, res) => {
   const item = await transitionProposal(
     req.params.id,
     req.user,
-    [{ from: "APPROVED", payer: "ACCOUNTANT", to: "ADVANCED" }],
+    [{ from: "APPROVED", hasAdvance: true, to: "ADVANCED" }],
     { advancedById: req.user?.id, advancedAt: new Date() },
   );
   if (req.user) expenseProposalNotifications.paid(item, req.user, "ADVANCED");
   res.json(item);
 });
 
-// Người lập tự chi: Đã duyệt → Đã chi. Kế toán chi: phải tạm ứng trước rồi mới Đã chi.
+// Không có tạm ứng: Đã duyệt → Đã chi. Đã tạm ứng: luôn được đi tiếp, không phụ thuộc người chi.
 expenseProposalsRouter.post("/:id/spend", requirePermission("EXPENSE_PROPOSALS", "PAY"), async (req, res) => {
   const item = await transitionProposal(
     req.params.id,
     req.user,
     [
-      { from: "APPROVED", payer: "CREATOR", to: "SPENT" },
-      { from: "ADVANCED", payer: "ACCOUNTANT", to: "SPENT" },
+      { from: "APPROVED", hasAdvance: false, to: "SPENT" },
+      { from: "ADVANCED", to: "SPENT" },
     ],
     { spentById: req.user?.id, spentAt: new Date() },
   );

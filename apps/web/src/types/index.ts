@@ -549,7 +549,7 @@ export interface DashboardCostSummary {
 
 export type ExpenseProposalStatus = "PENDING" | "APPROVED" | "REJECTED" | "ADVANCED" | "SPENT";
 
-/** CREATOR = người lập phiếu tự chi, ACCOUNTANT = kế toán chi (có tạm ứng). */
+/** CREATOR = người lập phiếu chi (phiếu mới có tạm ứng), ACCOUNTANT = kế toán chi. */
 export type ExpensePayer = "CREATOR" | "ACCOUNTANT";
 
 /** Loại phiếu đề xuất chi: MKT · Vận hành · CSVC. */
@@ -587,7 +587,7 @@ export interface ExpenseProposal {
   approver?: UserRef;
   purpose: string;
   totalAmount: string | number;
-  /** Ba trường tạm ứng chỉ có khi payer = ACCOUNTANT. */
+  /** Phiếu mới: tạm ứng chỉ lưu khi payer = CREATOR. Phiếu cũ giữ dữ liệu; luồng dựa vào advanceAmount != null. */
   advancePercent?: string | number | null;
   advanceAmount?: string | number | null;
   invoiceDueDate?: string | null;

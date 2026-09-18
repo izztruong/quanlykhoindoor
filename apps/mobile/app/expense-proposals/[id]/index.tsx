@@ -78,9 +78,9 @@ export default function ExpenseProposalDetailScreen() {
   const { status, payer } = proposal;
   const isPending = status === "PENDING";
   const canApprove = isPending && can("EXPENSE_PROPOSALS", "APPROVE");
-  const canAdvance = status === "APPROVED" && payer === "ACCOUNTANT" && can("EXPENSE_PROPOSALS", "PAY");
+  const canAdvance = status === "APPROVED" && proposal.advanceAmount != null && can("EXPENSE_PROPOSALS", "PAY");
   const canSpend =
-    ((status === "APPROVED" && payer === "CREATOR") || (status === "ADVANCED" && payer === "ACCOUNTANT")) &&
+    ((status === "APPROVED" && proposal.advanceAmount == null) || status === "ADVANCED") &&
     can("EXPENSE_PROPOSALS", "PAY");
   const busy = runAction.isPending || deleteProposal.isPending;
 
@@ -238,7 +238,7 @@ export default function ExpenseProposalDetailScreen() {
           </View>
         </Card>
 
-        {payer === "ACCOUNTANT" ? (
+        {proposal.advanceAmount != null ? (
           <Card>
             <CardHeader>
               <CardTitle>Tạm ứng</CardTitle>

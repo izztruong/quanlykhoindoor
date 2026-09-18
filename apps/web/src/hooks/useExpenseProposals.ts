@@ -21,7 +21,7 @@ export interface ExpenseProposalInput {
   approverId: string;
   purpose: string;
   items: ExpenseProposalItemInput[];
-  /** Chỉ gửi khi payer = ACCOUNTANT — server bỏ qua với người lập tự chi. */
+  /** Chỉ gửi khi payer = CREATOR — server bỏ qua với kế toán chi. */
   advancePercent?: number;
   invoiceDueDate?: string;
 }

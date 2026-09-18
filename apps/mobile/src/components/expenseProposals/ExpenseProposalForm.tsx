@@ -93,11 +93,11 @@ export function ExpenseProposalForm({ existing }: { existing?: ExpenseProposal }
   );
   const [error, setError] = useState<string | null>(null);
 
-  const isAccountant = payer === "ACCOUNTANT";
+  const isCreator = payer === "CREATOR";
   const percent = advancePercent.trim() === "" ? null : Number(advancePercent);
   const { amounts, total, advanceAmount } = computeExpenseTotals(
     rows.map((row) => ({ unitPrice: toNumber(row.unitPrice), quantity: toNumber(row.quantity) })),
-    isAccountant && percent !== null && !Number.isNaN(percent) ? percent : null,
+    isCreator && percent !== null && !Number.isNaN(percent) ? percent : null,
   );
 
   function updateRow(key: number, patch: Partial<ItemRow>) {
@@ -123,7 +123,7 @@ export function ExpenseProposalForm({ existing }: { existing?: ExpenseProposal }
       if (row.unitPrice.trim() === "" || Number(row.unitPrice) < 0) return setError(`Dòng ${stt}: đơn giá không hợp lệ.`);
       if (!(Number(row.quantity) > 0)) return setError(`Dòng ${stt}: số lượng phải lớn hơn 0.`);
     }
-    if (isAccountant) {
+    if (isCreator) {
       if (percent === null || !(percent > 0 && percent <= 100)) {
         return setError("Tạm ứng (%) phải lớn hơn 0 và không quá 100.");
       }
@@ -144,9 +144,9 @@ export function ExpenseProposalForm({ existing }: { existing?: ExpenseProposal }
         quantity: Number(row.quantity),
         note: row.note.trim() || undefined,
       })),
-      // Người lập tự chi thì KHÔNG gửi hai trường tạm ứng — server cũng bỏ qua.
-      advancePercent: isAccountant ? (percent ?? undefined) : undefined,
-      invoiceDueDate: isAccountant ? invoiceDueDate : undefined,
+      // Kế toán chi thì KHÔNG gửi hai trường tạm ứng — server cũng bỏ qua.
+      advancePercent: isCreator ? (percent ?? undefined) : undefined,
+      invoiceDueDate: isCreator ? invoiceDueDate : undefined,
     };
 
     if (isEdit && existing) {
@@ -269,7 +269,7 @@ export function ExpenseProposalForm({ existing }: { existing?: ExpenseProposal }
         <Text style={styles.totalValue}>{formatCurrency(total)}</Text>
       </View>
 
-      {isAccountant ? (
+      {isCreator ? (
         <Card>
           <CardHeader>
             <CardTitle>Tạm ứng</CardTitle>

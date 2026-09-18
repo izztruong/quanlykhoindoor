@@ -799,7 +799,7 @@ model ExpenseProposal {
   purpose        String
   // Tổng và tiền tạm ứng tính ở SERVER lúc ghi rồi lưu lại, không tin số client gửi.
   totalAmount    Decimal                  @db.Decimal(18, 2)
-  // Ba cột tạm ứng chỉ có giá trị khi payer = ACCOUNTANT; người lập tự chi thì luôn null.
+  // Phiếu mới chỉ lưu tạm ứng khi payer = CREATOR. Phiếu cũ giữ dữ liệu; luồng dựa vào advanceAmount có null hay không.
   advancePercent Decimal?                 @db.Decimal(5, 2)
   advanceAmount  Decimal?                 @db.Decimal(18, 2)
   invoiceDueDate DateTime?                @db.Date
