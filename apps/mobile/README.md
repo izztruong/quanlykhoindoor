@@ -69,12 +69,19 @@ Cần kiểm trên development build:
 8. Check Cost: tạo với hai phiếu kiểm và vài món, đối chiếu doanh thu/chi phí/nguyên liệu với cùng phiếu trên web; kéo làm tươi, cuộn tải thêm, huỷ/bỏ huỷ và kiểm tra danh sách/trang chủ cập nhật.
 9. Thử quyền thiếu VIEW/ADD/EDIT; đổi quán phải xoá hai phiếu đã chọn; kiểm tra chọn trùng phiếu, thiếu SL, đầu kỳ sau cuối kỳ và lỗi server. Thử tạo phiếu trên DB local, dọn dữ liệu sau khi thử vì API không hỗ trợ xoá Check Cost.
 
-APK preview đã cài cần build lại để nhận các sửa này:
+## Build theo môi trường
 
-```powershell
-npx eas-cli@latest build --platform android --profile preview
-```
+`eas.json` đã ghi cứng API cho từng profile — không sửa tay trước khi build:
 
-Trước khi build, cấu hình `EXPO_PUBLIC_API_URL` và `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` trong profile `preview` hoặc EAS environment tương ứng. Profile preview trong file hiện không có hai biến này; không tự lấy biến từ profile development. Development build đang tải Metro chỉ cần tải lại JavaScript.
+| Nhánh | Lệnh (trong `apps/mobile`) | App gọi tới |
+|---|---|---|
+| `dev` | `npx eas-cli build --profile development --platform android` (chỉ khi đổi native module) | server local qua Metro |
+| `staging` | `npm run build:preview` → APK | staging |
+| `main` | `npm run build:production` → AAB cho CH Play | production |
+
+`build:preview` / `build:production` dừng ngay nếu đang sai nhánh hoặc còn file chưa commit. App bản thử
+hiện nhãn `LOCAL` (vàng) hoặc `STAGING` (xanh) ở màn đăng nhập và đầu trang; bản production không có nhãn.
+Development build đang tải Metro chỉ cần tải lại JavaScript. Nút Google trên bản preview cần
+`GOOGLE_CLIENT_ID` đặt trên Render staging.
 
 API cần bản server có `_count.items` ở danh sách điều chuyển để hiện số dòng; server cũ vẫn mở được danh sách nhưng hiện `—` cho số dòng.

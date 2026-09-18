@@ -7,6 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { z } from "zod";
 import { Button } from "@/components/ui/Button";
 import { GoogleLoginButton } from "@/components/auth/GoogleLoginButton";
+import { EnvBadge } from "@/components/layout/EnvBadge";
 import { Input } from "@/components/ui/Input";
 import { ApiError } from "@/lib/apiClient";
 import { useLogin } from "@/lib/auth";
@@ -59,6 +60,9 @@ export default function LoginScreen() {
             </View>
             <Text style={styles.title}>Quản lý kho</Text>
             <Text style={styles.subtitle}>Đăng nhập để tiếp tục</Text>
+            <View>
+              <EnvBadge />
+            </View>
           </View>
 
           <View style={styles.form}>

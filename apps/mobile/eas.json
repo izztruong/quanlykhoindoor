@@ -19,10 +19,18 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://quanlykhoindoortest.onrender.com/api",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "114883841138-2nj1dl8jldvegci9ftulh932tqcqv1ll.apps.googleusercontent.com"
       }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://quanlykhoindoor1.onrender.com/api",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "114883841138-2nj1dl8jldvegci9ftulh932tqcqv1ll.apps.googleusercontent.com"
+      }
     }
   },
   "submit": {

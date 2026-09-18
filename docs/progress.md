@@ -31,6 +31,11 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
+### Nhánh `dev` + chống build nhầm môi trường — trên `dev`, chưa lên `staging`/`main`
+Profile `preview` → staging, `production` → production (ghi cứng trong `eas.json`); `build:preview`/`build:production` chặn sai nhánh/còn file chưa commit.
+Nhãn LOCAL/STAGING ở màn đăng nhập + đầu trang. Đã kiểm typecheck, bundle Android, script chặn nhánh và hàm suy nhãn; CHƯA thấy nhãn trên máy, chưa build APK mới.
+Nút Google trên preview cần `GOOGLE_CLIENT_ID` ở Render staging (chưa xác minh).
+
 ### Màn hình chờ khởi động mobile — chưa deploy, CHƯA thử trên điện thoại
 Che toàn bộ giao diện khi kiểm phiên và tải số liệu Trang chủ theo quyền, bộ lọc quán, số thông báo; dùng chung cache, giữ đích mở từ push/liên kết.
 Mất mạng giữ màn chờ có Thử lại, kết nối chậm hiện nút sau 20 giây; không coi lỗi mạng là đăng xuất. Sau khi vào app, tải nền/đổi bộ lọc không bật màn chờ lại.

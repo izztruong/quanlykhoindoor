@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useUnreadNotificationCount } from "@/hooks/useNotifications";
 import { useCurrentUser } from "@/lib/auth";
+import { EnvBadge } from "./EnvBadge";
 import { colors, fontSize, headerGradient, radius, spacing } from "@/lib/theme";
 
 /**
@@ -30,9 +31,12 @@ export function AppHeader({ title }: { title?: string }) {
         <Text style={styles.primary} numberOfLines={1}>
           {title ?? (user?.name || user?.email) ?? ""}
         </Text>
-        <Text style={styles.secondary} numberOfLines={1}>
-          {user?.roleName ?? ""}
-        </Text>
+        <View style={styles.secondaryRow}>
+          <Text style={styles.secondary} numberOfLines={1}>
+            {user?.roleName ?? ""}
+          </Text>
+          <EnvBadge />
+        </View>
       </View>
 
       <Pressable
@@ -73,7 +77,8 @@ const styles = StyleSheet.create({
   avatarText: { fontSize: fontSize.xl, fontWeight: "700", color: colors.primary },
   info: { flex: 1, gap: 2 },
   primary: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text },
-  secondary: { fontSize: fontSize.sm, color: colors.textMuted },
+  secondaryRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  secondary: { flexShrink: 1, fontSize: fontSize.sm, color: colors.textMuted },
   bell: {
     width: 46,
     height: 46,

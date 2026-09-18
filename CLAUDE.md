@@ -191,7 +191,19 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
 
 ## Deploy
 
-Hai service Render: **`quanlykhoindoortest`** ← nhánh `staging`, **`quanlykhoindoor1`** ← `main`. Luồng làm việc: đẩy lên `staging` trước, merge fast-forward lên `main` sau.
+Hai service Render: **`quanlykhoindoortest`** ← nhánh `staging`, **`quanlykhoindoor1`** ← `main`. Luồng làm việc: làm trên `dev` → merge fast-forward lên `staging` → rồi lên `main`.
+
+| Nhánh | Deploy | Profile EAS | App mobile gọi tới |
+|---|---|---|---|
+| `dev` | không (không service nào theo) | `development` — JS tải từ Metro | server local (IP LAN) |
+| `staging` | Render `quanlykhoindoortest` | `preview` — APK | `quanlykhoindoortest.onrender.com` |
+| `main` | Render `quanlykhoindoor1` | `production` — AAB lên CH Play | `quanlykhoindoor1.onrender.com` |
+
+- **App gọi database nào là do profile EAS, không phải nhánh** — URL đã ghi cứng trong `apps/mobile/eas.json`,
+  đừng sửa tay trước mỗi lần build. Build bằng `npm run build:preview` / `npm run build:production` trong
+  `apps/mobile`: script `scripts/checkBuildBranch.js` từ chối chạy nếu sai nhánh hoặc còn file chưa commit.
+- App hiện nhãn `LOCAL`/`STAGING` ở màn đăng nhập và đầu trang (suy từ URL thật, `src/lib/apiEnvironment.ts`);
+  bản production không có nhãn.
 
 - **Chẩn đoán sự cố thì kiểm staging trước**, rồi mới tới production.
 - Header `x-render-routing` cho biết trạng thái (`hibernate-wake-error`, `no-deploy`); `status.render.com/api/v2/status.json` cho biết có phải sự cố toàn hệ thống Render không.
