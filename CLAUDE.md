@@ -142,6 +142,8 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
   `expenseProposals` (tạo, duyệt/từ chối, tạm ứng/đã chi) qua `modules/notifications`. Sửa các luồng
   đó phải giữ lời gọi, và luôn gọi **sau** khi ghi DB/commit, **không await** — xem chú thích
   `notifyInBackground`. Thêm loại mới = enum `NotificationType` + một dòng `NOTIFICATION_CATALOG`.
+  Server local đặt `PUSH_ENABLED="false"`: token của điện thoại cài bản thật còn nằm trong DB local, bật
+  thì đặt đơn thử cũng bắn thông báo sang máy đó.
 - Người nhận thông báo "đơn cần duyệt" phải có **cả** `ORDERS.APPROVE` lẫn `DATA.SCOPE_ALL`: thiếu
   phạm vi thì `assertOwner` trả 404 và thông báo bấm vào không mở được đơn.
 

@@ -122,6 +122,7 @@ async function notify({ type, recipientIds, actorId, title, body, href }: Notify
   await prisma.notification.createMany({
     data: recipients.map((userId) => ({ userId, type, title, body, href })),
   });
+  if (!env.pushEnabled) return;
 
   const tokens = await prisma.pushToken.findMany({ where: { userId: { in: recipients } }, select: { token: true } });
   const messages: ExpoPushMessage[] = tokens

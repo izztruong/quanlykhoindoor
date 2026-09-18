@@ -1,6 +1,6 @@
 # Tiến độ dự án
 
-Cập nhật: 2026-09-17
+Cập nhật: 2026-09-18
 
 Ghi **đúng những gì git không tự trả lời được**. Lý do thiết kế đã nằm trong commit message, đừng
 chép lại vào đây. Mỗi mục "Đang dở" tối đa 3–4 dòng, và dòng quan trọng nhất luôn là: *đã kiểm thử
@@ -31,6 +31,16 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
+### Màn hình chờ khởi động mobile — chưa deploy, CHƯA thử trên điện thoại
+Che toàn bộ giao diện khi kiểm phiên và tải số liệu Trang chủ theo quyền, bộ lọc quán, số thông báo; dùng chung cache, giữ đích mở từ push/liên kết.
+Mất mạng giữ màn chờ có Thử lại, kết nối chậm hiện nút sau 20 giây; không coi lỗi mạng là đăng xuất. Sau khi vào app, tải nền/đổi bộ lọc không bật màn chờ lại.
+Typecheck, bundle Android và mô phỏng QueryObserver đã qua (ít quyền, dữ liệu rỗng, tải chậm/lỗi, thử lại, đăng nhập lại, phản hồi cũ). Cần thử mở app/đăng nhập/push và Render đang ngủ trên máy thật.
+
+### Thông báo mobile mất thẻ vừa bấm khi quay lại — chưa deploy, CHƯA thử bản sửa trên máy
+Chỉ lần đầu mở thông báo chưa đọc bị mất thẻ; kéo tải lại không hết, thoát/mở màn thì có. Tắt clipping không khắc phục, đã bỏ thay đổi đó.
+Bản sửa mới tạo lại riêng nội dung thẻ khi trạng thái đã đọc đổi, giữ viền cùng độ rộng và key ô danh sách theo id. Cần thử lần đầu đọc → duyệt → quay lại, đọc tất cả và thông báo ở trang sau; chưa xác nhận hết lỗi trên máy.
+Typecheck mobile và bundle Android đã qua; chưa build APK mới.
+
 ### App mobile `apps/mobile` — bản trước đã lên `main` (`e9161bb`); đợt sửa này chưa lên
 Người dùng đã thử APK preview. Đợt mới: Check Cost, sửa đăng xuất, tên đầu trang, ô chuông; CHƯA thử trên điện thoại.
 Đã kiểm typecheck mobile/server; Check Cost đã kiểm bundle Android và script. Cần thử tạo/huỷ/bỏ huỷ, phân quyền, đối chiếu web trên APK mới (`apps/mobile/README.md`).
@@ -50,9 +60,9 @@ Web Client ID trong mobile/build/server khớp nhau. Android client đã tạo; 
 Đã bổ sung hiển thị mã lỗi native để chẩn đoán; cần tải lại Metro và thử lại để lấy mã cụ thể. Firebase push dùng project khác OAuth Web (chưa kết luận là nguyên nhân).
 Chưa đăng nhập thành công; hướng dẫn chạy/build và kiểm thử: `apps/mobile/README.md`.
 
-### Thông báo đẩy (đơn hàng + đề xuất chi) — đã thêm `priority: "high"`, chưa deploy
-7 loại, mỗi người tự tắt/bật; migration `20260916141130_notifications` đã thử `migrate deploy` trên db trắng.
-Typecheck server đã qua. Trước đó đã kiểm người nhận từng loại, tắt loại, token đổi chủ và push lỗi không làm hỏng request.
+### Thông báo đẩy (đơn hàng + đề xuất chi) — `priority: "high"` đã lên `main`; `PUSH_ENABLED` chưa lên
+7 loại, mỗi người tự tắt/bật; đã kiểm người nhận từng loại, tắt loại, token đổi chủ, push lỗi không làm hỏng request.
+`PUSH_ENABLED="false"` ở local (đã xoá token cũ trong DB local): trước đó đặt đơn local vẫn bắn thông báo sang APK production.
 Xiaomi/Oppo/Realme/Vivo cần bật Tự khởi động + pin Không giới hạn. Đã nhận khi mở app, chưa nhận sau vuốt đóng; cần thử staging khi màn hình sáng/tắt và bấm mở đúng đơn. Không cần build lại APK.
 
 ### Đăng nhập bằng Google + tự đổi email — CHƯA kiểm thử trên trình duyệt, chưa lên `staging`/`main`

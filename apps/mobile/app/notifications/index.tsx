@@ -81,7 +81,11 @@ export default function NotificationsScreen() {
           onEndReached={list.loadMore}
           isFetchingMore={list.isFetchingNextPage}
           emptyMessage="Chưa có thông báo nào."
-          renderItem={(item) => <NotificationRow item={item} onPress={() => open(item)} />}
+          renderItem={(item) => (
+            // Tạo lại riêng nội dung thẻ khi đổi sang đã đọc, tránh giữ view native bị trắng.
+            // Key của ô FlatList vẫn là id nên không tạo lại danh sách hay đặt lại vị trí cuộn.
+            <NotificationRow key={item.readAt ? "read" : "unread"} item={item} onPress={() => open(item)} />
+          )}
         />
       </View>
     </>
@@ -91,7 +95,7 @@ export default function NotificationsScreen() {
 function NotificationRow({ item, onPress }: { item: AppNotification; onPress: () => void }) {
   const unread = !item.readAt;
   return (
-    <Card style={unread ? styles.cardUnread : undefined}>
+    <Card style={unread ? styles.cardUnread : styles.cardRead}>
       <Pressable onPress={onPress} style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
         <View style={[styles.icon, unread && styles.iconUnread]}>
           <Ionicons name={TYPE_ICON[item.type]} size={18} color={unread ? colors.primary : colors.textFaint} />
@@ -124,6 +128,7 @@ const styles = StyleSheet.create({
   headerText: { fontSize: fontSize.sm, color: colors.textMuted },
   readAll: { fontSize: fontSize.sm, fontWeight: "700", color: colors.primary },
   cardUnread: { borderWidth: 1, borderColor: colors.primarySoft },
+  cardRead: { borderWidth: 1, borderColor: "transparent" },
   row: { flexDirection: "row", gap: spacing.md, padding: spacing.lg },
   pressed: { opacity: 0.7 },
   icon: {

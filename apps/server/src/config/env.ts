@@ -30,4 +30,7 @@ export const env = {
   // Chỉ cần khi bật "Enhanced push security" trên trang dự án Expo. Để trống thì vẫn gửi được thông
   // báo đẩy bình thường.
   expoAccessToken: process.env.EXPO_ACCESS_TOKEN ?? "",
+  // Tắt gửi push lên Expo (vẫn lưu thông báo trong app). Local nên để false: điện thoại cài bản thật
+  // vẫn giữ token cũ trong DB local nên sẽ nhận nhầm thông báo của dữ liệu thử.
+  pushEnabled: process.env.PUSH_ENABLED !== "false",
 };
