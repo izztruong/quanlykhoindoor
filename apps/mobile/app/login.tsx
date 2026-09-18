@@ -8,6 +8,7 @@ import { z } from "zod";
 import { Button } from "@/components/ui/Button";
 import { GoogleLoginButton } from "@/components/auth/GoogleLoginButton";
 import { EnvBadge } from "@/components/layout/EnvBadge";
+import { PrivacyPolicyLink } from "@/components/privacy/PrivacyPolicyLink";
 import { Input } from "@/components/ui/Input";
 import { ApiError } from "@/lib/apiClient";
 import { useLogin } from "@/lib/auth";
@@ -120,6 +121,7 @@ export default function LoginScreen() {
               onPress={submit}
             />
             <GoogleLoginButton disabled={login.isPending || !preferenceReady} rememberLogin={rememberLogin} onBusyChange={setGoogleBusy} />
+            <PrivacyPolicyLink />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

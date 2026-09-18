@@ -31,6 +31,11 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
+### Chính sách quyền riêng tư — CHƯA deploy, chưa lên `main`
+Trang công khai `/privacy-policy`, liên kết ở đăng nhập web/mobile và tab Khác; EAS đặt URL `https://quanlykhoindoor.vercel.app/privacy-policy`.
+Trương Thái / truongthaici1@gmail.com xác nhận xử lý xoá trong 30 ngày từ yêu cầu hợp lệ qua email; không thêm cơ chế tự động xoá. Xem `docs/privacy-policy.md`.
+Typecheck web/mobile, lint phần sửa, build web, bundle Android và HTTP không đăng nhập đã qua; chưa thử giao diện trình duyệt/điện thoại. Cần deploy web và build mobile mới.
+
 ### Đổi tên gói Android thành `com.indoor.quanlykho` — đã lên `main`, CHƯA build lần nào
 Firebase đã thêm app mới (`google-services.json` chứa cả tên cũ lẫn mới). Build đầu tiên EAS sẽ tạo keystore mới.
 Cần: OAuth client Android mới cho tên gói này + SHA-1 keystore mới (và SHA-1 của Play khi lên CH Play). APK tên cũ đã cài là app riêng, nên gỡ.

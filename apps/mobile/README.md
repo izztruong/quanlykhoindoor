@@ -2,6 +2,14 @@
 
 Expo SDK 57, React Native, giao diện tiếng Việt. Cài dependencies trong thư mục này bằng `npm install`.
 
+## Chính sách quyền riêng tư
+
+Trang công khai: https://quanlykhoindoor.vercel.app/privacy-policy (cần deploy web trước khi sử dụng trên Google Play).
+App có liên kết tại màn đăng nhập và tab Khác. `eas.json` đã đặt `EXPO_PUBLIC_PRIVACY_POLICY_URL` cho cả ba profile;
+khi chạy Metro local, đặt cùng biến trong `.env.local` theo `.env.example`, rồi khởi động lại Metro.
+Preview/production cần build mới để có liên kết; sửa nội dung chính sách về sau chỉ cần deploy web.
+Cam kết xoá trong 30 ngày kể từ yêu cầu hợp lệ được người vận hành xử lý qua email, chưa có tác vụ tự động xoá.
+
 ## Ghi nhớ đăng nhập
 
 Màn đăng nhập có ô **Ghi nhớ đăng nhập**, mặc định bật và nhớ lựa chọn của lần đăng nhập thành công gần nhất. Áp dụng cho cả email/mật khẩu và Google.

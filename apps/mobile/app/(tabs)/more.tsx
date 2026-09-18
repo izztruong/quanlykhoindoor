@@ -8,6 +8,7 @@ import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Modal } from "@/components/ui/Modal";
 import { Screen } from "@/components/ui/Screen";
 import { useCurrentUser, useLogout } from "@/lib/auth";
+import { openPrivacyPolicy, PRIVACY_POLICY_URL } from "@/lib/privacyPolicy";
 import { colors, fontSize, radius, spacing } from "@/lib/theme";
 
 export default function MoreTab() {
@@ -41,6 +42,9 @@ export default function MoreTab() {
         <Card>
           <ActionRow icon="mail-outline" label="Đổi email" onPress={() => setSheet("email")} first />
           <ActionRow icon="lock-closed-outline" label="Đổi mật khẩu" onPress={() => setSheet("password")} />
+          {PRIVACY_POLICY_URL ? (
+            <ActionRow icon="shield-checkmark-outline" label="Chính sách quyền riêng tư" onPress={() => void openPrivacyPolicy()} />
+          ) : null}
           <ActionRow icon="log-out-outline" label="Đăng xuất" onPress={confirmLogout} danger />
         </Card>
       </Screen>

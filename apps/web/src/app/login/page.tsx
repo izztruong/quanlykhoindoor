@@ -7,6 +7,7 @@ import { ApiError } from "@/lib/api-client";
 import { useGoogleLogin, useLogin } from "@/lib/auth";
 import { Store } from "lucide-react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { FormEvent, useState } from "react";
 
 export default function LoginPage() {
@@ -77,6 +78,9 @@ export default function LoginPage() {
             {googleLogin.isPending && <p className="mt-2 text-center text-sm text-slate-400">Đang đăng nhập...</p>}
           </>
         )}
+        <Link href="/privacy-policy" className="mt-6 block text-center text-sm text-indigo-700 underline underline-offset-4">
+          Chính sách quyền riêng tư
+        </Link>
       </div>
     </div>
   );
