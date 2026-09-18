@@ -24,7 +24,7 @@ eas build --profile development --platform android
 Cài APK mới rồi chạy `npx expo start --dev-client`. Nếu Metro đang mở từ trước khi thêm các màn mới hoặc thay đổi env, khởi động lại Metro.
 
 - `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` phải là OAuth client **Web**, trùng `GOOGLE_CLIENT_ID` của server. Development profile trong `eas.json` đã có giá trị này. Khi chạy Metro trên máy khác, đặt cùng giá trị trong `.env.local` (xem `.env.example`); EAS env không tự truyền vào Metro local.
-- Google Cloud Console cần OAuth client **Android** cho package `com.quanlykho.app` và SHA-1 của đúng keystore. Xem fingerprint bằng `eas credentials`. Các keystore khác nhau cần khai fingerprint tương ứng.
+- Google Cloud Console cần OAuth client **Android** cho package `com.indoor.quanlykho` và SHA-1 của đúng keystore. Xem fingerprint bằng `eas credentials`. Các keystore khác nhau cần khai fingerprint tương ứng.
 - Nếu quản lý OAuth qua Firebase, tải lại `google-services.json` sau khi bổ sung client Android. File hiện có trong dự án chưa có OAuth client.
 - Chỉ tài khoản đã tồn tại trên hệ thống và có email khớp mới đăng nhập được. Không cấu hình client Web thì app ẩn nút Google.
 - Preview/production cần đặt cùng biến công khai và `EXPO_PUBLIC_API_URL` trỏ đúng API trong môi trường EAS tương ứng; development client tải JavaScript từ Metro, còn preview/production đóng gói JavaScript lúc build.

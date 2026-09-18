@@ -10,10 +10,10 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.quanlykho.app"
+      "bundleIdentifier": "com.indoor.quanlykho"
     },
     "android": {
-      "package": "com.quanlykho.app",
+      "package": "com.indoor.quanlykho",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",

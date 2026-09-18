@@ -7,6 +7,25 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:327851061860:android:5b021ccbd59dd7997de571",
+        "android_client_info": {
+          "package_name": "com.indoor.quanlykho"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyATb1PnD0HHMERCGLkwfJPkY0X_w_r4V6g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:327851061860:android:3de951c12e128a8e7de571",
         "android_client_info": {
           "package_name": "com.quanlykho.app"

@@ -31,6 +31,10 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
+### Đổi tên gói Android thành `com.indoor.quanlykho` — đã lên `main`, CHƯA build lần nào
+Firebase đã thêm app mới (`google-services.json` chứa cả tên cũ lẫn mới). Build đầu tiên EAS sẽ tạo keystore mới.
+Cần: OAuth client Android mới cho tên gói này + SHA-1 keystore mới (và SHA-1 của Play khi lên CH Play). APK tên cũ đã cài là app riêng, nên gỡ.
+
 ### Nhánh `dev` + chống build nhầm môi trường — đã lên `main`, chưa build APK mới
 Profile `preview` → staging, `production` → production (ghi cứng trong `eas.json`); `build:preview`/`build:production` chặn sai nhánh/còn file chưa commit.
 Nhãn LOCAL/STAGING ở màn đăng nhập + đầu trang. Đã kiểm typecheck, bundle Android, script chặn nhánh và hàm suy nhãn; CHƯA thấy nhãn trên máy, chưa build APK mới.
