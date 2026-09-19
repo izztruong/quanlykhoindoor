@@ -49,6 +49,7 @@ export default function QuickOrderPage() {
       if (!Number.isFinite(current)) return 0;
       const min = Number(threshold.minQuantity);
       const max = Number(threshold.maxQuantity);
+      // Cố ý đặt một lượng cố định = max − min khi tồn dưới min, không bù theo tồn thực tế.
       if (current < min) return Math.round((max - min) * 1000) / 1000;
       return 0;
     },
