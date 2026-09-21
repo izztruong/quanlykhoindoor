@@ -1,6 +1,6 @@
 # Tiến độ dự án
 
-Cập nhật: 2026-09-19
+Cập nhật: 2026-09-21
 
 Ghi **đúng những gì git không tự trả lời được**. Lý do thiết kế đã nằm trong commit message, đừng
 chép lại vào đây. Mỗi mục "Đang dở" tối đa 3–4 dòng, và dòng quan trọng nhất luôn là: *đã kiểm thử
@@ -94,10 +94,10 @@ bằng curl ở local: hai IP có bộ đếm riêng, đổi IP giả ở đầu
 Cần thử trên staging: từ một máy gọi đăng nhập sai qua cả link Vercel lẫn thẳng `onrender.com` —
 lượt còn lại phải trừ nối tiếp nhau (tức Render nhận đúng IP thật chứ không phải IP proxy trung gian).
 
-### Phiếu đề xuất chi & tạm ứng — đợt đảo tạm ứng đã lên `main` nhưng BỎ QUA staging
-Phiếu mới: người lập chi có tạm ứng; kế toán chi đi thẳng Đã duyệt → Đã chi. Phiếu cũ đi tiếp theo `advanceAmount` đã lưu; không migration.
-Đã đồng bộ server/web/mobile; typecheck cả ba, lint web, bundle Android và 46 kiểm tra curl trên DB local đã qua (phiếu mới/cũ, null/0, sửa, đồng thời, phân quyền); đã dọn dữ liệu thử.
-Chưa thử giao diện trên trình duyệt/điện thoại. Server/web production đã chạy bản mới; APK cũ chọn "Người lập chi" sẽ bị server từ chối (thiếu tạm ứng) tới khi build lại. Thử đổi Người chi, nhập %, ngày trả hoá đơn và các nút theo trạng thái.
+### Đề xuất chi: tạm ứng nhiều lần, duyệt bổ sung, hoàn thành + chứng từ — chỉ trên `dev`, CHƯA làm mobile
+Server + web xong; migration chuyển lần ứng cũ sang bảng mới và tách quyền PAY → Tạm ứng + Hoàn thành. Đã kiểm typecheck, lint,
+`migrate deploy` trên DB trắng và DB có phiếu cũ, 46 ca curl (vượt trần ứng, duyệt bổ sung, chặn chi vượt, sai người duyệt, ảnh R2 thật). Chưa thử trên trình duyệt.
+**Không đưa lên `staging`/`main` trước khi làm mobile**: app đang cài gọi `/spend` (đã bỏ) và `/advance` không kèm số tiền.
 
 ### Cờ "Là quán" trên vai trò — CHƯA kiểm thử trên trình duyệt, đã lên `main`
 Ô chọn/lọc quán chỉ hiện tài khoản thuộc vai trò có tick (admin bị ẩn); lọc Người lập ở đề xuất chi vẫn thấy mọi tài khoản.

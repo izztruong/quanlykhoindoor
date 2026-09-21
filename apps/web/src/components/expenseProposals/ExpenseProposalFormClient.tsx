@@ -8,42 +8,13 @@ import { useCreateExpenseProposal, useUpdateExpenseProposal } from "@/hooks/useE
 import { useUserOptions } from "@/hooks/useUsers";
 import { ApiError } from "@/lib/api-client";
 import { useCurrentUser } from "@/lib/auth";
-import {
-  EXPENSE_PAYER_LABEL,
-  EXPENSE_PROPOSAL_CATEGORY_LABEL,
-  computeExpenseTotals,
-  todayForDateInput,
-} from "@/lib/expenseProposal";
+import { EXPENSE_PAYER_LABEL, EXPENSE_PROPOSAL_CATEGORY_LABEL, todayForDateInput } from "@/lib/expenseProposal";
 import { formatCurrency, toDateInput } from "@/lib/format";
 import type { ExpensePayer, ExpenseProposal, ExpenseProposalCategory } from "@/types";
-import { Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-
-interface ItemRow {
-  /** Khoá React cục bộ — dòng không có id ổn định khi thêm/xoá giữa chừng. */
-  key: number;
-  content: string;
-  unitPrice: string;
-  unit: string;
-  quantity: string;
-  note: string;
-}
-
-// Bộ đếm cấp module cho khoá dòng: đọc/ghi ref trong lúc render bị React cấm.
-let rowKeySeed = 0;
-const newKey = () => rowKeySeed++;
-
-const blankRow = (key: number): ItemRow => ({ key, content: "", unitPrice: "", unit: "", quantity: "", note: "" });
-
-const isBlankRow = (row: ItemRow) =>
-  [row.content, row.unitPrice, row.unit, row.quantity, row.note].every((value) => value.trim() === "");
-
-const toNumber = (value: string) => (value.trim() === "" ? 0 : Number(value));
-
-const cell = "border border-slate-200 px-2 py-1.5";
-const headCell = "border border-slate-200 px-2 py-2";
+import { ExpenseItemsEditor, rowsFromItems, totalsOf, validateRows, type ItemRow } from "./ExpenseItemsEditor";
 
 export function ExpenseProposalFormClient({ existing }: { existing?: ExpenseProposal }) {
   const isEdit = Boolean(existing);
@@ -63,41 +34,19 @@ export function ExpenseProposalFormClient({ existing }: { existing?: ExpenseProp
   const wantedShopId = pickedShopId ?? currentUser?.id ?? "";
   // Quán không còn trong danh sách (vd vai trò đã bỏ cờ "là quán") thì coi như chưa chọn, bắt chọn lại.
   const shopId = shops.some((s) => s.id === wantedShopId) ? wantedShopId : "";
-  // Người xác nhận: ngược lại với quán — chỉ tài khoản KHÔNG phải quán.
+  // Người duyệt: ngược lại với quán — chỉ tài khoản KHÔNG phải quán.
   const { data: approvers = [] } = useUserOptions({ scope: "other" });
   const [pickedApproverId, setPickedApproverId] = useState(existing?.approverId ?? "");
   const approverId = approvers.some((a) => a.id === pickedApproverId) ? pickedApproverId : "";
   const [purpose, setPurpose] = useState(existing?.purpose ?? "");
-  const [rows, setRows] = useState<ItemRow[]>(() =>
-    existing?.items?.length
-      ? existing.items.map((it) => ({
-          key: newKey(),
-          content: it.content,
-          unitPrice: String(Number(it.unitPrice)),
-          unit: it.unit ?? "",
-          quantity: String(Number(it.quantity)),
-          note: it.note ?? "",
-        }))
-      : [blankRow(newKey())],
-  );
-  const [advancePercent, setAdvancePercent] = useState(existing?.advancePercent != null ? String(Number(existing.advancePercent)) : "");
+  const [rows, setRows] = useState<ItemRow[]>(() => rowsFromItems(existing?.items));
+  const [advanceAmount, setAdvanceAmount] = useState(existing?.advanceAmount != null ? String(Number(existing.advanceAmount)) : "");
   const [invoiceDueDate, setInvoiceDueDate] = useState(existing?.invoiceDueDate ? toDateInput(existing.invoiceDueDate) : "");
   const [error, setError] = useState<string | null>(null);
 
   const isCreator = payer === "CREATOR";
-  const percent = advancePercent.trim() === "" ? null : Number(advancePercent);
-  const { amounts, total, advanceAmount } = computeExpenseTotals(
-    rows.map((row) => ({ unitPrice: toNumber(row.unitPrice), quantity: toNumber(row.quantity) })),
-    isCreator && percent !== null && !Number.isNaN(percent) ? percent : null,
-  );
-
-  function updateRow(key: number, patch: Partial<ItemRow>) {
-    setRows((prev) => prev.map((row) => (row.key === key ? { ...row, ...patch } : row)));
-  }
-
-  function removeRow(key: number) {
-    setRows((prev) => (prev.length > 1 ? prev.filter((row) => row.key !== key) : prev));
-  }
+  const { total } = totalsOf(rows);
+  const advance = advanceAmount.trim() === "" ? null : Number(advanceAmount);
 
   function handleSubmit() {
     setError(null);
@@ -105,20 +54,16 @@ export function ExpenseProposalFormClient({ existing }: { existing?: ExpenseProp
     if (!proposalDate) return setError("Vui lòng chọn ngày tạo phiếu.");
     if (!category) return setError("Vui lòng chọn loại phiếu.");
     if (!shopId) return setError("Vui lòng chọn quán chi.");
-    if (!approverId) return setError("Vui lòng chọn người xác nhận.");
+    if (!approverId) return setError("Vui lòng chọn người duyệt.");
     if (!purpose.trim()) return setError("Vui lòng nhập mục đích sử dụng.");
 
-    const filled = rows.map((row, index) => ({ row, stt: index + 1 })).filter(({ row }) => !isBlankRow(row));
-    if (filled.length === 0) return setError("Vui lòng nhập ít nhất 1 hạng mục.");
-    for (const { row, stt } of filled) {
-      if (!row.content.trim()) return setError(`Dòng ${stt}: chưa nhập nội dung.`);
-      if (row.unitPrice.trim() === "" || Number(row.unitPrice) < 0) return setError(`Dòng ${stt}: đơn giá không hợp lệ.`);
-      if (!(Number(row.quantity) > 0)) return setError(`Dòng ${stt}: số lượng phải lớn hơn 0.`);
-    }
+    const checked = validateRows(rows);
+    if ("error" in checked) return setError(checked.error);
 
     if (isCreator) {
-      if (percent === null || !(percent > 0 && percent <= 100)) return setError("Tạm ứng (%) phải lớn hơn 0 và không quá 100.");
-      if (!invoiceDueDate) return setError("Vui lòng chọn ngày trả hoá đơn.");
+      if (advance === null || !(advance > 0)) return setError("Số tiền đề nghị tạm ứng phải lớn hơn 0.");
+      if (advance > total) return setError("Số tiền đề nghị tạm ứng không được vượt tổng dự kiến.");
+      if (!invoiceDueDate) return setError("Vui lòng chọn ngày trả hoá đơn dự kiến.");
     }
 
     const payload = {
@@ -128,14 +73,8 @@ export function ExpenseProposalFormClient({ existing }: { existing?: ExpenseProp
       shopId,
       approverId,
       purpose: purpose.trim(),
-      items: filled.map(({ row }) => ({
-        content: row.content.trim(),
-        unitPrice: Number(row.unitPrice),
-        unit: row.unit.trim() || undefined,
-        quantity: Number(row.quantity),
-        note: row.note.trim() || undefined,
-      })),
-      advancePercent: isCreator ? (percent ?? undefined) : undefined,
+      items: checked.items,
+      advanceAmount: isCreator ? (advance ?? undefined) : undefined,
       invoiceDueDate: isCreator ? invoiceDueDate : undefined,
     };
 
@@ -208,9 +147,9 @@ export function ExpenseProposalFormClient({ existing }: { existing?: ExpenseProp
             </Select>
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-slate-600">Người xác nhận</label>
+            <label className="text-sm font-medium text-slate-600">Người duyệt</label>
             <Select value={approverId} onChange={(e) => setPickedApproverId(e.target.value)}>
-              <option value="">— Chọn người xác nhận —</option>
+              <option value="">— Chọn người duyệt —</option>
               {approvers.map((approver) => (
                 <option key={approver.id} value={approver.id}>
                   {approver.name}
@@ -233,77 +172,10 @@ export function ExpenseProposalFormClient({ existing }: { existing?: ExpenseProp
 
       <Card>
         <CardHeader>
-          <CardTitle>Hạng mục chi</CardTitle>
+          <CardTitle>Hạng mục chi dự kiến</CardTitle>
         </CardHeader>
-        <CardBody className="flex flex-col gap-3">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] border-collapse text-sm">
-              <thead>
-                <tr className="text-left text-xs font-medium uppercase text-slate-500">
-                  <th className={`${headCell} w-10 text-center`}>STT</th>
-                  <th className={headCell}>Nội dung</th>
-                  <th className={`${headCell} w-36`}>Đơn giá</th>
-                  <th className={`${headCell} w-24`}>Đơn vị</th>
-                  <th className={`${headCell} w-24`}>Số lượng</th>
-                  <th className={`${headCell} w-36 text-right`}>Thành tiền</th>
-                  <th className={`${headCell} w-44`}>Ghi chú</th>
-                  <th className={`${headCell} w-10`} />
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row, index) => (
-                  <tr key={row.key}>
-                    <td className={`${cell} text-center text-slate-500`}>{index + 1}</td>
-                    <td className={cell}>
-                      <Input className="h-8" value={row.content} onChange={(e) => updateRow(row.key, { content: e.target.value })} />
-                    </td>
-                    <td className={cell}>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="any"
-                        className="h-8"
-                        value={row.unitPrice}
-                        onChange={(e) => updateRow(row.key, { unitPrice: e.target.value })}
-                      />
-                    </td>
-                    <td className={cell}>
-                      <Input className="h-8" value={row.unit} onChange={(e) => updateRow(row.key, { unit: e.target.value })} />
-                    </td>
-                    <td className={cell}>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="any"
-                        className="h-8"
-                        value={row.quantity}
-                        onChange={(e) => updateRow(row.key, { quantity: e.target.value })}
-                      />
-                    </td>
-                    <td className={`${cell} text-right font-medium text-slate-700`}>{formatCurrency(amounts[index] || 0)}</td>
-                    <td className={cell}>
-                      <Input className="h-8" value={row.note} onChange={(e) => updateRow(row.key, { note: e.target.value })} />
-                    </td>
-                    <td className={`${cell} text-center`}>
-                      <button
-                        type="button"
-                        onClick={() => removeRow(row.key)}
-                        disabled={rows.length === 1}
-                        title="Xoá dòng"
-                        className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-400"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <Button type="button" variant="secondary" size="sm" className="self-start" onClick={() => setRows((prev) => [...prev, blankRow(newKey())])}>
-            <Plus size={14} />
-            Thêm dòng
-          </Button>
+        <CardBody>
+          <ExpenseItemsEditor rows={rows} onChange={setRows} />
         </CardBody>
       </Card>
 
@@ -313,29 +185,25 @@ export function ExpenseProposalFormClient({ existing }: { existing?: ExpenseProp
         </CardHeader>
         <CardBody className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div className="flex flex-col gap-1 md:col-span-2">
-            <label className="text-sm font-medium text-slate-600">Tổng tiền đề xuất chi</label>
+            <label className="text-sm font-medium text-slate-600">Tổng tiền đề xuất chi (dự kiến)</label>
             <p className="text-lg font-semibold text-slate-800">{formatCurrency(total)}</p>
           </div>
           {isCreator && (
             <>
               <div className="flex flex-col gap-1">
-                <label className="text-sm font-medium text-slate-600">Tạm ứng (%)</label>
+                <label className="text-sm font-medium text-slate-600">Số tiền đề nghị tạm ứng</label>
                 <Input
                   type="number"
                   min="0"
-                  max="100"
                   step="any"
-                  value={advancePercent}
-                  onChange={(e) => setAdvancePercent(e.target.value)}
-                  placeholder="VD: 50"
+                  value={advanceAmount}
+                  onChange={(e) => setAdvanceAmount(e.target.value)}
+                  placeholder="VD: 500000"
                 />
+                <span className="text-xs text-slate-400">Không vượt tổng dự kiến. Kế toán có thể sửa khi tạm ứng.</span>
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-sm font-medium text-slate-600">Số tiền tạm ứng</label>
-                <Input value={advanceAmount !== null ? formatCurrency(advanceAmount) : ""} disabled className="bg-slate-50 font-medium text-slate-700" />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-medium text-slate-600">Ngày trả hoá đơn</label>
+                <label className="text-sm font-medium text-slate-600">Ngày trả hoá đơn dự kiến</label>
                 <Input type="date" value={invoiceDueDate} onChange={(e) => setInvoiceDueDate(e.target.value)} />
               </div>
             </>

@@ -69,7 +69,7 @@ export default function ExpenseProposalsPage() {
         ),
       },
       { header: "Người chi", accessorFn: (row) => EXPENSE_PAYER_LABEL[row.payer], id: "payer" },
-      { header: "Người xác nhận", accessorFn: (row) => row.approver?.name ?? "-", id: "approver" },
+      { header: "Người duyệt", accessorFn: (row) => row.approver?.name ?? "-", id: "approver" },
       {
         header: "Tổng tiền",
         id: "totalAmount",
@@ -100,7 +100,7 @@ export default function ExpenseProposalsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-slate-800">Phiếu đề xuất chi & tạm ứng</h1>
-          <p className="text-sm text-slate-500">Quán gửi đề xuất chi, admin duyệt rồi xác nhận tạm ứng / đã chi.</p>
+          <p className="text-sm text-slate-500">Quán gửi đề xuất chi, người duyệt duyệt; sau đó tạm ứng (có thể nhiều lần) và hoàn thành kèm chứng từ.</p>
         </div>
         {canOpen("/expense-proposals/new") && (
           <Link href="/expense-proposals/new">

@@ -56,7 +56,8 @@ model User {
   materialTransfersCreated  MaterialTransfer[]        @relation("MaterialTransferCreatedBy")
   expenseProposals          ExpenseProposal[]         @relation("ExpenseProposalCreatedBy")
   expenseProposalsApproved  ExpenseProposal[]         @relation("ExpenseProposalApprovedBy")
-  expenseProposalsAdvanced  ExpenseProposal[]         @relation("ExpenseProposalAdvancedBy")
+  expenseProposalAdvances   ExpenseProposalAdvance[]
+  expenseProposalsRevised   ExpenseProposal[]         @relation("ExpenseProposalRevisionDecidedBy")
   expenseProposalsSpent     ExpenseProposal[]         @relation("ExpenseProposalSpentBy")
   expenseProposalsShop      ExpenseProposal[]         @relation("ExpenseProposalShop")
   expenseProposalsToApprove ExpenseProposal[]         @relation("ExpenseProposalApprover")
@@ -755,11 +756,14 @@ model MaterialTransferItem {
 
 // Chờ duyệt → Đã duyệt | Từ chối. Sau khi duyệt: người lập tự chi thì bấm thẳng Đã chi; kế toán
 // chi thì phải qua Đã tạm ứng rồi mới Đã chi.
+// SPENT hiển thị là "Hoàn thành" — giữ tên giá trị cũ để khỏi đổi dữ liệu và app mobile đang chạy.
+// REAPPROVAL: bảng hạng mục dự kiến vừa được sửa, chờ người duyệt duyệt lại (xem pendingItems).
 enum ExpenseProposalStatus {
   PENDING
   APPROVED
   REJECTED
   ADVANCED
+  REAPPROVAL
   SPENT
 }
 
@@ -778,48 +782,60 @@ enum ExpenseProposalCategory {
 // Phiếu đề xuất chi & tạm ứng: quán xin tiền, admin duyệt. Nội dung / đơn vị là text tự do vì khoản
 // xin chi thường không nằm trong danh mục hàng hoá.
 model ExpenseProposal {
-  id             String                   @id @default(cuid())
-  code           String                   @unique
-  status         ExpenseProposalStatus    @default(PENDING)
+  id                   String                   @id @default(cuid())
+  code                 String                   @unique
+  status               ExpenseProposalStatus    @default(PENDING)
   // Ngày trên phiếu do người lập khai (mặc định hôm nay). Kiểu DATE nên không lệch múi giờ;
   // createdAt mới là lúc lưu thật và không sửa được.
-  proposalDate   DateTime                 @db.Date
-  payer          ExpensePayer
+  proposalDate         DateTime                 @db.Date
+  payer                ExpensePayer
   // Nullable chỉ vì phiếu lập trước khi có trường này; mọi đường ghi mới đều bắt buộc có.
-  category       ExpenseProposalCategory?
+  category             ExpenseProposalCategory?
   // Quán chi: tài khoản thuộc vai trò "là quán" (server kiểm lúc ghi). Nullable chỉ vì phiếu cũ lưu
   // tên quán dạng chữ không khớp tài khoản nào — mọi đường ghi mới đều bắt buộc có.
-  shopId         String?
-  shop           User?                    @relation("ExpenseProposalShop", fields: [shopId], references: [id])
-  // Người được đề nghị xác nhận phiếu: tài khoản KHÔNG phải quán. Chỉ để ghi nhận và hiển thị —
-  // ai bấm Duyệt vẫn do quyền EXPENSE_PROPOSALS.APPROVE quyết định, xem approvedById.
+  shopId               String?
+  shop                 User?                    @relation("ExpenseProposalShop", fields: [shopId], references: [id])
+  // Người duyệt: tài khoản KHÔNG phải quán. Chỉ đúng người này (hoặc vai trò hệ thống) mới duyệt/từ
+  // chối được, cả lần đầu lẫn duyệt bổ sung — xem assertCanApprove.
   // Nullable vì phiếu lập trước khi có trường này; mọi đường ghi mới đều bắt buộc có.
-  approverId     String?
-  approver       User?                    @relation("ExpenseProposalApprover", fields: [approverId], references: [id])
-  purpose        String
-  // Tổng và tiền tạm ứng tính ở SERVER lúc ghi rồi lưu lại, không tin số client gửi.
-  totalAmount    Decimal                  @db.Decimal(18, 2)
-  // Phiếu mới chỉ lưu tạm ứng khi payer = CREATOR. Phiếu cũ giữ dữ liệu; luồng dựa vào advanceAmount có null hay không.
-  advancePercent Decimal?                 @db.Decimal(5, 2)
-  advanceAmount  Decimal?                 @db.Decimal(18, 2)
-  invoiceDueDate DateTime?                @db.Date
-  rejectReason   String?
-  createdById    String?
-  createdBy      User?                    @relation("ExpenseProposalCreatedBy", fields: [createdById], references: [id])
+  approverId           String?
+  approver             User?                    @relation("ExpenseProposalApprover", fields: [approverId], references: [id])
+  purpose              String
+  // Tổng dự kiến (đã duyệt), tính ở SERVER lúc ghi rồi lưu lại, không tin số client gửi.
+  totalAmount          Decimal                  @db.Decimal(18, 2)
+  // Số tiền người lập ĐỀ NGHỊ tạm ứng lần đầu — chỉ có khi payer = CREATOR. Tiền ứng thật nằm ở
+  // ExpenseProposalAdvance. Luồng dựa vào cột này có null hay không, nên phiếu cũ đi tiếp đúng luồng.
+  advanceAmount        Decimal?                 @db.Decimal(18, 2)
+  invoiceDueDate       DateTime?                @db.Date
+  // Ngày nộp hoá đơn thực tế, khai lúc Hoàn thành.
+  invoiceDate          DateTime?                @db.Date
+  // Tổng thực chi = tổng ExpenseProposalSpentItem, server cộng lúc Hoàn thành.
+  spentAmount          Decimal?                 @db.Decimal(18, 2)
+  // Bảng hạng mục dự kiến mới đang chờ duyệt bổ sung (cùng dạng item của schema ghi). Duyệt thì thay
+  // items + totalAmount; từ chối thì xoá — bảng cũ không bao giờ bị động tới trước khi duyệt.
+  pendingItems         Json?
+  pendingTotal         Decimal?                 @db.Decimal(18, 2)
+  revisionRejectReason String?
+  revisionDecidedById  String?
+  revisionDecidedBy    User?                    @relation("ExpenseProposalRevisionDecidedBy", fields: [revisionDecidedById], references: [id])
+  revisionDecidedAt    DateTime?
+  rejectReason         String?
+  createdById          String?
+  createdBy            User?                    @relation("ExpenseProposalCreatedBy", fields: [createdById], references: [id])
   // Dùng chung cho cả duyệt và từ chối — status cho biết là quyết định nào.
-  approvedById   String?
-  approvedBy     User?                    @relation("ExpenseProposalApprovedBy", fields: [approvedById], references: [id])
-  approvedAt     DateTime?
-  advancedById   String?
-  advancedBy     User?                    @relation("ExpenseProposalAdvancedBy", fields: [advancedById], references: [id])
-  advancedAt     DateTime?
-  spentById      String?
-  spentBy        User?                    @relation("ExpenseProposalSpentBy", fields: [spentById], references: [id])
-  spentAt        DateTime?
-  createdAt      DateTime                 @default(now())
-  updatedAt      DateTime                 @updatedAt
+  approvedById         String?
+  approvedBy           User?                    @relation("ExpenseProposalApprovedBy", fields: [approvedById], references: [id])
+  approvedAt           DateTime?
+  spentById            String?
+  spentBy              User?                    @relation("ExpenseProposalSpentBy", fields: [spentById], references: [id])
+  spentAt              DateTime?
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
 
-  items ExpenseProposalItem[]
+  items      ExpenseProposalItem[]
+  advances   ExpenseProposalAdvance[]
+  spentItems ExpenseProposalSpentItem[]
+  images     ExpenseProposalImage[]
 
   @@index([createdById, proposalDate])
   @@index([status])
@@ -841,6 +857,51 @@ model ExpenseProposalItem {
   note              String?
 
   @@index([expenseProposalId, sortOrder])
+}
+
+// Mỗi lần tạm ứng là một dòng — người lập chi có thể được ứng nhiều lần. Tổng các lần không vượt
+// totalAmount của phiếu (kiểm ở server, trong cùng transaction với việc ghi).
+model ExpenseProposalAdvance {
+  id                String          @id @default(cuid())
+  expenseProposalId String
+  expenseProposal   ExpenseProposal @relation(fields: [expenseProposalId], references: [id], onDelete: Cascade)
+  amount            Decimal         @db.Decimal(18, 2)
+  note              String?
+  createdById       String?
+  createdBy         User?           @relation(fields: [createdById], references: [id])
+  createdAt         DateTime        @default(now())
+
+  @@index([expenseProposalId, createdAt])
+}
+
+// Hạng mục thực chi, khai lúc Hoàn thành. Cùng cột với ExpenseProposalItem (hạng mục dự kiến).
+model ExpenseProposalSpentItem {
+  id                String          @id @default(cuid())
+  expenseProposalId String
+  expenseProposal   ExpenseProposal @relation(fields: [expenseProposalId], references: [id], onDelete: Cascade)
+  sortOrder         Int
+  content           String
+  unitPrice         Decimal         @db.Decimal(18, 2)
+  unit              String?
+  quantity          Decimal         @db.Decimal(18, 3)
+  amount            Decimal         @db.Decimal(18, 2)
+  note              String?
+
+  @@index([expenseProposalId, sortOrder])
+}
+
+// Ảnh chứng từ khi Hoàn thành — cùng khuôn ShiftExpenseImage: file trên R2, xem qua URL ký có hạn.
+model ExpenseProposalImage {
+  id                String          @id @default(cuid())
+  expenseProposalId String
+  expenseProposal   ExpenseProposal @relation(fields: [expenseProposalId], references: [id], onDelete: Cascade)
+  objectKey         String          @unique
+  contentType       String
+  size              Int
+  sortOrder         Int             @default(0)
+  createdAt         DateTime        @default(now())
+
+  @@index([expenseProposalId])
 }
 
 /**
