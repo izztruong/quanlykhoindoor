@@ -31,6 +31,11 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
+### Chuẩn bị nộp App Store (iOS) — chỉ trên `dev`, CHƯA build iOS lần nào
+Ẩn nút Google trên iOS (Guideline 4.8), `ITSAppUsesNonExemptEncryption: false`, giữ hỗ trợ iPad, phát hành dạng Unlisted; Render đã lên gói trả phí.
+Đã kiểm typecheck mobile và `expo config --type introspect` (plugin Google không làm vỡ prebuild iOS). Build bằng `build:preview:ios` / `build:production:ios` (chặn sai nhánh như Android).
+Cần: Apple Developer, build + thử trên iPhone/iPad (iPad xoay ngang được), tài khoản demo có dữ liệu, nộp form Unlisted.
+
 ### Ảnh chứng từ theo dòng hàng đơn hàng (server + web + mobile) — chỉ trên `dev`, CHƯA thử trình duyệt/điện thoại
 Chỉ đính/xoá khi đơn COMPLETED, cần `ORDERS.APPROVE`; xem cần `ORDERS.VIEW`. Tối đa 5 ảnh/dòng, R2 như khoản chi.
 Đã kiểm typecheck, lint, curl với R2 thật (409 ngoài COMPLETED, vượt 5 ảnh, sai định dạng, quá nặng, dòng của đơn khác 404, thiếu quyền 403, xoá dọn cả file).

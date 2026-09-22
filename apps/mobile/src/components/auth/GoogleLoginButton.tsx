@@ -1,7 +1,7 @@
 import Constants, { ExecutionEnvironment } from "expo-constants";
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useRef, useState } from "react";
-import { Text, View } from "react-native";
+import { Platform, Text, View } from "react-native";
 import { Button } from "@/components/ui/Button";
 import { useGoogleLogin } from "@/lib/auth";
 import { googleSignInErrorCode, googleSignInErrorMessage } from "@/lib/googleSignInError";
@@ -59,7 +59,8 @@ export function GoogleLoginButton({ disabled, rememberLogin, onBusyChange }: {
     }
   }
 
-  if (!webClientId) return null;
+  // iOS: chưa có OAuth client iOS, và App Store (Guideline 4.8) đòi kèm Sign in with Apple khi có đăng nhập Google.
+  if (!webClientId || Platform.OS === "ios") return null;
   return (
     <View style={{ gap: spacing.md }}>
       <Text style={{ textAlign: "center", color: colors.textMuted }}>hoặc</Text>

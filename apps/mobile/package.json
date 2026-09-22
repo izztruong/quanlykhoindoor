@@ -39,7 +39,9 @@
     "ios": "expo start --ios",
     "typecheck": "tsc --noEmit",
     "build:preview": "node scripts/checkBuildBranch.js staging && npx eas-cli build --platform android --profile preview",
-    "build:production": "node scripts/checkBuildBranch.js main && npx eas-cli build --platform android --profile production"
+    "build:production": "node scripts/checkBuildBranch.js main && npx eas-cli build --platform android --profile production",
+    "build:preview:ios": "node scripts/checkBuildBranch.js staging && npx eas-cli build --platform ios --profile preview",
+    "build:production:ios": "node scripts/checkBuildBranch.js main && npx eas-cli build --platform ios --profile production"
   },
   "private": true
 }
