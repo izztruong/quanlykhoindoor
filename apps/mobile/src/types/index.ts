@@ -12,7 +12,7 @@ export interface AuthUser {
   scope: "ALL" | "SELF";
 }
 
-export type PermissionAction = "VIEW" | "ADD" | "EDIT" | "DELETE" | "RECEIVE" | "APPROVE";
+export type PermissionAction = "VIEW" | "ADD" | "EDIT" | "DELETE" | "RECEIVE" | "APPROVE" | "ADVANCE" | "COMPLETE";
 
 export interface PermissionCatalog {
   resources: { resource: string; label: string; group: string; actions: PermissionAction[] }[];
@@ -556,7 +556,8 @@ export interface DashboardCostSummary {
   sameMonthLastYear: DashboardCostMonth;
 }
 
-export type ExpenseProposalStatus = "PENDING" | "APPROVED" | "REJECTED" | "ADVANCED" | "SPENT";
+/** SPENT hiển thị là "Hoàn thành". REAPPROVAL = bảng hạng mục dự kiến mới đang chờ duyệt bổ sung. */
+export type ExpenseProposalStatus = "PENDING" | "APPROVED" | "REJECTED" | "ADVANCED" | "REAPPROVAL" | "SPENT";
 
 /** CREATOR = người lập phiếu chi (phiếu mới có tạm ứng), ACCOUNTANT = kế toán chi. */
 export type ExpensePayer = "CREATOR" | "ACCOUNTANT";
@@ -578,6 +579,25 @@ export interface ExpenseProposalItem {
 
 type UserRef = { id: string; name: string } | null;
 
+/** Một lần tạm ứng — người lập chi có thể được ứng nhiều lần. */
+export interface ExpenseProposalAdvance {
+  id: string;
+  amount: string | number;
+  note?: string | null;
+  createdBy?: UserRef;
+  createdAt: string;
+}
+
+/** Dòng trong pendingItems (bảng dự kiến chờ duyệt bổ sung) — cùng dạng hạng mục nhưng chưa có id. */
+export type ExpenseProposalPendingItem = Omit<ExpenseProposalItem, "id">;
+
+export interface ExpenseProposalImage {
+  id: string;
+  url: string;
+  contentType: string;
+  size: number;
+}
+
 /** Phiếu đề xuất chi & tạm ứng. `items` và các người thao tác chỉ có ở API chi tiết. */
 export interface ExpenseProposal {
   id: string;
@@ -591,25 +611,38 @@ export interface ExpenseProposal {
   /** Quán chi. Null ở phiếu cũ lưu tên quán dạng chữ không khớp tài khoản nào. */
   shopId: string | null;
   shop?: UserRef;
-  /** Người được đề nghị xác nhận (tài khoản không phải quán). Chỉ ghi nhận, không quyết định ai bấm Duyệt. */
+  /** Người duyệt (tài khoản không phải quán). Chỉ người này hoặc vai trò hệ thống mới duyệt/từ chối được. */
   approverId: string | null;
   approver?: UserRef;
   purpose: string;
+  /** Tổng dự kiến đã duyệt. */
   totalAmount: string | number;
-  /** Phiếu mới: tạm ứng chỉ lưu khi payer = CREATOR. Phiếu cũ giữ dữ liệu; luồng dựa vào advanceAmount != null. */
-  advancePercent?: string | number | null;
+  /** Số tiền ĐỀ NGHỊ tạm ứng lần đầu (chỉ người lập chi). Tiền ứng thật nằm ở `advances`. */
   advanceAmount?: string | number | null;
+  /** Ngày trả hoá đơn dự kiến (cột DATE). */
   invoiceDueDate?: string | null;
+  /** Ngày nộp hoá đơn thực tế, khai lúc Hoàn thành (cột DATE). */
+  invoiceDate?: string | null;
+  /** Tổng thực chi, có khi đã Hoàn thành. */
+  spentAmount?: string | number | null;
+  /** Bảng dự kiến mới đang chờ duyệt bổ sung (status = REAPPROVAL). */
+  pendingItems?: ExpenseProposalPendingItem[] | null;
+  pendingTotal?: string | number | null;
+  revisionRejectReason?: string | null;
+  revisionDecidedBy?: UserRef;
+  revisionDecidedAt?: string | null;
   rejectReason?: string | null;
   createdBy?: UserRef;
   approvedBy?: UserRef;
   approvedAt?: string | null;
-  advancedBy?: UserRef;
-  advancedAt?: string | null;
   spentBy?: UserRef;
   spentAt?: string | null;
   createdAt: string;
   items?: ExpenseProposalItem[];
+  advances?: ExpenseProposalAdvance[];
+  /** Hạng mục thực chi, khai lúc Hoàn thành. */
+  spentItems?: ExpenseProposalItem[];
+  _count?: { images: number };
 }
 
 // --- Thông báo (chỉ app mobile dùng) ---

@@ -38,7 +38,7 @@ export function useUsers(options?: { enabled?: boolean }) {
   });
 }
 
-/** "shop" = tài khoản quán · "other" = tài khoản không phải quán (vd người xác nhận) · "all" = tất cả. */
+/** "shop" = tài khoản quán · "other" = tài khoản không phải quán (vd người duyệt) · "all" = tất cả. */
 export type UserOptionScope = "shop" | "other" | "all";
 
 /**

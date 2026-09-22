@@ -92,7 +92,7 @@ export default function ExpenseProposalsScreen() {
                 { label: "Loại", value: item.category ? EXPENSE_PROPOSAL_CATEGORY_LABEL[item.category] : "—" },
                 { label: "Người lập", value: item.createdBy?.name ?? "—" },
                 { label: "Quán chi", value: item.shop?.name ?? "—" },
-                { label: "Người xác nhận", value: item.approver?.name ?? "—" },
+                { label: "Người duyệt", value: item.approver?.name ?? "—" },
                 { label: "Người chi", value: EXPENSE_PAYER_LABEL[item.payer] },
                 { label: "Tổng tiền", value: formatCurrency(item.totalAmount) },
               ]}

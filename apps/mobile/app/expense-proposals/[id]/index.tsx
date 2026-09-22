@@ -2,18 +2,15 @@ import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import { Alert, StyleSheet, Text, View } from "react-native";
+import { ExpenseAdvanceModal } from "@/components/expenseProposals/ExpenseAdvanceModal";
+import { ExpenseProposalImagesCard } from "@/components/expenseProposals/ExpenseProposalImagesCard";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { ErrorState, LoadingState, Screen } from "@/components/ui/Screen";
-import {
-  type ExpenseProposalAction,
-  useDeleteExpenseProposal,
-  useExpenseProposal,
-  useExpenseProposalAction,
-} from "@/hooks/useExpenseProposals";
+import { useDecideExpenseProposal, useDeleteExpenseProposal, useExpenseProposal } from "@/hooks/useExpenseProposals";
 import { ApiError } from "@/lib/apiClient";
 import {
   EXPENSE_PAYER_LABEL,
@@ -24,36 +21,50 @@ import {
 import { formatCurrency, formatDateOnly, formatDateVN, formatNumber } from "@/lib/format";
 import { useCan } from "@/lib/permissions";
 import { colors, fontSize, radius, spacing } from "@/lib/theme";
-import type { ExpenseProposal } from "@/types";
+import type { ExpenseProposal, ExpenseProposalItem, ExpenseProposalPendingItem } from "@/types";
 
-const CONFIRM: Record<Exclude<ExpenseProposalAction, "reject">, { title: string; message: string; button: string }> = {
-  approve: { title: "Duyệt phiếu", message: "Duyệt phiếu đề xuất chi này?", button: "Duyệt" },
-  advance: { title: "Đã tạm ứng", message: "Xác nhận đã tạm ứng tiền cho phiếu này?", button: "Xác nhận" },
-  spend: { title: "Đã chi", message: "Xác nhận đã chi tiền cho phiếu này?", button: "Xác nhận" },
-};
+type Scope = "proposal" | "revision";
 
-/** Các mốc đã xảy ra của phiếu, theo thứ tự — giống historyOf bên web. */
+const sumAdvances = (p: ExpenseProposal) => (p.advances ?? []).reduce((sum, a) => sum + Number(a.amount), 0);
+
+/** Các mốc đã xảy ra của phiếu, theo thứ tự thời gian — giống historyOf bên web. */
 function historyOf(p: ExpenseProposal) {
-  const steps: { label: string; by?: string; at?: string | null }[] = [
-    { label: "Lập phiếu", by: p.createdBy?.name, at: p.createdAt },
+  const steps: { key: string; label: string; by?: string; at?: string | null }[] = [
+    { key: "created", label: "Lập phiếu", by: p.createdBy?.name, at: p.createdAt },
   ];
   if (p.approvedAt) {
-    steps.push({ label: p.status === "REJECTED" ? "Từ chối" : "Duyệt", by: p.approvedBy?.name, at: p.approvedAt });
+    steps.push({ key: "approved", label: p.status === "REJECTED" ? "Từ chối" : "Duyệt", by: p.approvedBy?.name, at: p.approvedAt });
   }
-  if (p.advancedAt) steps.push({ label: "Đã tạm ứng", by: p.advancedBy?.name, at: p.advancedAt });
-  if (p.spentAt) steps.push({ label: "Đã chi", by: p.spentBy?.name, at: p.spentAt });
-  return steps;
+  (p.advances ?? []).forEach((a, index) =>
+    steps.push({
+      key: `advance-${a.id}`,
+      label: `${index === 0 ? "Tạm ứng" : "Tạm ứng thêm"} ${formatCurrency(a.amount)}`,
+      by: a.createdBy?.name,
+      at: a.createdAt,
+    }),
+  );
+  if (p.revisionDecidedAt) {
+    steps.push({
+      key: "revision",
+      label: p.revisionRejectReason ? "Từ chối bổ sung hạng mục" : "Duyệt bổ sung hạng mục",
+      by: p.revisionDecidedBy?.name,
+      at: p.revisionDecidedAt,
+    });
+  }
+  if (p.spentAt) steps.push({ key: "spent", label: "Hoàn thành", by: p.spentBy?.name, at: p.spentAt });
+  return steps.sort((a, b) => new Date(a.at ?? 0).getTime() - new Date(b.at ?? 0).getTime());
 }
 
 export default function ExpenseProposalDetailScreen() {
   const { id: rawId } = useLocalSearchParams<{ id: string }>();
   const id = rawId ?? "";
   const router = useRouter();
-  const { can } = useCan();
+  const { user, can } = useCan();
   const { data: proposal, isLoading, isRefetching, refetch } = useExpenseProposal(id);
-  const runAction = useExpenseProposalAction(id);
+  const decide = useDecideExpenseProposal(id);
   const deleteProposal = useDeleteExpenseProposal();
-  const [rejecting, setRejecting] = useState(false);
+  const [rejectScope, setRejectScope] = useState<Scope | null>(null);
+  const [advancing, setAdvancing] = useState(false);
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState<string | null>(null);
 
@@ -76,45 +87,59 @@ export default function ExpenseProposalDetailScreen() {
   }
 
   const { status, payer } = proposal;
-  const isPending = status === "PENDING";
-  const canApprove = isPending && can("EXPENSE_PROPOSALS", "APPROVE");
-  const canAdvance = status === "APPROVED" && proposal.advanceAmount != null && can("EXPENSE_PROPOSALS", "PAY");
-  const canSpend =
-    ((status === "APPROVED" && proposal.advanceAmount == null) || status === "ADVANCED") &&
-    can("EXPENSE_PROPOSALS", "PAY");
-  const busy = runAction.isPending || deleteProposal.isPending;
+  const total = Number(proposal.totalAmount);
+  const advanced = sumAdvances(proposal);
+  const remaining = Math.max(total - advanced, 0);
+  const hasAdvanceFlow = proposal.advanceAmount != null || advanced > 0;
+
+  // Nút chỉ để gọn mắt — server kiểm lại quyền, trạng thái và người duyệt ở mọi thao tác.
+  const isApproverHere = Boolean(user?.isSystem || (user && user.id === proposal.approverId));
+  const canDecide = can("EXPENSE_PROPOSALS", "APPROVE") && isApproverHere;
+  const canApprove = status === "PENDING" && canDecide;
+  const canDecideRevision = status === "REAPPROVAL" && canDecide;
+  const canFirstAdvance = status === "APPROVED" && proposal.advanceAmount != null && can("EXPENSE_PROPOSALS", "ADVANCE");
+  const canAdvanceMore = status === "ADVANCED" && remaining > 0 && can("EXPENSE_PROPOSALS", "ADVANCE");
+  const canRevise = (status === "APPROVED" || status === "ADVANCED") && can("EXPENSE_PROPOSALS", "EDIT");
+  const canComplete =
+    ((status === "APPROVED" && proposal.advanceAmount == null) || status === "ADVANCED") && can("EXPENSE_PROPOSALS", "COMPLETE");
+  const busy = decide.isPending || deleteProposal.isPending;
+
+  const spent = proposal.spentAmount != null ? Number(proposal.spentAmount) : null;
+  // Chênh lệch chỉ có nghĩa khi đã tạm ứng: dương = người lập phải hoàn lại, âm = công ty chi bù.
+  const settlement = spent !== null && advanced > 0 ? advanced - spent : null;
 
   /**
-   * 409 nghĩa là phiếu vừa được người khác xử lý (hai người bấm cùng lúc) hoặc không còn chờ duyệt.
+   * 409 nghĩa là phiếu vừa được người khác xử lý (hai người bấm cùng lúc) hoặc đã đổi trạng thái.
    * Toast lỗi đã hiện ở MutationCache; tải lại để màn hình khớp trạng thái thật và các nút tự đổi.
    */
   function refetchOnConflict(err: unknown) {
     if (err instanceof ApiError && err.status === 409) refetch();
   }
 
-  function confirmAction(action: Exclude<ExpenseProposalAction, "reject">) {
-    const { title, message, button } = CONFIRM[action];
-    Alert.alert(title, message, [
+  function confirmApprove(scope: Scope) {
+    const message = scope === "revision" ? "Duyệt bảng hạng mục chi dự kiến bổ sung?" : "Duyệt phiếu đề xuất chi này?";
+    Alert.alert(scope === "revision" ? "Duyệt bổ sung" : "Duyệt phiếu", message, [
       { text: "Huỷ", style: "cancel" },
-      { text: button, onPress: () => runAction.mutate({ action }, { onError: refetchOnConflict }) },
+      { text: "Duyệt", onPress: () => decide.mutate({ scope, outcome: "approve" }, { onError: refetchOnConflict }) },
     ]);
   }
 
   function submitReject() {
+    if (!rejectScope) return;
     if (!reason.trim()) {
       setReasonError("Vui lòng nhập lý do từ chối.");
       return;
     }
-    runAction.mutate(
-      { action: "reject", reason: reason.trim() },
+    decide.mutate(
+      { scope: rejectScope, outcome: "reject", reason: reason.trim() },
       {
         onSuccess: () => {
-          setRejecting(false);
+          setRejectScope(null);
           setReason("");
           setReasonError(null);
         },
         onError: (err) => {
-          setRejecting(false);
+          setRejectScope(null);
           refetchOnConflict(err);
         },
       },
@@ -127,16 +152,12 @@ export default function ExpenseProposalDetailScreen() {
       {
         text: "Xoá",
         style: "destructive",
-        onPress: () =>
-          deleteProposal.mutate(id, {
-            onSuccess: () => router.back(),
-            onError: refetchOnConflict,
-          }),
+        onPress: () => deleteProposal.mutate(id, { onSuccess: () => router.back(), onError: refetchOnConflict }),
       },
     ]);
   }
 
-  const items = proposal.items ?? [];
+  const hasMainActions = canApprove || canDecideRevision || canFirstAdvance || canAdvanceMore || canComplete || canRevise;
 
   return (
     <>
@@ -149,13 +170,10 @@ export default function ExpenseProposalDetailScreen() {
               <Badge tone={EXPENSE_PROPOSAL_STATUS_TONE[status]}>{EXPENSE_PROPOSAL_STATUS_LABEL[status]}</Badge>
             </View>
             <InfoRow label="Ngày tạo phiếu" value={formatDateOnly(proposal.proposalDate)} />
-            <InfoRow
-              label="Loại phiếu"
-              value={proposal.category ? EXPENSE_PROPOSAL_CATEGORY_LABEL[proposal.category] : "—"}
-            />
+            <InfoRow label="Loại phiếu" value={proposal.category ? EXPENSE_PROPOSAL_CATEGORY_LABEL[proposal.category] : "—"} />
             <InfoRow label="Người lập" value={proposal.createdBy?.name ?? "—"} />
             <InfoRow label="Quán chi" value={proposal.shop?.name ?? "—"} />
-            <InfoRow label="Người xác nhận" value={proposal.approver?.name ?? "—"} />
+            <InfoRow label="Người duyệt" value={proposal.approver?.name ?? "—"} />
             <InfoRow label="Người chi" value={EXPENSE_PAYER_LABEL[payer]} />
             <View style={styles.purpose}>
               <Text style={styles.infoLabel}>Mục đích sử dụng</Text>
@@ -165,99 +183,127 @@ export default function ExpenseProposalDetailScreen() {
         </Card>
 
         {status === "REJECTED" && proposal.rejectReason ? (
-          <View style={styles.rejectBox}>
-            <Ionicons name="close-circle" size={20} color={colors.danger} />
-            <View style={styles.rejectText}>
-              <Text style={styles.rejectTitle}>Lý do từ chối</Text>
-              <Text style={styles.rejectBody}>{proposal.rejectReason}</Text>
-            </View>
-          </View>
+          <Notice tone="danger" title="Lý do từ chối" body={proposal.rejectReason} />
+        ) : null}
+        {status !== "REAPPROVAL" && proposal.revisionRejectReason ? (
+          <Notice tone="warning" title="Bảng hạng mục bổ sung bị từ chối" body={proposal.revisionRejectReason} />
         ) : null}
 
-        {canApprove || canAdvance || canSpend ? (
-          <View style={styles.actions}>
-            {canApprove ? (
-              <>
+        {hasMainActions ? (
+          <View style={styles.actionGroup}>
+            {canApprove || canDecideRevision ? (
+              <View style={styles.actions}>
                 <Button
-                  title="Từ chối"
+                  title={canDecideRevision ? "Từ chối bổ sung" : "Từ chối"}
                   variant="danger"
                   style={styles.actionButton}
                   disabled={busy}
-                  onPress={() => setRejecting(true)}
+                  onPress={() => setRejectScope(canDecideRevision ? "revision" : "proposal")}
                 />
                 <Button
-                  title="Duyệt"
+                  title={canDecideRevision ? "Duyệt bổ sung" : "Duyệt"}
                   style={styles.actionButton}
-                  loading={runAction.isPending}
-                  onPress={() => confirmAction("approve")}
+                  loading={decide.isPending}
+                  onPress={() => confirmApprove(canDecideRevision ? "revision" : "proposal")}
                 />
-              </>
+              </View>
             ) : null}
-            {canAdvance ? (
-              <Button
-                title="Đã tạm ứng"
-                style={styles.actionButton}
-                loading={runAction.isPending}
-                onPress={() => confirmAction("advance")}
-              />
+            {canFirstAdvance || canAdvanceMore || canComplete ? (
+              <View style={styles.actions}>
+                {canFirstAdvance || canAdvanceMore ? (
+                  <Button
+                    title={canFirstAdvance ? "Tạm ứng" : "Tạm ứng thêm"}
+                    style={styles.actionButton}
+                    disabled={busy}
+                    icon={<Ionicons name="wallet-outline" size={16} color={colors.onPrimary} />}
+                    onPress={() => setAdvancing(true)}
+                  />
+                ) : null}
+                {canComplete ? (
+                  <Button
+                    title="Hoàn thành"
+                    style={styles.actionButton}
+                    disabled={busy}
+                    icon={<Ionicons name="checkmark-done" size={16} color={colors.onPrimary} />}
+                    onPress={() => router.push(`/expense-proposals/${proposal.id}/complete`)}
+                  />
+                ) : null}
+              </View>
             ) : null}
-            {canSpend ? (
+            {canRevise ? (
               <Button
-                title="Đã chi"
-                style={styles.actionButton}
-                loading={runAction.isPending}
-                onPress={() => confirmAction("spend")}
+                title="Thêm hạng mục chi dự kiến"
+                variant="secondary"
+                fullWidth
+                disabled={busy}
+                icon={<Ionicons name="list-outline" size={16} color={colors.text} />}
+                onPress={() => router.push(`/expense-proposals/${proposal.id}/revision`)}
               />
             ) : null}
           </View>
         ) : null}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Hạng mục chi</CardTitle>
-            <Text style={styles.count}>{items.length} dòng</Text>
-          </CardHeader>
-          {items.map((item, index) => (
-            <View key={item.id} style={styles.itemRow}>
-              <View style={styles.itemHeader}>
-                <Text style={styles.itemName}>
-                  {index + 1}. {item.content}
-                </Text>
-                <Text style={styles.itemAmount}>{formatCurrency(item.amount)}</Text>
-              </View>
-              <Text style={styles.itemMeta}>
-                {formatNumber(item.quantity)}
-                {item.unit ? ` ${item.unit}` : ""} × {formatCurrency(item.unitPrice)}
-              </Text>
-              {item.note ? <Text style={styles.itemNote}>{item.note}</Text> : null}
-            </View>
-          ))}
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Tổng tiền</Text>
-            <Text style={styles.totalValue}>{formatCurrency(proposal.totalAmount)}</Text>
-          </View>
-        </Card>
+        {status === "REAPPROVAL" ? (
+          <ItemsCard
+            title="Hạng mục dự kiến đề nghị bổ sung"
+            subtitle={`Tổng hiện tại ${formatCurrency(total)} → đề nghị ${formatCurrency(proposal.pendingTotal ?? 0)}. Chỉ thay bảng hiện tại khi được duyệt.`}
+            items={proposal.pendingItems ?? []}
+            total={proposal.pendingTotal ?? 0}
+            totalLabel="Tổng đề nghị"
+          />
+        ) : null}
 
-        {proposal.advanceAmount != null ? (
+        <ItemsCard title="Hạng mục chi dự kiến" items={proposal.items ?? []} total={total} totalLabel="Tổng dự kiến" />
+
+        {hasAdvanceFlow || spent !== null || proposal.invoiceDueDate ? (
           <Card>
             <CardHeader>
-              <CardTitle>Tạm ứng</CardTitle>
+              <CardTitle>{hasAdvanceFlow ? "Tạm ứng & quyết toán" : "Quyết toán"}</CardTitle>
             </CardHeader>
             <CardBody style={styles.infoCard}>
-              <InfoRow
-                label="Tạm ứng"
-                value={proposal.advancePercent != null ? `${formatNumber(proposal.advancePercent)}%` : "—"}
-              />
-              <InfoRow
-                label="Số tiền tạm ứng"
-                value={proposal.advanceAmount != null ? formatCurrency(proposal.advanceAmount) : "—"}
-              />
-              <InfoRow
-                label="Ngày trả hoá đơn"
-                value={proposal.invoiceDueDate ? formatDateOnly(proposal.invoiceDueDate) : "—"}
-              />
+              {proposal.advanceAmount != null ? (
+                <InfoRow label="Đề nghị tạm ứng" value={formatCurrency(proposal.advanceAmount)} />
+              ) : null}
+              {(proposal.advances ?? []).map((a, index) => (
+                <InfoRow
+                  key={a.id}
+                  label={`Lần ${index + 1} · ${formatDateVN(a.createdAt)}`}
+                  value={`${formatCurrency(a.amount)}${a.createdBy?.name ? ` · ${a.createdBy.name}` : ""}`}
+                />
+              ))}
+              {hasAdvanceFlow ? <InfoRow label="Tổng đã tạm ứng" value={formatCurrency(advanced)} strong /> : null}
+              {hasAdvanceFlow && status !== "SPENT" ? <InfoRow label="Còn được ứng" value={formatCurrency(remaining)} /> : null}
+              {proposal.invoiceDueDate ? (
+                <InfoRow label="Ngày trả hoá đơn dự kiến" value={formatDateOnly(proposal.invoiceDueDate)} />
+              ) : null}
+              {spent !== null ? <InfoRow label="Tổng tiền đã chi" value={formatCurrency(spent)} strong /> : null}
+              {proposal.invoiceDate ? <InfoRow label="Ngày nộp hoá đơn" value={formatDateOnly(proposal.invoiceDate)} /> : null}
+              {settlement !== null && settlement !== 0 ? (
+                <InfoRow
+                  label={settlement > 0 ? "Người lập phải hoàn lại" : "Phải chi bù cho người lập"}
+                  value={formatCurrency(Math.abs(settlement))}
+                  strong
+                />
+              ) : null}
             </CardBody>
           </Card>
+        ) : null}
+
+        {status === "SPENT" ? (
+          (proposal.spentItems ?? []).length > 0 ? (
+            <ItemsCard title="Hạng mục chi thực tế" items={proposal.spentItems ?? []} total={spent ?? 0} totalLabel="Tổng đã chi" />
+          ) : (
+            // Phiếu hoàn thành trước khi có bước khai thực chi thì không có dòng nào.
+            <Notice tone="neutral" title="Hạng mục chi thực tế" body="Phiếu hoàn thành trước khi có bước khai hạng mục thực chi." />
+          )
+        ) : null}
+
+        {status === "SPENT" ? (
+          <ExpenseProposalImagesCard
+            proposalId={proposal.id}
+            imageCount={proposal._count?.images ?? 0}
+            canManage={can("EXPENSE_PROPOSALS", "COMPLETE")}
+          />
         ) : null}
 
         <Card>
@@ -266,7 +312,7 @@ export default function ExpenseProposalDetailScreen() {
           </CardHeader>
           <CardBody style={styles.history}>
             {historyOf(proposal).map((step) => (
-              <View key={step.label} style={styles.historyRow}>
+              <View key={step.key} style={styles.historyRow}>
                 <View style={styles.historyDot} />
                 <View style={styles.historyText}>
                   <Text style={styles.historyLabel}>
@@ -280,7 +326,7 @@ export default function ExpenseProposalDetailScreen() {
           </CardBody>
         </Card>
 
-        {isPending && (can("EXPENSE_PROPOSALS", "EDIT") || can("EXPENSE_PROPOSALS", "DELETE")) ? (
+        {status === "PENDING" && (can("EXPENSE_PROPOSALS", "EDIT") || can("EXPENSE_PROPOSALS", "DELETE")) ? (
           <View style={styles.actions}>
             {can("EXPENSE_PROPOSALS", "EDIT") ? (
               <Button
@@ -307,10 +353,10 @@ export default function ExpenseProposalDetailScreen() {
       </Screen>
 
       <Modal
-        visible={rejecting}
-        title="Từ chối phiếu"
-        onClose={() => setRejecting(false)}
-        footer={<Button title="Từ chối" variant="danger" fullWidth loading={runAction.isPending} onPress={submitReject} />}
+        visible={rejectScope !== null}
+        title={rejectScope === "revision" ? "Từ chối bảng bổ sung" : "Từ chối phiếu"}
+        onClose={() => setRejectScope(null)}
+        footer={<Button title="Từ chối" variant="danger" fullWidth loading={decide.isPending} onPress={submitReject} />}
       >
         <View style={styles.rejectForm}>
           <Input
@@ -322,20 +368,95 @@ export default function ExpenseProposalDetailScreen() {
               setReasonError(null);
             }}
             error={reasonError ?? undefined}
+            hint={rejectScope === "revision" ? "Bảng hạng mục hiện tại được giữ nguyên, phiếu quay về trạng thái trước." : undefined}
             multiline
             autoFocus
           />
         </View>
       </Modal>
+
+      {advancing ? (
+        <ExpenseAdvanceModal
+          proposalId={proposal.id}
+          isFirst={canFirstAdvance}
+          initialAmount={canFirstAdvance && proposal.advanceAmount != null ? Math.min(Number(proposal.advanceAmount), remaining) : null}
+          remaining={remaining}
+          onClose={() => setAdvancing(false)}
+          onError={(err) => {
+            setAdvancing(false);
+            refetchOnConflict(err);
+          }}
+        />
+      ) : null}
     </>
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+function ItemsCard({
+  title,
+  subtitle,
+  items,
+  total,
+  totalLabel,
+}: {
+  title: string;
+  subtitle?: string;
+  items: (ExpenseProposalItem | ExpenseProposalPendingItem)[];
+  total: string | number;
+  totalLabel: string;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        <Text style={styles.count}>{items.length} dòng</Text>
+      </CardHeader>
+      {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+      {items.map((item, index) => (
+        <View key={"id" in item ? item.id : index} style={styles.itemRow}>
+          <View style={styles.itemHeader}>
+            <Text style={styles.itemName}>
+              {index + 1}. {item.content}
+            </Text>
+            <Text style={styles.itemAmount}>{formatCurrency(item.amount)}</Text>
+          </View>
+          <Text style={styles.itemMeta}>
+            {formatNumber(item.quantity)}
+            {item.unit ? ` ${item.unit}` : ""} × {formatCurrency(item.unitPrice)}
+          </Text>
+          {item.note ? <Text style={styles.itemNote}>{item.note}</Text> : null}
+        </View>
+      ))}
+      <View style={styles.totalRow}>
+        <Text style={styles.totalLabel}>{totalLabel}</Text>
+        <Text style={styles.totalValue}>{formatCurrency(total)}</Text>
+      </View>
+    </Card>
+  );
+}
+
+function Notice({ tone, title, body }: { tone: "danger" | "warning" | "neutral"; title: string; body: string }) {
+  const palette = {
+    danger: { bg: colors.dangerSoft, fg: colors.danger, icon: "close-circle" as const },
+    warning: { bg: colors.warningSoft, fg: colors.warning, icon: "alert-circle" as const },
+    neutral: { bg: colors.neutralSoft, fg: colors.textMuted, icon: "information-circle" as const },
+  }[tone];
+  return (
+    <View style={[styles.notice, { backgroundColor: palette.bg }]}>
+      <Ionicons name={palette.icon} size={20} color={palette.fg} />
+      <View style={styles.noticeText}>
+        <Text style={[styles.noticeTitle, { color: palette.fg }]}>{title}</Text>
+        <Text style={styles.noticeBody}>{body}</Text>
+      </View>
+    </View>
+  );
+}
+
+function InfoRow({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
     <View style={styles.infoRow}>
       <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={styles.infoValue}>{value}</Text>
+      <Text style={[styles.infoValue, strong && styles.infoStrong]}>{value}</Text>
     </View>
   );
 }
@@ -347,21 +468,18 @@ const styles = StyleSheet.create({
   infoRow: { flexDirection: "row", justifyContent: "space-between", gap: spacing.lg },
   infoLabel: { fontSize: fontSize.sm, color: colors.textMuted },
   infoValue: { flex: 1, textAlign: "right", fontSize: fontSize.sm, color: colors.text, fontWeight: "600" },
+  infoStrong: { fontSize: fontSize.md, fontWeight: "700" },
   purpose: { marginTop: spacing.sm, gap: 4 },
   purposeText: { fontSize: fontSize.md, color: colors.text, lineHeight: 21 },
-  rejectBox: {
-    flexDirection: "row",
-    gap: spacing.md,
-    padding: spacing.lg,
-    borderRadius: radius.lg,
-    backgroundColor: colors.dangerSoft,
-  },
-  rejectText: { flex: 1, gap: 2 },
-  rejectTitle: { fontSize: fontSize.sm, fontWeight: "700", color: colors.danger },
-  rejectBody: { fontSize: fontSize.md, color: colors.text },
+  notice: { flexDirection: "row", gap: spacing.md, padding: spacing.lg, borderRadius: radius.lg },
+  noticeText: { flex: 1, gap: 2 },
+  noticeTitle: { fontSize: fontSize.sm, fontWeight: "700" },
+  noticeBody: { fontSize: fontSize.md, color: colors.text },
+  actionGroup: { gap: spacing.md },
   actions: { flexDirection: "row", gap: spacing.md },
   actionButton: { flex: 1 },
   count: { fontSize: fontSize.sm, color: colors.textMuted },
+  subtitle: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md, fontSize: fontSize.sm, color: colors.textMuted },
   itemRow: {
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,

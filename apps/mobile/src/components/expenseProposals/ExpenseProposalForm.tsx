@@ -1,7 +1,6 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { DateTimeField } from "@/components/ui/DateTimeField";
@@ -12,31 +11,11 @@ import { useCreateExpenseProposal, useUpdateExpenseProposal } from "@/hooks/useE
 import { useUserOptions } from "@/hooks/useUsers";
 import { useCurrentUser } from "@/lib/auth";
 import { dateOnlyToDate, dateToDateOnly } from "@/lib/dateOnly";
-import {
-  computeExpenseTotals,
-  EXPENSE_PAYER_LABEL,
-  EXPENSE_PROPOSAL_CATEGORY_LABEL,
-  todayForDateInput,
-} from "@/lib/expenseProposal";
+import { EXPENSE_PAYER_LABEL, EXPENSE_PROPOSAL_CATEGORY_LABEL, todayForDateInput } from "@/lib/expenseProposal";
 import { formatCurrency, toDateInput } from "@/lib/format";
 import { colors, fontSize, radius, spacing } from "@/lib/theme";
 import type { ExpensePayer, ExpenseProposal, ExpenseProposalCategory } from "@/types";
-
-interface ItemRow {
-  key: number;
-  content: string;
-  unitPrice: string;
-  unit: string;
-  quantity: string;
-  note: string;
-}
-
-let rowKey = 0;
-const newKey = () => ++rowKey;
-const blankRow = (): ItemRow => ({ key: newKey(), content: "", unitPrice: "", unit: "", quantity: "", note: "" });
-const isBlankRow = (row: ItemRow) =>
-  !row.content.trim() && !row.unitPrice.trim() && !row.unit.trim() && !row.quantity.trim() && !row.note.trim();
-const toNumber = (value: string) => (value.trim() === "" || Number.isNaN(Number(value)) ? 0 : Number(value));
+import { ExpenseItemsEditor, rowsFromItems, totalsOf, validateRows, type ItemRow } from "./ExpenseItemsEditor";
 
 const CATEGORY_OPTIONS = Object.entries(EXPENSE_PROPOSAL_CATEGORY_LABEL).map(([value, label]) => ({ value, label }));
 const PAYER_OPTIONS = Object.entries(EXPENSE_PAYER_LABEL).map(([value, label]) => ({ value, label }));
@@ -67,26 +46,15 @@ export function ExpenseProposalForm({ existing }: { existing?: ExpenseProposal }
   // Quán không còn trong danh sách (vd vai trò đã bỏ cờ "là quán") thì coi như chưa chọn.
   const shopId = shops.some((s) => s.id === wantedShopId) ? wantedShopId : "";
 
-  // Người xác nhận: ngược với quán — chỉ tài khoản KHÔNG phải quán. Người này sẽ nhận thông báo.
+  // Người duyệt: ngược với quán — chỉ tài khoản KHÔNG phải quán. Chỉ người này (hoặc admin) duyệt được phiếu.
   const { data: approvers = [] } = useUserOptions({ scope: "other" });
   const [pickedApproverId, setPickedApproverId] = useState(existing?.approverId ?? "");
   const approverId = approvers.some((a) => a.id === pickedApproverId) ? pickedApproverId : "";
 
   const [purpose, setPurpose] = useState(existing?.purpose ?? "");
-  const [rows, setRows] = useState<ItemRow[]>(() =>
-    existing?.items?.length
-      ? existing.items.map((it) => ({
-          key: newKey(),
-          content: it.content,
-          unitPrice: String(Number(it.unitPrice)),
-          unit: it.unit ?? "",
-          quantity: String(Number(it.quantity)),
-          note: it.note ?? "",
-        }))
-      : [blankRow()],
-  );
-  const [advancePercent, setAdvancePercent] = useState(
-    existing?.advancePercent != null ? String(Number(existing.advancePercent)) : "",
+  const [rows, setRows] = useState<ItemRow[]>(() => rowsFromItems(existing?.items));
+  const [advanceAmount, setAdvanceAmount] = useState(
+    existing?.advanceAmount != null ? String(Number(existing.advanceAmount)) : "",
   );
   const [invoiceDueDate, setInvoiceDueDate] = useState(
     existing?.invoiceDueDate ? toDateInput(existing.invoiceDueDate) : todayForDateInput(),
@@ -94,40 +62,24 @@ export function ExpenseProposalForm({ existing }: { existing?: ExpenseProposal }
   const [error, setError] = useState<string | null>(null);
 
   const isCreator = payer === "CREATOR";
-  const percent = advancePercent.trim() === "" ? null : Number(advancePercent);
-  const { amounts, total, advanceAmount } = computeExpenseTotals(
-    rows.map((row) => ({ unitPrice: toNumber(row.unitPrice), quantity: toNumber(row.quantity) })),
-    isCreator && percent !== null && !Number.isNaN(percent) ? percent : null,
-  );
-
-  function updateRow(key: number, patch: Partial<ItemRow>) {
-    setRows((prev) => prev.map((row) => (row.key === key ? { ...row, ...patch } : row)));
-  }
-
-  function removeRow(key: number) {
-    setRows((prev) => (prev.length > 1 ? prev.filter((row) => row.key !== key) : prev));
-  }
+  const { total } = totalsOf(rows);
+  const advance = advanceAmount.trim() === "" ? null : Number(advanceAmount);
 
   function submit() {
     setError(null);
     if (!category) return setError("Vui lòng chọn loại phiếu.");
     if (!shopId) return setError("Vui lòng chọn quán chi.");
-    if (!approverId) return setError("Vui lòng chọn người xác nhận.");
+    if (!approverId) return setError("Vui lòng chọn người duyệt.");
     if (!purpose.trim()) return setError("Vui lòng nhập mục đích sử dụng.");
 
-    // Số dòng báo lỗi đếm theo thứ tự trên màn hình, kể cả dòng trống bị bỏ qua.
-    const filled = rows.map((row, index) => ({ row, stt: index + 1 })).filter(({ row }) => !isBlankRow(row));
-    if (filled.length === 0) return setError("Vui lòng nhập ít nhất 1 hạng mục.");
-    for (const { row, stt } of filled) {
-      if (!row.content.trim()) return setError(`Dòng ${stt}: chưa nhập nội dung.`);
-      if (row.unitPrice.trim() === "" || Number(row.unitPrice) < 0) return setError(`Dòng ${stt}: đơn giá không hợp lệ.`);
-      if (!(Number(row.quantity) > 0)) return setError(`Dòng ${stt}: số lượng phải lớn hơn 0.`);
-    }
+    const checked = validateRows(rows);
+    if ("error" in checked) return setError(checked.error);
     if (isCreator) {
-      if (percent === null || !(percent > 0 && percent <= 100)) {
-        return setError("Tạm ứng (%) phải lớn hơn 0 và không quá 100.");
+      if (advance === null || Number.isNaN(advance) || !(advance > 0)) {
+        return setError("Số tiền đề nghị tạm ứng phải lớn hơn 0.");
       }
-      if (!invoiceDueDate) return setError("Vui lòng chọn ngày trả hoá đơn.");
+      if (advance > total) return setError("Số tiền đề nghị tạm ứng không được vượt tổng dự kiến.");
+      if (!invoiceDueDate) return setError("Vui lòng chọn ngày trả hoá đơn dự kiến.");
     }
 
     const payload = {
@@ -137,15 +89,9 @@ export function ExpenseProposalForm({ existing }: { existing?: ExpenseProposal }
       shopId,
       approverId,
       purpose: purpose.trim(),
-      items: filled.map(({ row }) => ({
-        content: row.content.trim(),
-        unitPrice: Number(row.unitPrice),
-        unit: row.unit.trim() || undefined,
-        quantity: Number(row.quantity),
-        note: row.note.trim() || undefined,
-      })),
+      items: checked.items,
       // Kế toán chi thì KHÔNG gửi hai trường tạm ứng — server cũng bỏ qua.
-      advancePercent: isCreator ? (percent ?? undefined) : undefined,
+      advanceAmount: isCreator ? (advance ?? undefined) : undefined,
       invoiceDueDate: isCreator ? invoiceDueDate : undefined,
     };
 
@@ -200,72 +146,22 @@ export function ExpenseProposalForm({ existing }: { existing?: ExpenseProposal }
             placeholder="Chọn quán chi"
           />
           <Select
-            label="Người xác nhận"
+            label="Người duyệt"
             required
             value={approverId}
             onChange={setPickedApproverId}
             options={approvers.map((a) => ({ value: a.id, label: a.name, sublabel: a.email }))}
-            placeholder="Chọn người xác nhận"
+            placeholder="Chọn người duyệt"
           />
           <Input label="Mục đích sử dụng" required value={purpose} onChangeText={setPurpose} multiline />
         </CardBody>
       </Card>
 
-      <Text style={styles.sectionLabel}>Hạng mục chi</Text>
-      {rows.map((row, index) => (
-        <Card key={row.key}>
-          <CardBody style={styles.rowCard}>
-            <View style={styles.rowHeader}>
-              <Text style={styles.rowTitle}>Dòng {index + 1}</Text>
-              {rows.length > 1 ? (
-                <Pressable onPress={() => removeRow(row.key)} hitSlop={8} accessibilityLabel={`Xoá dòng ${index + 1}`}>
-                  <Ionicons name="close-circle" size={22} color={colors.danger} />
-                </Pressable>
-              ) : null}
-            </View>
-            <Input label="Nội dung" value={row.content} onChangeText={(content) => updateRow(row.key, { content })} />
-            <View style={styles.pair}>
-              <Input
-                containerStyle={styles.half}
-                label="Đơn giá"
-                value={row.unitPrice}
-                onChangeText={(unitPrice) => updateRow(row.key, { unitPrice })}
-                keyboardType="numeric"
-              />
-              <Input
-                containerStyle={styles.half}
-                label="Số lượng"
-                value={row.quantity}
-                onChangeText={(quantity) => updateRow(row.key, { quantity })}
-                keyboardType="numeric"
-              />
-            </View>
-            <View style={styles.pair}>
-              <Input
-                containerStyle={styles.half}
-                label="Đơn vị"
-                value={row.unit}
-                onChangeText={(unit) => updateRow(row.key, { unit })}
-              />
-              <View style={styles.half}>
-                <Text style={styles.amountLabel}>Thành tiền</Text>
-                <Text style={styles.amountValue}>{formatCurrency(amounts[index] ?? 0)}</Text>
-              </View>
-            </View>
-            <Input label="Ghi chú" value={row.note} onChangeText={(note) => updateRow(row.key, { note })} />
-          </CardBody>
-        </Card>
-      ))}
-      <Button
-        title="Thêm dòng"
-        variant="secondary"
-        fullWidth
-        icon={<Ionicons name="add" size={18} color={colors.text} />}
-        onPress={() => setRows((prev) => [...prev, blankRow()])}
-      />
+      <Text style={styles.sectionLabel}>Hạng mục chi dự kiến</Text>
+      <ExpenseItemsEditor rows={rows} onChange={setRows} />
 
       <View style={styles.totalCard}>
-        <Text style={styles.totalLabel}>Tổng tiền</Text>
+        <Text style={styles.totalLabel}>Tổng dự kiến</Text>
         <Text style={styles.totalValue}>{formatCurrency(total)}</Text>
       </View>
 
@@ -275,22 +171,16 @@ export function ExpenseProposalForm({ existing }: { existing?: ExpenseProposal }
             <CardTitle>Tạm ứng</CardTitle>
           </CardHeader>
           <CardBody style={styles.fields}>
-            <View style={styles.pair}>
-              <Input
-                containerStyle={styles.half}
-                label="Tạm ứng (%)"
-                required
-                value={advancePercent}
-                onChangeText={setAdvancePercent}
-                keyboardType="numeric"
-              />
-              <View style={styles.half}>
-                <Text style={styles.amountLabel}>Số tiền tạm ứng</Text>
-                <Text style={styles.amountValue}>{advanceAmount !== null ? formatCurrency(advanceAmount) : "—"}</Text>
-              </View>
-            </View>
+            <Input
+              label="Số tiền đề nghị tạm ứng"
+              required
+              value={advanceAmount}
+              onChangeText={setAdvanceAmount}
+              keyboardType="numeric"
+              hint="Không vượt tổng dự kiến. Kế toán có thể sửa khi tạm ứng."
+            />
             <DateTimeField
-              label="Ngày trả hoá đơn"
+              label="Ngày trả hoá đơn dự kiến"
               required
               dateOnly
               value={dateOnlyToDate(invoiceDueDate)}
@@ -315,22 +205,6 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     textTransform: "uppercase",
     paddingHorizontal: spacing.xs,
-  },
-  rowCard: { gap: spacing.md, paddingTop: spacing.lg },
-  rowHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  rowTitle: { fontSize: fontSize.sm, fontWeight: "700", color: colors.textMuted },
-  pair: { flexDirection: "row", gap: spacing.md },
-  half: { flex: 1 },
-  amountLabel: { fontSize: fontSize.sm, fontWeight: "600", color: colors.textMuted, marginBottom: 6 },
-  amountValue: {
-    height: 46,
-    lineHeight: 46,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.md,
-    backgroundColor: colors.subtle,
-    fontSize: fontSize.md,
-    fontWeight: "700",
-    color: colors.text,
   },
   totalCard: {
     flexDirection: "row",

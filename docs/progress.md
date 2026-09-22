@@ -99,10 +99,10 @@ bằng curl ở local: hai IP có bộ đếm riêng, đổi IP giả ở đầu
 Cần thử trên staging: từ một máy gọi đăng nhập sai qua cả link Vercel lẫn thẳng `onrender.com` —
 lượt còn lại phải trừ nối tiếp nhau (tức Render nhận đúng IP thật chứ không phải IP proxy trung gian).
 
-### Đề xuất chi: tạm ứng nhiều lần, duyệt bổ sung, hoàn thành + chứng từ — chỉ trên `dev`, CHƯA làm mobile
-Server + web xong; migration chuyển lần ứng cũ sang bảng mới và tách quyền PAY → Tạm ứng + Hoàn thành. Đã kiểm typecheck, lint,
-`migrate deploy` trên DB trắng và DB có phiếu cũ, 46 ca curl (vượt trần ứng, duyệt bổ sung, chặn chi vượt, sai người duyệt, ảnh R2 thật). Chưa thử trên trình duyệt.
-**Không đưa lên `staging`/`main` trước khi làm mobile**: app đang cài gọi `/spend` (đã bỏ) và `/advance` không kèm số tiền.
+### Đề xuất chi: tạm ứng nhiều lần, duyệt bổ sung, hoàn thành + chứng từ — server/web/mobile xong, chỉ trên `dev`
+Migration chuyển lần ứng cũ sang bảng mới, tách quyền PAY → Tạm ứng + Hoàn thành. Đã kiểm typecheck ba app, lint web, bundle Android,
+`migrate deploy` trên DB trắng và DB có phiếu cũ, 46 ca curl. CHƯA xác nhận trên trình duyệt; CHƯA chạy mobile trên máy (màn Hoàn thành, Thêm hạng mục, tấm Tạm ứng, chụp chứng từ).
+Lên `staging` phải kèm build APK preview mới: APK đang cài gọi `/spend` (đã bỏ) và `/advance` không kèm số tiền.
 
 ### Cờ "Là quán" trên vai trò — CHƯA kiểm thử trên trình duyệt, đã lên `main`
 Ô chọn/lọc quán chỉ hiện tài khoản thuộc vai trò có tick (admin bị ẩn); lọc Người lập ở đề xuất chi vẫn thấy mọi tài khoản.
