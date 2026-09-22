@@ -31,19 +31,19 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
-### Chuẩn bị nộp App Store (iOS) — chỉ trên `dev`, CHƯA build iOS lần nào
+### Chuẩn bị nộp App Store (iOS) — đã lên `main`, CHƯA build iOS lần nào
 Ẩn nút Google trên iOS (Guideline 4.8), `ITSAppUsesNonExemptEncryption: false`, giữ hỗ trợ iPad, phát hành dạng Unlisted; Render đã lên gói trả phí.
 Đã kiểm typecheck mobile và `expo config --type introspect` (plugin Google không làm vỡ prebuild iOS). Build bằng `build:preview:ios` / `build:production:ios` (chặn sai nhánh như Android).
 Cần: Apple Developer, build + thử trên iPhone/iPad (iPad xoay ngang được), tài khoản demo có dữ liệu, nộp form Unlisted.
 
-### Ảnh chứng từ theo dòng hàng đơn hàng (server + web + mobile) — chỉ trên `dev`, CHƯA thử trình duyệt/điện thoại
+### Ảnh chứng từ theo dòng hàng đơn hàng (server + web + mobile) — đã lên `main`, người dùng thử APK preview ổn
 Chỉ đính/xoá khi đơn COMPLETED, cần `ORDERS.APPROVE`; xem cần `ORDERS.VIEW`. Tối đa 5 ảnh/dòng, R2 như khoản chi.
 Đã kiểm typecheck, lint, curl với R2 thật (409 ngoài COMPLETED, vượt 5 ảnh, sai định dạng, quá nặng, dòng của đơn khác 404, thiếu quyền 403, xoá dọn cả file).
-Mobile: nút "Chứng từ" mỗi dòng → tấm chụp/chọn ảnh tải lên ngay; đã kiểm typecheck + bundle Android, cần build APK mới. Migration chỉ tạo bảng.
+Mobile: nút "Chứng từ" mỗi dòng → tấm chụp/chọn ảnh tải lên ngay; cần build production mới. Migration chỉ tạo bảng.
 
-### Icon app mới (hộp + dấu tick) — CHƯA build, chưa lên `main`
+### Icon app mới (hộp + dấu tick) — đã lên `main`, CHƯA build production
 `icon.png` và adaptive icon Android (foreground/nền gradient/monochrome) sinh từ ảnh mới; `icon-inventory-512.png` giữ cho trang CH Play.
-Đã xem ảnh ghép mặt nạ tròn, typecheck và bundle Android. Chưa thấy trên máy — đi cùng build đầu tiên với tên gói mới.
+Đã xem ảnh ghép mặt nạ tròn, typecheck và bundle Android. Đi cùng build production đầu tiên với tên gói mới.
 
 ### Chính sách quyền riêng tư — đã lên `main`, trang Vercel đã chạy (HTTP 200)
 Trang công khai `/privacy-policy`, liên kết ở đăng nhập web/mobile và tab Khác; EAS đặt URL `https://quanlykhoindoor.vercel.app/privacy-policy`.
@@ -104,11 +104,11 @@ bằng curl ở local: hai IP có bộ đếm riêng, đổi IP giả ở đầu
 Cần thử trên staging: từ một máy gọi đăng nhập sai qua cả link Vercel lẫn thẳng `onrender.com` —
 lượt còn lại phải trừ nối tiếp nhau (tức Render nhận đúng IP thật chứ không phải IP proxy trung gian).
 
-### Đề xuất chi: tạm ứng nhiều lần, duyệt bổ sung, hoàn thành + chứng từ — server/web/mobile xong, chỉ trên `dev`
+### Đề xuất chi: tạm ứng nhiều lần, duyệt bổ sung, hoàn thành + chứng từ — đã lên `main`, người dùng thử APK preview ổn
 Migration chuyển lần ứng cũ sang bảng mới, tách quyền PAY → Tạm ứng + Hoàn thành. Đã kiểm typecheck ba app, lint web, bundle Android,
-`migrate deploy` trên DB trắng và DB có phiếu cũ, 46 ca curl. CHƯA xác nhận trên trình duyệt; CHƯA chạy mobile trên máy (màn Hoàn thành, Thêm hạng mục, tấm Tạm ứng, chụp chứng từ).
-Lên `staging` phải kèm build APK preview mới: APK đang cài gọi `/spend` (đã bỏ) và `/advance` không kèm số tiền.
-Đã bỏ trường Loại phiếu (MKT/Vận hành/CSVC); migration xoá luôn dữ liệu loại phiếu cũ — lên production là mất hẳn, không khôi phục được.
+`migrate deploy` trên DB trắng và DB có phiếu cũ, 46 ca curl; staging + APK preview người dùng đã thử ổn.
+App production đang cài gọi `/spend` (đã bỏ) và `/advance` không kèm số tiền — hỏng luồng đề xuất chi tới khi có build production mới.
+Đã bỏ Loại phiếu (MKT/Vận hành/CSVC), dữ liệu cũ bị xoá; production chưa dùng đề xuất chi nên đẩy `main` không sao lưu DB.
 
 ### Cờ "Là quán" trên vai trò — CHƯA kiểm thử trên trình duyệt, đã lên `main`
 Ô chọn/lọc quán chỉ hiện tài khoản thuộc vai trò có tick (admin bị ẩn); lọc Người lập ở đề xuất chi vẫn thấy mọi tài khoản.
