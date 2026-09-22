@@ -455,8 +455,26 @@ model SalesOrderItem {
   // trạng thái chờ xác nhận (PENDING_CONFIRM).
   note             String?
 
+  images SalesOrderItemImage[]
+
   @@index([productId])
   @@index([receivedAt])
+}
+
+// Ảnh chứng từ (hoá đơn) của một dòng hàng, chỉ đính được khi đơn đã COMPLETED. Cùng khuôn với
+// ShiftExpenseImage: chỉ lưu KHOÁ object trong R2, không lưu URL. Cascade chỉ xoá dòng DB, không xoá
+// file trên R2 — chỗ nào xoá cũng phải gọi deleteImages (utils/objectStorage).
+model SalesOrderItemImage {
+  id               String         @id @default(cuid())
+  salesOrderItemId String
+  salesOrderItem   SalesOrderItem @relation(fields: [salesOrderItemId], references: [id], onDelete: Cascade)
+  objectKey        String         @unique
+  contentType      String
+  size             Int
+  sortOrder        Int            @default(0)
+  createdAt        DateTime       @default(now())
+
+  @@index([salesOrderItemId])
 }
 
 enum InventoryCountStatus {

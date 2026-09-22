@@ -1,6 +1,6 @@
 # Tiến độ dự án
 
-Cập nhật: 2026-09-21
+Cập nhật: 2026-09-22
 
 Ghi **đúng những gì git không tự trả lời được**. Lý do thiết kế đã nằm trong commit message, đừng
 chép lại vào đây. Mỗi mục "Đang dở" tối đa 3–4 dòng, và dòng quan trọng nhất luôn là: *đã kiểm thử
@@ -30,6 +30,11 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 ---
 
 ## Đang dở
+
+### Ảnh chứng từ theo dòng hàng đơn hàng — chỉ trên `dev`, CHƯA thử trình duyệt, CHƯA làm mobile
+Chỉ đính/xoá khi đơn COMPLETED, cần `ORDERS.APPROVE`; xem cần `ORDERS.VIEW`. Tối đa 5 ảnh/dòng, R2 như khoản chi.
+Đã kiểm typecheck, lint, curl với R2 thật (409 ngoài COMPLETED, vượt 5 ảnh, sai định dạng, quá nặng, dòng của đơn khác 404, thiếu quyền 403, xoá dọn cả file).
+Migration chỉ tạo bảng. App mobile cũ không gọi route mới nên lên `staging`/`main` được trước khi làm mobile.
 
 ### Icon app mới (hộp + dấu tick) — CHƯA build, chưa lên `main`
 `icon.png` và adaptive icon Android (foreground/nền gradient/monochrome) sinh từ ảnh mới; `icon-inventory-512.png` giữ cho trang CH Play.
@@ -134,10 +139,6 @@ cân nhắc thêm:
 1. **Chu kỳ poll** — bật `refetchInterval` và `refetchOnWindowFocus` (đang tắt tường minh trong
    `lib/query-client.tsx`). Poll giữ Render không ngủ: tốt cho quán, nhưng ăn quota 750 giờ/tháng.
 2. **Dấu hiệu "đơn mới"** — số liệu tự đổi mà không ai nhìn thì cũng vô ích.
-
-### Nâng gói Render
-Gói free ngủ sau 15 phút và **bị khoá trước tiên khi Render gặp sự cố hạ tầng** — đã xảy ra thật
-ngày 20/08, cả hai service chết trong khi gói trả phí không bị. $7/tháng. Đã nêu, chưa quyết.
 
 ---
 

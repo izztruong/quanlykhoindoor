@@ -18,9 +18,10 @@ import { nowForDatetimeLocal, toDatetimeLocal } from "@/lib/dateRange";
 import { exportOrderToExcel } from "@/lib/exportOrderExcel";
 import { formatDateTime, formatNumber, labels } from "@/lib/format";
 import type { SalesOrderItem, SalesOrderStatus } from "@/types";
-import { FileSpreadsheet, Printer } from "lucide-react";
+import { Camera, FileSpreadsheet, Printer } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
+import { OrderItemImagesModal } from "./OrderItemImagesModal";
 
 const statusTone: Record<string, "gray" | "green" | "red" | "yellow" | "blue"> = {
   DRAFT: "gray",
@@ -74,6 +75,8 @@ export function OrderDetailClient({ id }: { id: string }) {
   // Ngày nhận theo từng dòng. Mặc định chung ở đầu bảng, dòng nào về ngày khác thì sửa riêng.
   const [dateOverrides, setDateOverrides] = useState<Record<string, string>>({});
   const [bulkReceivedAt, setBulkReceivedAt] = useState(nowForDatetimeLocal);
+  // Giữ id chứ không giữ cả dòng: imageCount phải lấy từ dữ liệu đơn mới nhất sau mỗi lần tải/xoá ảnh.
+  const [imagesItemId, setImagesItemId] = useState<string | null>(null);
 
   if (isLoading || !order) {
     return <p className="text-slate-400">Đang tải...</p>;
@@ -87,6 +90,9 @@ export function OrderDetailClient({ id }: { id: string }) {
   // đã xác nhận (kể cả Hoàn thành), nếu không thì ngày sai sẽ bị khoá cứng.
   const canEditDates = canApprove && (order.status === "CONFIRMED" || order.status === "SHORT" || order.status === "COMPLETED");
   const showDateColumn = canEditDates || order.status === "COMPLETED";
+  // Chứng từ chỉ đính khi đơn đã hoàn thành (server cũng chặn), nên cột chỉ hiện lúc COMPLETED.
+  const showImagesColumn = order.status === "COMPLETED";
+  const imagesItem = imagesItemId ? order.items.find((item) => item.id === imagesItemId) : undefined;
 
   function receivedQuantityFor(item: SalesOrderItem): string {
     const override = overrides[item.id];
@@ -303,6 +309,7 @@ export function OrderDetailClient({ id }: { id: string }) {
                 {order.status === "PENDING_CONFIRM" && <th className="border border-slate-200 px-4 py-2 text-left">Ghi chú</th>}
                 {(canReceive || order.status === "COMPLETED") && <th className="border border-slate-200 px-4 py-2 text-left">SL thực nhận</th>}
                 {showDateColumn && <th className="border border-slate-200 px-4 py-2 text-left">Ngày nhận</th>}
+                {showImagesColumn && <th className="border border-slate-200 px-4 py-2 text-left">Chứng từ</th>}
               </tr>
             </thead>
             <tbody>
@@ -352,6 +359,23 @@ export function OrderDetailClient({ id }: { id: string }) {
                         )}
                       </td>
                     )}
+                    {showImagesColumn && (
+                      <td className="border border-slate-200 px-4 py-2">
+                        {canApprove || item.imageCount > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => setImagesItemId(item.id)}
+                            className="inline-flex items-center gap-1 rounded px-2 py-1 text-indigo-600 hover:bg-indigo-50"
+                            title={canApprove ? "Xem / đính ảnh chứng từ" : "Xem ảnh chứng từ"}
+                          >
+                            <Camera size={14} />
+                            {item.imageCount}
+                          </button>
+                        ) : (
+                          <span className="text-slate-400">-</span>
+                        )}
+                      </td>
+                    )}
                     {order.status === "PENDING_CONFIRM" && (
                       <td className={`border border-slate-200 px-4 py-2 font-medium ${reportedTone}`}>{formatNumber(reportedQty)}</td>
                     )}
@@ -395,6 +419,15 @@ export function OrderDetailClient({ id }: { id: string }) {
           </Button>
         ))}
       </div>
+
+      {imagesItem && (
+        <OrderItemImagesModal
+          orderId={id}
+          item={imagesItem}
+          canManage={canApprove && showImagesColumn}
+          onClose={() => setImagesItemId(null)}
+        />
+      )}
     </div>
   );
 }

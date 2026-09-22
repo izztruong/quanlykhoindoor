@@ -69,3 +69,24 @@ export const salesOrderReceivedDatesSchema = z.object({
     )
     .min(1),
 });
+
+/** Tối đa 5 ảnh chứng từ mỗi dòng hàng — cùng mức với khoản chi chốt ca và phiếu đề xuất chi. */
+export const MAX_IMAGES_PER_ORDER_ITEM = 5;
+
+/** Trình duyệt đã nén xuống ~200 KB trước khi gửi, 1,5 MB là trần rộng rãi cho ảnh lọt lưới nén. */
+export const MAX_IMAGE_BYTES = 1_500_000;
+
+export const IMAGE_CONTENT_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+
+export const salesOrderItemImageUploadSchema = z.object({
+  images: z
+    .array(
+      z.object({
+        contentType: z.enum(IMAGE_CONTENT_TYPES, { message: "Chỉ nhận ảnh JPG, PNG hoặc WEBP" }),
+        // Chỉ phần dữ liệu base64, không kèm tiền tố "data:image/jpeg;base64,".
+        dataBase64: z.string().min(1, "Ảnh rỗng"),
+      }),
+    )
+    .min(1, "Chưa chọn ảnh nào")
+    .max(MAX_IMAGES_PER_ORDER_ITEM, `Mỗi hàng hoá tối đa ${MAX_IMAGES_PER_ORDER_ITEM} ảnh`),
+});

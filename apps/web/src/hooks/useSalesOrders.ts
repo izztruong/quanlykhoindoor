@@ -1,6 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
-import type { AffectedCostCheck, PagedResult, SalesOrder, SalesOrderListRow, SalesOrderStatus } from "@/types";
+import type { CompressedImage } from "@/lib/imageCompress";
+import type {
+  AffectedCostCheck,
+  PagedResult,
+  SalesOrder,
+  SalesOrderItemImage,
+  SalesOrderListRow,
+  SalesOrderStatus,
+} from "@/types";
 
 export interface SalesOrderItemInput {
   productId: string;
@@ -131,5 +139,34 @@ export function useConfirmSalesOrderWithExport(id: string) {
       queryClient.invalidateQueries({ queryKey: ["sales-orders"] });
       queryClient.invalidateQueries({ queryKey: ["sales-orders", id] });
     },
+  });
+}
+
+/** URL ảnh là URL ký có hạn 1 giờ — chỉ tải khi mở ảnh chứng từ của dòng đó. */
+export function useSalesOrderItemImages(orderId: string, itemId: string, enabled = true) {
+  return useQuery({
+    queryKey: ["sales-orders", orderId, "items", itemId, "images"],
+    queryFn: () => api.get<SalesOrderItemImage[]>(`/sales-orders/${orderId}/items/${itemId}/images`),
+    enabled: Boolean(orderId && itemId) && enabled,
+  });
+}
+
+/** Invalidate ["sales-orders", orderId] kéo theo cả danh sách ảnh (cùng tiền tố) lẫn imageCount trong chi tiết đơn. */
+export function useUploadSalesOrderItemImages(orderId: string, itemId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (images: CompressedImage[]) =>
+      api.post<{ created: number }>(`/sales-orders/${orderId}/items/${itemId}/images`, {
+        images: images.map(({ contentType, dataBase64 }) => ({ contentType, dataBase64 })),
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["sales-orders", orderId] }),
+  });
+}
+
+export function useDeleteSalesOrderItemImage(orderId: string, itemId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (imageId: string) => api.delete<void>(`/sales-orders/${orderId}/items/${itemId}/images/${imageId}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["sales-orders", orderId] }),
   });
 }

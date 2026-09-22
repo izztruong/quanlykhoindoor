@@ -22,8 +22,19 @@ export const salesOrderDetailInclude = {
     },
   },
   createdBy: { select: { id: true, name: true, email: true } },
-  items: { include: { product: { include: { unit: true, productGroup: true } } } },
+  // Chỉ đếm ảnh chứng từ, không ký URL — URL chỉ ký ở GET .../items/:itemId/images khi mở ảnh.
+  items: { include: { product: { include: { unit: true, productGroup: true } }, _count: { select: { images: true } } } },
 };
+
+/**
+ * Phẳng hoá `_count.images` của từng dòng hàng thành `imageCount`, để payload API không lộ hình dạng
+ * truy vấn Prisma (cùng lý do `toApiRow` ở shiftExpenses). Mọi chỗ trả đơn theo
+ * `salesOrderDetailInclude` phải đi qua hàm này.
+ */
+export function withItemImageCounts<I extends { _count: { images: number } }, O>(order: O & { items: I[] }) {
+  const { items, ...rest } = order;
+  return { ...rest, items: items.map(({ _count, ...item }) => ({ ...item, imageCount: _count.images })) };
+}
 
 /**
  * Bảng danh sách chỉ hiện mã đơn, tài khoản, kho, ngày đặt, tổng số lượng và trạng thái. Dùng
@@ -75,7 +86,7 @@ export async function createSalesOrder(data: SalesOrderCreateInput, createdById?
   const createdAt = new Date();
   const lateness = await stampSalesOrderLateness(createdAt);
 
-  return prisma.salesOrder.create({
+  const order = await prisma.salesOrder.create({
     data: {
       code: generateCode("DH"),
       warehouseId: data.warehouseId,
@@ -94,12 +105,13 @@ export async function createSalesOrder(data: SalesOrderCreateInput, createdById?
     },
     include: salesOrderDetailInclude,
   });
+  return withItemImageCounts(order);
 }
 
 export async function replaceSalesOrderItems(orderId: string, data: SalesOrderCreateInput, actingUser?: AuthUser) {
   if (!data.skipStockCheck) await assertSufficientStock(data.warehouseId, data.items);
 
-  return prisma.$transaction(async (tx) => {
+  const updated = await prisma.$transaction(async (tx) => {
     const order = await tx.salesOrder.findUnique({ where: { id: orderId } });
     if (!order) throw new HttpError(404, "Không tìm thấy đơn hàng");
     assertOwner(order, actingUser, "Không tìm thấy đơn hàng");
@@ -123,6 +135,7 @@ export async function replaceSalesOrderItems(orderId: string, data: SalesOrderCr
       include: salesOrderDetailInclude,
     });
   });
+  return withItemImageCounts(updated);
 }
 
 /**
@@ -237,7 +250,7 @@ function buildStockExportReconcileOps(
 }
 
 export async function updateSalesOrderStatus(orderId: string, status: string, actingUser?: AuthUser) {
-  return prisma.$transaction(async (tx) => {
+  const updated = await prisma.$transaction(async (tx) => {
     const order = await tx.salesOrder.findUnique({
       where: { id: orderId },
       include: { items: { include: { product: true } }, stockExport: true },
@@ -259,6 +272,7 @@ export async function updateSalesOrderStatus(orderId: string, status: string, ac
       include: salesOrderDetailInclude,
     });
   });
+  return withItemImageCounts(updated);
 }
 
 /**
@@ -358,7 +372,9 @@ export async function completeSalesOrderReceiving(orderId: string, data: SalesOr
   // to execute sequentially over Neon even batched into one transaction, so raise it generously.
   await prisma.$transaction(operations, { timeout: 20000 });
 
-  return prisma.salesOrder.findUniqueOrThrow({ where: { id: orderId }, include: salesOrderDetailInclude });
+  return withItemImageCounts(
+    await prisma.salesOrder.findUniqueOrThrow({ where: { id: orderId }, include: salesOrderDetailInclude }),
+  );
 }
 
 /**
@@ -472,7 +488,9 @@ export async function confirmSalesOrderWithExport(orderId: string, data: SalesOr
   // to execute sequentially over Neon even batched into one transaction, so raise it generously.
   await prisma.$transaction(operations, { timeout: 20000 });
 
-  return prisma.salesOrder.findUniqueOrThrow({ where: { id: orderId }, include: salesOrderDetailInclude });
+  return withItemImageCounts(
+    await prisma.salesOrder.findUniqueOrThrow({ where: { id: orderId }, include: salesOrderDetailInclude }),
+  );
 }
 
 /**
@@ -524,7 +542,9 @@ export async function confirmOrderReportedQuantities(orderId: string, actingUser
   // to execute sequentially over Neon even batched into one transaction, so raise it generously.
   await prisma.$transaction(operations, { timeout: 20000 });
 
-  return prisma.salesOrder.findUniqueOrThrow({ where: { id: orderId }, include: salesOrderDetailInclude });
+  return withItemImageCounts(
+    await prisma.salesOrder.findUniqueOrThrow({ where: { id: orderId }, include: salesOrderDetailInclude }),
+  );
 }
 
 /**
@@ -583,5 +603,5 @@ export async function updateSalesOrderReceivedDates(orderId: string, data: Sales
   `;
 
   const updated = await prisma.salesOrder.findUniqueOrThrow({ where: { id: orderId }, include: salesOrderDetailInclude });
-  return { ...updated, affectedCostChecks };
+  return { ...withItemImageCounts(updated), affectedCostChecks };
 }

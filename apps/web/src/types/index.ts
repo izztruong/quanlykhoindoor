@@ -160,6 +160,15 @@ export interface SalesOrderItem {
   receivedQuantity?: string | number | null;
   receivedAt?: string | null;
   note?: string | null;
+  /** Số ảnh chứng từ đã đính (chỉ đính được khi đơn COMPLETED). URL ảnh tải riêng khi mở. */
+  imageCount: number;
+}
+
+export interface SalesOrderItemImage {
+  id: string;
+  url: string;
+  contentType: string;
+  size: number;
 }
 
 export interface SalesOrder {
