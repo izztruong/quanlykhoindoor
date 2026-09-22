@@ -69,7 +69,9 @@ npx expo export --platform android   # bundle thử — bắt lỗi import mà t
 ### App mobile — ba cái bẫy
 
 - **Thông báo đẩy không chạy trong Expo Go trên Android** (từ SDK 53). Phải dựng development build
-  (`eas build --profile development`); code tự bỏ qua đăng ký push khi chạy trong Expo Go.
+  (`eas build --profile development`); code tự bỏ qua đăng ký push khi chạy trong Expo Go. Từ SDK 57
+  chỉ cần **nạp** `expo-notifications` trong Expo Go là app vỡ ngay lúc mở — không bao giờ `import` nó
+  trực tiếp; luôn lấy `Notifications` qua `src/lib/pushNotifications.ts` (tự thay bằng bản giả trong Expo Go).
 - **`expo start` chạy lâu sẽ sinh sai `.expo/types/router.d.ts`**: thêm màn mới trong lúc nó đang chạy
   thì typecheck báo route không tồn tại, thậm chí nhận nhầm file trong `src/` thành route. Không phải
   lỗi code — khởi động lại `expo start`, hoặc `npx expo customize tsconfig.json` để sinh lại.

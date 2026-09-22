@@ -1,6 +1,6 @@
 import Constants from "expo-constants";
 import { isRunningInExpoGo } from "expo";
-import * as Notifications from "expo-notifications";
+import type * as NotificationsModule from "expo-notifications";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 import { api } from "./apiClient";
@@ -8,6 +8,34 @@ import { api } from "./apiClient";
 /** Phải trùng ANDROID_CHANNEL_ID phía server (apps/server/src/modules/notifications/notifications.service.ts). */
 const ANDROID_CHANNEL_ID = "default";
 const PUSH_TOKEN_KEY = "kho_push_token";
+
+type NotificationsApi = typeof NotificationsModule;
+
+/** Expo Go trên Android từ SDK 53 không còn thông báo đẩy. */
+const PUSH_UNSUPPORTED = isRunningInExpoGo() && Platform.OS === "android";
+
+/**
+ * Bản giả cho Expo Go trên Android: chỉ gồm đúng những gì app gọi tới (ở đây, app/_layout.tsx và
+ * app/notifications/settings.tsx), không làm gì cả. registerPushToken đã tự dừng khi pushAvailability()
+ * là "expo-go", nên các hàm lấy token không cần có ở đây.
+ */
+const expoGoStub = {
+  setNotificationHandler: () => undefined,
+  addNotificationReceivedListener: () => ({ remove: () => undefined }),
+  useLastNotificationResponse: () => null,
+  clearLastNotificationResponseAsync: async () => undefined,
+  getPermissionsAsync: async () => ({ granted: false }),
+  DEFAULT_ACTION_IDENTIFIER: "expo.modules.notifications.actions.DEFAULT",
+} as unknown as NotificationsApi;
+
+/**
+ * Từ SDK 57, chỉ cần NẠP expo-notifications trong Expo Go trên Android là đã ném lỗi — `import` ở đầu
+ * file làm app vỡ trước khi kịp kiểm isRunningInExpoGo. Nên chỉ `require` khi chắc chắn được hỗ trợ,
+ * giống cách GoogleLoginButton nạp Google Sign-In.
+ */
+const Notifications: NotificationsApi = PUSH_UNSUPPORTED
+  ? expoGoStub
+  : (require("expo-notifications") as NotificationsApi);
 
 // Vẫn hiện banner khi app đang mở — không có dòng này thì thông báo tới lúc đang dùng app sẽ im lặng.
 Notifications.setNotificationHandler({
@@ -31,7 +59,7 @@ export type PushAvailability = "available" | "expo-go" | "not-configured";
  * để mọi phần khác của app vẫn thử được bằng Expo Go.
  */
 export function pushAvailability(): PushAvailability {
-  if (isRunningInExpoGo() && Platform.OS === "android") return "expo-go";
+  if (PUSH_UNSUPPORTED) return "expo-go";
   if (!easProjectId()) return "not-configured";
   return "available";
 }
@@ -99,7 +127,7 @@ export async function unregisterPushToken(sessionEnded?: AbortSignal): Promise<v
 }
 
 /** Đích điều hướng server gắn vào thông báo, vd "/orders/abc". */
-export function hrefFromResponse(response: Notifications.NotificationResponse): string | undefined {
+export function hrefFromResponse(response: NotificationsModule.NotificationResponse): string | undefined {
   const href = response.notification.request.content.data?.href;
   return typeof href === "string" && href.startsWith("/") ? href : undefined;
 }
