@@ -31,10 +31,10 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
-### Ảnh chứng từ theo dòng hàng đơn hàng — chỉ trên `dev`, CHƯA thử trình duyệt, CHƯA làm mobile
+### Ảnh chứng từ theo dòng hàng đơn hàng (server + web + mobile) — chỉ trên `dev`, CHƯA thử trình duyệt/điện thoại
 Chỉ đính/xoá khi đơn COMPLETED, cần `ORDERS.APPROVE`; xem cần `ORDERS.VIEW`. Tối đa 5 ảnh/dòng, R2 như khoản chi.
 Đã kiểm typecheck, lint, curl với R2 thật (409 ngoài COMPLETED, vượt 5 ảnh, sai định dạng, quá nặng, dòng của đơn khác 404, thiếu quyền 403, xoá dọn cả file).
-Migration chỉ tạo bảng. App mobile cũ không gọi route mới nên lên `staging`/`main` được trước khi làm mobile.
+Mobile: nút "Chứng từ" mỗi dòng → tấm chụp/chọn ảnh tải lên ngay; đã kiểm typecheck + bundle Android, cần build APK mới. Migration chỉ tạo bảng.
 
 ### Icon app mới (hộp + dấu tick) — CHƯA build, chưa lên `main`
 `icon.png` và adaptive icon Android (foreground/nền gradient/monochrome) sinh từ ảnh mới; `icon-inventory-512.png` giữ cho trang CH Play.

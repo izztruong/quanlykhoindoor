@@ -1,6 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/apiClient";
-import type { AffectedCostCheck, PagedResult, SalesOrder, SalesOrderListRow, SalesOrderStatus } from "@/types";
+import type {
+  AffectedCostCheck,
+  PagedResult,
+  SalesOrder,
+  SalesOrderItemImage,
+  SalesOrderListRow,
+  SalesOrderStatus,
+} from "@/types";
 
 export interface SalesOrderItemInput {
   productId: string;
@@ -131,5 +138,37 @@ export function useConfirmSalesOrderWithExport(id: string) {
       queryClient.invalidateQueries({ queryKey: ["sales-orders"] });
       queryClient.invalidateQueries({ queryKey: ["sales-orders", id] });
     },
+  });
+}
+
+/** URL ảnh là URL ký có hạn 1 giờ — chỉ tải khi mở ảnh chứng từ của dòng đó. */
+export function useSalesOrderItemImages(orderId: string, itemId: string, enabled = true) {
+  return useQuery({
+    queryKey: ["sales-orders", orderId, "items", itemId, "images"],
+    queryFn: () => api.get<SalesOrderItemImage[]>(`/sales-orders/${orderId}/items/${itemId}/images`),
+    enabled: Boolean(orderId && itemId) && enabled,
+  });
+}
+
+export interface SalesOrderItemImageInput {
+  contentType: string;
+  dataBase64: string;
+}
+
+/** Invalidate ["sales-orders", orderId] kéo theo cả danh sách ảnh (cùng tiền tố) lẫn imageCount trong chi tiết đơn. */
+export function useUploadSalesOrderItemImages(orderId: string, itemId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (images: SalesOrderItemImageInput[]) =>
+      api.post<{ created: number }>(`/sales-orders/${orderId}/items/${itemId}/images`, { images }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["sales-orders", orderId] }),
+  });
+}
+
+export function useDeleteSalesOrderItemImage(orderId: string, itemId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (imageId: string) => api.delete<void>(`/sales-orders/${orderId}/items/${itemId}/images/${imageId}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["sales-orders", orderId] }),
   });
 }

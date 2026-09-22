@@ -1,7 +1,9 @@
+import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import { Alert, StyleSheet, Text, View } from "react-native";
 import { LatenessDot } from "@/components/deadlines/LatenessDot";
+import { OrderItemImagesModal } from "@/components/orders/OrderItemImagesModal";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -37,6 +39,8 @@ export default function OrderDetailScreen() {
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [dateOverrides, setDateOverrides] = useState<Record<string, Date>>({});
   const [bulkReceivedAt, setBulkReceivedAt] = useState(() => new Date());
+  // Giữ id chứ không giữ cả dòng: imageCount phải lấy từ dữ liệu đơn mới nhất sau mỗi lần tải/xoá ảnh.
+  const [imagesItemId, setImagesItemId] = useState<string | null>(null);
 
   if (isLoading) {
     return (
@@ -63,6 +67,9 @@ export default function OrderDetailScreen() {
   // đơn đã xác nhận (kể cả Hoàn thành), nếu không thì ngày sai sẽ bị khoá cứng.
   const canEditDates =
     canApprove && (order.status === "CONFIRMED" || order.status === "SHORT" || order.status === "COMPLETED");
+  // Chứng từ chỉ đính khi đơn đã hoàn thành (server cũng chặn).
+  const showImages = order.status === "COMPLETED";
+  const imagesItem = imagesItemId ? order.items.find((item) => item.id === imagesItemId) : undefined;
 
   /** ORDERS.APPROVE huỷ được ở mọi trạng thái còn mở; ORDERS.ADD chỉ huỷ được khi đơn chưa xác nhận. */
   const canCancel = canApprove
@@ -237,6 +244,18 @@ export default function OrderDetailScreen() {
                 </View>
               ) : null}
 
+              {showImages && (canApprove || item.imageCount > 0) ? (
+                <View style={styles.itemInput}>
+                  <Button
+                    title={`Chứng từ (${item.imageCount})`}
+                    variant="secondary"
+                    size="sm"
+                    icon={<Ionicons name="camera-outline" size={16} color={colors.text} />}
+                    onPress={() => setImagesItemId(item.id)}
+                  />
+                </View>
+              ) : null}
+
               {item.note ? <Text style={styles.itemNote}>{item.note}</Text> : null}
             </View>
           ))}
@@ -253,6 +272,15 @@ export default function OrderDetailScreen() {
           <Button title="Huỷ đơn" variant="danger" fullWidth loading={updateStatus.isPending} onPress={handleCancel} />
         ) : null}
       </Screen>
+
+      {imagesItem ? (
+        <OrderItemImagesModal
+          orderId={order.id}
+          item={imagesItem}
+          canManage={canApprove && showImages}
+          onClose={() => setImagesItemId(null)}
+        />
+      ) : null}
     </>
   );
 }
