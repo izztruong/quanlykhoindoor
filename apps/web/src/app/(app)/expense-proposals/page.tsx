@@ -12,13 +12,12 @@ import { useUserOptions } from "@/hooks/useUsers";
 import { clampDateRange } from "@/lib/dateRange";
 import {
   EXPENSE_PAYER_LABEL,
-  EXPENSE_PROPOSAL_CATEGORY_LABEL,
   EXPENSE_PROPOSAL_STATUS_LABEL,
   EXPENSE_PROPOSAL_STATUS_TONE,
 } from "@/lib/expenseProposal";
 import { formatCurrency, formatDateOnly } from "@/lib/format";
 import { hasScopeAll, useCan } from "@/lib/permissions";
-import type { ExpenseProposal, ExpenseProposalCategory, ExpenseProposalStatus } from "@/types";
+import type { ExpenseProposal, ExpenseProposalStatus } from "@/types";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus } from "lucide-react";
 import Link from "next/link";
@@ -35,7 +34,6 @@ export default function ExpenseProposalsPage() {
     from: "",
     to: "",
     status: "" as ExpenseProposalStatus | "",
-    category: "" as ExpenseProposalCategory | "",
     createdById: "",
   };
   const [filter, setFilter] = useState(emptyFilter);
@@ -46,7 +44,6 @@ export default function ExpenseProposalsPage() {
     from: appliedFilter.from || undefined,
     to: appliedFilter.to || undefined,
     status: appliedFilter.status || undefined,
-    category: appliedFilter.category || undefined,
     createdById: appliedFilter.createdById || undefined,
     page,
     pageSize,
@@ -56,7 +53,6 @@ export default function ExpenseProposalsPage() {
     () => [
       { header: "Mã phiếu", accessorKey: "code" },
       { header: "Ngày tạo phiếu", accessorFn: (row) => formatDateOnly(row.proposalDate), id: "proposalDate" },
-      { header: "Loại phiếu", accessorFn: (row) => (row.category ? EXPENSE_PROPOSAL_CATEGORY_LABEL[row.category] : "-"), id: "category" },
       { header: "Người lập", accessorFn: (row) => row.createdBy?.name ?? "-", id: "createdBy" },
       { header: "Quán chi", accessorFn: (row) => row.shop?.name ?? "-", id: "shop" },
       {
@@ -138,20 +134,6 @@ export default function ExpenseProposalsPage() {
             >
               <option value="">Tất cả</option>
               {Object.entries(EXPENSE_PROPOSAL_STATUS_LABEL).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div className="w-40">
-            <label className="mb-1 block text-xs font-medium text-slate-500">Loại phiếu</label>
-            <Select
-              value={filter.category}
-              onChange={(e) => setFilter((f) => ({ ...f, category: e.target.value as ExpenseProposalCategory | "" }))}
-            >
-              <option value="">Tất cả</option>
-              {Object.entries(EXPENSE_PROPOSAL_CATEGORY_LABEL).map(([value, label]) => (
                 <option key={value} value={value}>
                   {label}
                 </option>

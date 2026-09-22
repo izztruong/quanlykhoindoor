@@ -103,6 +103,7 @@ lượt còn lại phải trừ nối tiếp nhau (tức Render nhận đúng IP
 Migration chuyển lần ứng cũ sang bảng mới, tách quyền PAY → Tạm ứng + Hoàn thành. Đã kiểm typecheck ba app, lint web, bundle Android,
 `migrate deploy` trên DB trắng và DB có phiếu cũ, 46 ca curl. CHƯA xác nhận trên trình duyệt; CHƯA chạy mobile trên máy (màn Hoàn thành, Thêm hạng mục, tấm Tạm ứng, chụp chứng từ).
 Lên `staging` phải kèm build APK preview mới: APK đang cài gọi `/spend` (đã bỏ) và `/advance` không kèm số tiền.
+Đã bỏ trường Loại phiếu (MKT/Vận hành/CSVC); migration xoá luôn dữ liệu loại phiếu cũ — lên production là mất hẳn, không khôi phục được.
 
 ### Cờ "Là quán" trên vai trò — CHƯA kiểm thử trên trình duyệt, đã lên `main`
 Ô chọn/lọc quán chỉ hiện tài khoản thuộc vai trò có tick (admin bị ẩn); lọc Người lập ở đề xuất chi vẫn thấy mọi tài khoản.

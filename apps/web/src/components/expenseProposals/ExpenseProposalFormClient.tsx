@@ -8,9 +8,9 @@ import { useCreateExpenseProposal, useUpdateExpenseProposal } from "@/hooks/useE
 import { useUserOptions } from "@/hooks/useUsers";
 import { ApiError } from "@/lib/api-client";
 import { useCurrentUser } from "@/lib/auth";
-import { EXPENSE_PAYER_LABEL, EXPENSE_PROPOSAL_CATEGORY_LABEL, todayForDateInput } from "@/lib/expenseProposal";
+import { EXPENSE_PAYER_LABEL, todayForDateInput } from "@/lib/expenseProposal";
 import { formatCurrency, toDateInput } from "@/lib/format";
-import type { ExpensePayer, ExpenseProposal, ExpenseProposalCategory } from "@/types";
+import type { ExpensePayer, ExpenseProposal } from "@/types";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -25,7 +25,6 @@ export function ExpenseProposalFormClient({ existing }: { existing?: ExpenseProp
 
   const [proposalDate, setProposalDate] = useState(() => (existing ? toDateInput(existing.proposalDate) : todayForDateInput()));
   const [payer, setPayer] = useState<ExpensePayer>(existing?.payer ?? "CREATOR");
-  const [category, setCategory] = useState<ExpenseProposalCategory | "">(existing?.category ?? "");
   // Chỉ tài khoản thuộc vai trò "là quán" (mặc định của /users/options).
   const { data: shops = [] } = useUserOptions();
   // null = chưa đụng tới ô chọn: phiếu mới thì chọn sẵn chính người lập nếu họ là quán. Phải tính lúc
@@ -52,7 +51,6 @@ export function ExpenseProposalFormClient({ existing }: { existing?: ExpenseProp
     setError(null);
 
     if (!proposalDate) return setError("Vui lòng chọn ngày tạo phiếu.");
-    if (!category) return setError("Vui lòng chọn loại phiếu.");
     if (!shopId) return setError("Vui lòng chọn quán chi.");
     if (!approverId) return setError("Vui lòng chọn người duyệt.");
     if (!purpose.trim()) return setError("Vui lòng nhập mục đích sử dụng.");
@@ -69,7 +67,6 @@ export function ExpenseProposalFormClient({ existing }: { existing?: ExpenseProp
     const payload = {
       proposalDate,
       payer,
-      category,
       shopId,
       approverId,
       purpose: purpose.trim(),
@@ -113,17 +110,6 @@ export function ExpenseProposalFormClient({ existing }: { existing?: ExpenseProp
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-slate-600">Người lập phiếu</label>
             <Input value={creatorName} disabled className="bg-slate-50 text-slate-600" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-slate-600">Loại phiếu</label>
-            <Select value={category} onChange={(e) => setCategory(e.target.value as ExpenseProposalCategory | "")}>
-              <option value="">— Chọn loại phiếu —</option>
-              {Object.entries(EXPENSE_PROPOSAL_CATEGORY_LABEL).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </Select>
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-slate-600">Người chi</label>

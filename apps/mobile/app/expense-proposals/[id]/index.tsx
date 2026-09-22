@@ -14,7 +14,6 @@ import { useDecideExpenseProposal, useDeleteExpenseProposal, useExpenseProposal 
 import { ApiError } from "@/lib/apiClient";
 import {
   EXPENSE_PAYER_LABEL,
-  EXPENSE_PROPOSAL_CATEGORY_LABEL,
   EXPENSE_PROPOSAL_STATUS_LABEL,
   EXPENSE_PROPOSAL_STATUS_TONE,
 } from "@/lib/expenseProposal";
@@ -170,7 +169,6 @@ export default function ExpenseProposalDetailScreen() {
               <Badge tone={EXPENSE_PROPOSAL_STATUS_TONE[status]}>{EXPENSE_PROPOSAL_STATUS_LABEL[status]}</Badge>
             </View>
             <InfoRow label="Ngày tạo phiếu" value={formatDateOnly(proposal.proposalDate)} />
-            <InfoRow label="Loại phiếu" value={proposal.category ? EXPENSE_PROPOSAL_CATEGORY_LABEL[proposal.category] : "—"} />
             <InfoRow label="Người lập" value={proposal.createdBy?.name ?? "—"} />
             <InfoRow label="Quán chi" value={proposal.shop?.name ?? "—"} />
             <InfoRow label="Người duyệt" value={proposal.approver?.name ?? "—"} />

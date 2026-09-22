@@ -11,13 +11,12 @@ import { useCreateExpenseProposal, useUpdateExpenseProposal } from "@/hooks/useE
 import { useUserOptions } from "@/hooks/useUsers";
 import { useCurrentUser } from "@/lib/auth";
 import { dateOnlyToDate, dateToDateOnly } from "@/lib/dateOnly";
-import { EXPENSE_PAYER_LABEL, EXPENSE_PROPOSAL_CATEGORY_LABEL, todayForDateInput } from "@/lib/expenseProposal";
+import { EXPENSE_PAYER_LABEL, todayForDateInput } from "@/lib/expenseProposal";
 import { formatCurrency, toDateInput } from "@/lib/format";
 import { colors, fontSize, radius, spacing } from "@/lib/theme";
-import type { ExpensePayer, ExpenseProposal, ExpenseProposalCategory } from "@/types";
+import type { ExpensePayer, ExpenseProposal } from "@/types";
 import { ExpenseItemsEditor, rowsFromItems, totalsOf, validateRows, type ItemRow } from "./ExpenseItemsEditor";
 
-const CATEGORY_OPTIONS = Object.entries(EXPENSE_PROPOSAL_CATEGORY_LABEL).map(([value, label]) => ({ value, label }));
 const PAYER_OPTIONS = Object.entries(EXPENSE_PAYER_LABEL).map(([value, label]) => ({ value, label }));
 
 /**
@@ -35,7 +34,6 @@ export function ExpenseProposalForm({ existing }: { existing?: ExpenseProposal }
   const [proposalDate, setProposalDate] = useState(() =>
     existing ? toDateInput(existing.proposalDate) : todayForDateInput(),
   );
-  const [category, setCategory] = useState<ExpenseProposalCategory | "">(existing?.category ?? "");
   const [payer, setPayer] = useState<ExpensePayer>(existing?.payer ?? "CREATOR");
 
   const { data: shops = [] } = useUserOptions({ scope: "shop" });
@@ -67,7 +65,6 @@ export function ExpenseProposalForm({ existing }: { existing?: ExpenseProposal }
 
   function submit() {
     setError(null);
-    if (!category) return setError("Vui lòng chọn loại phiếu.");
     if (!shopId) return setError("Vui lòng chọn quán chi.");
     if (!approverId) return setError("Vui lòng chọn người duyệt.");
     if (!purpose.trim()) return setError("Vui lòng nhập mục đích sử dụng.");
@@ -85,7 +82,6 @@ export function ExpenseProposalForm({ existing }: { existing?: ExpenseProposal }
     const payload = {
       proposalDate,
       payer,
-      category,
       shopId,
       approverId,
       purpose: purpose.trim(),
@@ -120,15 +116,6 @@ export function ExpenseProposalForm({ existing }: { existing?: ExpenseProposal }
             onChange={(date) => setProposalDate(dateToDateOnly(date))}
           />
           <Input label="Người lập phiếu" value={creatorName} editable={false} />
-          <Select
-            label="Loại phiếu"
-            required
-            value={category}
-            onChange={(value) => setCategory(value as ExpenseProposalCategory)}
-            options={CATEGORY_OPTIONS}
-            placeholder="Chọn loại phiếu"
-            searchable={false}
-          />
           <Select
             label="Người chi"
             required

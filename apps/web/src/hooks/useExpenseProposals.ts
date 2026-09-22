@@ -4,7 +4,6 @@ import type { CompressedImage } from "@/lib/imageCompress";
 import type {
   ExpensePayer,
   ExpenseProposal,
-  ExpenseProposalCategory,
   ExpenseProposalImage,
   ExpenseProposalStatus,
   PagedResult,
@@ -22,7 +21,6 @@ export interface ExpenseProposalInput {
   /** "YYYY-MM-DD" */
   proposalDate: string;
   payer: ExpensePayer;
-  category: ExpenseProposalCategory;
   /** Tài khoản quán (vai trò có cờ "là quán"). */
   shopId: string;
   /** Người duyệt — tài khoản không phải quán. */
@@ -39,7 +37,6 @@ export interface ExpenseProposalFilter {
   from?: string;
   to?: string;
   status?: ExpenseProposalStatus;
-  category?: ExpenseProposalCategory;
   createdById?: string;
   page?: number;
   pageSize?: number;

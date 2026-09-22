@@ -562,9 +562,6 @@ export type ExpenseProposalStatus = "PENDING" | "APPROVED" | "REJECTED" | "ADVAN
 /** CREATOR = người lập phiếu chi (phiếu mới có tạm ứng), ACCOUNTANT = kế toán chi. */
 export type ExpensePayer = "CREATOR" | "ACCOUNTANT";
 
-/** Loại phiếu đề xuất chi: MKT · Vận hành · CSVC. */
-export type ExpenseProposalCategory = "MKT" | "OPERATION" | "FACILITY";
-
 export interface ExpenseProposalItem {
   id: string;
   sortOrder: number;
@@ -606,8 +603,6 @@ export interface ExpenseProposal {
   /** Chỉ có ngày (cột DATE), đọc bằng formatDateOnly. */
   proposalDate: string;
   payer: ExpensePayer;
-  /** Null ở phiếu lập trước khi có trường loại phiếu. */
-  category: ExpenseProposalCategory | null;
   /** Quán chi. Null ở phiếu cũ lưu tên quán dạng chữ không khớp tài khoản nào. */
   shopId: string | null;
   shop?: UserRef;
