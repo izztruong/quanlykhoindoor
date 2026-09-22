@@ -31,10 +31,10 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
-### Chuẩn bị nộp App Store (iOS) — đã lên `main`, CHƯA build iOS lần nào
-Ẩn nút Google trên iOS (Guideline 4.8), `ITSAppUsesNonExemptEncryption: false`, giữ hỗ trợ iPad, phát hành dạng Unlisted; Render đã lên gói trả phí.
-Đã kiểm typecheck mobile và `expo config --type introspect` (plugin Google không làm vỡ prebuild iOS). Build bằng `build:preview:ios` / `build:production:ios` (chặn sai nhánh như Android).
-Cần: Apple Developer, build + thử trên iPhone/iPad (iPad xoay ngang được), tài khoản demo có dữ liệu, nộp form Unlisted.
+### Chuẩn bị nộp App Store (iOS) — 1.0.2 đã gửi lên App Store Connect, CHƯA nộp duyệt
+Ẩn nút Google trên iOS (Guideline 4.8), `ITSAppUsesNonExemptEncryption: false`, phát hành dạng Unlisted; Render đã lên gói trả phí.
+Tắt hỗ trợ iPad (`supportsTablet: false`, không có iPad để chụp ảnh) — chỉ trên `dev`; bản build đã gửi còn bật iPad, phải build + submit lại và chọn build mới.
+Cần: ảnh iPhone 1284×2778, tài khoản demo có dữ liệu, nộp form Unlisted, thử bản TestFlight trên iPhone.
 
 ### Ảnh chứng từ theo dòng hàng đơn hàng (server + web + mobile) — đã lên `main`, người dùng thử APK preview ổn
 Chỉ đính/xoá khi đơn COMPLETED, cần `ORDERS.APPROVE`; xem cần `ORDERS.VIEW`. Tối đa 5 ảnh/dòng, R2 như khoản chi.
