@@ -16,17 +16,17 @@ import { Select } from "@/components/ui/Select";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useFilterSheet } from "@/hooks/useFilterSheet";
 import { LIST_PAGE_SIZE } from "@/hooks/useInfiniteList";
-import { useDeleteShiftExpense, type ShiftExpenseListResult } from "@/hooks/useShiftExpenses";
+import { useDeleteShiftExpense, useToggleShiftExpensePaid, type ShiftExpenseListResult } from "@/hooks/useShiftExpenses";
 import { useUserOptions } from "@/hooks/useUsers";
 import { api } from "@/lib/apiClient";
-import { SHIFT_EXPENSE_TYPE_OPTIONS, formatCurrency, formatDateOnly, formatNumber, labels } from "@/lib/format";
+import { SHIFT_EXPENSE_TYPE_OPTIONS, formatCurrency, formatDateOnly, formatDateTime, formatNumber, labels } from "@/lib/format";
 import { useCan } from "@/lib/permissions";
 import { colors, fontSize, radius, spacing } from "@/lib/theme";
 import type { ShiftExpense } from "@/types";
 
 export default function ShiftExpensesScreen() {
   const { can, scopeAll } = useCan();
-  const filter = useFilterSheet(() => ({ range: currentMonthRange(), type: "", createdById: "" }));
+  const filter = useFilterSheet(() => ({ range: currentMonthRange(), type: "", createdById: "", paid: "" }));
   const { applied, draft } = filter;
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<ShiftExpense | "new" | null>(null);
@@ -37,6 +37,7 @@ export default function ShiftExpensesScreen() {
 
   const { data: users = [] } = useUserOptions({ enabled: scopeAll });
   const remove = useDeleteShiftExpense();
+  const togglePaid = useToggleShiftExpensePaid();
 
   const params = {
     from: applied.range.from,
@@ -44,6 +45,7 @@ export default function ShiftExpensesScreen() {
     type: applied.type || undefined,
     search: debouncedSearch || undefined,
     createdById: applied.createdById || undefined,
+    paid: (applied.paid || undefined) as "true" | "false" | undefined,
   };
 
   // Không dùng useInfiniteList được: endpoint này trả thêm totalAmount (tổng của CẢ bộ lọc,
@@ -66,6 +68,22 @@ export default function ShiftExpensesScreen() {
       { text: "Huỷ", style: "cancel" },
       { text: "Xoá", style: "destructive", onPress: () => remove.mutate(item.id) },
     ]);
+  }
+
+  // Hỏi cả hai chiều: danh sách thẻ dày nên bấm nhầm là chuyện thường, mà đánh dấu là khoá luôn
+  // quán khỏi sửa/xoá khoản đó.
+  function confirmTogglePaid(item: ShiftExpense) {
+    const paid = !item.paidAt;
+    Alert.alert(
+      paid ? "Đánh dấu đã chi" : "Bỏ đánh dấu đã chi",
+      paid
+        ? `Đánh dấu "${item.content}" là đã chi? Quán sẽ không sửa hay xoá khoản này được nữa.`
+        : `Bỏ đánh dấu "${item.content}"? Quán sẽ sửa/xoá lại được.`,
+      [
+        { text: "Huỷ", style: "cancel" },
+        { text: paid ? "Đánh dấu" : "Bỏ đánh dấu", onPress: () => togglePaid.mutate({ id: item.id, paid }) },
+      ],
+    );
   }
 
   const summary = [formatRangeLabel(applied.range)];
@@ -121,9 +139,17 @@ export default function ShiftExpensesScreen() {
           renderItem={(item) => (
             <ListRowCard
               title={item.content}
-              subtitle={formatDateOnly(item.spentAt)}
-              badge={<Badge tone={item.type === "MATERIAL" ? "blue" : "gray"}>{labels.shiftExpenseType(item.type)}</Badge>}
+              subtitle={`Ngày chi: ${formatDateOnly(item.spentAt)}`}
+              badge={
+                <View style={styles.badges}>
+                  {item.paidAt ? <Badge tone="green">Đã chi</Badge> : null}
+                  <Badge tone={item.type === "MATERIAL" ? "blue" : "gray"}>{labels.shiftExpenseType(item.type)}</Badge>
+                </View>
+              }
               meta={[
+                // formatDateTime chứ không phải formatDateOnly: createdAt là mốc thật, đọc theo
+                // getUTC* thì khoản ghi sau 17h giờ VN hiện lùi một ngày.
+                { label: "Ngày lập phiếu", value: formatDateTime(item.createdAt) },
                 {
                   label: "Số lượng",
                   value: `${formatNumber(item.quantity)}${item.unit ? ` ${item.unit}` : ""}`,
@@ -131,18 +157,36 @@ export default function ShiftExpensesScreen() {
                 { label: "Đơn giá", value: formatCurrency(item.unitPrice) },
                 { label: "Thành tiền", value: formatCurrency(item.amount) },
                 { label: "Người tạo", value: item.createdBy?.name ?? "—" },
+                // Mobile không có màn chi tiết nên ai đánh dấu / lúc nào phải nằm ngay trên thẻ.
+                ...(item.paidAt
+                  ? [{ label: "Đã chi", value: `${item.paidBy?.name ?? "—"} · ${formatDateTime(item.paidAt)}` }]
+                  : []),
               ]}
               actions={
-                item.imageCount ? (
-                  <RowAction
-                    icon="image-outline"
-                    label={`Xem ảnh (${item.imageCount})`}
-                    onPress={() => setViewingImagesOf(item.id)}
-                  />
-                ) : null
+                <>
+                  {item.imageCount ? (
+                    <RowAction
+                      icon="image-outline"
+                      label={`Xem ảnh (${item.imageCount})`}
+                      onPress={() => setViewingImagesOf(item.id)}
+                    />
+                  ) : null}
+                  {can("SHIFT_EXPENSES", "PAY") ? (
+                    <RowAction
+                      icon={item.paidAt ? "arrow-undo-outline" : "checkmark-circle-outline"}
+                      label={item.paidAt ? "Bỏ đánh dấu" : "Đánh dấu đã chi"}
+                      onPress={() => confirmTogglePaid(item)}
+                    />
+                  ) : null}
+                </>
               }
-              onEdit={can("SHIFT_EXPENSES", "EDIT") ? () => setEditing(item) : undefined}
-              onDelete={can("SHIFT_EXPENSES", "DELETE") ? () => confirmDelete(item) : undefined}
+              onEdit={
+                // Ẩn hẳn chứ không làm mờ như bên web: RowAction không có trạng thái disabled và
+                // điện thoại không có tooltip, nên nút mờ chỉ là nút bấm không ăn. Badge "Đã chi"
+                // ngay đầu thẻ đã là lời giải thích.
+                can("SHIFT_EXPENSES", "EDIT") && !item.paidAt ? () => setEditing(item) : undefined
+              }
+              onDelete={can("SHIFT_EXPENSES", "DELETE") && !item.paidAt ? () => confirmDelete(item) : undefined}
             />
           )}
         />
@@ -156,6 +200,17 @@ export default function ShiftExpensesScreen() {
           onChange={(type) => filter.patchDraft({ type })}
           emptyLabel="Tất cả loại chi"
           options={SHIFT_EXPENSE_TYPE_OPTIONS}
+          searchable={false}
+        />
+        <Select
+          label="Trạng thái chi"
+          value={draft.paid}
+          onChange={(paid) => filter.patchDraft({ paid })}
+          emptyLabel="Tất cả"
+          options={[
+            { value: "false", label: "Chưa chi" },
+            { value: "true", label: "Đã chi" },
+          ]}
           searchable={false}
         />
         {scopeAll ? (
@@ -195,4 +250,5 @@ const styles = StyleSheet.create({
   totalValue: { fontSize: fontSize.xxl, fontWeight: "700", color: colors.info },
   summaryRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   summary: { fontSize: fontSize.sm, color: colors.textMuted },
+  badges: { flexDirection: "row", alignItems: "center", gap: spacing.xs, flexWrap: "wrap" },
 });

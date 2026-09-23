@@ -515,7 +515,14 @@ export interface ShiftExpense {
   amount: string | number;
   note?: string | null;
   createdBy?: { id: string; name: string } | null;
+  /** Mốc hệ thống đóng dấu lúc tạo bản ghi = "ngày lập phiếu". Khác spentAt (ngày quán khai đã
+   *  chi tiền) và là DateTime thật, nên hiển thị phải qua formatDateTime — formatDateOnly đọc
+   *  theo getUTC* sẽ lùi một ngày với khoản ghi sau 17h giờ VN. */
   createdAt: string;
+  /** Mốc đánh dấu "đã chi". null = chưa chi. Cũng là DateTime thật, cùng lưu ý múi giờ như
+   *  createdAt. Khác null thì quán hết sửa/xoá được khoản này. */
+  paidAt?: string | null;
+  paidBy?: { id: string; name: string } | null;
   /** Số ảnh chứng từ đã đính. Danh sách chỉ đếm; URL xem ảnh lấy riêng qua GET /:id/images. */
   imageCount?: number;
 }

@@ -21,8 +21,14 @@ export const shiftExpensesRouter = Router();
 // khi phần lớn người xem không mở ảnh nào. URL chỉ ký ở GET /:id/images.
 const listInclude = {
   createdBy: { select: { id: true, name: true } },
+  paidBy: { select: { id: true, name: true } },
   _count: { select: { images: true } },
 };
+
+/** Thông báo dùng chung cho mọi đường sửa đổi bị dấu "đã chi" chặn lại. */
+function paidLockMessage(action: string) {
+  return `Khoản chi đã được đánh dấu đã chi nên không ${action} được nữa. Nhờ người phụ trách bỏ đánh dấu trước.`;
+}
 
 /** Thành tiền chốt ở server, không tin số client gửi lên — giống costAmount của phiếu nhập/xuất. */
 function toRow(data: ShiftExpenseInput, createdById?: string) {
@@ -46,7 +52,7 @@ function toApiRow<T extends { _count: { images: number } }>({ _count, ...row }: 
 
 shiftExpensesRouter.get("/", requirePermission("SHIFT_EXPENSES"), async (req, res) => {
   const { from, to } = parseDateRange(req);
-  const { search, createdById, type } = req.query as Record<string, string>;
+  const { search, createdById, type, paid } = req.query as Record<string, string>;
   const { skip, take, page, pageSize } = parsePagination(req, 20);
 
   // Chú kiểu tường minh: không có nó, TypeScript nới literal đã lọc của `type` thành `string` rồi
@@ -57,6 +63,9 @@ shiftExpensesRouter.get("/", requirePermission("SHIFT_EXPENSES"), async (req, re
     // Giá trị lạ thì bỏ qua bộ lọc thay vì trả lỗi — query string do người dùng gõ tay được.
     type: type === "MATERIAL" || type === "OTHER" ? type : undefined,
     content: search ? { contains: search, mode: "insensitive" } : undefined,
+    // "true" = đã chi, "false" = chưa chi, giá trị lạ thì bỏ qua bộ lọc như `type` ở trên.
+    // Lọc "chưa chi" thì totalAmount bên dưới thành "tổng còn phải chi" — đúng thứ kế toán cần.
+    paidAt: paid === "true" ? { not: null } : paid === "false" ? null : undefined,
     // Phạm vi SELF chỉ thấy khoản chi của mình; ALL thấy hết, lọc theo quán qua ?createdById=.
     createdById: ownerWhere(req.user, createdById),
   };
@@ -106,6 +115,8 @@ shiftExpensesRouter.put("/:id", requirePermission("SHIFT_EXPENSES"), async (req,
   const existing = await prisma.shiftExpense.findUnique({ where: { id } });
   if (!existing) throw new HttpError(404, "Không tìm thấy khoản chi");
   assertOwner(existing, req.user, "Không tìm thấy khoản chi");
+  // Dấu "đã chi" khoá bản ghi — sửa số tiền sau khi đã chi là làm lệch số đã duyệt chi.
+  if (existing.paidAt) throw new HttpError(409, paidLockMessage("sửa"));
 
   // createdById giữ nguyên chủ cũ: sửa hộ thì khoản chi vẫn thuộc về quán đã ghi.
   const { createdById: _ignored, ...row } = toRow(data);
@@ -119,6 +130,7 @@ shiftExpensesRouter.delete("/:id", requirePermission("SHIFT_EXPENSES"), async (r
   const existing = await prisma.shiftExpense.findUnique({ where: { id }, include: { images: true } });
   if (!existing) throw new HttpError(404, "Không tìm thấy khoản chi");
   assertOwner(existing, req.user, "Không tìm thấy khoản chi");
+  if (existing.paidAt) throw new HttpError(409, paidLockMessage("xoá"));
 
   // Đọc khoá ảnh TRƯỚC khi xoá: cascade dọn sạch dòng trong DB nên xoá xong là không còn gì để đọc,
   // mà cascade lại không đụng tới file trên R2.
@@ -130,7 +142,43 @@ shiftExpensesRouter.delete("/:id", requirePermission("SHIFT_EXPENSES"), async (r
   res.status(204).end();
 });
 
-/** Nạp khoản chi và chặn ngoài phạm vi. Dùng chung cho cả ba route ảnh bên dưới. */
+// Đánh dấu "đã chi". Quyền truyền TƯỜNG MINH "PAY": suy theo method thì POST → ADD, mà vai trò
+// "Quán" có sẵn SHIFT_EXPENSES.ADD — bỏ tham số thứ hai là quán tự đánh dấu khoản chi của mình,
+// rồi tự khoá mình khỏi sửa. Hai chiều tách thành hai route thay vì một toggle đọc-rồi-ghi: mỗi
+// chiều idempotent nên bấm hai lần trên mạng chậm không lật ngược trạng thái.
+shiftExpensesRouter.post("/:id/pay", requirePermission("SHIFT_EXPENSES", "PAY"), async (req, res) => {
+  const id = req.params.id as string;
+  await findOwnedExpense(id, req.user);
+
+  // updateMany có điều kiện paidAt thay vì update: hai request đồng thời thì đúng một cái ghi được,
+  // cái kia count = 0 và nhận 409 thay vì lặng lẽ ghi đè mốc của người trước.
+  const { count } = await prisma.shiftExpense.updateMany({
+    where: { id, paidAt: null },
+    data: { paidAt: new Date(), paidById: req.user?.id },
+  });
+  if (count === 0) throw new HttpError(409, "Khoản chi này đã được đánh dấu đã chi rồi");
+
+  const item = await prisma.shiftExpense.findUniqueOrThrow({ where: { id }, include: listInclude });
+  res.json(toApiRow(item));
+});
+
+// Gỡ dấu — cùng quyền PAY. Cũng phải truyền tường minh: DELETE suy ra SHIFT_EXPENSES.DELETE mà vai
+// trò "Quán" cũng có sẵn mã đó.
+shiftExpensesRouter.delete("/:id/pay", requirePermission("SHIFT_EXPENSES", "PAY"), async (req, res) => {
+  const id = req.params.id as string;
+  await findOwnedExpense(id, req.user);
+
+  const { count } = await prisma.shiftExpense.updateMany({
+    where: { id, paidAt: { not: null } },
+    data: { paidAt: null, paidById: null },
+  });
+  if (count === 0) throw new HttpError(409, "Khoản chi này chưa đánh dấu đã chi");
+
+  const item = await prisma.shiftExpense.findUniqueOrThrow({ where: { id }, include: listInclude });
+  res.json(toApiRow(item));
+});
+
+/** Nạp khoản chi và chặn ngoài phạm vi. Dùng chung cho hai route pay ở trên và ba route ảnh bên dưới. */
 async function findOwnedExpense(id: string, user: Parameters<typeof assertOwner>[1]) {
   const expense = await prisma.shiftExpense.findUnique({ where: { id } });
   if (!expense) throw new HttpError(404, "Không tìm thấy khoản chi");
@@ -173,7 +221,10 @@ shiftExpensesRouter.post("/:id/images", requirePermission("SHIFT_EXPENSES"), asy
   }
 
   const id = req.params.id as string;
-  await findOwnedExpense(id, req.user);
+  const expense = await findOwnedExpense(id, req.user);
+  // "Không sửa được nữa" phải bao gồm cả việc thay ảnh hoá đơn sau khi đã chi tiền, không thì dấu
+  // chẳng bảo đảm điều gì. Riêng GET ảnh vẫn mở.
+  if (expense.paidAt) throw new HttpError(409, paidLockMessage("đổi ảnh chứng từ"));
   const { images } = shiftExpenseImageUploadSchema.parse(req.body);
 
   const existingCount = await prisma.shiftExpenseImage.count({ where: { shiftExpenseId: id } });
@@ -223,7 +274,8 @@ shiftExpensesRouter.post("/:id/images", requirePermission("SHIFT_EXPENSES"), asy
 
 shiftExpensesRouter.delete("/:id/images/:imageId", requirePermission("SHIFT_EXPENSES"), async (req, res) => {
   const id = req.params.id as string;
-  await findOwnedExpense(id, req.user);
+  const expense = await findOwnedExpense(id, req.user);
+  if (expense.paidAt) throw new HttpError(409, paidLockMessage("đổi ảnh chứng từ"));
 
   const image = await prisma.shiftExpenseImage.findUnique({ where: { id: req.params.imageId as string } });
   // Kiểm cả shiftExpenseId: id ảnh của khoản chi khác thì coi như không tồn tại.

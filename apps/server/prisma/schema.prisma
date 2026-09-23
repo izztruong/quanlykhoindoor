@@ -48,7 +48,8 @@ model User {
   reorderThresholds         ProductReorderThreshold[]
   stockChecks               StockCheck[]
   materialWastes            MaterialWaste[]
-  shiftExpenses             ShiftExpense[]
+  shiftExpenses             ShiftExpense[]            @relation("ShiftExpenseCreatedBy")
+  shiftExpensesPaid         ShiftExpense[]            @relation("ShiftExpensePaidBy")
   costChecks                CostCheck[]               @relation("CostCheckShop")
   costChecksCreated         CostCheck[]               @relation("CostCheckCreatedBy")
   materialTransfersFrom     MaterialTransfer[]        @relation("MaterialTransferFrom")
@@ -663,9 +664,16 @@ model ShiftExpense {
   amount      Decimal          @db.Decimal(18, 2)
   note        String?
   createdById String?
-  createdBy   User?            @relation(fields: [createdById], references: [id])
+  createdBy   User?            @relation("ShiftExpenseCreatedBy", fields: [createdById], references: [id])
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
+
+  // null = chưa chi. DateTime thật (khác spentAt là @db.Date): đây là mốc hệ thống đóng dấu lúc
+  // bấm nút, không phải ngày người dùng khai — nên hiển thị phải đi qua giờ địa phương, đừng đọc
+  // theo getUTC* như spentAt. Khác null thì KHOÁ bản ghi: quán hết sửa/xoá cho tới khi được gỡ dấu.
+  paidAt      DateTime?
+  paidById    String?
+  paidBy      User?            @relation("ShiftExpensePaidBy", fields: [paidById], references: [id])
 
   images ShiftExpenseImage[]
 

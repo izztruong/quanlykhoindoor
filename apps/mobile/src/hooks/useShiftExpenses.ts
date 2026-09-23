@@ -22,6 +22,8 @@ export interface ShiftExpenseFilter {
   type?: ShiftExpenseType | "";
   search?: string;
   createdById?: string;
+  /** "true" = đã chi, "false" = chưa chi, "" = không lọc (api-client tự bỏ tham số rỗng). */
+  paid?: "true" | "false" | "";
   page?: number;
   pageSize?: number;
 }
@@ -47,6 +49,21 @@ export function useUpdateShiftExpense() {
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: ShiftExpenseInput }) =>
       api.put<ShiftExpense>(`/shift-expenses/${id}`, data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["shift-expenses"] }),
+  });
+}
+
+/**
+ * Đánh dấu / bỏ đánh dấu "đã chi". Hai endpoint riêng cho hai chiều chứ không phải một toggle:
+ * mỗi chiều idempotent nên bấm hai lần trên mạng chậm không lật ngược trạng thái.
+ */
+export function useToggleShiftExpensePaid() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, paid }: { id: string; paid: boolean }) =>
+      paid
+        ? api.post<ShiftExpense>(`/shift-expenses/${id}/pay`)
+        : api.delete<ShiftExpense>(`/shift-expenses/${id}/pay`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["shift-expenses"] }),
   });
 }

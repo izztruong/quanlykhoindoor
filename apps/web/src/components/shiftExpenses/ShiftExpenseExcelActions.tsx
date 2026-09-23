@@ -10,7 +10,7 @@ import {
 } from "@/hooks/useShiftExpenses";
 import { ApiError, api } from "@/lib/api-client";
 import { exportRowsToExcel, sanitizeExcelRow } from "@/lib/excelExport";
-import { formatDateOnly, labels } from "@/lib/format";
+import { formatDateOnly, formatDateTime, labels } from "@/lib/format";
 import { COL, TEMPLATE_HEADER, headerMatchesTemplate, parseExpenseType, parseNumber, parseSpentAt } from "@/lib/shiftExpenseExcel";
 import type { ShiftExpense } from "@/types";
 import ExcelJS from "exceljs";
@@ -88,6 +88,12 @@ export function ShiftExpenseExcelActions({ filter, scopeAll }: ShiftExpenseExcel
           { header: "Ghi chú", value: (row) => row.note ?? "", width: 24 },
           { header: "Thành tiền", value: (row) => Number(row.amount), width: 16 },
           ...(scopeAll ? [{ header: "Quán", value: (row: ShiftExpense) => row.createdBy?.name ?? "", width: 20 }] : []),
+          // Ba cột cuối chỉ để đọc. Cột 1 vẫn phải là "Ngày" đúng như file mẫu dù giao diện đã đổi
+          // nhãn thành "Ngày chi": headerMatchesTemplate so đúng 7 tiêu đề đầu, đổi ở đây là chính
+          // file vừa xuất cũng không nhập ngược lại được.
+          { header: "Ngày lập phiếu", value: (row: ShiftExpense) => formatDateTime(row.createdAt), width: 18 },
+          { header: "Đã chi", value: (row: ShiftExpense) => (row.paidAt ? "Đã chi" : ""), width: 10 },
+          { header: "Người đánh dấu", value: (row: ShiftExpense) => row.paidBy?.name ?? "", width: 20 },
         ],
         data.items,
         "chi-chot-ca.xlsx",

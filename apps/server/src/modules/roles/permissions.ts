@@ -9,7 +9,17 @@ import { HttpError } from "../../utils/httpError";
  *   2. gắn `requirePermission("TÊN")` cho MỌI route của nó (kể cả GET),
  *   3. gắn `permission` cho mục menu trong apps/web/src/components/layout/nav-config.ts.
  */
-export const PERMISSION_ACTIONS = ["VIEW", "ADD", "EDIT", "DELETE", "RECEIVE", "APPROVE", "ADVANCE", "COMPLETE"] as const;
+export const PERMISSION_ACTIONS = [
+  "VIEW",
+  "ADD",
+  "EDIT",
+  "DELETE",
+  "RECEIVE",
+  "APPROVE",
+  "ADVANCE",
+  "COMPLETE",
+  "PAY",
+] as const;
 export type PermissionAction = (typeof PERMISSION_ACTIONS)[number];
 
 export const ACTION_LABELS: Record<PermissionAction, string> = {
@@ -21,6 +31,7 @@ export const ACTION_LABELS: Record<PermissionAction, string> = {
   APPROVE: "Duyệt đơn",
   ADVANCE: "Tạm ứng",
   COMPLETE: "Hoàn thành",
+  PAY: "Đánh dấu đã chi",
 };
 
 const CRUD: PermissionAction[] = ["VIEW", "ADD", "EDIT", "DELETE"];
@@ -37,7 +48,16 @@ export const PERMISSION_RESOURCES = [
     group: "Tài chính",
     actions: ["VIEW", "ADD", "EDIT", "DELETE", "APPROVE", "ADVANCE", "COMPLETE"],
   },
-  { resource: "SHIFT_EXPENSES", label: "Chi chốt ca", group: "Tài chính", actions: CRUD },
+  // PAY = đánh dấu và bỏ đánh dấu "Đã chi"; khoản đã đánh dấu thì khoá luôn, quán hết sửa/xoá.
+  // KHÔNG dùng lại hằng CRUD ở đây: nó dùng chung với PRODUCTS, UNITS, USERS, ROLES… thêm PAY vào
+  // đó là mọc ô "Đánh dấu đã chi" ở mọi danh mục. PAY chỉ có nghĩa khi đi kèm DATA.SCOPE_ALL —
+  // thiếu phạm vi thì ownerWhere giấu hết khoản chi quán khác, chẳng còn gì để đánh dấu.
+  {
+    resource: "SHIFT_EXPENSES",
+    label: "Chi chốt ca",
+    group: "Tài chính",
+    actions: ["VIEW", "ADD", "EDIT", "DELETE", "PAY"],
+  },
 
   // ADD = tạo đơn, sửa & huỷ đơn nháp của mình · RECEIVE = nhận hàng, xác nhận SL báo ·
   // APPROVE = xác nhận đơn (sinh phiếu xuất kho), huỷ đơn ở mọi trạng thái, sửa ngày nhận.

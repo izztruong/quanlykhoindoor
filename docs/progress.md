@@ -31,6 +31,11 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
+### Chi chốt ca: cột "Đã chi" + cột Ngày lập phiếu — CHƯA thử trên trình duyệt/app, chưa lên `staging`/`main`
+Quyền mới `SHIFT_EXPENSES.PAY` bật/tắt dấu "đã chi"; đã đánh dấu thì quán hết sửa/xoá/đổi ảnh (409). Cột "Ngày" đổi thành "Ngày chi", thêm "Ngày lập phiếu" (từ `createdAt`), lọc theo trạng thái chi. Excel chỉ thêm cột cuối, file mẫu giữ nguyên.
+Đã kiểm typecheck 3 app, bundle Android, curl (quán có ADD+DELETE vẫn 403 ở `/pay`, 409 sửa/xoá/ảnh khi đã chi, lọc paid, gỡ dấu rồi sửa lại được, có PAY thiếu `DATA.SCOPE_ALL` → 404).
+**Sau khi deploy phải tick "Đánh dấu đã chi" + "Xem & thao tác dữ liệu của mọi quán" cho vai trò kế toán** — không tick thì ngoài admin không ai thấy nút.
+
 ### Chuẩn bị nộp App Store (iOS) — 1.0.2 đã gửi lên App Store Connect, CHƯA nộp duyệt
 Ẩn nút Google trên iOS (Guideline 4.8), `ITSAppUsesNonExemptEncryption: false`, phát hành dạng Unlisted; Render đã lên gói trả phí.
 Tắt hỗ trợ iPad (`supportsTablet: false`, không có iPad để chụp ảnh) — chỉ trên `dev`; bản build đã gửi còn bật iPad, phải build + submit lại và chọn build mới.
