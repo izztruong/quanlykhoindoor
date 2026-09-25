@@ -1,11 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
-import type { ReorderThreshold } from "@/types";
+import type { ReorderMode, ReorderThreshold } from "@/types";
 
 export interface ReorderThresholdItemInput {
   productId: string;
+  mode: ReorderMode;
   minQuantity: number | null;
   maxQuantity: number | null;
+  fixedQuantity: number | null;
+  coverDays: number | null;
 }
 
 export function useReorderThresholds(userId?: string) {

@@ -72,6 +72,11 @@ export default function ProductsPage() {
         type: "number" as const,
       },
       {
+        name: "shelfLifeDays",
+        label: "Số ngày dùng được sau khi nhận (để trống = không hạn) — dùng để kẹp số ngày cần phủ khi gợi ý đặt hàng",
+        type: "number" as const,
+      },
+      {
         name: "active",
         label: "Đang sử dụng (bỏ tick để ẩn khỏi ô chọn hàng hoá khi tạo phiếu/đơn hàng)",
         type: "checkbox" as const,

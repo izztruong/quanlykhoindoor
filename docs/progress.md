@@ -1,6 +1,6 @@
 # Tiến độ dự án
 
-Cập nhật: 2026-09-22
+Cập nhật: 2026-09-25
 
 Ghi **đúng những gì git không tự trả lời được**. Lý do thiết kế đã nằm trong commit message, đừng
 chép lại vào đây. Mỗi mục "Đang dở" tối đa 3–4 dòng, và dòng quan trọng nhất luôn là: *đã kiểm thử
@@ -30,6 +30,14 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 ---
 
 ## Đang dở
+
+### Gợi ý đặt hàng (4 chế độ) + nạp doanh số POS — CHƯA thử trên trình duyệt, chưa lên `staging`/`main`
+Đã kiểm typecheck 2 app, build web, `migrate deploy` trên DB trắng (gồm migration seed 3 ca), và curl:
+4 chế độ khớp số tính tay, kẹp `shelfLifeDays`, 403/404 quyền & phạm vi, đơn tạo hộ `dueAt = null`, đơn
+nháp vào Tổng hợp đặt NCC, nhập POS (gộp trùng, ghi đè theo ngày, giờ 24 → 400), ca qua nửa đêm gộp 2
+ngày lịch, đổi mốc ca ra số khác mà không nhập lại. `npm run lint` (web) đỏ **từ trước** ở 11 file
+không liên quan. Còn lại: chạy `scripts/backtest-forecast.ts` sau khi nạp 2 tháng doanh số thật; mobile
+chưa làm; tên POS viết tắt ("CF sữa đá") so khớp chuỗi không ra, phải chọn tay.
 
 ### Chi chốt ca: cột "Đã chi" + cột Ngày lập phiếu — CHƯA thử trên trình duyệt/app, chưa lên `staging`/`main`
 Quyền mới `SHIFT_EXPENSES.PAY` bật/tắt dấu "đã chi"; đã đánh dấu thì quán hết sửa/xoá/đổi ảnh (409). Cột "Ngày" đổi thành "Ngày chi", thêm "Ngày lập phiếu" (từ `createdAt`), lọc theo trạng thái chi. Excel chỉ thêm cột cuối, file mẫu giữ nguyên.

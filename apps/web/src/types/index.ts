@@ -68,15 +68,93 @@ export interface Product {
   type: ProductType;
   tareWeight?: string | number | null;
   active?: boolean;
+  // Số ngày còn dùng được sau khi quán nhận hàng — dùng để kẹp số ngày cần phủ khi gợi ý đặt hàng.
+  shelfLifeDays?: number | null;
 }
+
+export type ReorderMode = "THRESHOLD" | "FIXED" | "COVERAGE" | "OFF";
+
+export const REORDER_MODE_LABELS: Record<ReorderMode, string> = {
+  THRESHOLD: "Theo tối thiểu / tối đa",
+  FIXED: "Gọi cố định",
+  COVERAGE: "Đủ dùng N ngày",
+  OFF: "Không đề xuất",
+};
 
 export interface ReorderThreshold {
   id: string;
   userId: string;
   productId: string;
   product: Product;
-  minQuantity: string | number;
-  maxQuantity: string | number;
+  mode: ReorderMode;
+  // Nullable theo chế độ: min/max cho THRESHOLD, fixedQuantity cho FIXED, coverDays cho COVERAGE.
+  // Đổi chế độ không xoá con số của chế độ cũ nên các cột không dùng vẫn có thể có giá trị.
+  minQuantity: string | number | null;
+  maxQuantity: string | number | null;
+  fixedQuantity: string | number | null;
+  coverDays: number | null;
+}
+
+export type DailyUsageSource = "COST_CHECK" | "RECEIVED" | "NONE";
+
+export const USAGE_SOURCE_LABELS: Record<DailyUsageSource, string> = {
+  COST_CHECK: "Từ Check Cost",
+  RECEIVED: "Từ lịch sử nhận",
+  NONE: "Chưa có dữ liệu",
+};
+
+/** Một dòng gợi ý đặt hàng do server tính. `reasons` là lời giải thích để người duyệt tin được con số. */
+export interface ReorderSuggestion {
+  productId: string;
+  code: string;
+  name: string;
+  unitLabel: string;
+  productGroupName: string;
+  active: boolean;
+  mode: ReorderMode;
+  minQuantity: number | null;
+  maxQuantity: number | null;
+  fixedQuantity: number | null;
+  coverDays: number | null;
+  shelfLifeDays: number | null;
+  onHandQty: number | null;
+  dailyUsage: number | null;
+  usageSource: DailyUsageSource;
+  suggestedQty: number;
+  reasons: string[];
+}
+
+export type ShiftCode = "CA1" | "CA2" | "CA3";
+
+export interface ShiftDefinition {
+  id: string;
+  code: ShiftCode;
+  name: string;
+  startHour: number;
+  startMinute: number;
+  endHour: number;
+  endMinute: number;
+}
+
+export interface PosSaleDay {
+  userId: string;
+  user: { id: string; name: string } | null;
+  soldOn: string;
+  totalQuantity: number;
+  cellCount: number;
+}
+
+export interface PosItemMapping {
+  id: string;
+  posName: string;
+  posNameRaw: string;
+  finishedGoodItemId: string;
+  finishedGoodItem: { id: string; code: string; name: string };
+}
+
+export interface PosMappingSuggestion {
+  posNameRaw: string;
+  suggestions: { finishedGoodItemId: string; code: string; name: string; score: number }[];
 }
 
 export interface Supplier {

@@ -32,8 +32,14 @@ reorderThresholdsRouter.put("/", requirePermission("REORDER_THRESHOLDS", "EDIT")
   // higher latency. Batch the (common, large) delete side into a single
   // query and send everything else as one non-interactive transaction so it
   // runs on one connection instead of one per row.
-  const toDelete = items.filter((it) => it.minQuantity == null || it.maxQuantity == null);
-  const toUpsert = items.filter((it) => it.minQuantity != null && it.maxQuantity != null);
+  // Dòng bị XOÁ = dòng không mang cấu hình nào dùng được: chế độ THRESHOLD mà thiếu min hoặc max.
+  // Giữ đúng thói quen cũ "để trống hai ô là gỡ hàng khỏi danh sách". Các chế độ khác thì luôn giữ —
+  // FIXED/COVERAGE đã được Zod bắt phải có con số của mình, còn OFF là một lựa chọn tường minh chứ
+  // không phải dòng rỗng.
+  const isBlankThreshold = (it: (typeof items)[number]) =>
+    it.mode === "THRESHOLD" && (it.minQuantity == null || it.maxQuantity == null);
+  const toDelete = items.filter(isBlankThreshold);
+  const toUpsert = items.filter((it) => !isBlankThreshold(it));
 
   const operations: Prisma.PrismaPromise<unknown>[] = [];
   if (toDelete.length > 0) {
@@ -44,11 +50,20 @@ reorderThresholdsRouter.put("/", requirePermission("REORDER_THRESHOLDS", "EDIT")
     );
   }
   for (const it of toUpsert) {
+    // Ghi cả 4 cột kể cả khi chế độ hiện tại không dùng tới: trang này luôn gửi nguyên bảng, nên
+    // những ô người dùng đã xoá trên giao diện phải thành null trong DB, không được giữ giá trị cũ.
+    const values = {
+      mode: it.mode,
+      minQuantity: it.minQuantity ?? null,
+      maxQuantity: it.maxQuantity ?? null,
+      fixedQuantity: it.fixedQuantity ?? null,
+      coverDays: it.coverDays ?? null,
+    };
     operations.push(
       prisma.productReorderThreshold.upsert({
         where: { userId_productId: { userId, productId: it.productId } },
-        create: { userId, productId: it.productId, minQuantity: it.minQuantity!, maxQuantity: it.maxQuantity! },
-        update: { minQuantity: it.minQuantity!, maxQuantity: it.maxQuantity! },
+        create: { userId, productId: it.productId, ...values },
+        update: values,
       }),
     );
   }

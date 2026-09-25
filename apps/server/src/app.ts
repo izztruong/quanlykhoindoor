@@ -22,9 +22,13 @@ import { productsRouter } from "./modules/products/products.routes";
 import { productSupplierPricesRouter } from "./modules/productSupplierPrices/productSupplierPrices.routes";
 import { notificationsRouter } from "./modules/notifications/notifications.routes";
 import { profileRouter } from "./modules/profile/profile.routes";
+import { posItemMappingsRouter } from "./modules/posItemMappings/posItemMappings.routes";
+import { posSalesRouter } from "./modules/posSales/posSales.routes";
+import { reorderSuggestionsRouter } from "./modules/reorderSuggestions/reorderSuggestions.routes";
 import { reorderThresholdsRouter } from "./modules/reorderThresholds/reorderThresholds.routes";
 import { reportsRouter } from "./modules/reports/reports.routes";
 import { rolesRouter } from "./modules/roles/roles.routes";
+import { shiftDefinitionsRouter } from "./modules/shiftDefinitions/shiftDefinitions.routes";
 import { salesOrdersRouter } from "./modules/salesOrders/salesOrders.routes";
 import { shiftExpensesRouter } from "./modules/shiftExpenses/shiftExpenses.routes";
 import { stockChecksRouter } from "./modules/stockChecks/stockChecks.routes";
@@ -64,7 +68,7 @@ app.use("/api", requireAuth);
 // Phân quyền nằm trong từng router: mỗi route gắn requirePermission("RESOURCE") (xem
 // modules/roles/permissions.ts), dữ liệu gắn với quán thu hẹp thêm qua ownerWhere/assertOwner.
 // Ngoại lệ có chủ đích: GET danh mục tra cứu (kho, hàng hoá, khách hàng, đơn vị, nhóm, NCC, đồ thành
-// phẩm, tồn kho, hạn nộp) chỉ cần đăng nhập, vì form tạo đơn/phiếu của quán phải đọc chúng.
+// phẩm, tồn kho, hạn nộp, khung giờ ca) chỉ cần đăng nhập, vì form tạo đơn/phiếu của quán phải đọc chúng.
 app.use("/api/warehouses", warehousesRouter);
 app.use("/api/customers", customersRouter);
 app.use("/api/products", productsRouter);
@@ -72,11 +76,15 @@ app.use("/api/product-stock", productStockRouter);
 app.use("/api/finished-good-items", finishedGoodItemsRouter);
 app.use("/api/reorder-thresholds", reorderThresholdsRouter);
 app.use("/api/deadlines", deadlinesRouter);
+app.use("/api/shift-definitions", shiftDefinitionsRouter);
 app.use("/api/product-groups", productGroupsRouter);
 app.use("/api/units", unitsRouter);
 app.use("/api/suppliers", suppliersRouter);
 
 app.use("/api/sales-orders", salesOrdersRouter);
+app.use("/api/reorder-suggestions", reorderSuggestionsRouter);
+app.use("/api/pos-sales", posSalesRouter);
+app.use("/api/pos-item-mappings", posItemMappingsRouter);
 app.use("/api/stock-checks", stockChecksRouter);
 app.use("/api/material-waste", materialWasteRouter);
 app.use("/api/shift-expenses", shiftExpensesRouter);

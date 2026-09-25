@@ -10,15 +10,26 @@ import { useReorderThresholds, useSaveReorderThresholds } from "@/hooks/useReord
 import { useUserOptions } from "@/hooks/useUsers";
 import { ApiError } from "@/lib/api-client";
 import { type ExcelColumn, exportRowsToExcel, sanitizeExcelRow } from "@/lib/excelExport";
-import type { Product } from "@/types";
+import { REORDER_MODE_LABELS, type Product, type ReorderMode } from "@/types";
 import ExcelJS from "exceljs";
 import { ChevronDown, Download } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-interface RowInput {
-  min: string;
-  max: string;
-}
+const MODES: ReorderMode[] = ["THRESHOLD", "FIXED", "COVERAGE", "OFF"];
+
+/**
+ * Chỉ số cột Excel gom vào MỘT hằng số dùng chung cho mẫu trắng, xuất và nhập — đổi bố cục ở một chỗ
+ * là cả ba đường đi theo. Thiếu điều này thì thêm một cột là phần nhập đọc lệch cột, số liệu hỏng mà
+ * file trông vẫn bình thường.
+ */
+const EXCEL_COLUMNS = ["Mã hàng hoá*", "Cách gọi", "Tối thiểu", "Tối đa", "SL gọi cố định", "Số ngày cần phủ"] as const;
+const COL = { code: 1, mode: 2, min: 3, max: 4, fixed: 5, cover: 6 } as const;
+
+/** Nhãn tiếng Việt ↔ mã chế độ, để file Excel đọc được bằng tiếng người. */
+const MODE_BY_LABEL = new Map(MODES.map((m) => [REORDER_MODE_LABELS[m].toLowerCase(), m]));
+
+type RowField = "mode" | "min" | "max" | "fixed" | "cover";
+type RowInput = Partial<Record<RowField, string>>;
 
 export default function ReorderThresholdsPage() {
   const { data: users = [] } = useUserOptions();
@@ -54,12 +65,28 @@ export default function ReorderThresholdsPage() {
 
   const savedByProductId = useMemo(() => new Map(thresholds.map((t) => [t.productId, t])), [thresholds]);
 
-  function valueFor(productId: string, field: "min" | "max"): string {
+  function valueFor(productId: string, field: RowField): string {
     const override = overrides[productId]?.[field];
     if (override !== undefined) return override;
     const saved = savedByProductId.get(productId);
-    if (!saved) return "";
-    return String(field === "min" ? saved.minQuantity : saved.maxQuantity);
+    if (!saved) return field === "mode" ? "THRESHOLD" : "";
+    const value =
+      field === "mode"
+        ? saved.mode
+        : field === "min"
+          ? saved.minQuantity
+          : field === "max"
+            ? saved.maxQuantity
+            : field === "fixed"
+              ? saved.fixedQuantity
+              : saved.coverDays;
+    // null = chế độ hiện tại không dùng cột này → ô trống, không phải chuỗi "null".
+    return value == null ? "" : String(value);
+  }
+
+  function modeFor(productId: string): ReorderMode {
+    const value = valueFor(productId, "mode");
+    return (MODES as string[]).includes(value) ? (value as ReorderMode) : "THRESHOLD";
   }
 
   function selectUser(id: string) {
@@ -68,7 +95,7 @@ export default function ReorderThresholdsPage() {
     setSaved(false);
   }
 
-  function setRow(productId: string, field: "min" | "max", value: string) {
+  function setRow(productId: string, field: RowField, value: string) {
     setSaved(false);
     setOverrides((prev) => ({ ...prev, [productId]: { ...prev[productId], [field]: value } }));
   }
@@ -82,13 +109,20 @@ export default function ReorderThresholdsPage() {
     // re-sending every product's already-saved value was redundant and, at
     // full catalog size, slow enough to blow past the save timeout.
     const validProductIds = new Set(products.map((p) => p.id));
+    const num = (raw: string) => (raw.trim() ? Number(raw.trim()) : null);
     const items = Object.keys(overrides)
       .filter((productId) => validProductIds.has(productId))
-      .map((productId) => {
-        const min = valueFor(productId, "min").trim();
-        const max = valueFor(productId, "max").trim();
-        return { productId, minQuantity: min ? Number(min) : null, maxQuantity: max ? Number(max) : null };
-      });
+      // Dựng ĐỦ mọi trường từ override-hoặc-giá-trị-đã-lưu, không chỉ trường vừa sửa. Nếu chỉ gửi
+      // trường vừa sửa thì sửa ô tối thiểu của một hàng đang ở chế độ Gọi cố định sẽ gửi kèm chế độ
+      // mặc định, làm hàng đó lặng lẽ đổi chế độ rồi bị xoá vì thiếu min/max.
+      .map((productId) => ({
+        productId,
+        mode: modeFor(productId),
+        minQuantity: num(valueFor(productId, "min")),
+        maxQuantity: num(valueFor(productId, "max")),
+        fixedQuantity: num(valueFor(productId, "fixed")),
+        coverDays: num(valueFor(productId, "cover")),
+      }));
 
     if (items.length === 0) {
       setSaved(true);
@@ -111,9 +145,9 @@ export default function ReorderThresholdsPage() {
   async function downloadTemplate() {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Định lượng");
-    sheet.columns = ["Mã hàng hoá*", "Tối thiểu", "Tối đa"].map((header) => ({ header, width: 22 }));
+    sheet.columns = EXCEL_COLUMNS.map((header) => ({ header, width: 22 }));
     sheet.getRow(1).font = { bold: true };
-    sheet.addRow(sanitizeExcelRow([products[0]?.code ?? "SP001", 0, 0]));
+    sheet.addRow(sanitizeExcelRow([products[0]?.code ?? "SP001", REORDER_MODE_LABELS.THRESHOLD, 0, 0, "", ""]));
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     const url = URL.createObjectURL(blob);
@@ -143,6 +177,22 @@ export default function ReorderThresholdsPage() {
         return;
       }
 
+      // Kiểm HÀNG TIÊU ĐỀ trước khi đọc dòng nào: file mẫu cũ 3 cột vẫn mở được bằng Excel, và nếu
+      // đọc thẳng thì cột "Tối thiểu" cũ rơi vào ô "Cách gọi" mới — số liệu hỏng mà không báo lỗi.
+      const headerRow = sheet.getRow(1);
+      const headerMismatch = EXCEL_COLUMNS.findIndex(
+        (expected, index) => String(headerRow.getCell(index + 1).value ?? "").trim() !== expected,
+      );
+      if (headerMismatch !== -1) {
+        setImportResult({
+          updated: 0,
+          errors: [
+            `Hàng tiêu đề không khớp file mẫu ở cột ${headerMismatch + 1} (cần "${EXCEL_COLUMNS[headerMismatch]}"). Vui lòng tải lại file mẫu mới.`,
+          ],
+        });
+        return;
+      }
+
       const productByCode = new Map(products.map((p) => [p.code.trim().toLowerCase(), p]));
       const errors: string[] = [];
       let updated = 0;
@@ -150,9 +200,7 @@ export default function ReorderThresholdsPage() {
 
       sheet.eachRow((row, rowNumber) => {
         if (rowNumber === 1) return;
-        const code = String(row.getCell(1).value ?? "").trim();
-        const minRaw = row.getCell(2).value;
-        const maxRaw = row.getCell(3).value;
+        const code = String(row.getCell(COL.code).value ?? "").trim();
         if (!code) return;
 
         const product = productByCode.get(code.toLowerCase());
@@ -161,18 +209,42 @@ export default function ReorderThresholdsPage() {
           return;
         }
 
-        const min = minRaw === null || minRaw === undefined || minRaw === "" ? "" : String(Number(minRaw));
-        const max = maxRaw === null || maxRaw === undefined || maxRaw === "" ? "" : String(Number(maxRaw));
-        if ((min && Number.isNaN(Number(min))) || (max && Number.isNaN(Number(max)))) {
-          errors.push(`Dòng ${rowNumber}: định lượng không hợp lệ`);
-          return;
-        }
-        if (min && max && Number(max) < Number(min)) {
-          errors.push(`Dòng ${rowNumber}: định lượng tối đa phải >= tối thiểu`);
+        const cell = (index: number) => {
+          const raw = row.getCell(index).value;
+          return raw === null || raw === undefined || raw === "" ? "" : String(Number(raw));
+        };
+        const min = cell(COL.min);
+        const max = cell(COL.max);
+        const fixed = cell(COL.fixed);
+        const cover = cell(COL.cover);
+
+        const modeLabel = String(row.getCell(COL.mode).value ?? "").trim().toLowerCase();
+        const mode = modeLabel ? MODE_BY_LABEL.get(modeLabel) : "THRESHOLD";
+        if (!mode) {
+          errors.push(
+            `Dòng ${rowNumber}: cách gọi "${modeLabel}" không hợp lệ (dùng một trong: ${MODES.map((m) => REORDER_MODE_LABELS[m]).join(", ")})`,
+          );
           return;
         }
 
-        nextOverrides[product.id] = { min, max };
+        if ([min, max, fixed, cover].some((v) => v && Number.isNaN(Number(v)))) {
+          errors.push(`Dòng ${rowNumber}: định lượng không hợp lệ`);
+          return;
+        }
+        if (mode === "THRESHOLD" && min && max && Number(max) < Number(min)) {
+          errors.push(`Dòng ${rowNumber}: định lượng tối đa phải >= tối thiểu`);
+          return;
+        }
+        if (mode === "FIXED" && !(Number(fixed) > 0)) {
+          errors.push(`Dòng ${rowNumber}: cách gọi cố định cần SL gọi cố định lớn hơn 0`);
+          return;
+        }
+        if (mode === "COVERAGE" && !cover) {
+          errors.push(`Dòng ${rowNumber}: cách gọi theo số ngày cần khai Số ngày cần phủ`);
+          return;
+        }
+
+        nextOverrides[product.id] = { mode, min, max, fixed, cover };
         updated++;
       });
 
@@ -188,12 +260,17 @@ export default function ReorderThresholdsPage() {
 
   async function exportData() {
     setExcelMenuOpen(false);
+    // Sáu cột đầu PHẢI trùng EXCEL_COLUMNS để vòng "xuất ra → sửa → nhập lại" chạy được: phần nhập
+    // kiểm hàng tiêu đề trên đúng sáu cột đó. Cột đọc cho người xếp xuống cuối.
     const columns: ExcelColumn<Product>[] = [
-      { header: "Mã hàng hoá", value: (p) => p.code },
+      { header: EXCEL_COLUMNS[0], value: (p) => p.code },
+      { header: EXCEL_COLUMNS[1], value: (p) => REORDER_MODE_LABELS[modeFor(p.id)] },
+      { header: EXCEL_COLUMNS[2], value: (p) => valueFor(p.id, "min") },
+      { header: EXCEL_COLUMNS[3], value: (p) => valueFor(p.id, "max") },
+      { header: EXCEL_COLUMNS[4], value: (p) => valueFor(p.id, "fixed") },
+      { header: EXCEL_COLUMNS[5], value: (p) => valueFor(p.id, "cover") },
       { header: "Tên hàng hoá", value: (p) => p.name },
       { header: "ĐVT", value: (p) => p.unit?.name ?? "-" },
-      { header: "Tối thiểu", value: (p) => valueFor(p.id, "min") },
-      { header: "Tối đa", value: (p) => valueFor(p.id, "max") },
     ];
     await exportRowsToExcel("Định lượng", columns, products, "dinh-luong-order-nhanh.xlsx");
   }
@@ -203,8 +280,9 @@ export default function ReorderThresholdsPage() {
       <div>
         <h1 className="text-xl font-semibold text-slate-800">Định lượng Order nhanh</h1>
         <p className="text-sm text-slate-500">
-          Thiết lập định lượng tối thiểu / tối đa cho từng hàng hoá theo từng tài khoản. Mỗi tài khoản có thể có định lượng
-          khác nhau.
+          Thiết lập cách gọi cho từng hàng hoá theo từng tài khoản. <strong>Theo tối thiểu / tối đa</strong> giữ nguyên cách
+          Order nhanh vẫn chạy · <strong>Gọi cố định</strong> luôn đặt đúng một lượng, không cần nhập tồn ·{" "}
+          <strong>Đủ dùng N ngày</strong> tính theo mức tiêu thụ thật của quán · <strong>Không đề xuất</strong> để bỏ qua.
         </p>
       </div>
 
@@ -266,38 +344,80 @@ export default function ReorderThresholdsPage() {
                   <th className="border border-slate-200 px-3 py-2">Mã</th>
                   <th className="border border-slate-200 px-3 py-2">Tên hàng hoá</th>
                   <th className="border border-slate-200 px-3 py-2">ĐVT</th>
+                  <th className="border border-slate-200 px-3 py-2">Cách gọi</th>
                   <th className="border border-slate-200 px-3 py-2">Tối thiểu</th>
                   <th className="border border-slate-200 px-3 py-2">Tối đa</th>
+                  <th className="border border-slate-200 px-3 py-2">SL gọi cố định</th>
+                  <th className="border border-slate-200 px-3 py-2">Số ngày cần phủ</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredProducts.map((p) => (
-                  <tr key={p.id}>
-                    <td className="border border-slate-200 px-3 py-2">{p.code}</td>
-                    <td className="border border-slate-200 px-3 py-2">{p.name}</td>
-                    <td className="border border-slate-200 px-3 py-2">{p.unit?.name}</td>
-                    <td className="border border-slate-200 px-3 py-2">
-                      <Input
-                        type="number"
-                        step="1"
-                        min="0"
-                        className="w-28"
-                        value={valueFor(p.id, "min")}
-                        onChange={(e) => setRow(p.id, "min", e.target.value)}
-                      />
-                    </td>
-                    <td className="border border-slate-200 px-3 py-2">
-                      <Input
-                        type="number"
-                        step="1"
-                        min="0"
-                        className="w-28"
-                        value={valueFor(p.id, "max")}
-                        onChange={(e) => setRow(p.id, "max", e.target.value)}
-                      />
-                    </td>
-                  </tr>
-                ))}
+                {filteredProducts.map((p) => {
+                  const mode = modeFor(p.id);
+                  return (
+                    <tr key={p.id}>
+                      <td className="border border-slate-200 px-3 py-2">{p.code}</td>
+                      <td className="border border-slate-200 px-3 py-2">{p.name}</td>
+                      <td className="border border-slate-200 px-3 py-2">{p.unit?.name}</td>
+                      <td className="border border-slate-200 px-3 py-2">
+                        <Select className="w-44" value={mode} onChange={(e) => setRow(p.id, "mode", e.target.value)}>
+                          {MODES.map((m) => (
+                            <option key={m} value={m}>
+                              {REORDER_MODE_LABELS[m]}
+                            </option>
+                          ))}
+                        </Select>
+                      </td>
+                      {/* Ô của chế độ không được chọn bị khoá thay vì ẩn: giữ nguyên bố cục bảng, và giá
+                          trị cũ vẫn thấy được nên bật lại chế độ là dùng lại được ngay. */}
+                      <td className="border border-slate-200 px-3 py-2">
+                        <Input
+                          type="number"
+                          step="1"
+                          min="0"
+                          className="w-24"
+                          disabled={mode !== "THRESHOLD"}
+                          value={valueFor(p.id, "min")}
+                          onChange={(e) => setRow(p.id, "min", e.target.value)}
+                        />
+                      </td>
+                      <td className="border border-slate-200 px-3 py-2">
+                        <Input
+                          type="number"
+                          step="1"
+                          min="0"
+                          className="w-24"
+                          disabled={mode !== "THRESHOLD"}
+                          value={valueFor(p.id, "max")}
+                          onChange={(e) => setRow(p.id, "max", e.target.value)}
+                        />
+                      </td>
+                      <td className="border border-slate-200 px-3 py-2">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          className="w-24"
+                          disabled={mode !== "FIXED"}
+                          value={valueFor(p.id, "fixed")}
+                          onChange={(e) => setRow(p.id, "fixed", e.target.value)}
+                        />
+                      </td>
+                      <td className="border border-slate-200 px-3 py-2">
+                        <Input
+                          type="number"
+                          step="1"
+                          min="1"
+                          max="365"
+                          className="w-24"
+                          disabled={mode !== "COVERAGE"}
+                          value={valueFor(p.id, "cover")}
+                          onChange={(e) => setRow(p.id, "cover", e.target.value)}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </CardBody>
@@ -319,9 +439,11 @@ export default function ReorderThresholdsPage() {
         <Modal title="Nhập định lượng từ Excel" onClose={() => setImportOpen(false)}>
           <div className="flex flex-col gap-3">
             <p className="text-sm text-slate-600">
-              Chọn file Excel theo đúng thứ tự cột trong file mẫu: Mã hàng hoá*, Tối thiểu, Tối đa (cột có dấu * là bắt buộc
-              phải điền; để trống Tối thiểu/Tối đa nghĩa là xoá định lượng của hàng hoá đó). Dữ liệu chỉ được áp dụng cho tài
-              khoản đang chọn, cần bấm &quot;Lưu định lượng&quot; để lưu lại.
+              Chọn file Excel theo đúng thứ tự cột trong file mẫu: {EXCEL_COLUMNS.join(", ")} (cột có dấu * là bắt buộc phải
+              điền). Với cách gọi <em>Theo tối thiểu / tối đa</em>, để trống cả hai ô nghĩa là gỡ hàng hoá khỏi danh sách.
+              Dữ liệu chỉ áp dụng cho tài khoản đang chọn, cần bấm &quot;Lưu định lượng&quot; để lưu lại.
+              <br />
+              <strong>File mẫu cũ 3 cột không nhập được nữa</strong> — tải lại file mẫu mới.
             </p>
             <Button type="button" variant="secondary" size="sm" className="self-start" onClick={downloadTemplate}>
               <Download size={14} />

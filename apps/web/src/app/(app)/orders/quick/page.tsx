@@ -6,24 +6,35 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
 import { useWarehouses } from "@/hooks/useCatalog";
+import { usePreviewReorderSuggestions, useCommitReorderSuggestions } from "@/hooks/useReorderSuggestions";
 import { useReorderThresholds } from "@/hooks/useReorderThresholds";
-import { useCreateSalesOrder } from "@/hooks/useSalesOrders";
 import { ApiError } from "@/lib/api-client";
 import { type ExcelColumn, exportRowsToExcel, sanitizeExcelRow } from "@/lib/excelExport";
 import { formatNumber } from "@/lib/format";
-import type { ReorderThreshold } from "@/types";
+import { REORDER_MODE_LABELS, USAGE_SOURCE_LABELS, type ReorderSuggestion } from "@/types";
 import ExcelJS from "exceljs";
-import { ChevronDown, Download } from "lucide-react";
+import { ChevronDown, Download, Info } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+/** Số ngày phủ mặc định khi hàng hoá dùng chế độ COVERAGE mà chưa khai riêng số ngày. */
+const DEFAULT_COVER_DAYS = 7;
 
 export default function QuickOrderPage() {
   const router = useRouter();
   const { data: warehouses = [] } = useWarehouses();
+  // Vẫn đọc bảng định lượng để dựng khung bảng ngay khi mở trang, trước khi bấm tính lần đầu.
   const { data: thresholds = [] } = useReorderThresholds();
-  const createOrder = useCreateSalesOrder();
+  const preview = usePreviewReorderSuggestions();
+  const commit = useCommitReorderSuggestions();
+
   const [warehouseId, setWarehouseId] = useState("");
   const [stockInputs, setStockInputs] = useState<Record<string, string>>({});
+  const [coverDays, setCoverDays] = useState(String(DEFAULT_COVER_DAYS));
+  const [leadDays, setLeadDays] = useState("0");
+  // SL người dùng sửa tay, đè lên SL đề xuất. Khoá theo productId, chỉ dòng nào sửa mới có mặt.
+  const [overrides, setOverrides] = useState<Record<string, string>>({});
+  const [suggestions, setSuggestions] = useState<ReorderSuggestion[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [excelMenuOpen, setExcelMenuOpen] = useState(false);
@@ -41,39 +52,68 @@ export default function QuickOrderPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [excelMenuOpen]);
 
-  const suggestedQty = useCallback(
-    (threshold: ReorderThreshold): number => {
-      const raw = stockInputs[threshold.productId];
-      if (raw === undefined || raw === "") return 0;
-      const current = Number(raw);
-      if (!Number.isFinite(current)) return 0;
-      const min = Number(threshold.minQuantity);
-      const max = Number(threshold.maxQuantity);
-      // Cố ý đặt một lượng cố định = max − min khi tồn dưới min, không bù theo tồn thực tế.
-      if (current < min) return Math.round((max - min) * 1000) / 1000;
-      return 0;
-    },
+  const buildOnHand = useCallback(
+    () =>
+      Object.entries(stockInputs)
+        // Bỏ trống KHÁC với 0: hàng chưa đếm thì server không đề xuất theo tồn, còn đếm được 0 thì phải đặt.
+        .filter(([, raw]) => raw !== "" && Number.isFinite(Number(raw)))
+        .map(([productId, raw]) => ({ productId, quantity: Number(raw) })),
     [stockInputs],
   );
 
-  const orderItems = useMemo(
-    () =>
-      thresholds
-        .map((t) => ({ productId: t.productId, quantity: suggestedQty(t) }))
-        .filter((it) => it.quantity > 0),
-    [thresholds, suggestedQty],
+  const runPreview = useCallback(() => {
+    setError(null);
+    preview.mutate(
+      {
+        onHand: buildOnHand(),
+        coverDays: Number(coverDays) || DEFAULT_COVER_DAYS,
+        leadDays: Number(leadDays) || 0,
+      },
+      {
+        onSuccess: (items) => {
+          setSuggestions(items);
+          setOverrides({});
+        },
+        onError: (err) => setError(err instanceof ApiError ? err.message : "Không tính được số lượng đề xuất"),
+      },
+    );
+  }, [buildOnHand, coverDays, leadDays, preview]);
+
+  // Tính ngay khi mở trang để hàng gọi cố định hiện sẵn, chưa cần ai gõ tồn.
+  const didInitialPreview = useRef(false);
+  useEffect(() => {
+    if (didInitialPreview.current || thresholds.length === 0) return;
+    didInitialPreview.current = true;
+    runPreview();
+  }, [thresholds.length, runPreview]);
+
+  const finalQty = useCallback(
+    (row: ReorderSuggestion): number => {
+      const override = overrides[row.productId];
+      if (override === undefined) return row.suggestedQty;
+      const parsed = Number(override);
+      return override === "" || !Number.isFinite(parsed) || parsed < 0 ? 0 : parsed;
+    },
+    [overrides],
   );
 
-  const thresholdsByGroup = useMemo(() => {
-    const groups = new Map<string, ReorderThreshold[]>();
-    for (const t of thresholds) {
-      const groupName = t.product.productGroup?.name ?? "Chưa phân nhóm";
-      const list = groups.get(groupName) ?? [];
-      list.push(t);
-      groups.set(groupName, list);
+  // Bọc useMemo thay vì `suggestions ?? []` trực tiếp: mảng rỗng mới mỗi lần render sẽ làm hai useMemo
+  // bên dưới tính lại liên tục.
+  const rows = useMemo(() => suggestions ?? [], [suggestions]);
+  const orderItems = useMemo(
+    () => rows.map((r) => ({ productId: r.productId, quantity: finalQty(r) })).filter((it) => it.quantity > 0),
+    [rows, finalQty],
+  );
+
+  const rowsByGroup = useMemo(() => {
+    const groups = new Map<string, ReorderSuggestion[]>();
+    for (const row of rows) {
+      const list = groups.get(row.productGroupName) ?? [];
+      list.push(row);
+      groups.set(row.productGroupName, list);
     }
     return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
-  }, [thresholds]);
+  }, [rows]);
 
   function onSubmit() {
     setError(null);
@@ -85,8 +125,14 @@ export default function QuickOrderPage() {
       setError("Chưa có hàng hoá nào cần đặt thêm");
       return;
     }
-    createOrder.mutate(
-      { warehouseId, items: orderItems, skipStockCheck: true },
+    commit.mutate(
+      {
+        warehouseId,
+        onHand: buildOnHand(),
+        coverDays: Number(coverDays) || DEFAULT_COVER_DAYS,
+        leadDays: Number(leadDays) || 0,
+        items: orderItems,
+      },
       {
         onSuccess: (order) => router.replace(`/orders/${order.id}`),
         onError: (err) => setError(err instanceof ApiError ? err.message : "Tạo đơn hàng thất bại"),
@@ -170,16 +216,19 @@ export default function QuickOrderPage() {
 
   async function exportData() {
     setExcelMenuOpen(false);
-    const columns: ExcelColumn<ReorderThreshold>[] = [
-      { header: "Tên hàng hoá", value: (t) => t.product.name },
-      { header: "Mã hàng hoá", value: (t) => t.product.code },
-      { header: "ĐVT", value: (t) => t.product.unit?.name ?? "-" },
-      { header: "Tối thiểu", value: (t) => formatNumber(t.minQuantity) },
-      { header: "Tối đa", value: (t) => formatNumber(t.maxQuantity) },
-      { header: "Tồn hiện tại", value: (t) => stockInputs[t.productId] ?? "" },
-      { header: "SL cần đặt", value: (t) => suggestedQty(t) },
+    const columns: ExcelColumn<ReorderSuggestion>[] = [
+      { header: "Tên hàng hoá", value: (r) => r.name },
+      { header: "Mã hàng hoá", value: (r) => r.code },
+      { header: "ĐVT", value: (r) => r.unitLabel },
+      { header: "Cách gọi", value: (r) => REORDER_MODE_LABELS[r.mode] },
+      { header: "Tồn hiện tại", value: (r) => (r.onHandQty == null ? "" : r.onHandQty) },
+      { header: "Mức dùng/ngày", value: (r) => (r.dailyUsage == null ? "" : Math.round(r.dailyUsage * 1000) / 1000) },
+      { header: "Nguồn mức dùng", value: (r) => USAGE_SOURCE_LABELS[r.usageSource] },
+      { header: "SL đề xuất", value: (r) => r.suggestedQty },
+      { header: "SL đặt", value: (r) => finalQty(r) },
+      { header: "Lý do", value: (r) => r.reasons.join(" · ") },
     ];
-    await exportRowsToExcel("Order nhanh", columns, thresholds, "order-nhanh.xlsx");
+    await exportRowsToExcel("Order nhanh", columns, rows, "order-nhanh.xlsx");
   }
 
   return (
@@ -187,12 +236,13 @@ export default function QuickOrderPage() {
       <div>
         <h1 className="text-xl font-semibold text-slate-800">Order nhanh</h1>
         <p className="text-sm text-slate-500">
-          Nhập tồn hiện tại, hệ thống tự tính số lượng cần đặt theo định lượng tối thiểu / tối đa đã thiết lập cho bạn.
+          Nhập tồn hiện tại, hệ thống tính số lượng cần đặt theo cách gọi đã thiết lập cho từng hàng hoá. Cột SL đặt sửa
+          được — hệ thống ghi lại cả số đề xuất lẫn số bạn chốt.
         </p>
       </div>
 
       <Card>
-        <CardBody className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <CardBody className="grid grid-cols-1 gap-4 md:grid-cols-4">
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-slate-600">Kho xuất</label>
             <Select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
@@ -203,6 +253,21 @@ export default function QuickOrderPage() {
                 </option>
               ))}
             </Select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-slate-600">Đặt đủ dùng cho … ngày</label>
+            <Input type="number" min="1" max="365" value={coverDays} onChange={(e) => setCoverDays(e.target.value)} />
+            <span className="text-xs text-slate-400">Chỉ áp cho hàng đặt theo số ngày dùng</span>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-slate-600">Số ngày chờ hàng về</label>
+            <Input type="number" min="0" max="60" value={leadDays} onChange={(e) => setLeadDays(e.target.value)} />
+            <span className="text-xs text-slate-400">Cộng thêm vào số ngày cần phủ</span>
+          </div>
+          <div className="flex items-end">
+            <Button type="button" variant="secondary" onClick={runPreview} disabled={preview.isPending}>
+              {preview.isPending ? "Đang tính..." : "Tính lại số lượng"}
+            </Button>
           </div>
         </CardBody>
       </Card>
@@ -240,50 +305,84 @@ export default function QuickOrderPage() {
         <CardBody className="overflow-x-auto">
           {thresholds.length === 0 ? (
             <p className="text-sm text-slate-500">
-              Bạn chưa được thiết lập định lượng tối thiểu / tối đa cho hàng hoá nào. Liên hệ quản trị viên để thiết lập.
+              Bạn chưa được thiết lập cách gọi cho hàng hoá nào. Liên hệ quản trị viên để thiết lập.
             </p>
           ) : (
-            <table className="w-full min-w-[720px] border-collapse text-sm">
+            <table className="w-full min-w-[900px] border-collapse text-sm">
               <thead>
                 <tr className="text-left text-xs font-medium uppercase text-slate-500">
                   <th className="border border-slate-200 px-3 py-2">Mã</th>
                   <th className="border border-slate-200 px-3 py-2">Tên hàng hoá</th>
                   <th className="border border-slate-200 px-3 py-2">ĐVT</th>
-                  <th className="border border-slate-200 px-3 py-2">Tối thiểu</th>
-                  <th className="border border-slate-200 px-3 py-2">Tối đa</th>
+                  <th className="border border-slate-200 px-3 py-2">Cách gọi</th>
                   <th className="border border-slate-200 px-3 py-2">Tồn hiện tại</th>
-                  <th className="border border-slate-200 px-3 py-2">SL cần đặt</th>
+                  <th className="border border-slate-200 px-3 py-2">SL đề xuất</th>
+                  <th className="border border-slate-200 px-3 py-2">SL đặt</th>
+                  <th className="border border-slate-200 px-3 py-2">Vì sao</th>
                 </tr>
               </thead>
               <tbody>
-                {thresholdsByGroup.map(([groupName, groupThresholds]) => (
+                {rowsByGroup.map(([groupName, groupRows]) => (
                   <Fragment key={groupName}>
                     <tr className="bg-slate-50">
-                      <td colSpan={7} className="border border-slate-200 px-3 py-1.5 text-xs font-semibold uppercase text-slate-600">
+                      <td colSpan={8} className="border border-slate-200 px-3 py-1.5 text-xs font-semibold uppercase text-slate-600">
                         {groupName}
                       </td>
                     </tr>
-                    {groupThresholds.map((t) => {
-                      const qty = suggestedQty(t);
+                    {groupRows.map((row) => {
+                      const qty = finalQty(row);
                       return (
-                        <tr key={t.id}>
-                          <td className="border border-slate-200 px-3 py-2">{t.product.code}</td>
-                          <td className="border border-slate-200 px-3 py-2">{t.product.name}</td>
-                          <td className="border border-slate-200 px-3 py-2">{t.product.unit?.name}</td>
-                          <td className="border border-slate-200 px-3 py-2">{formatNumber(t.minQuantity)}</td>
-                          <td className="border border-slate-200 px-3 py-2">{formatNumber(t.maxQuantity)}</td>
+                        <tr key={row.productId} className={row.active ? "" : "text-slate-400"}>
+                          <td className="border border-slate-200 px-3 py-2">{row.code}</td>
+                          <td className="border border-slate-200 px-3 py-2">{row.name}</td>
+                          <td className="border border-slate-200 px-3 py-2">{row.unitLabel}</td>
+                          <td className="border border-slate-200 px-3 py-2 text-xs">{REORDER_MODE_LABELS[row.mode]}</td>
                           <td className="border border-slate-200 px-3 py-2">
                             <Input
                               type="number"
                               step="0.01"
                               min="0"
-                              className="w-28"
-                              value={stockInputs[t.productId] ?? ""}
-                              onChange={(e) => setStockInputs((prev) => ({ ...prev, [t.productId]: e.target.value }))}
+                              className="w-24"
+                              // Hàng gọi cố định không nhìn tồn nên không cần ô nhập — đỡ gây hiểu nhầm là bắt buộc.
+                              disabled={row.mode === "FIXED" || row.mode === "OFF"}
+                              value={stockInputs[row.productId] ?? ""}
+                              onChange={(e) => setStockInputs((prev) => ({ ...prev, [row.productId]: e.target.value }))}
                             />
                           </td>
-                          <td className="border border-slate-200 px-3 py-2 font-medium">
-                            {qty > 0 ? <span className="text-red-600">{formatNumber(qty)}</span> : "-"}
+                          <td className="border border-slate-200 px-3 py-2">
+                            {row.suggestedQty > 0 ? (
+                              <span className="font-medium text-red-600">{formatNumber(row.suggestedQty)}</span>
+                            ) : (
+                              "-"
+                            )}
+                          </td>
+                          <td className="border border-slate-200 px-3 py-2">
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              className="w-24"
+                              value={overrides[row.productId] ?? (row.suggestedQty > 0 ? String(row.suggestedQty) : "")}
+                              onChange={(e) => setOverrides((prev) => ({ ...prev, [row.productId]: e.target.value }))}
+                            />
+                            {qty !== row.suggestedQty && (
+                              <span className="ml-1 text-xs text-amber-600">đã sửa</span>
+                            )}
+                          </td>
+                          <td className="border border-slate-200 px-3 py-2 align-top">
+                            {row.reasons.length > 0 && (
+                              <details className="text-xs text-slate-500">
+                                <summary className="flex cursor-pointer items-center gap-1 text-slate-400 hover:text-slate-600">
+                                  <Info size={12} />
+                                  {row.reasons.length} lý do
+                                </summary>
+                                <ul className="mt-1 list-disc pl-4">
+                                  {row.reasons.map((reason, index) => (
+                                    <li key={index}>{reason}</li>
+                                  ))}
+                                </ul>
+                              </details>
+                            )}
                           </td>
                         </tr>
                       );
@@ -299,8 +398,8 @@ export default function QuickOrderPage() {
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <div className="flex justify-end gap-2">
-        <Button onClick={onSubmit} disabled={createOrder.isPending}>
-          {createOrder.isPending ? "Đang lưu..." : "Tạo đơn hàng"}
+        <Button onClick={onSubmit} disabled={commit.isPending}>
+          {commit.isPending ? "Đang lưu..." : "Tạo đơn hàng"}
         </Button>
       </div>
 
@@ -310,7 +409,7 @@ export default function QuickOrderPage() {
             <p className="text-sm text-slate-600">
               Chọn file Excel theo đúng thứ tự cột trong file mẫu: Tên hàng hoá*, Tồn hiện tại (cột có dấu * là bắt buộc phải
               điền). Để trống Tồn hiện tại nghĩa là không đặt thêm hàng hoá đó. Chỉ áp dụng cho hàng hoá đã có trong danh sách
-              order nhanh của bạn.
+              order nhanh của bạn. Sau khi nhập, bấm &quot;Tính lại số lượng&quot;.
             </p>
             <Button type="button" variant="secondary" size="sm" className="self-start" onClick={downloadTemplate}>
               <Download size={14} />

@@ -63,6 +63,15 @@ export const PERMISSION_RESOURCES = [
   // APPROVE = xác nhận đơn (sinh phiếu xuất kho), huỷ đơn ở mọi trạng thái, sửa ngày nhận.
   { resource: "ORDERS", label: "Đơn hàng", group: "Order", actions: ["VIEW", "ADD", "RECEIVE", "APPROVE"] },
 
+  // VIEW = xem gợi ý và lịch sử các lượt chạy · ADD = chốt gợi ý thành đơn nháp. Tách khỏi ORDERS
+  // để giao được quyền "chỉ xem agent đề xuất gì" mà không cho tạo đơn.
+  {
+    resource: "REORDER_SUGGESTIONS",
+    label: "Gợi ý đặt hàng",
+    group: "Order",
+    actions: ["VIEW", "ADD"],
+  },
+
   { resource: "STOCK_IMPORTS", label: "Phiếu nhập kho", group: "Kho", actions: ["VIEW", "ADD"] },
   { resource: "STOCK_EXPORTS", label: "Phiếu xuất kho", group: "Kho", actions: ["VIEW", "ADD"] },
   { resource: "INVENTORY_COUNTS", label: "Phiếu kiểm kê kho", group: "Kho", actions: ["VIEW", "ADD", "EDIT"] },
@@ -86,6 +95,12 @@ export const PERMISSION_RESOURCES = [
   { resource: "SUPPLIER_PRICES", label: "Giá theo Nhà cung cấp", group: "Quản trị", actions: ["VIEW", "EDIT"] },
   { resource: "PURCHASE_SUMMARY", label: "Tổng hợp đặt NCC", group: "Quản trị", actions: ["VIEW"] },
   { resource: "DEADLINES", label: "Hạn order & kiểm kê", group: "Quản trị", actions: ["VIEW", "EDIT"] },
+
+  // ADD = nhập file doanh số (nhập lại cùng ngày là ghi đè, nên không cần EDIT riêng) ·
+  // DELETE = xoá dữ liệu một ngày khi nhập sai nguồn.
+  { resource: "POS_SALES", label: "Doanh số POS", group: "Quản trị", actions: ["VIEW", "ADD", "DELETE"] },
+  { resource: "POS_ITEM_MAPPING", label: "Ánh xạ món POS", group: "Quản trị", actions: ["VIEW", "EDIT"] },
+  { resource: "SHIFT_DEFINITIONS", label: "Khung giờ ca", group: "Quản trị", actions: ["VIEW", "EDIT"] },
 ] as const satisfies readonly { resource: string; label: string; group: string; actions: readonly PermissionAction[] }[];
 
 export type PermissionResource = (typeof PERMISSION_RESOURCES)[number]["resource"];

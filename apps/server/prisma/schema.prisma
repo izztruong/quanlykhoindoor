@@ -65,6 +65,9 @@ model User {
   notifications             Notification[]
   pushTokens                PushToken[]
   notificationPreferences   NotificationPreference[]
+  reorderRuns               ReorderRun[]              @relation("ReorderRunShop")
+  reorderRunsCreated        ReorderRun[]              @relation("ReorderRunCreatedBy")
+  posSaleHours              PosSaleHour[]
 }
 
 enum DeadlineKind {
@@ -159,6 +162,8 @@ model FinishedGoodItem {
   // Công thức: nguyên liệu + định lượng cần để làm ra 1 đơn vị đồ thành phẩm/món này — dùng cho tính Check Cost.
   recipeItems                FinishedGoodRecipeItem[]
   costCheckSoldItems         CostCheckSoldItem[]
+  posSaleHours               PosSaleHour[]
+  posItemMappings            PosItemMapping[]
 }
 
 // Công thức (BOM): 1 đơn vị của 1 đồ thành phẩm/món cần bao nhiêu nguyên liệu — định lượng luôn tính theo
@@ -213,6 +218,11 @@ model Product {
   // coi là cân cả vỏ và tự trừ đi số này trước khi lưu. Để trống nếu hàng hoá không có bao bì đáng kể.
   tareWeight Decimal? @db.Decimal(18, 4)
 
+  // Số ngày còn dùng được kể từ lúc quán nhận hàng. Chỉ dùng để KẸP coverDays khi gợi ý đặt hàng
+  // (đặt đủ dùng 7 ngày nhưng hàng chỉ để được 3 thì gợi ý theo 3), không phải theo dõi hạn từng lô.
+  // Để trống = không ràng buộc.
+  shelfLifeDays Int?
+
   stockImportItems      StockImportItem[]
   stockExportItems      StockExportItem[]
   inventoryCountItems   InventoryCountItem[]
@@ -223,6 +233,7 @@ model Product {
   recipeLines           FinishedGoodRecipeItem[]
   materialWasteItems    MaterialWasteItem[]
   materialTransferItems MaterialTransferItem[]
+  reorderRunItems       ReorderRunItem[]
 }
 
 // Per-supplier price list: the same product can be sourced from more than
@@ -253,18 +264,35 @@ model ProductSupplierPrice {
   @@index([purchaseUnitId])
 }
 
+// Cách tính SL cần đặt cho một hàng hoá của một quán. THRESHOLD là hành vi gốc của Order nhanh nên
+// làm mặc định: mọi dòng dữ liệu cũ giữ nguyên cách tính sau khi migrate.
+enum ReorderMode {
+  THRESHOLD // tồn < min  →  đặt đúng (max − min), không bù theo tồn thực
+  FIXED // luôn đặt fixedQuantity, KHÔNG nhìn tồn — cho hàng gọi cố định mỗi kỳ
+  COVERAGE // đặt đủ dùng coverDays ngày, trừ đi tồn đang có
+  OFF // không bao giờ đề xuất hàng này
+}
+
 // Per-user reorder thresholds for "Order nhanh": each user has their own
 // min/max per product (e.g. different counters/staff restock to different
 // levels), so this is scoped by user, not a global Product setting.
 model ProductReorderThreshold {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  productId   String
-  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  minQuantity Decimal  @db.Decimal(18, 3)
-  maxQuantity Decimal  @db.Decimal(18, 3)
-  createdAt   DateTime @default(now())
+  id        String      @id @default(cuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  mode      ReorderMode @default(THRESHOLD)
+
+  // Nullable vì chỉ có nghĩa với một số chế độ: min/max cho THRESHOLD, fixedQuantity cho FIXED,
+  // coverDays cho COVERAGE. Ràng buộc "chế độ nào cần cột nào" ép ở tầng Zod chứ không ở DB —
+  // đổi chế độ không được phép làm hỏng con số của chế độ cũ, người dùng còn bật lại.
+  minQuantity   Decimal? @db.Decimal(18, 3)
+  maxQuantity   Decimal? @db.Decimal(18, 3)
+  fixedQuantity Decimal? @db.Decimal(18, 3)
+  coverDays     Int?
+
+  createdAt DateTime @default(now())
 
   @@unique([userId, productId])
 }
@@ -432,6 +460,7 @@ model SalesOrder {
 
   items       SalesOrderItem[]
   stockExport StockExport?
+  reorderRun  ReorderRun?
 
   @@index([createdById, completedAt])
 }
@@ -671,9 +700,9 @@ model ShiftExpense {
   // null = chưa chi. DateTime thật (khác spentAt là @db.Date): đây là mốc hệ thống đóng dấu lúc
   // bấm nút, không phải ngày người dùng khai — nên hiển thị phải đi qua giờ địa phương, đừng đọc
   // theo getUTC* như spentAt. Khác null thì KHOÁ bản ghi: quán hết sửa/xoá cho tới khi được gỡ dấu.
-  paidAt      DateTime?
-  paidById    String?
-  paidBy      User?            @relation("ShiftExpensePaidBy", fields: [paidById], references: [id])
+  paidAt   DateTime?
+  paidById String?
+  paidBy   User?     @relation("ShiftExpensePaidBy", fields: [paidById], references: [id])
 
   images ShiftExpenseImage[]
 
@@ -980,4 +1009,139 @@ model NotificationPreference {
   enabled Boolean
 
   @@id([userId, type])
+}
+
+// ============================================================================
+// Gợi ý đặt hàng (Order nhanh thông minh) và nạp doanh số POS
+// ============================================================================
+
+/**
+ * Mức dùng mỗi ngày dùng để tính COVERAGE lấy từ nguồn nào. Lưu lại trong nhật ký để về sau đối
+ * chiếu sai lệch theo từng nguồn — mức lấy từ Check Cost đáng tin hơn mức suy từ lịch sử nhận hàng,
+ * và người duyệt phải thấy được điều đó thay vì chỉ thấy một con số.
+ */
+enum DailyUsageSource {
+  COST_CHECK // actualUsed của phiếu Check Cost gần nhất — đã trừ huỷ và điều chuyển
+  RECEIVED // suy từ SL đã nhận trong 60 ngày, cộng/trừ điều chuyển
+  NONE // không đủ dữ liệu: COVERAGE không đề xuất, KHÔNG được đoán
+}
+
+/**
+ * Một lượt chạy gợi ý đặt hàng. Ghi lại cả đầu vào (tồn quán khai) lẫn đầu ra (SL đề xuất) và SL
+ * người chốt — không ghi từ đầu là mất lịch sử vĩnh viễn, vì tồn quán khai hiện không được lưu ở
+ * đâu cả (xem Order nhanh: stockInputs chỉ là state của trình duyệt).
+ */
+model ReorderRun {
+  id     String @id @default(cuid())
+  // Quán được gợi ý — khác createdById khi admin chạy hộ nhiều quán một lượt.
+  userId String
+  user   User   @relation("ReorderRunShop", fields: [userId], references: [id], onDelete: Cascade)
+
+  createdById String?
+  createdBy   User?    @relation("ReorderRunCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  // Số ngày phủ người dùng chọn lúc chạy. Null = không dùng chế độ COVERAGE lượt này.
+  coverDays Int?
+
+  // Đơn nháp sinh ra từ lượt này. Null = chỉ xem thử, chưa tạo đơn.
+  salesOrderId String?     @unique
+  salesOrder   SalesOrder? @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
+
+  items ReorderRunItem[]
+
+  @@index([userId, createdAt])
+}
+
+model ReorderRunItem {
+  id           String     @id @default(cuid())
+  reorderRunId String
+  reorderRun   ReorderRun @relation(fields: [reorderRunId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  // Chế độ đã áp cho dòng này, chốt cứng tại thời điểm chạy: cấu hình đổi về sau không được làm
+  // thay đổi lịch sử, giống cách CostCheck.reportSnapshot chốt số liệu.
+  mode ReorderMode
+
+  // Tồn quán khai. Đây là phép đo tồn quán duy nhất giữa hai kỳ kiểm kê.
+  onHandQty   Decimal          @db.Decimal(18, 3)
+  dailyUsage  Decimal?         @db.Decimal(18, 4)
+  usageSource DailyUsageSource
+
+  suggestedQty Decimal  @db.Decimal(18, 3)
+  // SL người chốt sau khi sửa tay. Null = chưa tạo đơn (chỉ xem thử).
+  orderedQty   Decimal? @db.Decimal(18, 3)
+
+  @@unique([reorderRunId, productId])
+  @@index([productId])
+}
+
+/**
+ * Doanh số POS ở mức GIỜ, không phải mức ca. POS xuất được giờ từng đơn nên lưu nguyên độ phân giải
+ * đó rồi cắt ca bằng truy vấn: đổi mốc chia ca về sau chỉ là đổi cấu hình, không phải nhập lại cả
+ * kho lịch sử. Lưu sẵn theo ca thì một lần đổi khung ca là mất hết dữ liệu cũ.
+ */
+model PosSaleHour {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // NGÀY THEO LỊCH của giờ bán, cố ý không phải "ngày kinh doanh": ca qua nửa đêm nằm trên hai ngày
+  // lịch, và việc ghép lại là chuyện của truy vấn cắt ca chứ không phải của lúc nhập. Kiểu DATE nên
+  // không dính lệch múi giờ như DateTime.
+  soldOn DateTime @db.Date
+  // Giờ đồng hồ thực 0–23, theo giờ VN.
+  hour   Int
+
+  finishedGoodItemId String
+  finishedGoodItem   FinishedGoodItem @relation(fields: [finishedGoodItemId], references: [id], onDelete: Cascade)
+  quantity           Decimal          @db.Decimal(18, 3)
+
+  @@unique([userId, soldOn, hour, finishedGoodItemId])
+  @@index([userId, soldOn])
+  @@index([finishedGoodItemId])
+}
+
+/**
+ * Ánh xạ tên món trên POS sang danh mục Đồ thành phẩm. Tên POS lệch nhiều (viết tắt, size, dấu) nên
+ * không thể khớp trực tiếp. Khai một lần rồi dùng mãi; dòng chưa ánh xạ thì KHÔNG nhập nửa vời mà
+ * liệt kê ra cho admin xử lý.
+ */
+model PosItemMapping {
+  id         String @id @default(cuid())
+  // Tên đã chuẩn hoá (trim + lower + gộp khoảng trắng) — khoá tra cứu.
+  posName    String @unique
+  // Bản gốc như POS xuất ra, giữ để admin nhận ra mình đang ánh xạ cái gì.
+  posNameRaw String
+
+  finishedGoodItemId String
+  finishedGoodItem   FinishedGoodItem @relation(fields: [finishedGoodItemId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([finishedGoodItemId])
+}
+
+enum ShiftCode {
+  CA1
+  CA2
+  CA3
+}
+
+/**
+ * Khung giờ 3 ca, dùng chung cho mọi quán — đúng một dòng cho mỗi ca.
+ * Giờ lưu bằng HAI CỘT SỐ NGUYÊN chứ không phải DateTime, cùng lý do đã ghi ở model Deadline: một
+ * mốc giờ đi qua ô nhập datetime-local rồi lưu lại sẽ bị trừ dần phần lệch múi giờ mỗi lần lưu.
+ * endHour < startHour nghĩa là ca chạy qua nửa đêm.
+ */
+model ShiftDefinition {
+  id          String    @id @default(cuid())
+  code        ShiftCode @unique
+  name        String
+  startHour   Int
+  startMinute Int
+  endHour     Int
+  endMinute   Int
+  updatedAt   DateTime  @updatedAt
 }

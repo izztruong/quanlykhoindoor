@@ -16,6 +16,9 @@ const schema = z.object({
   type: z.enum(["NVL", "COC_TAKE", "BANH", "DUNG_CU", "KHAC"]).default("NVL"),
   // SL lẻ nhập lúc kiểm kê/huỷ/điều chuyển được coi là cân cả vỏ và tự trừ số này (theo recipeUnit).
   tareWeight: z.coerce.number().nonnegative().optional(),
+  // Số ngày dùng được sau khi quán nhận hàng — chỉ dùng để KẸP số ngày cần phủ khi gợi ý đặt hàng,
+  // không phải theo dõi hạn từng lô. Cho phép null để form gỡ được giá trị đã khai.
+  shelfLifeDays: z.coerce.number().int().positive().nullable().optional(),
   // Hàng hoá ngừng dùng (active=false) bị ẩn khỏi ô chọn hàng hoá khi tạo phiếu/đơn hàng mới.
   active: z.boolean().optional().default(true),
 });

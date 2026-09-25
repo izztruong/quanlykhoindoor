@@ -77,14 +77,25 @@ async function assertSufficientStock(warehouseId: string, items: { productId: st
   }
 }
 
-export async function createSalesOrder(data: SalesOrderCreateInput, createdById?: string) {
+/**
+ * `skipLatenessStamp`: bỏ chấm đúng hạn/muộn cho đơn này, để `dueAt = null` (giao diện hiện chấm xám
+ * "chưa đánh giá"). Dùng khi đơn KHÔNG do chính quán bấm — vd admin chạy gợi ý đặt hàng hộ nhiều quán
+ * một lượt: chấm muộn lúc đó là chấm lỗi của admin lên đầu quán, mà quán không làm gì cả.
+ */
+export async function createSalesOrder(
+  data: SalesOrderCreateInput,
+  createdById?: string,
+  options: { skipLatenessStamp?: boolean } = {},
+) {
   if (!data.skipStockCheck) await assertSufficientStock(data.warehouseId, data.items);
 
   // Ghi createdAt tường minh thay vì để DB tự điền: dấu đúng hạn/muộn phải được chấm theo đúng
   // mốc lưu trong cột, nếu lấy hai nguồn thời gian khác nhau thì đơn sát giờ hạn có thể bị chấm
   // lệch với chính con số hiển thị bên cạnh nó.
   const createdAt = new Date();
-  const lateness = await stampSalesOrderLateness(createdAt);
+  const lateness = options.skipLatenessStamp
+    ? { dueAt: null, isLate: false }
+    : await stampSalesOrderLateness(createdAt);
 
   const order = await prisma.salesOrder.create({
     data: {
