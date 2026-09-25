@@ -9,6 +9,7 @@ import { useDeletePosSaleDay, useImportPosSales, usePosSaleDays, type PosSaleRow
 import { useUserOptions } from "@/hooks/useUsers";
 import { ApiError } from "@/lib/api-client";
 import { sanitizeExcelRow } from "@/lib/excelExport";
+import { parseSoldAt } from "@/lib/posSaleDate";
 import { formatNumber } from "@/lib/format";
 import ExcelJS from "exceljs";
 import { Download, Trash2, Upload } from "lucide-react";
@@ -24,37 +25,6 @@ const headClass = "border border-slate-200 px-3 py-2 text-left text-xs font-medi
  */
 const EXCEL_COLUMNS = ["Thời gian bán*", "Tên món*", "Số lượng*"] as const;
 const COL = { soldAt: 1, posName: 2, quantity: 3 } as const;
-
-/** Ngày theo giờ ĐỊA PHƯƠNG, dạng YYYY-MM-DD. Không dùng toISOString() — nó đổi sang UTC nên đơn bán
- *  lúc 00:30 sẽ tụt về ngày hôm trước. */
-function localDateKey(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
-/**
- * Đọc ô thời gian của Excel. ExcelJS trả về Date với ô định dạng ngày/giờ, còn ô văn bản thì trả chuỗi —
- * phải chịu được cả hai vì file POS mỗi nơi xuất một kiểu.
- */
-function parseSoldAt(raw: unknown): Date | null {
-  if (raw instanceof Date) return raw;
-  if (typeof raw === "number") {
-    // Số serial của Excel: ngày 0 là 1899-12-30, đơn vị là ngày.
-    return new Date(Date.UTC(1899, 11, 30) + raw * 86_400_000);
-  }
-  if (typeof raw === "string") {
-    const text = raw.trim();
-    if (!text) return null;
-    // Chấp cả "2026-09-20 14:35" và "20/09/2026 14:35".
-    const dmy = text.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})[ T](\d{1,2}):(\d{2})/);
-    if (dmy) {
-      const [, d, m, y, h, min] = dmy;
-      return new Date(Number(y), Number(m) - 1, Number(d), Number(h), Number(min));
-    }
-    const parsed = new Date(text.replace(" ", "T"));
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
-  }
-  return null;
-}
 
 export default function PosSalesPage() {
   const { data: users = [] } = useUserOptions();
@@ -75,7 +45,9 @@ export default function PosSalesPage() {
     const sheet = workbook.addWorksheet("Doanh số POS");
     sheet.columns = EXCEL_COLUMNS.map((header) => ({ header, width: 24 }));
     sheet.getRow(1).font = { bold: true };
-    sheet.addRow(sanitizeExcelRow(["2026-09-20 14:35", "Bạc Xỉu (L)", 2]));
+    // Ghi mẫu dạng dd/mm/yyyy cho khớp thói quen VN. Phần nhập còn đọc được dd-mm-yyyy, yyyy-mm-dd và
+    // ô ngày-giờ thật của Excel — xem lib/posSaleDate.ts.
+    sheet.addRow(sanitizeExcelRow(["20/09/2026 14:35", "Bạc Xỉu (L)", 2]));
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     const url = URL.createObjectURL(blob);
@@ -137,7 +109,9 @@ export default function PosSalesPage() {
         if (!soldAt && !posName && (qtyRaw === null || qtyRaw === undefined || qtyRaw === "")) return;
 
         if (!soldAt) {
-          errors.push(`Dòng ${rowNumber}: không đọc được thời gian bán`);
+          errors.push(
+            `Dòng ${rowNumber}: không đọc được thời gian bán — cần cả ngày và giờ, dạng "20/09/2026 14:35" hoặc "2026-09-20 14:35"`,
+          );
           return;
         }
         if (!posName) {
@@ -150,8 +124,7 @@ export default function PosSalesPage() {
           return;
         }
 
-        const soldOn = localDateKey(soldAt);
-        const hour = soldAt.getHours();
+        const { soldOn, hour } = soldAt;
         const key = `${soldOn}|${hour}|${posName}`;
         const current = byCell.get(key);
         if (current) current.quantity += quantity;
@@ -292,8 +265,12 @@ export default function PosSalesPage() {
         <Modal title="Nhập doanh số từ Excel" onClose={() => setImportOpen(false)}>
           <div className="flex flex-col gap-3">
             <p className="text-sm text-slate-600">
-              Chọn file Excel theo đúng thứ tự cột trong file mẫu: {EXCEL_COLUMNS.join(", ")}. Cột thời gian phải có cả ngày và
-              giờ. Dữ liệu nhập cho quán <strong>{users.find((u) => u.id === userId)?.name ?? "(chưa chọn)"}</strong>.
+              Chọn file Excel theo đúng thứ tự cột trong file mẫu: {EXCEL_COLUMNS.join(", ")}. Dữ liệu nhập cho quán{" "}
+              <strong>{users.find((u) => u.id === userId)?.name ?? "(chưa chọn)"}</strong>.
+              <br />
+              Cột thời gian <strong>phải có cả ngày và giờ</strong> (chỉ có ngày thì không biết thuộc ca nào). Đọc được:{" "}
+              <code>20/09/2026 14:35</code>, <code>20-09-2026 14:35</code>, <code>2026-09-20 14:35</code>, và ô ngày-giờ thật
+              của Excel. Ngày luôn đứng trước tháng — file dạng <code>mm/dd/yyyy</code> sẽ bị từ chối chứ không đọc ngược.
             </p>
             <Button type="button" variant="secondary" size="sm" className="self-start" onClick={downloadTemplate}>
               <Download size={14} />

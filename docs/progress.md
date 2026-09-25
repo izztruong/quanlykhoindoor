@@ -39,6 +39,11 @@ ngày lịch, đổi mốc ca ra số khác mà không nhập lại. `npm run li
 không liên quan. Còn lại: chạy `scripts/backtest-forecast.ts` sau khi nạp 2 tháng doanh số thật; mobile
 chưa làm; tên POS viết tắt ("CF sữa đá") so khớp chuỗi không ra, phải chọn tay.
 
+Sửa tiếp: ExcelJS đọc ô ngày-giờ thật của Excel thành `Date` mang giờ treo tường ở trường **UTC**, nên
+bản đầu lệch +7 giờ và doanh số 23h nhảy sang ngày sau. Đọc ngày giờ tách ra `lib/posSaleDate.ts`, đã
+kiểm 8 ca bằng chính hàm đó trên file dựng từ số serial thô (dd/mm/yyyy, dd-mm-yyyy, yyyy-mm-dd, ô
+Date, thiếu giờ và mm/dd/yyyy đều bị từ chối đúng).
+
 ### Chi chốt ca: cột "Đã chi" + cột Ngày lập phiếu — CHƯA thử trên trình duyệt/app, chưa lên `staging`/`main`
 Quyền mới `SHIFT_EXPENSES.PAY` bật/tắt dấu "đã chi"; đã đánh dấu thì quán hết sửa/xoá/đổi ảnh (409). Cột "Ngày" đổi thành "Ngày chi", thêm "Ngày lập phiếu" (từ `createdAt`), lọc theo trạng thái chi. Excel chỉ thêm cột cuối, file mẫu giữ nguyên.
 Đã kiểm typecheck 3 app, bundle Android, curl (quán có ADD+DELETE vẫn 403 ở `/pay`, 409 sửa/xoá/ảnh khi đã chi, lọc paid, gỡ dấu rồi sửa lại được, có PAY thiếu `DATA.SCOPE_ALL` → 404).
