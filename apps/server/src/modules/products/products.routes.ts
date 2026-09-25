@@ -19,6 +19,8 @@ const schema = z.object({
   // Số ngày dùng được sau khi quán nhận hàng — chỉ dùng để KẸP số ngày cần phủ khi gợi ý đặt hàng,
   // không phải theo dõi hạn từng lô. Cho phép null để form gỡ được giá trị đã khai.
   shelfLifeDays: z.coerce.number().int().positive().nullable().optional(),
+  // Số ngày từ lúc đặt tới lúc quán nhận được hàng — khác nhau theo hàng hoá (cà phê 4–5, bột 1–2).
+  leadDays: z.coerce.number().int().min(0).max(60).nullable().optional(),
   // Hàng hoá ngừng dùng (active=false) bị ẩn khỏi ô chọn hàng hoá khi tạo phiếu/đơn hàng mới.
   active: z.boolean().optional().default(true),
 });

@@ -77,6 +77,11 @@ export default function ProductsPage() {
         type: "number" as const,
       },
       {
+        name: "leadDays",
+        label: "Số ngày chờ hàng về kể từ lúc đặt (cà phê 4–5, bột 1–2) — cộng vào số ngày cần phủ khi gợi ý đặt hàng",
+        type: "number" as const,
+      },
+      {
         name: "active",
         label: "Đang sử dụng (bỏ tick để ẩn khỏi ô chọn hàng hoá khi tạo phiếu/đơn hàng)",
         type: "checkbox" as const,

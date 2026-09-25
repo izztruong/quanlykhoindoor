@@ -5,7 +5,7 @@ import { HttpError } from "../../utils/httpError";
 import { parsePagination } from "../../utils/pagination";
 import { createSalesOrder } from "../salesOrders/salesOrders.service";
 import { reorderCommitSchema, reorderPreviewSchema } from "./reorderSuggestions.schemas";
-import { buildSuggestions } from "./reorderSuggestions.service";
+import { buildSuggestions, getOrderScheduleInfo } from "./reorderSuggestions.service";
 
 export const reorderSuggestionsRouter = Router();
 
@@ -23,8 +23,8 @@ function resolveTargetUserId(req: Request, requested?: string): string {
 reorderSuggestionsRouter.post("/preview", requirePermission("REORDER_SUGGESTIONS", "VIEW"), async (req, res) => {
   const input = reorderPreviewSchema.parse(req.body);
   const userId = resolveTargetUserId(req, input.userId);
-  const items = await buildSuggestions({ ...input, userId });
-  res.json({ items });
+  const [items, schedule] = await Promise.all([buildSuggestions({ ...input, userId }), getOrderScheduleInfo()]);
+  res.json({ items, schedule });
 });
 
 /**

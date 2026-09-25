@@ -50,6 +50,15 @@ bản đầu lệch +7 giờ và doanh số 23h nhảy sang ngày sau. Đọc ng
 kiểm 8 ca bằng chính hàm đó trên file dựng từ số serial thô (dd/mm/yyyy, dd-mm-yyyy, yyyy-mm-dd, ô
 Date, thiếu giờ và mm/dd/yyyy đều bị từ chối đúng).
 
+### Lịch gọi đồ + chờ hàng theo hàng hoá + trừ hàng đang về — CHƯA thử trên trình duyệt, chưa lên `staging`/`main`
+Số ngày mỗi đơn phải phủ giờ tự tính từ `OrderScheduleDay` (khai T5+CN, seed trong migration): gọi tối CN
+phủ 4 ngày, tối T5 phủ 3. `Product.leadDays` thay ô chờ hàng dùng chung — cà phê 5 ngày khác bột 1–2 ngày.
+Chế độ COVERAGE trừ hàng đã đặt chưa nhận (DRAFT/PENDING_CONFIRM/CONFIRMED; **không** trừ phần thiếu của
+SHORT); THRESHOLD/FIXED cố ý không trừ, chỉ hiện cột "Đang về" để người tự quyết.
+Đã kiểm typecheck 2 app, build web, `migrate deploy` trên DB dev + bản copy + DB trắng, số ngày phủ cho
+cả 7 thứ và 4 kiểu lịch, ranh giới múi giờ 23:30 CN, trừ hàng đang về trên dữ liệu thật của quán Tây Sơn
+(chờ 5 ngày → tổng 7 ngày; ma trận trạng thái đơn; kẹp về 0 khi thừa), và curl phân quyền lịch gọi.
+
 ### Chi chốt ca: cột "Đã chi" + cột Ngày lập phiếu — CHƯA thử trên trình duyệt/app, chưa lên `staging`/`main`
 Quyền mới `SHIFT_EXPENSES.PAY` bật/tắt dấu "đã chi"; đã đánh dấu thì quán hết sửa/xoá/đổi ảnh (409). Cột "Ngày" đổi thành "Ngày chi", thêm "Ngày lập phiếu" (từ `createdAt`), lọc theo trạng thái chi. Excel chỉ thêm cột cuối, file mẫu giữ nguyên.
 Đã kiểm typecheck 3 app, bundle Android, curl (quán có ADD+DELETE vẫn 403 ở `/pay`, 409 sửa/xoá/ảnh khi đã chi, lọc paid, gỡ dấu rồi sửa lại được, có PAY thiếu `DATA.SCOPE_ALL` → 404).

@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
-import type { ReorderSuggestion, SalesOrder } from "@/types";
+import type { OrderScheduleInfo, ReorderSuggestion, SalesOrder } from "@/types";
 
 export interface OnHandInput {
   productId: string;
@@ -10,8 +10,13 @@ export interface OnHandInput {
 export interface PreviewInput {
   userId?: string;
   onHand: OnHandInput[];
+  /** Bỏ trống thì server tự tính từ lịch gọi đồ — đó là đường chạy thường ngày. */
   coverDays?: number;
-  leadDays?: number;
+}
+
+export interface PreviewResult {
+  items: ReorderSuggestion[];
+  schedule: OrderScheduleInfo;
 }
 
 /**
@@ -21,8 +26,7 @@ export interface PreviewInput {
  */
 export function usePreviewReorderSuggestions() {
   return useMutation({
-    mutationFn: (data: PreviewInput) =>
-      api.post<{ items: ReorderSuggestion[] }>("/reorder-suggestions/preview", data).then((r) => r.items),
+    mutationFn: (data: PreviewInput) => api.post<PreviewResult>("/reorder-suggestions/preview", data),
   });
 }
 

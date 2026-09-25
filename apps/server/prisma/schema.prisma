@@ -223,6 +223,17 @@ model Product {
   // Để trống = không ràng buộc.
   shelfLifeDays Int?
 
+  // Số ngày từ lúc đặt tới lúc quán nhận được hàng. KHÁC NHAU THEO HÀNG HOÁ (cà phê 4–5 ngày, bột 1–2)
+  // nên phải nằm ở đây chứ không phải một ô chung cho cả đơn.
+  //
+  // Đặt trên Product chứ không trên ProductSupplierPrice: lúc quán đặt hàng chưa chọn NCC, NCC chỉ được
+  // chốt ở bước admin xác nhận. Nếu sau này cần theo từng NCC thì chuyển, và lúc đó phải quyết dùng NCC
+  // nào khi chưa xác nhận.
+  //
+  // Để trống = coi như 0 (hàng về ngay). Dùng cộng vào số ngày cần phủ: lượng tiêu thụ từ lúc đặt tới
+  // lúc hàng về phải lấy từ tồn đang có, nên cũng phải mua.
+  leadDays Int?
+
   stockImportItems      StockImportItem[]
   stockExportItems      StockExportItem[]
   inventoryCountItems   InventoryCountItem[]
@@ -1151,4 +1162,17 @@ model ShiftDefinition {
   endHour     Int
   endMinute   Int
   updatedAt   DateTime  @updatedAt
+}
+
+/**
+ * Các thứ trong tuần quán gọi đồ — dùng chung mọi quán, mỗi thứ tối đa một dòng.
+ * `weekday` theo ISO-8601: 1 = Thứ 2 … 7 = Chủ nhật, khớp quy ước của `Deadline.weekday` và
+ * `utils/deadlines`. Hiện tại quán gọi tối Thứ 5 (4) và tối Chủ nhật (7).
+ * Dùng để suy ra SỐ NGÀY CẦN PHỦ của mỗi đơn: khoảng cách từ hôm nay tới ngày gọi kế tiếp. Không phụ
+ * thuộc thời gian chờ hàng — lô này về `D + chờ`, lô sau về `D' + chờ`, chờ triệt tiêu.
+ * Bảng chỉ có một cột nên `weekday` làm luôn khoá chính: không có gì khác để lưu, và cách này khiến
+ * việc chèn trùng là bất khả thi thay vì phải nhớ đặt @unique.
+ */
+model OrderScheduleDay {
+  weekday Int @id
 }

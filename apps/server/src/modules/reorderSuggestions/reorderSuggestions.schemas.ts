@@ -15,10 +15,9 @@ export const reorderPreviewSchema = z.object({
   userId: z.string().min(1).optional(),
   onHand: z.array(onHandSchema).default([]),
   // Số ngày cần phủ, tính TỪ LÚC NHẬN ĐƯỢC HÀNG. Chỉ dùng cho chế độ COVERAGE.
+  // Bỏ trống thì server tự tính từ lịch gọi đồ (khoảng cách tới ngày gọi kế tiếp) — đó là đường chạy
+  // thường ngày; ô trên trang chỉ để sửa tay khi cần.
   coverDays: z.coerce.number().int().min(1).max(365).optional(),
-  // Số ngày từ lúc đặt tới lúc quán nhận được hàng. Chưa có trong cấu hình nên nhận từ client,
-  // mặc định 0 — người dùng có thể gộp luôn vào coverDays.
-  leadDays: z.coerce.number().int().min(0).max(60).default(0),
 });
 
 export const reorderCommitSchema = reorderPreviewSchema.extend({

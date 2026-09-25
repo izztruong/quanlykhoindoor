@@ -11,14 +11,20 @@ import { useReorderThresholds } from "@/hooks/useReorderThresholds";
 import { ApiError } from "@/lib/api-client";
 import { type ExcelColumn, exportRowsToExcel, sanitizeExcelRow } from "@/lib/excelExport";
 import { formatNumber } from "@/lib/format";
-import { REORDER_MODE_LABELS, USAGE_SOURCE_LABELS, type ReorderSuggestion } from "@/types";
+import {
+  REORDER_MODE_LABELS,
+  USAGE_SOURCE_LABELS,
+  WEEKDAY_LABELS,
+  type OrderScheduleInfo,
+  type ReorderSuggestion,
+} from "@/types";
 import ExcelJS from "exceljs";
 import { ChevronDown, Download, Info } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-/** Số ngày phủ mặc định khi hàng hoá dùng chế độ COVERAGE mà chưa khai riêng số ngày. */
-const DEFAULT_COVER_DAYS = 7;
+// Không còn số ngày phủ mặc định ở web: server tự tính từ lịch gọi đồ, và ô trên trang chỉ để sửa tay.
+// Giữ một con số mặc định ở đây sẽ âm thầm đè số tự tính mỗi lần mở trang.
 
 export default function QuickOrderPage() {
   const router = useRouter();
@@ -30,8 +36,9 @@ export default function QuickOrderPage() {
 
   const [warehouseId, setWarehouseId] = useState("");
   const [stockInputs, setStockInputs] = useState<Record<string, string>>({});
-  const [coverDays, setCoverDays] = useState(String(DEFAULT_COVER_DAYS));
-  const [leadDays, setLeadDays] = useState("0");
+  // Bỏ trống = để server tính từ lịch gọi đồ. Chỉ gõ vào khi muốn phủ khác lịch.
+  const [coverDaysOverride, setCoverDaysOverride] = useState("");
+  const [schedule, setSchedule] = useState<OrderScheduleInfo | null>(null);
   // SL người dùng sửa tay, đè lên SL đề xuất. Khoá theo productId, chỉ dòng nào sửa mới có mặt.
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [suggestions, setSuggestions] = useState<ReorderSuggestion[] | null>(null);
@@ -63,21 +70,23 @@ export default function QuickOrderPage() {
 
   const runPreview = useCallback(() => {
     setError(null);
+    const override = Number(coverDaysOverride);
     preview.mutate(
       {
         onHand: buildOnHand(),
-        coverDays: Number(coverDays) || DEFAULT_COVER_DAYS,
-        leadDays: Number(leadDays) || 0,
+        // Chỉ gửi khi người dùng thật sự gõ số — gửi mặc định sẽ đè số tự tính từ lịch gọi.
+        coverDays: coverDaysOverride.trim() !== "" && Number.isFinite(override) && override > 0 ? override : undefined,
       },
       {
-        onSuccess: (items) => {
-          setSuggestions(items);
+        onSuccess: (result) => {
+          setSuggestions(result.items);
+          setSchedule(result.schedule);
           setOverrides({});
         },
         onError: (err) => setError(err instanceof ApiError ? err.message : "Không tính được số lượng đề xuất"),
       },
     );
-  }, [buildOnHand, coverDays, leadDays, preview]);
+  }, [buildOnHand, coverDaysOverride, preview]);
 
   // Tính ngay khi mở trang để hàng gọi cố định hiện sẵn, chưa cần ai gõ tồn.
   const didInitialPreview = useRef(false);
@@ -129,8 +138,8 @@ export default function QuickOrderPage() {
       {
         warehouseId,
         onHand: buildOnHand(),
-        coverDays: Number(coverDays) || DEFAULT_COVER_DAYS,
-        leadDays: Number(leadDays) || 0,
+        coverDays:
+          coverDaysOverride.trim() !== "" && Number(coverDaysOverride) > 0 ? Number(coverDaysOverride) : undefined,
         items: orderItems,
       },
       {
@@ -224,6 +233,8 @@ export default function QuickOrderPage() {
       { header: "Tồn hiện tại", value: (r) => (r.onHandQty == null ? "" : r.onHandQty) },
       { header: "Mức dùng/ngày", value: (r) => (r.dailyUsage == null ? "" : Math.round(r.dailyUsage * 1000) / 1000) },
       { header: "Nguồn mức dùng", value: (r) => USAGE_SOURCE_LABELS[r.usageSource] },
+      { header: "Số ngày chờ hàng", value: (r) => (r.leadDays == null ? "" : r.leadDays) },
+      { header: "Đang về", value: (r) => r.inTransitQty },
       { header: "SL đề xuất", value: (r) => r.suggestedQty },
       { header: "SL đặt", value: (r) => finalQty(r) },
       { header: "Lý do", value: (r) => r.reasons.join(" · ") },
@@ -256,13 +267,32 @@ export default function QuickOrderPage() {
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-slate-600">Đặt đủ dùng cho … ngày</label>
-            <Input type="number" min="1" max="365" value={coverDays} onChange={(e) => setCoverDays(e.target.value)} />
-            <span className="text-xs text-slate-400">Chỉ áp cho hàng đặt theo số ngày dùng</span>
+            <Input
+              type="number"
+              min="1"
+              max="365"
+              placeholder={schedule?.daysUntilNextOrder != null ? String(schedule.daysUntilNextOrder) : "theo lịch gọi"}
+              value={coverDaysOverride}
+              onChange={(e) => setCoverDaysOverride(e.target.value)}
+            />
+            <span className="text-xs text-slate-400">
+              {schedule == null
+                ? "Để trống = tự tính theo lịch gọi đồ"
+                : schedule.daysUntilNextOrder == null
+                  ? "Chưa khai lịch gọi đồ — phải gõ số ngày vào đây"
+                  : `Để trống = ${schedule.daysUntilNextOrder} ngày tới lần gọi kế tiếp (${schedule.orderWeekdays
+                      .map((w) => WEEKDAY_LABELS[w])
+                      .join(", ")})`}
+            </span>
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-slate-600">Số ngày chờ hàng về</label>
-            <Input type="number" min="0" max="60" value={leadDays} onChange={(e) => setLeadDays(e.target.value)} />
-            <span className="text-xs text-slate-400">Cộng thêm vào số ngày cần phủ</span>
+            <span className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500">
+              Theo từng hàng hoá
+            </span>
+            <span className="text-xs text-slate-400">
+              Khai ở Danh mục › Hàng hoá — cà phê chờ khác bột nên không dùng một số chung
+            </span>
           </div>
           <div className="flex items-end">
             <Button type="button" variant="secondary" onClick={runPreview} disabled={preview.isPending}>
@@ -316,6 +346,7 @@ export default function QuickOrderPage() {
                   <th className="border border-slate-200 px-3 py-2">ĐVT</th>
                   <th className="border border-slate-200 px-3 py-2">Cách gọi</th>
                   <th className="border border-slate-200 px-3 py-2">Tồn hiện tại</th>
+                  <th className="border border-slate-200 px-3 py-2">Đang về</th>
                   <th className="border border-slate-200 px-3 py-2">SL đề xuất</th>
                   <th className="border border-slate-200 px-3 py-2">SL đặt</th>
                   <th className="border border-slate-200 px-3 py-2">Vì sao</th>
@@ -325,7 +356,7 @@ export default function QuickOrderPage() {
                 {rowsByGroup.map(([groupName, groupRows]) => (
                   <Fragment key={groupName}>
                     <tr className="bg-slate-50">
-                      <td colSpan={8} className="border border-slate-200 px-3 py-1.5 text-xs font-semibold uppercase text-slate-600">
+                      <td colSpan={9} className="border border-slate-200 px-3 py-1.5 text-xs font-semibold uppercase text-slate-600">
                         {groupName}
                       </td>
                     </tr>
@@ -348,6 +379,22 @@ export default function QuickOrderPage() {
                               value={stockInputs[row.productId] ?? ""}
                               onChange={(e) => setStockInputs((prev) => ({ ...prev, [row.productId]: e.target.value }))}
                             />
+                          </td>
+                          <td className="border border-slate-200 px-3 py-2">
+                            {row.inTransitQty > 0 ? (
+                              <span
+                                className={row.mode === "COVERAGE" ? "text-slate-600" : "text-amber-600"}
+                                title={
+                                  row.mode === "COVERAGE"
+                                    ? "Đã trừ khỏi SL đề xuất"
+                                    : "Chế độ này không tự trừ — cân nhắc sửa cột SL đặt"
+                                }
+                              >
+                                {formatNumber(row.inTransitQty)}
+                              </span>
+                            ) : (
+                              "-"
+                            )}
                           </td>
                           <td className="border border-slate-200 px-3 py-2">
                             {row.suggestedQty > 0 ? (

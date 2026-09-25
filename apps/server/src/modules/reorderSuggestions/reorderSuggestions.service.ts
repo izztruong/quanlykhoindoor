@@ -1,6 +1,7 @@
 import { prisma } from "../../config/db";
 import { type DailyUsageSource, Prisma, type ReorderMode } from "../../generated/prisma/client";
 import { formatNumber } from "../../utils/formatNumber";
+import { WEEKDAY_LABELS, daysUntilNextOrderDay } from "../../utils/orderSchedule";
 import type { ReorderPreviewInput } from "./reorderSuggestions.schemas";
 
 /**
@@ -17,6 +18,17 @@ export interface DailyUsageInfo {
   detail: string;
 }
 
+/**
+ * Hàng đã đặt nhưng chưa nhận. Phải trừ khỏi lượng cần đặt, nếu không agent sẽ đề xuất đặt lại đúng
+ * lượng đó lần nữa — chuyện chắc chắn xảy ra khi thời gian chờ dài hơn nhịp gọi (cà phê chờ 4–5 ngày,
+ * gọi 3–4 ngày một lần nên luôn có một đơn đang trên đường về).
+ */
+export interface InTransitInfo {
+  quantity: number;
+  /** Mã các đơn góp vào, để nói rõ trong `reasons[]` — con số tự nhiên nhỏ đi mà không giải thích sẽ bị cho là lỗi. */
+  orderCodes: string[];
+}
+
 export interface SuggestionRow {
   productId: string;
   code: string;
@@ -30,6 +42,9 @@ export interface SuggestionRow {
   fixedQuantity: number | null;
   coverDays: number | null;
   shelfLifeDays: number | null;
+  leadDays: number | null;
+  /** Hàng đã đặt chưa nhận, đã trừ vào `suggestedQty`. */
+  inTransitQty: number;
   /** Null = quán chưa khai tồn cho hàng này. */
   onHandQty: number | null;
   dailyUsage: number | null;
@@ -173,6 +188,44 @@ export async function getDailyUsage(userId: string, productIds: string[]): Promi
 }
 
 /**
+ * Hàng đã đặt nhưng chưa nhận, theo từng hàng hoá.
+ *
+ * Tính cả đơn `DRAFT`: không tính thì chạy lại gợi ý ngay sau khi vừa tạo đơn sẽ đề xuất đặt thêm lần
+ * nữa. **KHÔNG** tính phần thiếu của đơn `SHORT`: đơn `SHORT` vẫn nhận tiếp được, nhưng nó thường nghĩa
+ * là kho không cấp đủ — coi phần thiếu là "đang về" rồi nó không về thật thì quán hết hàng, mà đặt thiếu
+ * tệ hơn đặt thừa với hàng không hỏng. Đổi quyết định này chỉ là sửa danh sách trạng thái dưới đây.
+ */
+export async function getInTransit(userId: string, productIds: string[]): Promise<Map<string, InTransitInfo>> {
+  const result = new Map<string, InTransitInfo>();
+  if (productIds.length === 0) return result;
+
+  const items = await prisma.salesOrderItem.findMany({
+    where: {
+      productId: { in: productIds },
+      salesOrder: { createdById: userId, status: { in: ["DRAFT", "PENDING_CONFIRM", "CONFIRMED"] } },
+    },
+    select: {
+      productId: true,
+      quantity: true,
+      receivedQuantity: true,
+      salesOrder: { select: { code: true } },
+    },
+  });
+
+  for (const item of items) {
+    const remaining = Number(item.quantity) - Number(item.receivedQuantity ?? 0);
+    // Nhận nhiều hơn đặt là chuyện hợp lệ trong luồng nhận hàng, nên phần còn lại có thể âm — kẹp về 0
+    // thay vì để nó cộng ngược làm tăng lượng cần đặt.
+    if (remaining <= 0) continue;
+    const current = result.get(item.productId) ?? { quantity: 0, orderCodes: [] };
+    current.quantity += remaining;
+    if (!current.orderCodes.includes(item.salesOrder.code)) current.orderCodes.push(item.salesOrder.code);
+    result.set(item.productId, current);
+  }
+  return result;
+}
+
+/**
  * Tính SL cần đặt cho từng hàng hoá đã được thiết lập định lượng của một quán.
  *
  * Chỉ trả về hàng hoá có dòng `ProductReorderThreshold` — giống hệt phạm vi của trang Order nhanh
@@ -185,11 +238,26 @@ export async function buildSuggestions(input: ReorderPreviewInput & { userId: st
   });
   if (thresholds.length === 0) return [];
 
+  const productIds = thresholds.map((t) => t.productId);
   const onHandByProduct = new Map(input.onHand.map((it) => [it.productId, it.quantity]));
-  const usageByProduct = await getDailyUsage(
-    input.userId,
-    thresholds.map((t) => t.productId),
-  );
+  const [usageByProduct, inTransitByProduct, orderScheduleDays] = await Promise.all([
+    getDailyUsage(input.userId, productIds),
+    getInTransit(input.userId, productIds),
+    prisma.orderScheduleDay.findMany({ select: { weekday: true } }),
+  ]);
+
+  // Số ngày một đơn phải phủ = khoảng cách tới ngày gọi kế tiếp. Không phụ thuộc thời gian chờ hàng
+  // (lô này về D + chờ, lô sau về D' + chờ — chờ triệt tiêu), nên tính được một lần cho mọi hàng hoá.
+  const orderWeekdays = orderScheduleDays.map((d) => d.weekday);
+  const scheduleDays = daysUntilNextOrderDay(new Date(), orderWeekdays);
+  const scheduleNote =
+    scheduleDays == null
+      ? null
+      : `Phủ ${scheduleDays} ngày tới lần gọi kế tiếp (lịch gọi: ${orderWeekdays
+          .slice()
+          .sort((a, b) => a - b)
+          .map((w) => WEEKDAY_LABELS[w])
+          .join(", ")})`;
 
   const rows = thresholds.map((threshold) => {
     const product = threshold.product;
@@ -217,6 +285,8 @@ export async function buildSuggestions(input: ReorderPreviewInput & { userId: st
       fixedQuantity: fixed,
       coverDays: threshold.coverDays,
       shelfLifeDays: product.shelfLifeDays,
+      leadDays: product.leadDays,
+      inTransitQty: inTransitByProduct.get(threshold.productId)?.quantity ?? 0,
       onHandQty,
       dailyUsage: usage.dailyUsage,
       usageSource: usage.source,
@@ -228,6 +298,16 @@ export async function buildSuggestions(input: ReorderPreviewInput & { userId: st
     if (!product.active) {
       row.reasons.push("Hàng hoá đã ngừng dùng — không đề xuất");
       return row;
+    }
+
+    // Chỉ COVERAGE trừ hàng đang về. THRESHOLD và FIXED cố ý KHÔNG trừ: hai chế độ đó định nghĩa là
+    // "đặt đúng lượng này", đổi số của chúng là đổi thói quen đặt hàng của mọi quán mà không ai yêu cầu.
+    // Nhưng vẫn nói ra để người duyệt tự quyết có nên sửa cột SL đặt hay không.
+    const inTransitNote = inTransitByProduct.get(threshold.productId);
+    if (inTransitNote && threshold.mode !== "COVERAGE") {
+      row.reasons.push(
+        `Đang có ${formatNumber(inTransitNote.quantity)} đã đặt chưa nhận (${inTransitNote.orderCodes.join(", ")}) — chế độ này không tự trừ`,
+      );
     }
 
     switch (threshold.mode) {
@@ -270,9 +350,12 @@ export async function buildSuggestions(input: ReorderPreviewInput & { userId: st
       }
 
       case "COVERAGE": {
-        const requestedDays = threshold.coverDays ?? input.coverDays ?? null;
+        // Ưu tiên: khai riêng cho hàng hoá → số người dùng gõ trên trang → số tự tính từ lịch gọi.
+        // Lịch gọi đứng cuối nhưng là đường chạy thường ngày: hai kỳ trong tuần dài khác nhau (CN→T5 là
+        // 4 ngày, T5→CN là 3) nên khai cứng một con số theo hàng hoá sẽ sai một trong hai kỳ.
+        const requestedDays = threshold.coverDays ?? input.coverDays ?? scheduleDays;
         if (requestedDays == null) {
-          row.reasons.push("Chưa khai số ngày cần phủ");
+          row.reasons.push("Chưa khai lịch gọi đồ và cũng chưa khai số ngày cần phủ");
           return row;
         }
         if (onHandQty == null) {
@@ -290,20 +373,30 @@ export async function buildSuggestions(input: ReorderPreviewInput & { userId: st
         // Kẹp theo hạn dùng: đặt đủ 7 ngày nhưng hàng chỉ để được 3 thì phần thừa là để đổ đi.
         const effectiveDays =
           product.shelfLifeDays != null ? Math.min(requestedDays, product.shelfLifeDays) : requestedDays;
-        const totalDays = effectiveDays + input.leadDays;
-        const need = usage.dailyUsage * totalDays - onHandQty;
+        // Chờ hàng theo TỪNG HÀNG HOÁ: lượng tiêu thụ từ lúc đặt tới lúc hàng về phải lấy từ tồn đang
+        // có, nên cũng phải mua. Cà phê chờ 5 ngày thì mỗi đơn phải cõng thêm 5 ngày tiêu thụ.
+        const leadDays = product.leadDays ?? 0;
+        const totalDays = effectiveDays + leadDays;
+        const inTransit = inTransitByProduct.get(threshold.productId);
+        const need = usage.dailyUsage * totalDays - onHandQty - (inTransit?.quantity ?? 0);
 
         row.reasons.push(usage.detail);
+        if (threshold.coverDays == null && input.coverDays == null && scheduleNote) row.reasons.push(scheduleNote);
         if (product.shelfLifeDays != null && effectiveDays < requestedDays) {
           row.reasons.push(`Kẹp còn ${effectiveDays} ngày vì hàng chỉ dùng được ${product.shelfLifeDays} ngày`);
         }
         row.reasons.push(
-          input.leadDays > 0
-            ? `Cần phủ ${effectiveDays} ngày + ${input.leadDays} ngày chờ hàng, trừ tồn ${formatNumber(onHandQty)}`
+          leadDays > 0
+            ? `Cần phủ ${effectiveDays} ngày + ${leadDays} ngày chờ hàng = ${totalDays} ngày, trừ tồn ${formatNumber(onHandQty)}`
             : `Cần phủ ${effectiveDays} ngày, trừ tồn ${formatNumber(onHandQty)}`,
         );
+        if (inTransit) {
+          row.reasons.push(
+            `Trừ ${formatNumber(inTransit.quantity)} đã đặt chưa nhận (${inTransit.orderCodes.join(", ")})`,
+          );
+        }
         if (need <= 0) {
-          row.reasons.push("Tồn đã đủ — chưa cần đặt");
+          row.reasons.push(inTransit ? "Tồn cộng hàng đang về đã đủ — chưa cần đặt" : "Tồn đã đủ — chưa cần đặt");
           return row;
         }
         row.suggestedQty = round3(need);
@@ -315,4 +408,23 @@ export async function buildSuggestions(input: ReorderPreviewInput & { userId: st
   return rows.sort(
     (a, b) => a.productGroupName.localeCompare(b.productGroupName) || a.name.localeCompare(b.name),
   );
+}
+
+export interface OrderScheduleInfo {
+  /** 1 = Thứ 2 … 7 = Chủ nhật. Rỗng nghĩa là chưa khai lịch. */
+  orderWeekdays: number[];
+  /** Số ngày tới lần gọi kế tiếp, null khi chưa khai lịch. */
+  daysUntilNextOrder: number | null;
+}
+
+/**
+ * Lịch gọi và số ngày phủ tự tính, trả kèm `preview` để giao diện hiện đúng con số server đã dùng.
+ *
+ * Cố ý KHÔNG để web tự tính: web tính thì có hai bản cùng logic, và bản của web dùng giờ máy người dùng
+ * chứ không phải hằng UTC+7 — tối Chủ nhật ở VN có thể thành Thứ 2 nếu máy đặt sai múi giờ.
+ */
+export async function getOrderScheduleInfo(now: Date = new Date()): Promise<OrderScheduleInfo> {
+  const days = await prisma.orderScheduleDay.findMany({ select: { weekday: true }, orderBy: { weekday: "asc" } });
+  const orderWeekdays = days.map((d) => d.weekday);
+  return { orderWeekdays, daysUntilNextOrder: daysUntilNextOrderDay(now, orderWeekdays) };
 }

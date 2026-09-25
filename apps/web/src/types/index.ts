@@ -70,6 +70,8 @@ export interface Product {
   active?: boolean;
   // Số ngày còn dùng được sau khi quán nhận hàng — dùng để kẹp số ngày cần phủ khi gợi ý đặt hàng.
   shelfLifeDays?: number | null;
+  // Số ngày từ lúc đặt tới lúc quán nhận được hàng. Khác nhau theo hàng hoá (cà phê 4–5, bột 1–2).
+  leadDays?: number | null;
 }
 
 export type ReorderMode = "THRESHOLD" | "FIXED" | "COVERAGE" | "OFF";
@@ -117,12 +119,32 @@ export interface ReorderSuggestion {
   fixedQuantity: number | null;
   coverDays: number | null;
   shelfLifeDays: number | null;
+  leadDays: number | null;
+  /** Hàng đã đặt chưa nhận. Chế độ COVERAGE đã trừ khỏi `suggestedQty`; hai chế độ kia chỉ hiện để biết. */
+  inTransitQty: number;
   onHandQty: number | null;
   dailyUsage: number | null;
   usageSource: DailyUsageSource;
   suggestedQty: number;
   reasons: string[];
 }
+
+/** Lịch gọi đồ và số ngày phủ tự tính — server trả kèm `preview` để web không tự tính lại. */
+export interface OrderScheduleInfo {
+  /** 1 = Thứ 2 … 7 = Chủ nhật. Rỗng = chưa khai lịch. */
+  orderWeekdays: number[];
+  daysUntilNextOrder: number | null;
+}
+
+export const WEEKDAY_LABELS: Record<number, string> = {
+  1: "Thứ 2",
+  2: "Thứ 3",
+  3: "Thứ 4",
+  4: "Thứ 5",
+  5: "Thứ 6",
+  6: "Thứ 7",
+  7: "Chủ nhật",
+};
 
 export type ShiftCode = "CA1" | "CA2" | "CA3";
 
