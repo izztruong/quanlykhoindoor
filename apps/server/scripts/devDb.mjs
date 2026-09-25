@@ -91,6 +91,35 @@ const host = assertLocal(target.url);
 const port = Number(new URL(target.url).port || 5432);
 const dbName = new URL(target.url).pathname.replace(/^\//, "");
 
+/**
+ * Từ chối chạy nếu cổng API đã có người giữ.
+ *
+ * Đây là chốt chặn cho một lần đã mất thời gian thật: một `npm run dev` cũ (trỏ vào DB dev) còn sống và
+ * giữ cổng 4000, nên lệnh này in banner "BẢN COPY" rồi không bind được — server trả lời vẫn là cái cũ,
+ * và mọi truy vấn đi vào SAI DATABASE trong khi màn hình nói là đúng. Thà không chạy còn hơn chạy mà
+ * người dùng tin sai.
+ */
+async function assertApiPortFree(port) {
+  const { default: net } = await import("node:net");
+  const inUse = await new Promise((resolve) => {
+    const server = net.createServer();
+    server.once("error", (err) => resolve(err.code === "EADDRINUSE"));
+    server.once("listening", () => server.close(() => resolve(false)));
+    // KHÔNG chỉ định host — để Node dùng mặc định, đúng như `app.listen(env.port)` của server thật.
+    // Trên Windows, bind tường minh vào "0.0.0.0" hay "127.0.0.1" vẫn THÀNH CÔNG dù đã có tiến trình
+    // nghe ở cổng đó, nên chỉ định host làm phép thử này luôn báo "cổng trống" và vô dụng.
+    server.listen(port);
+  });
+  if (inUse) {
+    console.error(`Cổng ${port} đã có tiến trình khác giữ — rất có thể là một server cũ đang trỏ vào DB khác.`);
+    console.error(`  Dừng nó trước, nếu không server trả lời sẽ là cái cũ và bạn đọc sai database.`);
+    console.error(`  Xem ai giữ:  netstat -ano | findstr :${port}`);
+    process.exit(1);
+  }
+}
+
+await assertApiPortFree(Number(process.env.PORT) || 4000);
+
 const check = await checkDatabase(target.url);
 if (!check.ok) {
   console.error(`Không kết nối được database "${dbName}" tại ${host}:${port}`);
