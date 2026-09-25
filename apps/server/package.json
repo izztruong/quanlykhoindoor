@@ -5,6 +5,7 @@
   "main": "src/index.ts",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "dev:copy": "node scripts/devDb.mjs copy",
     "start": "prisma migrate deploy && tsx src/index.ts",
     "typecheck": "tsc --noEmit",
     "prisma:generate": "prisma generate",

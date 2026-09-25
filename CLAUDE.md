@@ -48,7 +48,8 @@ docker compose up -d              # PostgreSQL (container kho_postgres, db kho_d
 npm run dev                       # gốc: chạy song song server + web
 
 # apps/server
-npm run dev                       # tsx watch, cổng 4000
+npm run dev                       # tsx watch, cổng 4000 — dùng DATABASE_URL trong .env (kho_db)
+npm run dev:copy                  # cùng server nhưng trỏ vào bản copy dữ liệu production (xem dưới)
 npm run typecheck
 npm run prisma:migrate            # migrate dev
 npm run prisma:seed
@@ -79,6 +80,33 @@ npx expo export --platform android   # bundle thử — bắt lỗi import mà t
   mobile (đã lỡ một lần với trường `category` của phiếu đề xuất chi).
 
 Tài khoản seed: `admin@quanly.local` / `admin123`
+
+### Đổi qua lại giữa DB dev và bản copy dữ liệu production
+
+`npm run dev` dùng `kho_db` như cũ. `npm run dev:copy` (`scripts/devDb.mjs`) trỏ vào bản copy dữ liệu
+thật, đồng thời **làm rỗng 4 biến `R2_*` và tắt push**: dữ liệu copy mang đúng `objectKey` thật, nên xoá
+một khoản chi trong lúc thử sẽ xoá file thật trên bucket production nếu không tắt. Đổi lại thì dừng lệnh
+rồi `npm run dev` — không sửa `.env` nên không có gì phải hoàn tác.
+
+Script **từ chối chạy với bất kỳ host không phải localhost** và không có cờ nào bỏ qua: `.env` đang giữ
+`PROD_DATABASE_URL`, một lần gõ nhầm là server dev ghi thẳng vào production.
+
+Bản copy nằm ở container tạo **bằng tay**, không có trong `docker-compose.yml`, vì production chạy
+PostgreSQL **18** còn container dev là 16 (`pg_dump` 16 từ chối dump server 18). Image PG 18 cũng đổi
+đường dẫn dữ liệu sang `/var/lib/postgresql` — mount vào `/var/lib/postgresql/data` như PG 16 là container
+không khởi động được:
+
+```bash
+docker run -d --name kho_prod_copy_pg18 --restart unless-stopped \
+  -e POSTGRES_USER=kho_user -e POSTGRES_PASSWORD=kho_pass -e POSTGRES_DB=kho_prod_copy \
+  -p 5434:5432 -v kho_prod_copy_data:/var/lib/postgresql postgres:18-alpine
+
+# nạp lại dữ liệu (pg_dump chỉ đọc; chạy trong container để khớp phiên bản client)
+docker exec -e PGURL="<PROD_DATABASE_URL>" kho_prod_copy_pg18 sh -c \
+  'pg_dump --no-owner --no-privileges "$PGURL" | psql -U kho_user -d kho_prod_copy -v ON_ERROR_STOP=1 -q'
+# bản copy mang trạng thái migration của production, nên áp migration mới lên nó:
+DATABASE_URL="postgresql://kho_user:kho_pass@localhost:5434/kho_prod_copy" npx prisma migrate deploy
+```
 
 ### Không có test framework
 
