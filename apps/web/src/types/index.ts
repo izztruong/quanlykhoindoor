@@ -148,8 +148,9 @@ export interface PosItemMapping {
   id: string;
   posName: string;
   posNameRaw: string;
-  finishedGoodItemId: string;
-  finishedGoodItem: { id: string; code: string; name: string };
+  // null = cố ý bỏ qua tên này (phí ship, voucher…), khác hẳn "chưa ánh xạ" là chưa có dòng nào.
+  finishedGoodItemId: string | null;
+  finishedGoodItem: { id: string; code: string; name: string } | null;
 }
 
 export interface PosMappingSuggestion {

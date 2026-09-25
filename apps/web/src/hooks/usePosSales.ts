@@ -15,7 +15,12 @@ export interface PosImportResult {
   daysReplaced: number;
   /** Tên POS chưa ánh xạ. Khác rỗng nghĩa là KHÔNG có gì được ghi — phải ánh xạ rồi nhập lại. */
   unmappedNames: string[];
+  /** Tên đã khai "bỏ qua" nên bị loại khỏi lần nhập này. Báo lại để không ai tưởng là mất dữ liệu. */
+  ignoredNames: string[];
 }
+
+/** Giá trị trong ô chọn tương ứng với "bỏ qua tên này" — gửi lên server thành null. */
+export const IGNORE_MAPPING = "__IGNORE__";
 
 export function usePosSaleDays(params: { userId?: string; page?: number }) {
   return useQuery({
@@ -67,7 +72,7 @@ export function useSuggestPosMappings() {
 export function useSavePosItemMappings() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (items: { posNameRaw: string; finishedGoodItemId: string }[]) =>
+    mutationFn: (items: { posNameRaw: string; finishedGoodItemId: string | null }[]) =>
       api.put<{ items: PosItemMapping[] }>("/pos-item-mappings", { items }),
     onSuccess: (data) => queryClient.setQueryData(["pos-item-mappings"], data.items),
   });

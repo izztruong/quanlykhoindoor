@@ -1115,8 +1115,15 @@ model PosItemMapping {
   // Bản gốc như POS xuất ra, giữ để admin nhận ra mình đang ánh xạ cái gì.
   posNameRaw String
 
-  finishedGoodItemId String
-  finishedGoodItem   FinishedGoodItem @relation(fields: [finishedGoodItemId], references: [id], onDelete: Cascade)
+  // NULL = cố ý BỎ QUA tên này. File POS luôn có dòng không phải món (phí ship, voucher giảm giá,
+  // combo, topping tính riêng); không có cách khai "bỏ qua" thì những dòng đó CHẶN phần nhập vĩnh
+  // viễn, vì không tên nào được phép còn thiếu ánh xạ. Khác hẳn "chưa ánh xạ" = chưa có dòng nào.
+  //
+  // Vẫn giữ onDelete: Cascade chứ KHÔNG SetNull — xoá một đồ thành phẩm thì dòng ánh xạ biến mất và
+  // tên POS đó quay về "chưa ánh xạ", tức chặn phần nhập cho tới khi có người xử lý. SetNull sẽ lặng
+  // lẽ biến nó thành "bỏ qua" và từ đó mất dữ liệu bán mà không báo gì.
+  finishedGoodItemId String?
+  finishedGoodItem   FinishedGoodItem? @relation(fields: [finishedGoodItemId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
 

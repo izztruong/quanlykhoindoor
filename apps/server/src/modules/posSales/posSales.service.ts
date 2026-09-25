@@ -18,6 +18,8 @@ export interface ImportResult {
   daysReplaced: number;
   /** Tên POS chưa có ánh xạ — KHÔNG nhập dòng nào cho tới khi ánh xạ xong. */
   unmappedNames: string[];
+  /** Tên đã được khai "bỏ qua" và bị loại khỏi lần nhập này — báo lại để không ai tưởng là mất dữ liệu. */
+  ignoredNames: string[];
 }
 
 /**
@@ -40,27 +42,36 @@ export async function importPosSales(userId: string, rows: PosSaleRow[]): Promis
     where: { posName: { in: [...new Set(normalizedByRaw.values())] } },
     select: { posName: true, finishedGoodItemId: true },
   });
+  // Giá trị có thể là null = đã khai "bỏ qua". Dùng `has` để phân biệt với "chưa ánh xạ" (không có khoá).
   const itemIdByNormalized = new Map(mappings.map((m) => [m.posName, m.finishedGoodItemId]));
 
   const unmappedNames = [...normalizedByRaw.entries()]
     .filter(([, normalized]) => !itemIdByNormalized.has(normalized))
     .map(([raw]) => raw)
     .sort((a, b) => a.localeCompare(b));
-  if (unmappedNames.length > 0) return { written: 0, daysReplaced: 0, unmappedNames };
+  if (unmappedNames.length > 0) return { written: 0, daysReplaced: 0, unmappedNames, ignoredNames: [] };
+
+  const ignoredNames = [...normalizedByRaw.entries()]
+    .filter(([, normalized]) => itemIdByNormalized.get(normalized) === null)
+    .map(([raw]) => raw)
+    .sort((a, b) => a.localeCompare(b));
 
   // Gộp trùng trong chính file: cùng (ngày, giờ, món) có thể đến từ nhiều tên POS khác nhau đều ánh
   // xạ về một món, và từ nhiều dòng đơn lẻ — phải CỘNG lại, không phải lấy dòng cuối.
   const byCell = new Map<string, { soldOn: string; hour: number; finishedGoodItemId: string; quantity: number }>();
   for (const row of rows) {
-    const finishedGoodItemId = itemIdByNormalized.get(normalizedByRaw.get(row.posName)!)!;
+    const finishedGoodItemId = itemIdByNormalized.get(normalizedByRaw.get(row.posName)!);
+    if (finishedGoodItemId == null) continue; // tên đã khai bỏ qua
     const key = `${row.soldOn}|${row.hour}|${finishedGoodItemId}`;
     const current = byCell.get(key);
     if (current) current.quantity += row.quantity;
     else byCell.set(key, { soldOn: row.soldOn, hour: row.hour, finishedGoodItemId, quantity: row.quantity });
   }
 
-  const days = [...new Set(rows.map((r) => r.soldOn))];
   const cells = [...byCell.values()];
+  // Ngày cần ghi đè suy từ CÁC Ô THẬT, không phải từ mọi dòng trong file: một ngày mà cả file chỉ có
+  // dòng bị bỏ qua thì không được đụng tới — xoá ngày đó rồi ghi 0 ô là xoá trắng dữ liệu đã có.
+  const days = [...new Set(cells.map((c) => c.soldOn))];
 
   await prisma.$transaction(
     async (tx) => {
@@ -79,5 +90,5 @@ export async function importPosSales(userId: string, rows: PosSaleRow[]): Promis
     { timeout: 60000 },
   );
 
-  return { written: cells.length, daysReplaced: days.length, unmappedNames: [] };
+  return { written: cells.length, daysReplaced: days.length, unmappedNames: [], ignoredNames };
 }

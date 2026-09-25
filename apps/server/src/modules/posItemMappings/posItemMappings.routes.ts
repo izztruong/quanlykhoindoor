@@ -12,7 +12,9 @@ const mappingsPutSchema = z.object({
     .array(
       z.object({
         posNameRaw: z.string().min(1),
-        finishedGoodItemId: z.string().min(1),
+        // null = cố ý bỏ qua tên này (phí ship, voucher…). Phải nhận null tường minh chứ không cho
+        // bỏ trống trường: bỏ trống dễ là lỗi client, còn null là một lựa chọn người dùng đã bấm.
+        finishedGoodItemId: z.string().min(1).nullable(),
       }),
     )
     .min(1),
@@ -44,9 +46,11 @@ posItemMappingsRouter.post("/suggest", requirePermission("POS_ITEM_MAPPING", "VI
 posItemMappingsRouter.put("/", requirePermission("POS_ITEM_MAPPING", "EDIT"), async (req, res) => {
   const { items } = mappingsPutSchema.parse(req.body);
 
-  const finishedGoodIds = [...new Set(items.map((it) => it.finishedGoodItemId))];
-  const found = await prisma.finishedGoodItem.findMany({ where: { id: { in: finishedGoodIds } }, select: { id: true } });
-  if (found.length !== finishedGoodIds.length) throw new HttpError(400, "Có đồ thành phẩm không tồn tại");
+  const finishedGoodIds = [...new Set(items.map((it) => it.finishedGoodItemId).filter((id): id is string => id !== null))];
+  if (finishedGoodIds.length > 0) {
+    const found = await prisma.finishedGoodItem.findMany({ where: { id: { in: finishedGoodIds } }, select: { id: true } });
+    if (found.length !== finishedGoodIds.length) throw new HttpError(400, "Có đồ thành phẩm không tồn tại");
+  }
 
   // Tên đã chuẩn hoá là khoá, nên hai dòng khác nhau về dấu/hoa thường sẽ đụng nhau — dòng sau thắng,
   // giống cách bulk-import của danh mục xử lý mã trùng trong cùng một file.

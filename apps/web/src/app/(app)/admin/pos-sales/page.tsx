@@ -5,7 +5,15 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
-import { useDeletePosSaleDay, useImportPosSales, usePosSaleDays, type PosSaleRowInput } from "@/hooks/usePosSales";
+import { PosMappingEditor } from "@/components/posSales/PosMappingEditor";
+import {
+  useDeletePosSaleDay,
+  useImportPosSales,
+  usePosSaleDays,
+  useSuggestPosMappings,
+  type PosImportResult,
+  type PosSaleRowInput,
+} from "@/hooks/usePosSales";
 import { useUserOptions } from "@/hooks/useUsers";
 import { ApiError } from "@/lib/api-client";
 import { sanitizeExcelRow } from "@/lib/excelExport";
@@ -33,12 +41,15 @@ export default function PosSalesPage() {
   const { data, isLoading } = usePosSaleDays({ userId: userId || undefined, page });
   const importSales = useImportPosSales();
   const deleteDay = useDeletePosSaleDay();
+  const suggest = useSuggestPosMappings();
 
   const [importOpen, setImportOpen] = useState(false);
   const [importing, setImporting] = useState(false);
   const [parseErrors, setParseErrors] = useState<string[]>([]);
-  const [result, setResult] = useState<{ written: number; daysReplaced: number; unmappedNames: string[] } | null>(null);
+  const [result, setResult] = useState<PosImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Giữ lại các ô đã đọc từ file để nhập LẠI ngay sau khi ánh xạ xong, khỏi bắt chọn lại file.
+  const [parsedRows, setParsedRows] = useState<PosSaleRowInput[] | null>(null);
 
   async function downloadTemplate() {
     const workbook = new ExcelJS.Workbook();
@@ -58,6 +69,23 @@ export default function PosSalesPage() {
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
+  }
+
+  /** Gửi các ô đã đọc lên server. Tách riêng để dùng lại được sau khi ánh xạ xong, không phải chọn lại file. */
+  function runImport(rows: PosSaleRowInput[]) {
+    setError(null);
+    importSales.mutate(
+      { userId, rows },
+      {
+        onSuccess: (res) => {
+          setResult(res);
+          // Xin gợi ý ngay tại đây — sự kiện "nhập xong và còn tên thiếu" là lúc duy nhất biết được
+          // danh sách tên, nên không phải đợi người dùng bấm thêm một nút nữa.
+          if (res.unmappedNames.length > 0) suggest.mutate(res.unmappedNames);
+        },
+        onError: (err) => setError(err instanceof ApiError ? err.message : "Nhập doanh số thất bại"),
+      },
+    );
   }
 
   async function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -138,13 +166,8 @@ export default function PosSalesPage() {
         return;
       }
 
-      importSales.mutate(
-        { userId, rows },
-        {
-          onSuccess: (res) => setResult(res),
-          onError: (err) => setError(err instanceof ApiError ? err.message : "Nhập doanh số thất bại"),
-        },
-      );
+      setParsedRows(rows);
+      runImport(rows);
     } catch {
       setParseErrors(["Đọc file thất bại. Vui lòng kiểm tra định dạng file."]);
     } finally {
@@ -293,27 +316,40 @@ export default function PosSalesPage() {
 
             {result && result.unmappedNames.length > 0 && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                <p className="font-medium">
-                  Chưa nhập gì cả — còn {result.unmappedNames.length} tên món chưa ánh xạ.
-                </p>
+                <p className="font-medium">Chưa nhập gì cả — còn {result.unmappedNames.length} tên chưa ánh xạ.</p>
                 <p className="mt-1 text-xs">
-                  Nhập nửa vời sẽ tạo ra một ngày thiếu món, trông y như ngày bán ít và không cách nào phát hiện về sau. Hãy
-                  ánh xạ hết rồi nhập lại.
+                  Nhập nửa vời sẽ tạo ra một ngày thiếu món, trông y như ngày bán ít và không cách nào phát hiện về sau.
+                  Ánh xạ ngay bên dưới — dòng không phải món (phí ship, voucher…) thì chọn <em>Bỏ qua</em>. Lưu xong hệ
+                  thống tự nhập lại, không phải chọn file lần nữa.
                 </p>
-                <textarea
-                  readOnly
-                  className="mt-2 min-h-24 w-full rounded border border-amber-300 bg-white px-2 py-1 font-mono text-xs"
-                  value={result.unmappedNames.join("\n")}
-                />
-                <Link href="/admin/pos-item-mapping" className="mt-2 inline-block text-sm font-medium underline">
-                  Mở trang Ánh xạ món POS
+                <div className="mt-3 rounded border border-amber-200 bg-white p-3">
+                  <PosMappingEditor
+                    posNames={result.unmappedNames}
+                    suggestions={suggest.data}
+                    suggesting={suggest.isPending}
+                    saveLabel="Lưu ánh xạ và nhập lại"
+                    onSaved={() => {
+                      setResult(null);
+                      if (parsedRows) runImport(parsedRows);
+                    }}
+                  />
+                </div>
+                <Link href="/admin/pos-item-mapping" className="mt-2 inline-block text-xs underline">
+                  Hoặc mở trang Ánh xạ món POS
                 </Link>
               </div>
             )}
 
             {result && result.unmappedNames.length === 0 && (
               <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">
-                Đã ghi {result.written} ô dữ liệu cho {result.daysReplaced} ngày.
+                <p>
+                  Đã ghi {result.written} ô dữ liệu cho {result.daysReplaced} ngày.
+                </p>
+                {result.ignoredNames.length > 0 && (
+                  <p className="mt-1 text-xs">
+                    Bỏ qua {result.ignoredNames.length} tên đã khai không phải món: {result.ignoredNames.join(", ")}
+                  </p>
+                )}
               </div>
             )}
 

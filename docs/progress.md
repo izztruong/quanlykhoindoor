@@ -39,6 +39,12 @@ ngày lịch, đổi mốc ca ra số khác mà không nhập lại. `npm run li
 không liên quan. Còn lại: chạy `scripts/backtest-forecast.ts` sau khi nạp 2 tháng doanh số thật; mobile
 chưa làm; tên POS viết tắt ("CF sữa đá") so khớp chuỗi không ra, phải chọn tay.
 
+Sửa tiếp: `PosItemMapping.finishedGoodItemId` cho phép NULL = "bỏ qua tên này". Trước đó mọi tên trong
+file POS đều phải trỏ vào một đồ thành phẩm, nên dòng phí ship/voucher/combo sẽ chặn phần nhập vĩnh viễn.
+Ánh xạ làm ngay trong hộp thoại nhập rồi tự nhập lại, không phải đi vòng hai trang. Đã kiểm curl: chưa
+ánh xạ → không ghi gì; khai bỏ qua → ghi phần còn lại và báo tên bị bỏ; file CHỈ có dòng bỏ qua → không
+xoá dữ liệu ngày đó. migrate deploy đã chạy trên DB dev, bản copy production và DB trắng.
+
 Sửa tiếp: ExcelJS đọc ô ngày-giờ thật của Excel thành `Date` mang giờ treo tường ở trường **UTC**, nên
 bản đầu lệch +7 giờ và doanh số 23h nhảy sang ngày sau. Đọc ngày giờ tách ra `lib/posSaleDate.ts`, đã
 kiểm 8 ca bằng chính hàm đó trên file dựng từ số serial thô (dd/mm/yyyy, dd-mm-yyyy, yyyy-mm-dd, ô
