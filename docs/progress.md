@@ -79,7 +79,24 @@ liệu thật đang âm ở cả 3 loại cốc) và quán chưa có dữ liệu
 "còn đủ N ngày" lạc quan hơn thực tế. Đề xuất gom đơn **chưa kiểm** quán nhận có cầm cự tới ngày chuyển —
 cần tồn nguyên liệu ước tính hàng ngày (Bước 2).
 
-Còn lại của mục 1.8: không còn gì. Tiếp theo là Bước 2 (chuẩn bị đồ theo ca + tồn ước tính hàng ngày).
+### Chuẩn bị đồ theo ca + lõi dự báo + tồn ước tính — CHƯA thử trên trình duyệt, chưa lên `staging`/`main`
+Lõi `utils/forecastSales` (trung bình có trọng số theo độ mới của các lần thứ K × ca C, cửa sổ 8 tuần)
+dùng chung cho chuẩn bị ca và sau này cho gọi đồ. Trang `/shift-prep`: đầu ca xem số mẻ cần pha, cuối ca
+đếm tồn và thấy luôn dòng hao hụt. Thêm `/admin/shift-prep-targets`, `/admin/sales-day-factors`, ba ô
+`prepared`/`batchSize`/`shelfLifeHours` ở Đồ thành phẩm, và nút "Điền tồn ước tính" ở Order nhanh.
+Đã kiểm typecheck 2 app, lint web (vẫn đúng 14 lỗi có **từ trước**, không thêm lỗi nào), `migrate deploy`
+trên DB dev + bản copy + DB trắng, 45 ca dựng dữ liệu trên DB dev (trọng số theo tuần, "thiếu = 0", chuẩn
+hoá hệ số lễ hai chiều, ca trước không đếm → ước tính, qua đêm quá hạn → về 0, ghi đè lượt pha, vòng đo
+hao hụt) và tồn ước tính trên bản copy production (330 dòng, cộng tay khớp).
+**Sau khi deploy phải tick "Chuẩn bị đồ theo ca" cho vai trò quán**, và "Mức chuẩn bị theo ca" + "Hệ số
+ngày lễ" cho vai trò quản trị — không tick thì không có mục menu.
+Ba thứ dữ liệu thật/thử làm lộ ra và đã sửa: Prisma `findUnique` song song trên khoá ghép có `@db.Date`
+trả null (đổi sang `findFirst`, ghi vào CLAUDE.md); phần bù phiếu huỷ thiếu phải **kẹp** ở mức lượng đã
+ghi (không kẹp thì bù 134 cho hàng tồn 1); tầm nhìn đề xuất phải dừng ở hết ngày kinh doanh.
+Chưa làm: mobile; backtest 1.5 vẫn chờ 2 tháng doanh số thật.
+
+Còn lại của mục 1.8: không còn gì. Bước 2 đã xong phần server + web; tiếp theo là Bước 3 (màn theo dõi
+cuối ngày cho admin + gợi ý điều chuyển), nay đã có `getEstimatedOnHand` nên không còn bị chặn.
 
 ### Chi chốt ca: cột "Đã chi" + cột Ngày lập phiếu — CHƯA thử trên trình duyệt/app, chưa lên `staging`/`main`
 Quyền mới `SHIFT_EXPENSES.PAY` bật/tắt dấu "đã chi"; đã đánh dấu thì quán hết sửa/xoá/đổi ảnh (409). Cột "Ngày" đổi thành "Ngày chi", thêm "Ngày lập phiếu" (từ `createdAt`), lọc theo trạng thái chi. Excel chỉ thêm cột cuối, file mẫu giữ nguyên.

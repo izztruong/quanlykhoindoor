@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
-import type { ReorderSuggestion, SalesOrder } from "@/types";
+import type { EstimatedStockRow, ReorderSuggestion, SalesOrder } from "@/types";
 
 export interface OnHandInput {
   productId: string;
@@ -26,6 +26,19 @@ export interface PreviewResult {
 export function usePreviewReorderSuggestions() {
   return useMutation({
     mutationFn: (data: PreviewInput) => api.post<PreviewResult>("/reorder-suggestions/preview", data),
+  });
+}
+
+/**
+ * Tồn nguyên liệu ước tính, để ĐIỀN SẴN cột tồn.
+ *
+ * `useMutation` chứ không `useQuery`: đây là việc người dùng chủ động bấm ("Điền tồn ước tính"), không
+ * phải dữ liệu nền của trang. Tự chạy lúc mở trang sẽ đè số quán đang gõ.
+ */
+export function useEstimatedStock() {
+  return useMutation({
+    mutationFn: (params: { userId?: string }) =>
+      api.get<{ items: EstimatedStockRow[] }>("/reorder-suggestions/estimated-stock", params).then((r) => r.items),
   });
 }
 

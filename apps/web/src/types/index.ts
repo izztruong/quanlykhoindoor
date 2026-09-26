@@ -213,6 +213,124 @@ export interface ReorderSuggestion {
 
 export type ShiftCode = "CA1" | "CA2" | "CA3";
 
+export type PrepMode = "TARGET_LEVEL" | "FORECAST" | "OFF";
+
+export const PREP_MODE_LABELS: Record<PrepMode, string> = {
+  TARGET_LEVEL: "Theo mức mục tiêu",
+  FORECAST: "Theo dự báo",
+  OFF: "Không đề xuất",
+};
+
+/** Nguồn dự báo — người dùng phải thấy con số dựa trên bao nhiêu quan sát và ở mức nào. */
+export type ForecastSource = "WEEKDAY_SHIFT" | "SHIFT_ONLY" | "NONE";
+
+export const FORECAST_SOURCE_LABELS: Record<ForecastSource, string> = {
+  WEEKDAY_SHIFT: "Cùng thứ, cùng ca",
+  SHIFT_ONLY: "Cùng ca, gộp mọi thứ",
+  NONE: "Chưa có dữ liệu",
+};
+
+/** Tồn đầu ca lấy từ đâu. Số ước tính trông y hệt số thật, nên luôn hiện nguồn kèm con số. */
+export type OnHandSource = "MANUAL" | "PREV_SHIFT_COUNT" | "ESTIMATED" | "RESET_OVERNIGHT" | "NONE";
+
+export const ON_HAND_SOURCE_LABELS: Record<OnHandSource, string> = {
+  MANUAL: "Bạn gõ tay",
+  PREV_SHIFT_COUNT: "Đếm cuối ca trước",
+  ESTIMATED: "ƯỚC TÍNH (ca trước không đếm)",
+  RESET_OVERNIGHT: "Về 0 vì quá hạn dùng",
+  NONE: "Chưa có số nào",
+};
+
+export interface ShiftPrepSuggestion {
+  finishedGoodItemId: string;
+  code: string;
+  name: string;
+  unitLabel: string;
+  mode: PrepMode;
+  batchSize: number | null;
+  shelfLifeHours: number | null;
+  targetLevel: number | null;
+  onHandQty: number;
+  onHandSource: OnHandSource;
+  uncountedShifts: number;
+  demandQty: number;
+  forecastSource: ForecastSource | null;
+  coversShifts: ShiftCode[];
+  expiresAt: string | null;
+  suggestedQty: number;
+  suggestedBatches: number;
+  reasons: string[];
+}
+
+export interface ShiftPrepPreview {
+  businessDate: string;
+  shift: ShiftCode;
+  shiftName: string;
+  shiftStart: string;
+  shiftEnd: string;
+  items: ShiftPrepSuggestion[];
+  previousShift: { businessDate: string; shift: ShiftCode } | null;
+  previousShiftCounted: boolean;
+}
+
+/** Hao hụt một ca đã xong. null = thiếu số đếm ở một đầu, KHÔNG suy bừa. */
+export interface ShiftVarianceRow {
+  finishedGoodItemId: string;
+  code: string;
+  name: string;
+  unitLabel: string;
+  openingQty: number | null;
+  preparedQty: number;
+  soldQty: number;
+  closingQty: number | null;
+  varianceQty: number | null;
+  note: string;
+}
+
+export interface ShiftStockCountRecord {
+  id: string;
+  businessDate: string;
+  shift: ShiftCode;
+  countedAt: string;
+  note?: string | null;
+  createdBy?: { id: string; name: string } | null;
+  items: { finishedGoodItemId: string; quantity: string | number }[];
+}
+
+export interface ShiftPrepTarget {
+  id: string;
+  userId: string;
+  finishedGoodItemId: string;
+  finishedGoodItem?: FinishedGoodItem;
+  shift: ShiftCode;
+  mode: PrepMode;
+  targetLevel?: string | number | null;
+}
+
+export interface SalesDayFactor {
+  id: string;
+  date: string;
+  factor: string | number;
+  note?: string | null;
+}
+
+/** Tồn nguyên liệu ước tính — dùng để ĐIỀN SẴN cột tồn ở Order nhanh, không phải số đã khai. */
+export interface EstimatedStockRow {
+  productId: string;
+  quantity: number;
+  anchorAt: string | null;
+  anchorQty: number | null;
+  anchorSource: "REORDER_RUN" | "STOCK_CHECK" | "NONE";
+  anchorAgeDays: number | null;
+  receivedQty: number;
+  soldQty: number;
+  wasteQty: number;
+  transferQty: number;
+  wasteFilledQty: number;
+  daysWithoutWaste: number;
+  reasons: string[];
+}
+
 export interface ShiftDefinition {
   id: string;
   code: ShiftCode;
@@ -481,6 +599,12 @@ export interface FinishedGoodItem {
   unit: Unit;
   category?: FinishedGoodCategory | null;
   sellingPrice?: string | number | null;
+  /** Món phải pha trước mỗi ca — chỉ món này vào màn Chuẩn bị ca và danh sách đếm cuối ca. */
+  prepared?: boolean;
+  /** Một mẻ ra bao nhiêu đơn vị. Số mẻ đề xuất luôn làm tròn LÊN theo số này. */
+  batchSize?: string | number | null;
+  /** Pha xong dùng được mấy GIỜ — quyết định một mẻ phủ mấy ca và có giữ được qua đêm không. */
+  shelfLifeHours?: number | null;
 }
 
 export interface StockCheckItemRow {

@@ -68,6 +68,11 @@ model User {
   reorderRuns               ReorderRun[]              @relation("ReorderRunShop")
   reorderRunsCreated        ReorderRun[]              @relation("ReorderRunCreatedBy")
   posSaleHours              PosSaleHour[]
+  shiftPrepTargets          ShiftPrepTarget[]
+  shiftStockCounts          ShiftStockCount[]         @relation("ShiftStockCountShop")
+  shiftStockCountsCreated   ShiftStockCount[]         @relation("ShiftStockCountCreatedBy")
+  shiftPrepRuns             ShiftPrepRun[]            @relation("ShiftPrepRunShop")
+  shiftPrepRunsCreated      ShiftPrepRun[]            @relation("ShiftPrepRunCreatedBy")
 }
 
 enum DeadlineKind {
@@ -157,6 +162,20 @@ model FinishedGoodItem {
   sellingPrice Decimal?              @db.Decimal(18, 2)
   createdAt    DateTime              @default(now())
 
+  // Ba cột dưới đây là TÍNH CHẤT CỦA MÓN, dùng chung mọi quán — khác mức mục tiêu vốn theo quán × ca.
+
+  // Món phải pha trước mỗi ca (trà ủ, nước đường, topping nấu sẵn). Chỉ món này vào màn Chuẩn bị ca và
+  // vào danh sách đếm cuối ca — giữ danh sách NGẮN là điều kiện để nhân viên đếm thật, 3 lần mỗi ngày.
+  prepared Boolean @default(false)
+
+  // Một mẻ ra bao nhiêu đơn vị. Không pha được nửa mẻ, nên số mẻ đề xuất luôn làm tròn LÊN theo số này.
+  // Để trống = pha lẻ được, khi đó đề xuất tính theo đơn vị chứ không theo mẻ.
+  batchSize Decimal? @db.Decimal(18, 3)
+
+  // Pha xong dùng được mấy GIỜ (không phải ngày — trà ủ hỏng trong buổi). Quyết định một mẻ phủ được
+  // mấy ca tới, và quyết định đầu ngày có giữ được số đếm cuối ngày hôm trước hay phải về 0.
+  shelfLifeHours Int?
+
   stockCheckFinishedItems    StockCheckFinishedItem[]
   materialWasteFinishedItems MaterialWasteFinishedItem[]
   // Công thức: nguyên liệu + định lượng cần để làm ra 1 đơn vị đồ thành phẩm/món này — dùng cho tính Check Cost.
@@ -164,6 +183,9 @@ model FinishedGoodItem {
   costCheckSoldItems         CostCheckSoldItem[]
   posSaleHours               PosSaleHour[]
   posItemMappings            PosItemMapping[]
+  shiftPrepTargets           ShiftPrepTarget[]
+  shiftStockCountItems       ShiftStockCountItem[]
+  shiftPrepRunItems          ShiftPrepRunItem[]
 }
 
 // Công thức (BOM): 1 đơn vị của 1 đồ thành phẩm/món cần bao nhiêu nguyên liệu — định lượng luôn tính theo
@@ -1202,3 +1224,144 @@ model ShiftDefinition {
   updatedAt   DateTime  @updatedAt
 }
 
+/**
+ * Chế độ đề xuất chuẩn bị ca — CỐ Ý cùng khuôn với ReorderMode của phần gọi đồ, để giải thích cho người
+ * dùng chỉ mất một lần: chế độ cố định chạy ngay từ ngày đầu, chế độ theo dự báo bật khi đã đủ dữ liệu.
+ */
+enum PrepMode {
+  TARGET_LEVEL // pha đủ mức mục tiêu của ca — chạy NGAY, không cần lịch sử
+  FORECAST     // pha theo dự báo các ca nằm trong khung hạn dùng
+  OFF
+}
+
+/**
+ * Mức mục tiêu chuẩn bị theo QUÁN × MÓN × CA. Bản song song của ProductReorderThreshold.
+ * Theo ca vì ca tối khác ca sáng, và theo quán vì mỗi quán một lượng khách.
+ */
+model ShiftPrepTarget {
+  id                 String           @id @default(cuid())
+  userId             String
+  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  finishedGoodItemId String
+  finishedGoodItem   FinishedGoodItem @relation(fields: [finishedGoodItemId], references: [id], onDelete: Cascade)
+  shift              ShiftCode
+
+  mode        PrepMode @default(TARGET_LEVEL)
+  targetLevel Decimal? @db.Decimal(18, 3)
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, finishedGoodItemId, shift])
+  @@index([finishedGoodItemId])
+}
+
+/**
+ * Đếm tồn đồ thành phẩm CUỐI CA.
+ *
+ * Đếm cuối ca chứ không đầu ca: cuối ca N chính là đầu ca N+1, nên một lần đếm phục vụ hai việc — và
+ * quan trọng hơn, nó khép kín vòng đo hao hụt (tồn đầu + đã pha − đã bán − tồn cuối).
+ *
+ * businessDate là NGÀY KINH DOANH, không phải ngày lịch: ca đêm chạy qua 0h vẫn thuộc ngày hôm trước,
+ * cùng quy ước với sliceByShift của module posSales.
+ */
+model ShiftStockCount {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation("ShiftStockCountShop", fields: [userId], references: [id], onDelete: Cascade)
+  businessDate DateTime  @db.Date
+  shift        ShiftCode
+
+  // Giờ đếm thật, tách khỏi createdAt: nhân viên có thể ghi vào hệ thống muộn hơn lúc đếm.
+  countedAt   DateTime @default(now())
+  createdById String?
+  createdBy   User?    @relation("ShiftStockCountCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  note        String?
+
+  items ShiftStockCountItem[]
+
+  @@unique([userId, businessDate, shift])
+  @@index([userId, businessDate])
+}
+
+model ShiftStockCountItem {
+  id                 String           @id @default(cuid())
+  shiftStockCountId  String
+  shiftStockCount    ShiftStockCount  @relation(fields: [shiftStockCountId], references: [id], onDelete: Cascade)
+  finishedGoodItemId String
+  finishedGoodItem   FinishedGoodItem @relation(fields: [finishedGoodItemId], references: [id], onDelete: Cascade)
+  quantity           Decimal          @db.Decimal(18, 3)
+
+  @@unique([shiftStockCountId, finishedGoodItemId])
+  @@index([finishedGoodItemId])
+}
+
+/**
+ * Nhật ký một lượt đề xuất chuẩn bị ca, đối xứng với ReorderRun.
+ *
+ * Ghi từ ngày đầu vì không ghi là mất lịch sử vĩnh viễn: cặp (suggestedBatches, actualBatches) về sau là
+ * căn cứ duy nhất để biết đề xuất lệch ở đâu và theo hướng nào.
+ *
+ * Đúng MỘT lượt cho mỗi (quán × ngày kinh doanh × ca): chốt lại thì ghi đè. Cho nhiều lượt thì vòng đo
+ * hao hụt sẽ cộng đúp số mẻ đã pha.
+ */
+model ShiftPrepRun {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation("ShiftPrepRunShop", fields: [userId], references: [id], onDelete: Cascade)
+  businessDate DateTime  @db.Date
+  shift        ShiftCode
+
+  createdById String?
+  createdBy   User?    @relation("ShiftPrepRunCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items ShiftPrepRunItem[]
+
+  @@unique([userId, businessDate, shift])
+  @@index([userId, businessDate])
+}
+
+model ShiftPrepRunItem {
+  id                 String           @id @default(cuid())
+  shiftPrepRunId     String
+  shiftPrepRun       ShiftPrepRun     @relation(fields: [shiftPrepRunId], references: [id], onDelete: Cascade)
+  finishedGoodItemId String
+  finishedGoodItem   FinishedGoodItem @relation(fields: [finishedGoodItemId], references: [id], onDelete: Cascade)
+
+  // Chế độ đã áp cho dòng này, chốt cứng lúc chạy — cấu hình đổi về sau không được làm đổi lịch sử,
+  // cùng lý do với ReorderRunItem.mode.
+  mode PrepMode
+
+  // Tồn đầu ca (lấy sẵn từ lần đếm cuối ca trước, người sửa được).
+  onHandQty Decimal @db.Decimal(18, 3)
+  // Nhu cầu đã tính: mức mục tiêu, hoặc tổng dự báo các ca trong khung hạn dùng.
+  demandQty Decimal @db.Decimal(18, 3)
+  // Lượng cần pha = max(0, nhu cầu − tồn), trước khi làm tròn lên mẻ.
+  suggestedQty     Decimal @db.Decimal(18, 3)
+  suggestedBatches Int
+  // Số mẻ người pha CHỐT. Null = chỉ xem đề xuất, chưa pha.
+  actualBatches Int?
+
+  @@unique([shiftPrepRunId, finishedGoodItemId])
+  @@index([finishedGoodItemId])
+}
+
+/**
+ * Hệ số nhân doanh số cho một NGÀY CỤ THỂ — lễ tết, khai trương, đóng đường.
+ *
+ * Khai tay và sẽ luôn phải khai tay: không dữ liệu nào trong hệ thống nói trước được rằng mai là 30 Tết,
+ * và một năm chạy chỉ cho MỘT quan sát về Tết — không phương pháp nào học được từ đó.
+ *
+ * factor = 1 nghĩa là như ngày thường; 1.8 = đông gấp 1,8 lần; 0.3 = ngày Tết đóng gần hết.
+ * Áp cho MỌI quán: lễ thì cả chuỗi cùng lễ. Cần khác nhau theo quán thì thêm userId sau.
+ */
+model SalesDayFactor {
+  id     String   @id @default(cuid())
+  date   DateTime @unique @db.Date
+  factor Decimal  @db.Decimal(6, 3)
+  note   String?
+
+  updatedAt DateTime @updatedAt
+}

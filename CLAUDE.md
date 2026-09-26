@@ -183,6 +183,15 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
   `orderConsolidation`. Viết lại phép chọn tại chỗ là để nhịp gọi suy theo một NCC còn đơn đặt cho NCC
   khác. Hàm này **cố ý không thuần theo giá**: NCC cho công nợ đắt hơn dưới 3%
   (`CREDIT_PRICE_TOLERANCE`) vẫn thắng, và trả kèm `chosenForCredit` để màn hình nói ra lý do.
+- **Dự báo doanh số chỉ có đúng một lõi**: `utils/forecastSales`, dùng bởi `shiftPrep` (số mẻ cần pha)
+  và sau này bởi phần gọi đồ. Hai bản dự báo sẽ cho hai con số cho cùng một ngày, và khi lệch thì không
+  ai biết tin cái nào. Hai quy tắc trong đó dễ làm sai: **ca không có dòng nào của một món là bán 0, không
+  phải thiếu dữ liệu** (chia cho số ca có bán làm dự báo cao gấp nhiều lần — đo được 5× khi thử), và
+  **quan sát của ngày lễ phải chia lại cho `SalesDayFactor` trước khi vào trung bình**, không thì một Tết
+  đội mức nền của đúng thứ đó lên mãi.
+- **Tồn quán khai gần nhất cũng chỉ có một bản**: `utils/declaredStock` (lấy bản mới hơn giữa
+  `ReorderRunItem.onHandQty` và `StockCheckItem`), dùng bởi `centralPurchasing` và `utils/estimatedStock`.
+  Luôn trả kèm mốc khai để màn hình hiện được số đó **cũ bao nhiêu ngày**.
 - **Hàng `orderCadence = CENTRAL` phải biến khỏi mọi màn của quán** (`buildSuggestions` lọc ở cuối) và
   chỉ hiện ở `/admin/central-purchasing`: SL đặt tối thiểu và tồn "đủ dùng N ngày" đều là của cả chuỗi.
 - `orderConsolidation` và `centralPurchasing` **cố ý không áp phạm vi quán** — cả ý nghĩa của chúng là
@@ -209,6 +218,15 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
   phủ `coverDays` — thứ tự lấy: `ProductReorderThreshold.coverDays` → `Product.coverDays` → **3**.
   `Product.orderCadence` khai tay thì đè lên suy luận. Từng có bảng `OrderScheduleDay` (lịch T5+CN
   dùng chung) — **đã xoá**, vì đơn thật được tạo cả 7 thứ; đừng dựng lại.
+- **Chuẩn bị ca đếm CUỐI ca, không đầu ca**: cuối ca N chính là đầu ca N+1, nên một lần đếm phục vụ hai
+  việc và khép kín vòng đo hao hụt (`tồn đầu + đã pha − đã bán − tồn cuối`). Hao hụt chỉ tính khi có số
+  đếm ở **cả hai đầu** — thiếu một đầu, hoặc món **vắng** trên phiếu, thì trả `null` chứ không suy: sai số
+  của phép suy sẽ bị đọc thành lượng đổ đi. Tầm nhìn đề xuất dừng ở **hết ngày kinh doanh** kể cả khi hạn
+  dùng còn dài, vì đầu ca mai sẽ có một lượt pha nữa.
+- **Tồn nguyên liệu ước tính (`utils/estimatedStock`) bù phiếu huỷ thiếu bằng bình quân của chính quán**,
+  không phải 0 — coi bằng 0 là lệch một chiều và tích luỹ, làm agent đặt thiếu. Nhưng phần bù **bị kẹp ở
+  mức lượng huỷ đã ghi**: dữ liệu thật có hàng tồn khai 1 với đúng một phiếu huỷ 2 trong 68 ngày, không
+  kẹp thì bù 134 và xoá sạch tồn.
 - **Đánh dấu muộn chốt lúc tạo**: `dueAt`/`isLate` đóng dấu ngay khi tạo bản ghi, không tính lại lúc hiển thị — nhờ đó lọc được bằng SQL và đổi lịch không viết lại lịch sử. Kỳ của phiếu kiểm suy từ `checkedAt` (quán tự khai), còn hạn lấy từ lịch admin đặt; đo muộn bằng `createdAt` vì hai cột kia người dùng sửa được. Bản ghi chưa từng được đánh giá thì `dueAt = null` và hiển thị **chấm xám**, không phải xanh.
 - **Include cho danh sách tách khỏi include cho chi tiết**: `salesOrderListInclude` cố ý nhẹ hơn `salesOrderDetailInclude`. Dùng chung từng làm payload danh sách phình lên 187 KB cho 20 đơn.
 - **Độ trễ Neon**: gộp nhiều lệnh ghi thành một `UPDATE ... FROM (VALUES ...)` (xem `salesOrders.service.ts`) và đặt `$transaction(ops, { timeout: 20000 })` — mặc định 5 giây không đủ cho đơn nhiều dòng.
@@ -225,6 +243,17 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
 - Migration nào **chèn hoặc sửa dữ liệu** thì bắt buộc thử `migrate deploy` trên một **database trắng** trước khi push. Máy dev áp migration theo thứ tự viết ra nên che mất lỗi này.
 - **Không sửa file migration đã áp** — Prisma lưu checksum, deploy sẽ hỏng ở nơi migration đó đã chạy. Muốn chữa thì thêm migration mới.
 - Dữ liệu khởi tạo bắt buộc phải nằm trong **migration**, không phải `prisma/seed.ts`: Render chỉ chạy `migrate deploy` lúc khởi động, không chạy seed.
+
+### `findUnique` song song trên khoá ghép có cột `@db.Date` — trả NULL dù bản ghi có thật
+
+Prisma gộp các lời gọi `findUnique` **chạy song song** trên cùng một model thành một truy vấn, và bản
+gộp đó **sai khi khoá ghép chứa cột `@db.Date`**: mọi lượt đều trả `null`. Chạy tuần tự thì đúng, nên
+lỗi chỉ hiện ra khi hai lượt nằm chung một `Promise.all` — đã mất một lúc mới lần ra ở
+`getShiftVariance` (tìm phiếu đếm đầu và cuối ca).
+
+Dùng **`findFirst`** với đúng các cột đó thay cho `findUnique`: không bị gộp, cùng số round trip, và
+khoá vẫn là unique nên kết quả không đổi. Xem `findCountByShift` trong `modules/shiftPrep`.
+Không ảnh hưởng `upsert` (lệnh ghi không bị gộp) và không ảnh hưởng khoá chuỗi thuần.
 
 ### Prisma client trên Windows
 

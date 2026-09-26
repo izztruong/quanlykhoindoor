@@ -1,4 +1,5 @@
 import { prisma } from "../../config/db";
+import { declaredStockKey, getLatestDeclaredStock } from "../../utils/declaredStock";
 import { DEFAULT_COVER_DAYS, pickPrioritySupplier } from "../../utils/orderCadence";
 import { getDailyUsage } from "../reorderSuggestions/reorderSuggestions.service";
 import { getInventoryCountReport } from "../reports/reports.service";
@@ -68,94 +69,39 @@ function ageInDays(from: Date, now: Date): number {
   return Math.floor((now.getTime() - from.getTime()) / 86_400_000);
 }
 
-/** 1 đơn vị chính = bao nhiêu recipeUnit. Để trống nghĩa là công thức dùng thẳng đơn vị chính. */
-function recipeFactor(recipeUnitsPerBaseUnit: unknown): number {
-  const factor = Number(recipeUnitsPerBaseUnit ?? 0);
-  return factor > 0 ? factor : 1;
-}
-
 /**
- * Tồn từng quán khai gần nhất cho từng hàng hoá.
+ * Tồn từng quán khai gần nhất, bọc `utils/declaredStock` thành dạng dòng của màn này.
  *
- * Hai nguồn, theo thứ tự ưu tiên: `ReorderRunItem.onHandQty` (quán gõ lúc chạy gợi ý đặt hàng — mới
- * nhất và đúng mục đích nhất), rồi `StockCheckItem` của phiếu kiểm gần nhất. Lấy cả hai vì lượt gợi ý
- * chỉ có khi quán dùng Order nhanh, còn phiếu kiểm thì tuần nào cũng có.
+ * Phép chọn "bản mới hơn giữa lượt gợi ý và phiếu kiểm" nằm trong util đó, KHÔNG viết lại ở đây: tồn
+ * ước tính hàng ngày cũng neo vào chính con số ấy, và hai bản sao lệch nhau thì hai màn sẽ nói hai điều
+ * khác nhau về cùng một quán.
  */
 async function getShopStocks(
   shops: { id: string; name: string }[],
   productIds: string[],
   now: Date,
 ): Promise<Map<string, ShopStock[]>> {
-  const shopIds = shops.map((s) => s.id);
-  const [runItems, checkItems, products] = await Promise.all([
-    prisma.reorderRunItem.findMany({
-      where: { productId: { in: productIds }, reorderRun: { userId: { in: shopIds } } },
-      select: { productId: true, onHandQty: true, reorderRun: { select: { userId: true, createdAt: true } } },
-      orderBy: { reorderRun: { createdAt: "desc" } },
-    }),
-    prisma.stockCheckItem.findMany({
-      where: { productId: { in: productIds }, stockCheck: { createdById: { in: shopIds } } },
-      select: {
-        productId: true,
-        wholeQuantity: true,
-        looseQuantity: true,
-        stockCheck: { select: { createdById: true, checkedAt: true } },
-      },
-      orderBy: { stockCheck: { checkedAt: "desc" } },
-    }),
-    prisma.product.findMany({
-      where: { id: { in: productIds } },
-      select: { id: true, recipeUnitsPerBaseUnit: true },
-    }),
-  ]);
-
-  const factorById = new Map(products.map((p) => [p.id, recipeFactor(p.recipeUnitsPerBaseUnit)]));
-
-  // Hai bản đồ "mới nhất thắng": vì đã orderBy desc, chỉ nhận giá trị đầu tiên gặp được cho mỗi khoá.
-  const latestRun = new Map<string, { quantity: number; at: Date }>();
-  for (const it of runItems) {
-    const key = `${it.reorderRun.userId}|${it.productId}`;
-    if (!latestRun.has(key)) latestRun.set(key, { quantity: Number(it.onHandQty), at: it.reorderRun.createdAt });
-  }
-
-  const latestCheck = new Map<string, { quantity: number; at: Date }>();
-  for (const it of checkItems) {
-    const key = `${it.stockCheck.createdById}|${it.productId}`;
-    if (latestCheck.has(key)) continue;
-    // looseQuantity theo đơn vị công thức và ĐÃ trừ vỏ lúc lưu (utils/tareWeight), nên chỉ cần quy đổi.
-    const factor = factorById.get(it.productId) ?? 1;
-    const quantity = Number(it.wholeQuantity ?? 0) + Number(it.looseQuantity ?? 0) / factor;
-    latestCheck.set(key, { quantity, at: it.stockCheck.checkedAt });
-  }
+  const declared = await getLatestDeclaredStock(
+    shops.map((s) => s.id),
+    productIds,
+  );
 
   const byProduct = new Map<string, ShopStock[]>();
   for (const productId of productIds) {
-    const list: ShopStock[] = shops.map((shop) => {
-      const key = `${shop.id}|${productId}`;
-      const run = latestRun.get(key);
-      const check = latestCheck.get(key);
-      // Lấy bản MỚI HƠN, không phải cứ ưu tiên lượt gợi ý: một lượt gợi ý từ tháng trước kém tin hơn
-      // phiếu kiểm hôm qua.
-      const pick =
-        run && check
-          ? run.at.getTime() >= check.at.getTime()
-            ? ({ ...run, source: "REORDER_RUN" as const })
-            : ({ ...check, source: "STOCK_CHECK" as const })
-          : run
-            ? { ...run, source: "REORDER_RUN" as const }
-            : check
-              ? { ...check, source: "STOCK_CHECK" as const }
-              : null;
-      return {
-        userId: shop.id,
-        userName: shop.name,
-        quantity: pick ? round3(pick.quantity) : 0,
-        declaredAt: pick?.at ?? null,
-        source: pick?.source ?? "NONE",
-        ageDays: pick ? ageInDays(pick.at, now) : null,
-      };
-    });
-    byProduct.set(productId, list);
+    byProduct.set(
+      productId,
+      shops.map((shop) => {
+        const pick = declared.get(declaredStockKey(shop.id, productId));
+        return {
+          userId: shop.id,
+          userName: shop.name,
+          quantity: pick ? pick.quantity : 0,
+          declaredAt: pick?.at ?? null,
+          source: pick?.source ?? "NONE",
+          ageDays: pick ? ageInDays(pick.at, now) : null,
+        };
+      }),
+    );
   }
   return byProduct;
 }

@@ -40,6 +40,67 @@ export function hourBelongsToShift(
   return spansMidnight(shift) ? mid >= start || mid < end : mid >= start && mid < end;
 }
 
+/**
+ * Múi giờ VN. Giống hằng trong utils/deadlines và cùng lý do: Render chạy UTC, để nguyên thì mốc
+ * "17:00 ca tối" thành nửa đêm.
+ */
+const VN_OFFSET_MS = 7 * 60 * 60 * 1000;
+
+/**
+ * Thứ tự các ca TRONG NGÀY, suy từ mốc bắt đầu chứ không từ tên mã.
+ *
+ * Không xếp theo CA1/CA2/CA3 vì khung giờ là cấu hình admin đổi được: nếu ai đó đặt CA1 là ca đêm thì
+ * xếp theo mã sẽ cho ra "ca trước ca sáng là ca tối hôm nay", tức tồn đầu ca lấy từ tương lai.
+ */
+export function shiftsInOrder<T extends Pick<ShiftDefinition, "startHour" | "startMinute">>(shifts: T[]): T[] {
+  return [...shifts].sort((a, b) => toMinutes(a.startHour, a.startMinute) - toMinutes(b.startHour, b.startMinute));
+}
+
+export interface ShiftRef {
+  businessDate: string;
+  shift: ShiftCode;
+}
+
+/**
+ * Ca liền trước theo thời gian. Ca đầu ngày thì lùi về ca CUỐI của ngày kinh doanh hôm trước.
+ *
+ * Trả null khi chưa khai ca nào — không đoán, vì mọi thứ phía sau (tồn đầu ca, vòng đo hao hụt) đều neo
+ * vào con số này.
+ */
+export function previousShift(ref: ShiftRef, shifts: ShiftDefinition[]): ShiftRef | null {
+  const ordered = shiftsInOrder(shifts);
+  const index = ordered.findIndex((s) => s.code === ref.shift);
+  if (index < 0) return null;
+  if (index > 0) return { businessDate: ref.businessDate, shift: ordered[index - 1]!.code };
+  const last = ordered[ordered.length - 1]!;
+  return { businessDate: shiftDateKey(ref.businessDate, -1), shift: last.code };
+}
+
+/** Ca liền sau theo thời gian. Ca cuối ngày thì sang ca ĐẦU của ngày kinh doanh hôm sau. */
+export function nextShift(ref: ShiftRef, shifts: ShiftDefinition[]): ShiftRef | null {
+  const ordered = shiftsInOrder(shifts);
+  const index = ordered.findIndex((s) => s.code === ref.shift);
+  if (index < 0) return null;
+  if (index < ordered.length - 1) return { businessDate: ref.businessDate, shift: ordered[index + 1]!.code };
+  return { businessDate: shiftDateKey(ref.businessDate, 1), shift: ordered[0]!.code };
+}
+
+/**
+ * Mốc bắt đầu và kết thúc THẬT của một ca trong một ngày kinh doanh.
+ *
+ * Ca qua nửa đêm thì mốc kết thúc rơi sang ngày lịch hôm sau — đó chính là lý do phải trả Date chứ không
+ * trả giờ: mọi phép "mẻ này dùng được tới mấy giờ" đều so trên trục thời gian thật.
+ */
+export function shiftWindow(businessDate: string, shift: ShiftDefinition): { start: Date; end: Date } {
+  const [year, month, day] = businessDate.split("-").map(Number);
+  const at = (h: number, m: number, plusDays = 0) =>
+    new Date(Date.UTC(year!, month! - 1, day! + plusDays, h, m) - VN_OFFSET_MS);
+  return {
+    start: at(shift.startHour, shift.startMinute),
+    end: at(shift.endHour, shift.endMinute, spansMidnight(shift) ? 1 : 0),
+  };
+}
+
 export interface HourCell {
   soldOn: Date;
   hour: number;

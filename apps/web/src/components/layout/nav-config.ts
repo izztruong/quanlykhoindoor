@@ -61,6 +61,7 @@ export const navSections: NavSection[] = [
     label: "Kiểm kê quán",
     icon: ClipboardList,
     items: [
+      { label: "Chuẩn bị đồ theo ca", href: "/shift-prep", permission: "SHIFT_PREP.VIEW" },
       { label: "Phiếu kiểm kê", href: "/stock-checks", permission: "STOCK_CHECKS.VIEW" },
       { label: "Phiếu huỷ nguyên liệu", href: "/material-waste", permission: "MATERIAL_WASTE.VIEW" },
     ],
@@ -91,6 +92,8 @@ export const navSections: NavSection[] = [
       { label: "Gom đơn & miễn ship", href: "/admin/order-consolidation", permission: "ORDER_CONSOLIDATION.VIEW" },
       { label: "Hạn order & kiểm kê", href: "/admin/deadlines", permission: "DEADLINES.VIEW" },
       { label: "Khung giờ ca", href: "/admin/shift-definitions", permission: "SHIFT_DEFINITIONS.VIEW" },
+      { label: "Mức chuẩn bị theo ca", href: "/admin/shift-prep-targets", permission: "SHIFT_PREP_TARGETS.VIEW" },
+      { label: "Hệ số ngày lễ", href: "/admin/sales-day-factors", permission: "SALES_DAY_FACTORS.VIEW" },
       { label: "Doanh số POS", href: "/admin/pos-sales", permission: "POS_SALES.VIEW" },
       { label: "Ánh xạ món POS", href: "/admin/pos-item-mapping", permission: "POS_ITEM_MAPPING.VIEW" },
     ],

@@ -78,6 +78,9 @@ export const PERMISSION_RESOURCES = [
   { resource: "COST_CHECKS", label: "Phiếu Check Cost", group: "Kho", actions: ["VIEW", "ADD", "EDIT"] },
   { resource: "MATERIAL_TRANSFERS", label: "Phiếu điều chuyển", group: "Kho", actions: ["VIEW", "ADD", "EDIT"] },
 
+  // VIEW = xem đề xuất số mẻ và hao hụt · ADD = chốt số mẻ đã pha và đếm tồn cuối ca. Cùng một người
+  // làm cả hai việc trong một lượt, nên không tách quyền đếm riêng.
+  { resource: "SHIFT_PREP", label: "Chuẩn bị đồ theo ca", group: "Kiểm kê quán", actions: ["VIEW", "ADD"] },
   { resource: "STOCK_CHECKS", label: "Phiếu kiểm kê quán", group: "Kiểm kê quán", actions: ["VIEW", "ADD", "EDIT"] },
   { resource: "MATERIAL_WASTE", label: "Phiếu huỷ nguyên liệu", group: "Kiểm kê quán", actions: ["VIEW", "ADD", "EDIT"] },
 
@@ -109,6 +112,8 @@ export const PERMISSION_RESOURCES = [
   { resource: "POS_SALES", label: "Doanh số POS", group: "Quản trị", actions: ["VIEW", "ADD", "DELETE"] },
   { resource: "POS_ITEM_MAPPING", label: "Ánh xạ món POS", group: "Quản trị", actions: ["VIEW", "EDIT"] },
   { resource: "SHIFT_DEFINITIONS", label: "Khung giờ ca", group: "Quản trị", actions: ["VIEW", "EDIT"] },
+  { resource: "SHIFT_PREP_TARGETS", label: "Mức chuẩn bị theo ca", group: "Quản trị", actions: ["VIEW", "EDIT"] },
+  { resource: "SALES_DAY_FACTORS", label: "Hệ số ngày lễ", group: "Quản trị", actions: ["VIEW", "ADD", "EDIT", "DELETE"] },
 ] as const satisfies readonly { resource: string; label: string; group: string; actions: readonly PermissionAction[] }[];
 
 export type PermissionResource = (typeof PERMISSION_RESOURCES)[number]["resource"];

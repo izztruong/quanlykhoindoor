@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
 import { useWarehouses } from "@/hooks/useCatalog";
-import { usePreviewReorderSuggestions, useCommitReorderSuggestions } from "@/hooks/useReorderSuggestions";
+import { useCommitReorderSuggestions, useEstimatedStock, usePreviewReorderSuggestions } from "@/hooks/useReorderSuggestions";
 import { useReorderThresholds } from "@/hooks/useReorderThresholds";
 import { ApiError } from "@/lib/api-client";
 import { type ExcelColumn, exportRowsToExcel, sanitizeExcelRow } from "@/lib/excelExport";
@@ -32,6 +32,7 @@ export default function QuickOrderPage() {
   const { data: thresholds = [] } = useReorderThresholds();
   const preview = usePreviewReorderSuggestions();
   const commit = useCommitReorderSuggestions();
+  const estimated = useEstimatedStock();
 
   const [warehouseId, setWarehouseId] = useState("");
   const [stockInputs, setStockInputs] = useState<Record<string, string>>({});
@@ -41,6 +42,8 @@ export default function QuickOrderPage() {
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [suggestions, setSuggestions] = useState<ReorderSuggestion[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Thông báo sau khi điền tồn ước tính — phải nói rõ đây là số ĐOÁN, không phải số đã khai.
+  const [estimateNote, setEstimateNote] = useState<string | null>(null);
 
   const [excelMenuOpen, setExcelMenuOpen] = useState(false);
   const excelMenuRef = useRef<HTMLDivElement>(null);
@@ -92,6 +95,42 @@ export default function QuickOrderPage() {
     didInitialPreview.current = true;
     runPreview();
   }, [thresholds.length, runPreview]);
+
+  /**
+   * Điền cột tồn bằng số ƯỚC TÍNH: tồn khai gần nhất, cộng đã nhận, trừ đã bán theo công thức, trừ huỷ,
+   * cộng/trừ điều chuyển.
+   *
+   * Chỉ điền ô CÒN TRỐNG — không đè số quán đã gõ, vì người đứng trước kho biết rõ hơn hệ thống.
+   */
+  const fillEstimated = useCallback(() => {
+    setError(null);
+    setEstimateNote(null);
+    estimated.mutate(
+      {},
+      {
+        onSuccess: (items) => {
+          const usable = items.filter((it) => it.anchorSource !== "NONE");
+          setStockInputs((prev) => {
+            const next = { ...prev };
+            let filled = 0;
+            for (const it of usable) {
+              if ((next[it.productId] ?? "").trim() !== "") continue;
+              next[it.productId] = String(it.quantity);
+              filled++;
+            }
+            const oldest = Math.max(0, ...usable.map((it) => it.anchorAgeDays ?? 0));
+            setEstimateNote(
+              filled === 0
+                ? "Không điền ô nào — các ô đã có số bạn gõ, hệ thống không đè lên."
+                : `Đã điền ${filled} ô bằng số ƯỚC TÍNH (mốc khai cũ nhất cách đây ${oldest} ngày). Soát lại rồi sửa chỗ lệch — sai số tích luỹ từ lần khai gần nhất.`,
+            );
+            return next;
+          });
+        },
+        onError: (err) => setError(err instanceof ApiError ? err.message : "Không lấy được tồn ước tính"),
+      },
+    );
+  }, [estimated]);
 
   const finalQty = useCallback(
     (row: ReorderSuggestion): number => {
@@ -286,12 +325,20 @@ export default function QuickOrderPage() {
               Khai ở Danh mục › Hàng hoá — cà phê chờ khác bột nên không dùng một số chung
             </span>
           </div>
-          <div className="flex items-end">
+          <div className="flex flex-wrap items-end gap-2">
             <Button type="button" variant="secondary" onClick={runPreview} disabled={preview.isPending}>
               {preview.isPending ? "Đang tính..." : "Tính lại số lượng"}
             </Button>
+            <Button type="button" variant="secondary" onClick={fillEstimated} disabled={estimated.isPending}>
+              {estimated.isPending ? "Đang lấy..." : "Điền tồn ước tính"}
+            </Button>
           </div>
         </CardBody>
+        {estimateNote && (
+          <CardBody className="border-t border-slate-100 pt-3">
+            <p className="text-xs text-amber-700">{estimateNote}</p>
+          </CardBody>
+        )}
       </Card>
 
       <Card>

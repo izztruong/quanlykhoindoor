@@ -2,6 +2,7 @@ import { type Request, Router } from "express";
 import { prisma } from "../../config/db";
 import { requirePermission } from "../../middleware/auth";
 import { HttpError } from "../../utils/httpError";
+import { getEstimatedOnHand } from "../../utils/estimatedStock";
 import { parsePagination } from "../../utils/pagination";
 import { createSalesOrder } from "../salesOrders/salesOrders.service";
 import { reorderCommitSchema, reorderPreviewSchema } from "./reorderSuggestions.schemas";
@@ -91,6 +92,19 @@ reorderSuggestionsRouter.post("/commit", requirePermission("REORDER_SUGGESTIONS"
   });
 
   res.status(201).json(order);
+});
+
+/**
+ * Tồn ước tính để ĐIỀN SẴN cột tồn ở Order nhanh — quán chỉ sửa chỗ lệch thay vì gõ lại cả bảng.
+ *
+ * Cố ý là endpoint RIÊNG, không nhồi vào /preview: preview nhận tồn do người dùng khai, còn đây là con
+ * số hệ thống đoán. Trộn hai thứ vào một phản hồi thì lần sau sẽ có người dùng số đoán như số thật.
+ */
+reorderSuggestionsRouter.get("/estimated-stock", requirePermission("REORDER_SUGGESTIONS", "VIEW"), async (req, res) => {
+  const userId = resolveTargetUserId(req, (req.query.userId as string) || undefined);
+  const thresholds = await prisma.productReorderThreshold.findMany({ where: { userId }, select: { productId: true } });
+  const estimated = await getEstimatedOnHand({ userId, productIds: thresholds.map((t) => t.productId) });
+  res.json({ items: [...estimated.values()] });
 });
 
 reorderSuggestionsRouter.get("/runs", requirePermission("REORDER_SUGGESTIONS", "VIEW"), async (req, res) => {

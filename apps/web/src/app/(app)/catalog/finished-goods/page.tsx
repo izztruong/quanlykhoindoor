@@ -16,6 +16,19 @@ const columns: ColumnDef<FinishedGoodItem>[] = [
   { header: "Nhóm", accessorFn: (row) => (row.category ? labels.finishedGoodCategory(row.category) : "—"), id: "category" },
   { header: "Giá bán", accessorFn: (row) => (row.sellingPrice != null ? formatCurrency(row.sellingPrice) : "—"), id: "sellingPrice" },
   {
+    header: "Pha trước",
+    id: "prepared",
+    cell: ({ row }) =>
+      row.original.prepared ? (
+        <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">
+          {row.original.batchSize != null ? `1 mẻ = ${Number(row.original.batchSize)}` : "chưa khai mẻ"}
+          {row.original.shelfLifeHours != null && ` · ${row.original.shelfLifeHours}h`}
+        </span>
+      ) : (
+        "—"
+      ),
+  },
+  {
     header: "Công thức",
     id: "recipe",
     cell: ({ row }) => (
@@ -49,6 +62,23 @@ export default function FinishedGoodItemsPage() {
         options: FINISHED_GOOD_CATEGORY_OPTIONS,
       },
       { name: "sellingPrice", label: "Giá bán", type: "number" as const },
+      {
+        name: "prepared",
+        label: "Phải pha trước mỗi ca (chỉ món này vào màn Chuẩn bị ca và danh sách đếm cuối ca)",
+        type: "checkbox" as const,
+      },
+      {
+        name: "batchSize",
+        label: "Một mẻ ra bao nhiêu đơn vị (để trống = pha lẻ được, khi đó đề xuất tính theo đơn vị)",
+        type: "number" as const,
+        clearable: true,
+      },
+      {
+        name: "shelfLifeHours",
+        label: "Pha xong dùng được mấy GIỜ (quyết định một mẻ phủ mấy ca, và có giữ được qua đêm không)",
+        type: "number" as const,
+        clearable: true,
+      },
     ],
     [units],
   );
