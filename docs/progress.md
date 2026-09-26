@@ -1,6 +1,6 @@
 # Tiến độ dự án
 
-Cập nhật: 2026-09-25
+Cập nhật: 2026-09-26
 
 Ghi **đúng những gì git không tự trả lời được**. Lý do thiết kế đã nằm trong commit message, đừng
 chép lại vào đây. Mỗi mục "Đang dở" tối đa 3–4 dòng, và dòng quan trọng nhất luôn là: *đã kiểm thử
@@ -50,14 +50,18 @@ bản đầu lệch +7 giờ và doanh số 23h nhảy sang ngày sau. Đọc ng
 kiểm 8 ca bằng chính hàm đó trên file dựng từ số serial thô (dd/mm/yyyy, dd-mm-yyyy, yyyy-mm-dd, ô
 Date, thiếu giờ và mm/dd/yyyy đều bị từ chối đúng).
 
-### Lịch gọi đồ + chờ hàng theo hàng hoá + trừ hàng đang về — CHƯA thử trên trình duyệt, chưa lên `staging`/`main`
-Số ngày mỗi đơn phải phủ giờ tự tính từ `OrderScheduleDay` (khai T5+CN, seed trong migration): gọi tối CN
-phủ 4 ngày, tối T5 phủ 3. `Product.leadDays` thay ô chờ hàng dùng chung — cà phê 5 ngày khác bột 1–2 ngày.
-Chế độ COVERAGE trừ hàng đã đặt chưa nhận (DRAFT/PENDING_CONFIRM/CONFIRMED; **không** trừ phần thiếu của
-SHORT); THRESHOLD/FIXED cố ý không trừ, chỉ hiện cột "Đang về" để người tự quyết.
-Đã kiểm typecheck 2 app, build web, `migrate deploy` trên DB dev + bản copy + DB trắng, số ngày phủ cho
-cả 7 thứ và 4 kiểu lịch, ranh giới múi giờ 23:30 CN, trừ hàng đang về trên dữ liệu thật của quán Tây Sơn
-(chờ 5 ngày → tổng 7 ngày; ma trận trạng thái đơn; kẹp về 0 khi thừa), và curl phân quyền lịch gọi.
+### Nhịp gọi theo công nợ + chờ hàng theo hàng hoá + trừ hàng đang về — CHƯA thử trên trình duyệt, chưa lên `staging`/`main`
+Số ngày mỗi đơn phải phủ do **điều kiện thanh toán** quyết định, không phải lịch tuần: `ProductSupplierPrice.hasCredit`
+bật thì phủ tới mốc gọi ngày 15 / 30, không thì theo `coverDays` (định lượng quán → `Product.coverDays` → 3).
+`Product.orderCadence` khai tay đè lên suy luận đó; `CENTRAL` (cốc giấy) biến khỏi Order nhanh của quán.
+`OrderScheduleDay` cùng module/hook/component của nó **đã xoá hẳn** — lịch T5+CN là giả định sai, đơn thật
+được tạo cả 7 thứ.
+Đã kiểm typecheck 2 app (lint web đỏ **từ trước**, 14 lỗi ở 8 file không liên quan), `migrate deploy` trên
+DB dev + bản copy + DB trắng (bảng cũ biến mất, 3 cột mới có mặt), 17 ca số học nhịp gọi (mốc 15/30, tháng
+2, năm nhuận, ranh giới 23:30 giờ VN, chọn NCC ưu tiên), và `buildSuggestions` trên bản copy production:
+suy nhịp từ công nợ, thứ tự lấy `coverDays`, hàng `CENTRAL` mất khỏi 133/134 dòng.
+Còn lại của mục 1.8: màn `/admin/central-purchasing`, gợi ý miễn ship 1 triệu, gom đơn rồi chuyển T3/T7,
+ưu tiên NCC cho công nợ trong Tổng hợp đặt NCC.
 
 ### Chi chốt ca: cột "Đã chi" + cột Ngày lập phiếu — CHƯA thử trên trình duyệt/app, chưa lên `staging`/`main`
 Quyền mới `SHIFT_EXPENSES.PAY` bật/tắt dấu "đã chi"; đã đánh dấu thì quán hết sửa/xoá/đổi ảnh (409). Cột "Ngày" đổi thành "Ngày chi", thêm "Ngày lập phiếu" (từ `createdAt`), lọc theo trạng thái chi. Excel chỉ thêm cột cuối, file mẫu giữ nguyên.

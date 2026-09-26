@@ -1,7 +1,12 @@
 import { prisma } from "../../config/db";
-import { type DailyUsageSource, Prisma, type ReorderMode } from "../../generated/prisma/client";
+import { type DailyUsageSource, type OrderCadence, Prisma, type ReorderMode } from "../../generated/prisma/client";
 import { formatNumber } from "../../utils/formatNumber";
-import { WEEKDAY_LABELS, daysUntilNextOrderDay } from "../../utils/orderSchedule";
+import {
+  DEFAULT_COVER_DAYS,
+  daysUntilNextCreditOrder,
+  pickPrioritySupplier,
+  resolveCadence,
+} from "../../utils/orderCadence";
 import type { ReorderPreviewInput } from "./reorderSuggestions.schemas";
 
 /**
@@ -37,6 +42,11 @@ export interface SuggestionRow {
   productGroupName: string;
   active: boolean;
   mode: ReorderMode;
+  /** Nhịp gọi đã suy ra (khai tay hoặc từ công nợ của NCC ưu tiên). */
+  cadence: OrderCadence;
+  /** NCC ưu tiên — cũng là nguồn quyết định hàng này có công nợ hay không. */
+  prioritySupplierName: string | null;
+  hasCredit: boolean;
   minQuantity: number | null;
   maxQuantity: number | null;
   fixedQuantity: number | null;
@@ -240,24 +250,32 @@ export async function buildSuggestions(input: ReorderPreviewInput & { userId: st
 
   const productIds = thresholds.map((t) => t.productId);
   const onHandByProduct = new Map(input.onHand.map((it) => [it.productId, it.quantity]));
-  const [usageByProduct, inTransitByProduct, orderScheduleDays] = await Promise.all([
+  const [usageByProduct, inTransitByProduct, supplierPrices] = await Promise.all([
     getDailyUsage(input.userId, productIds),
     getInTransit(input.userId, productIds),
-    prisma.orderScheduleDay.findMany({ select: { weekday: true } }),
+    prisma.productSupplierPrice.findMany({
+      where: { productId: { in: productIds } },
+      select: {
+        productId: true,
+        supplierId: true,
+        priority: true,
+        importPrice: true,
+        hasCredit: true,
+        supplier: { select: { name: true } },
+      },
+    }),
   ]);
 
-  // Số ngày một đơn phải phủ = khoảng cách tới ngày gọi kế tiếp. Không phụ thuộc thời gian chờ hàng
-  // (lô này về D + chờ, lô sau về D' + chờ — chờ triệt tiêu), nên tính được một lần cho mọi hàng hoá.
-  const orderWeekdays = orderScheduleDays.map((d) => d.weekday);
-  const scheduleDays = daysUntilNextOrderDay(new Date(), orderWeekdays);
-  const scheduleNote =
-    scheduleDays == null
-      ? null
-      : `Phủ ${scheduleDays} ngày tới lần gọi kế tiếp (lịch gọi: ${orderWeekdays
-          .slice()
-          .sort((a, b) => a - b)
-          .map((w) => WEEKDAY_LABELS[w])
-          .join(", ")})`;
+  // NCC ưu tiên của từng hàng hoá — quyết định hàng đó có công nợ hay không, tức quyết định nhịp gọi.
+  const pricesByProduct = new Map<string, { supplierId: string; priority: number; importPrice: unknown; hasCredit: boolean; supplierName: string }[]>();
+  for (const price of supplierPrices) {
+    const list = pricesByProduct.get(price.productId) ?? [];
+    list.push({ ...price, supplierName: price.supplier.name });
+    pricesByProduct.set(price.productId, list);
+  }
+
+  // Tính một lần cho cả lượt: mốc gọi công nợ giống nhau với mọi hàng hoá.
+  const creditDays = daysUntilNextCreditOrder(new Date());
 
   const rows = thresholds.map((threshold) => {
     const product = threshold.product;
@@ -267,6 +285,11 @@ export async function buildSuggestions(input: ReorderPreviewInput & { userId: st
       detail: "Chưa có dữ liệu tiêu thụ",
     };
     const onHandQty = onHandByProduct.get(threshold.productId) ?? null;
+
+    // Nhịp gọi: khai tay thì dùng luôn, không thì suy từ công nợ của NCC ưu tiên.
+    const prioritySupplier = pickPrioritySupplier(pricesByProduct.get(threshold.productId) ?? []);
+    const cadence = resolveCadence(product.orderCadence, prioritySupplier?.hasCredit ?? false);
+    const creditSupplierName = prioritySupplier?.supplierName ?? "chưa khai NCC";
 
     const min = threshold.minQuantity == null ? null : Number(threshold.minQuantity);
     const max = threshold.maxQuantity == null ? null : Number(threshold.maxQuantity);
@@ -280,6 +303,9 @@ export async function buildSuggestions(input: ReorderPreviewInput & { userId: st
       productGroupName: product.productGroup?.name ?? "Chưa phân nhóm",
       active: product.active,
       mode: threshold.mode,
+      cadence,
+      prioritySupplierName: prioritySupplier?.supplierName ?? null,
+      hasCredit: prioritySupplier?.hasCredit ?? false,
       minQuantity: min,
       maxQuantity: max,
       fixedQuantity: fixed,
@@ -350,14 +376,14 @@ export async function buildSuggestions(input: ReorderPreviewInput & { userId: st
       }
 
       case "COVERAGE": {
-        // Ưu tiên: khai riêng cho hàng hoá → số người dùng gõ trên trang → số tự tính từ lịch gọi.
-        // Lịch gọi đứng cuối nhưng là đường chạy thường ngày: hai kỳ trong tuần dài khác nhau (CN→T5 là
-        // 4 ngày, T5→CN là 3) nên khai cứng một con số theo hàng hoá sẽ sai một trong hai kỳ.
-        const requestedDays = threshold.coverDays ?? input.coverDays ?? scheduleDays;
-        if (requestedDays == null) {
-          row.reasons.push("Chưa khai lịch gọi đồ và cũng chưa khai số ngày cần phủ");
-          return row;
-        }
+        // Số ngày phủ phụ thuộc NHỊP GỌI, mà nhịp do công nợ quyết định:
+        //   - có công nợ  → khoảng cách tới mốc 15 hoặc 30 kế tiếp (~15 ngày)
+        //   - trả ngay    → coverDays: khai riêng cho quán → khai cho hàng hoá → mặc định 3
+        // Ô trên trang vẫn đè được, để người dùng ép một con số khác khi cần.
+        const requestedDays =
+          cadence === "CREDIT_TWICE_MONTHLY"
+            ? (threshold.coverDays ?? input.coverDays ?? creditDays)
+            : (threshold.coverDays ?? input.coverDays ?? product.coverDays ?? DEFAULT_COVER_DAYS);
         if (onHandQty == null) {
           row.reasons.push("Chưa nhập tồn hiện tại");
           return row;
@@ -381,7 +407,11 @@ export async function buildSuggestions(input: ReorderPreviewInput & { userId: st
         const need = usage.dailyUsage * totalDays - onHandQty - (inTransit?.quantity ?? 0);
 
         row.reasons.push(usage.detail);
-        if (threshold.coverDays == null && input.coverDays == null && scheduleNote) row.reasons.push(scheduleNote);
+        row.reasons.push(
+          cadence === "CREDIT_TWICE_MONTHLY"
+            ? `Hàng có công nợ (${creditSupplierName}) — gọi ngày 15 và 30, còn ${creditDays} ngày tới mốc kế tiếp`
+            : `Hàng trả ngay — phủ ${requestedDays} ngày`,
+        );
         if (product.shelfLifeDays != null && effectiveDays < requestedDays) {
           row.reasons.push(`Kẹp còn ${effectiveDays} ngày vì hàng chỉ dùng được ${product.shelfLifeDays} ngày`);
         }
@@ -405,26 +435,9 @@ export async function buildSuggestions(input: ReorderPreviewInput & { userId: st
     }
   });
 
-  return rows.sort(
-    (a, b) => a.productGroupName.localeCompare(b.productGroupName) || a.name.localeCompare(b.name),
-  );
-}
-
-export interface OrderScheduleInfo {
-  /** 1 = Thứ 2 … 7 = Chủ nhật. Rỗng nghĩa là chưa khai lịch. */
-  orderWeekdays: number[];
-  /** Số ngày tới lần gọi kế tiếp, null khi chưa khai lịch. */
-  daysUntilNextOrder: number | null;
-}
-
-/**
- * Lịch gọi và số ngày phủ tự tính, trả kèm `preview` để giao diện hiện đúng con số server đã dùng.
- *
- * Cố ý KHÔNG để web tự tính: web tính thì có hai bản cùng logic, và bản của web dùng giờ máy người dùng
- * chứ không phải hằng UTC+7 — tối Chủ nhật ở VN có thể thành Thứ 2 nếu máy đặt sai múi giờ.
- */
-export async function getOrderScheduleInfo(now: Date = new Date()): Promise<OrderScheduleInfo> {
-  const days = await prisma.orderScheduleDay.findMany({ select: { weekday: true }, orderBy: { weekday: "asc" } });
-  const orderWeekdays = days.map((d) => d.weekday);
-  return { orderWeekdays, daysUntilNextOrder: daysUntilNextOrderDay(now, orderWeekdays) };
+  // Hàng mua tập trung (cốc giấy) KHÔNG hiện trong danh sách của quán: MOQ 10.000 không phải của một
+  // quán, và "đủ dùng 20 ngày" là tồn của cả chuỗi. Admin đặt ở màn /admin/central-purchasing.
+  return rows
+    .filter((row) => row.cadence !== "CENTRAL")
+    .sort((a, b) => a.productGroupName.localeCompare(b.productGroupName) || a.name.localeCompare(b.name));
 }

@@ -97,7 +97,6 @@ export const PERMISSION_RESOURCES = [
   { resource: "DEADLINES", label: "Hạn order & kiểm kê", group: "Quản trị", actions: ["VIEW", "EDIT"] },
   // Các thứ trong tuần quán gọi đồ — quyết định số ngày một đơn phải phủ. Giao diện nằm chung trang
   // "Hạn order & kiểm kê" nhưng quyền tách riêng: đổi lịch gọi làm đổi SL đề xuất của mọi quán.
-  { resource: "ORDER_SCHEDULE", label: "Ngày gọi đồ", group: "Quản trị", actions: ["VIEW", "EDIT"] },
 
   // ADD = nhập file doanh số (nhập lại cùng ngày là ghi đè, nên không cần EDIT riêng) ·
   // DELETE = xoá dữ liệu một ngày khi nhập sai nguồn.

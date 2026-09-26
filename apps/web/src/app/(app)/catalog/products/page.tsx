@@ -4,9 +4,14 @@ import { CatalogPage } from "@/components/catalog/CatalogPage";
 import { ProductExcelImport } from "@/components/catalog/ProductExcelImport";
 import { useProductGroups, useUnits } from "@/hooks/useCatalog";
 import { PRODUCT_TYPE_OPTIONS, formatCurrency, labels } from "@/lib/format";
-import type { Product } from "@/types";
+import { ORDER_CADENCE_LABELS, type OrderCadence, type Product } from "@/types";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMemo, useState } from "react";
+
+const ORDER_CADENCE_OPTIONS = (Object.keys(ORDER_CADENCE_LABELS) as OrderCadence[]).map((value) => ({
+  value,
+  label: ORDER_CADENCE_LABELS[value],
+}));
 
 const columns: ColumnDef<Product>[] = [
   { header: "Mã hàng hoá", accessorKey: "code" },
@@ -75,11 +80,26 @@ export default function ProductsPage() {
         name: "shelfLifeDays",
         label: "Số ngày dùng được sau khi nhận (để trống = không hạn) — dùng để kẹp số ngày cần phủ khi gợi ý đặt hàng",
         type: "number" as const,
+        clearable: true,
       },
       {
         name: "leadDays",
-        label: "Số ngày chờ hàng về kể từ lúc đặt (cà phê 4–5, bột 1–2) — cộng vào số ngày cần phủ khi gợi ý đặt hàng",
+        label: "Số ngày chờ hàng về kể từ lúc đặt (cà phê 4–5, bột 1–2) — cộng vào số ngày cần phủ khi gợi ý đặt hàng. Hàng mua tập trung dùng luôn số này làm ngưỡng gọi (cốc giấy 20)",
         type: "number" as const,
+        clearable: true,
+      },
+      {
+        name: "orderCadence",
+        label: "Nhịp gọi (để trống = tự suy từ công nợ của NCC ưu tiên)",
+        type: "select" as const,
+        options: ORDER_CADENCE_OPTIONS,
+        clearable: true,
+      },
+      {
+        name: "coverDays",
+        label: "Số ngày cần phủ mỗi lần gọi (hoa quả để 1) — chỉ dùng khi nhịp gọi là trả ngay",
+        type: "number" as const,
+        clearable: true,
       },
       {
         name: "active",

@@ -14,6 +14,21 @@ import ExcelJS from "exceljs";
 import { ChevronDown, Download } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+/**
+ * Chỉ số cột của MẪU TRẮNG và phần NHẬP, dùng chung đúng một nơi — đổi bố cục ở đây là đổi cả hai chỗ.
+ * Phần XUẤT cố ý khác (có thêm tên hàng hoá và ĐVT để người đọc hiểu file), nên không dùng hằng này.
+ */
+const IMPORT_HEADERS = [
+  "Mã hàng hoá*",
+  "Giá nhập",
+  "Giá xuất",
+  "Mã đơn vị gọi",
+  "Quy đổi",
+  "SL tối thiểu",
+  "Ưu tiên",
+  "Công nợ",
+] as const;
+
 interface RowInput {
   importPrice: string;
   exportPrice: string;
@@ -21,6 +36,8 @@ interface RowInput {
   baseUnitsPerPurchaseUnit: string;
   minQuantity: string;
   priority: string;
+  /** Giữ dạng chuỗi "true"/"false" cho khớp khuôn RowInput toàn chuỗi. Rỗng = chưa khai = không công nợ. */
+  hasCredit: string;
 }
 
 type RowField = keyof RowInput;
@@ -107,6 +124,7 @@ export default function ProductSupplierPricesPage() {
           baseUnitsPerPurchaseUnit: packSize ? Number(packSize) : null,
           minQuantity: minQuantity ? Number(minQuantity) : null,
           priority: priority ? Number(priority) : null,
+          hasCredit: valueFor(productId, "hasCredit") === "true",
         };
       });
 
@@ -131,11 +149,9 @@ export default function ProductSupplierPricesPage() {
   async function downloadTemplate() {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet("Giá theo NCC");
-    sheet.columns = ["Mã hàng hoá*", "Giá nhập", "Giá xuất", "Mã đơn vị gọi", "Quy đổi", "SL tối thiểu", "Ưu tiên"].map(
-      (header) => ({ header, width: 22 }),
-    );
+    sheet.columns = IMPORT_HEADERS.map((header) => ({ header, width: 22 }));
     sheet.getRow(1).font = { bold: true };
-    sheet.addRow(sanitizeExcelRow([products[0]?.code ?? "SP001", 0, 0, units[0]?.code ?? "", "", "", 1]));
+    sheet.addRow(sanitizeExcelRow([products[0]?.code ?? "SP001", 0, 0, units[0]?.code ?? "", "", "", 1, "không"]));
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     const url = URL.createObjectURL(blob);
@@ -165,6 +181,21 @@ export default function ProductSupplierPricesPage() {
         return;
       }
 
+      // Kiểm HÀNG TIÊU ĐỀ trước khi đọc. Không kiểm thì một file lệch cột sẽ đọc giá xuất thành giá
+      // nhập: file nhập xong trông vẫn bình thường nhưng bảng giá đã sai, và không có cách nào biết.
+      const headerMismatch = IMPORT_HEADERS.findIndex(
+        (expected, i) => String(sheet.getRow(1).getCell(i + 1).value ?? "").trim() !== expected,
+      );
+      if (headerMismatch >= 0) {
+        setImportResult({
+          updated: 0,
+          errors: [
+            `Hàng tiêu đề không khớp mẫu ở cột ${headerMismatch + 1} (cần "${IMPORT_HEADERS[headerMismatch]}"). Tải lại mẫu trắng rồi nhập lại.`,
+          ],
+        });
+        return;
+      }
+
       const productByCode = new Map(products.map((p) => [p.code.trim().toLowerCase(), p]));
       const unitByCode = new Map(units.map((u) => [u.code.trim().toLowerCase(), u]));
       const errors: string[] = [];
@@ -180,6 +211,7 @@ export default function ProductSupplierPricesPage() {
         const packSizeRaw = row.getCell(5).value;
         const minQuantityRaw = row.getCell(6).value;
         const priorityRaw = row.getCell(7).value;
+        const creditRaw = String(row.getCell(8).value ?? "").trim().toLowerCase();
         if (!code) return;
 
         const product = productByCode.get(code.toLowerCase());
@@ -221,6 +253,8 @@ export default function ProductSupplierPricesPage() {
           baseUnitsPerPurchaseUnit,
           minQuantity,
           priority,
+          // Nhận cả "có"/"x"/"1"/"true" vì người nhập gõ tay cột này, không chọn từ danh sách.
+          hasCredit: ["có", "co", "x", "1", "true", "yes"].includes(creditRaw) ? "true" : "false",
         };
         updated++;
       });
@@ -247,6 +281,7 @@ export default function ProductSupplierPricesPage() {
       { header: "Quy đổi", value: (p) => valueFor(p.id, "baseUnitsPerPurchaseUnit") },
       { header: "SL tối thiểu", value: (p) => valueFor(p.id, "minQuantity") },
       { header: "Ưu tiên", value: (p) => valueFor(p.id, "priority") },
+      { header: "Công nợ", value: (p) => (valueFor(p.id, "hasCredit") === "true" ? "có" : "không") },
     ];
     await exportRowsToExcel("Giá theo NCC", columns, products, "gia-theo-ncc.xlsx");
   }
@@ -329,6 +364,7 @@ export default function ProductSupplierPricesPage() {
                   <th className="border border-slate-200 px-3 py-2">Quy đổi</th>
                   <th className="border border-slate-200 px-3 py-2">SL tối thiểu</th>
                   <th className="border border-slate-200 px-3 py-2">Ưu tiên</th>
+                  <th className="border border-slate-200 px-3 py-2">Công nợ</th>
                 </tr>
               </thead>
               <tbody>
@@ -405,6 +441,15 @@ export default function ProductSupplierPricesPage() {
                         className="w-20"
                         value={valueFor(p.id, "priority")}
                         onChange={(e) => setRow(p.id, "priority", e.target.value)}
+                      />
+                    </td>
+                    <td className="border border-slate-200 px-3 py-2">
+                      {/* Quyết định nhịp gọi: có công nợ thì gọi ngày 15 & 30, không thì gọi theo số ngày phủ. */}
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-slate-300"
+                        checked={valueFor(p.id, "hasCredit") === "true"}
+                        onChange={(e) => setRow(p.id, "hasCredit", e.target.checked ? "true" : "false")}
                       />
                     </td>
                   </tr>

@@ -63,6 +63,7 @@ productSupplierPricesRouter.put("/", requirePermission("SUPPLIER_PRICES", "EDIT"
       baseUnitsPerPurchaseUnit: purchaseUnitId ? (it.baseUnitsPerPurchaseUnit ?? null) : null,
       minQuantity: it.minQuantity ?? null,
       priority: it.priority ?? 1,
+      hasCredit: it.hasCredit ?? false,
     };
     operations.push(
       prisma.productSupplierPrice.upsert({

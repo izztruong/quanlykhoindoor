@@ -71,8 +71,21 @@ export interface Product {
   // Số ngày còn dùng được sau khi quán nhận hàng — dùng để kẹp số ngày cần phủ khi gợi ý đặt hàng.
   shelfLifeDays?: number | null;
   // Số ngày từ lúc đặt tới lúc quán nhận được hàng. Khác nhau theo hàng hoá (cà phê 4–5, bột 1–2).
+  // Với hàng CENTRAL còn là ngưỡng kích hoạt: gọi khi tồn toàn chuỗi còn đủ dùng dưới leadDays ngày.
   leadDays?: number | null;
+  // Nhịp gọi. Null = tự suy từ công nợ của NCC ưu tiên (có nợ → gọi 15 & 30, không → theo coverDays).
+  orderCadence?: OrderCadence | null;
+  // Số ngày cần phủ mặc định của hàng hoá này, dùng chung mọi quán (hoa quả để 1).
+  coverDays?: number | null;
 }
+
+export type OrderCadence = "CREDIT_TWICE_MONTHLY" | "BY_COVER_DAYS" | "CENTRAL";
+
+export const ORDER_CADENCE_LABELS: Record<OrderCadence, string> = {
+  CREDIT_TWICE_MONTHLY: "Có công nợ — gọi ngày 15 và 30",
+  BY_COVER_DAYS: "Trả ngay — gọi theo số ngày phủ",
+  CENTRAL: "Mua tập trung — admin đặt, quán không gọi",
+};
 
 export type ReorderMode = "THRESHOLD" | "FIXED" | "COVERAGE" | "OFF";
 
@@ -129,23 +142,6 @@ export interface ReorderSuggestion {
   reasons: string[];
 }
 
-/** Lịch gọi đồ và số ngày phủ tự tính — server trả kèm `preview` để web không tự tính lại. */
-export interface OrderScheduleInfo {
-  /** 1 = Thứ 2 … 7 = Chủ nhật. Rỗng = chưa khai lịch. */
-  orderWeekdays: number[];
-  daysUntilNextOrder: number | null;
-}
-
-export const WEEKDAY_LABELS: Record<number, string> = {
-  1: "Thứ 2",
-  2: "Thứ 3",
-  3: "Thứ 4",
-  4: "Thứ 5",
-  5: "Thứ 6",
-  6: "Thứ 7",
-  7: "Chủ nhật",
-};
-
 export type ShiftCode = "CA1" | "CA2" | "CA3";
 
 export interface ShiftDefinition {
@@ -186,6 +182,8 @@ export interface Supplier {
   name: string;
   phone?: string | null;
   address?: string | null;
+  /** Đơn từ ngưỡng này trở lên thì NCC miễn ship. Null = không có chính sách đó. Ship tính theo TỪNG QUÁN. */
+  freeShipThreshold?: string | number | null;
 }
 
 export interface ProductSupplierPrice {
@@ -201,10 +199,12 @@ export interface ProductSupplierPrice {
   purchaseUnit?: Unit | null;
   /** 1 đơn vị gọi = bao nhiêu đơn vị chính (vd 1 Thùng = 12 Hộp). */
   baseUnitsPerPurchaseUnit?: string | number | null;
-  /** Số lượng đặt tối thiểu, tính theo đơn vị gọi. */
+  /** Số lượng đặt tối thiểu, tính theo đơn vị gọi. Với hàng mua tập trung đây chính là MOQ. */
   minQuantity?: string | number | null;
   /** Thứ tự ưu tiên gọi NCC cho hàng hoá này: 1 = gọi trước. */
   priority?: number | null;
+  /** NCC này có cho công nợ với mặt hàng này không — quyết định nhịp gọi ở phần gợi ý đặt hàng. */
+  hasCredit?: boolean;
 }
 
 export interface Customer {

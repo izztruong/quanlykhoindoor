@@ -1,6 +1,5 @@
 "use client";
 
-import { OrderScheduleCard } from "@/components/admin/OrderScheduleCard";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
@@ -72,11 +71,7 @@ export default function DeadlinesPage() {
         <p className="text-sm text-slate-500">
           Đơn hàng và phiếu kiểm nộp sau hạn sẽ bị đánh dấu chấm đỏ ở danh sách. Lịch này dùng chung cho mọi quán.
         </p>
-      </div>
-
-      <OrderScheduleCard />
-
-      <Card>
+      </div>      <Card>
         <CardHeader>
           <CardTitle>Lịch hạn nộp</CardTitle>
         </CardHeader>

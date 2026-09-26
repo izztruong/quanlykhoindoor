@@ -14,8 +14,6 @@ import { formatNumber } from "@/lib/format";
 import {
   REORDER_MODE_LABELS,
   USAGE_SOURCE_LABELS,
-  WEEKDAY_LABELS,
-  type OrderScheduleInfo,
   type ReorderSuggestion,
 } from "@/types";
 import ExcelJS from "exceljs";
@@ -23,8 +21,9 @@ import { ChevronDown, Download, Info } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-// Không còn số ngày phủ mặc định ở web: server tự tính từ lịch gọi đồ, và ô trên trang chỉ để sửa tay.
-// Giữ một con số mặc định ở đây sẽ âm thầm đè số tự tính mỗi lần mở trang.
+// Không còn số ngày phủ mặc định ở web: server tự tính theo nhịp gọi của từng hàng hoá (công nợ thì tới
+// mốc 15/30, trả ngay thì theo coverDays), và ô trên trang chỉ để sửa tay. Giữ một con số mặc định ở đây
+// sẽ âm thầm đè số tự tính mỗi lần mở trang.
 
 export default function QuickOrderPage() {
   const router = useRouter();
@@ -36,9 +35,8 @@ export default function QuickOrderPage() {
 
   const [warehouseId, setWarehouseId] = useState("");
   const [stockInputs, setStockInputs] = useState<Record<string, string>>({});
-  // Bỏ trống = để server tính từ lịch gọi đồ. Chỉ gõ vào khi muốn phủ khác lịch.
+  // Bỏ trống = để server tính theo nhịp gọi. Chỉ gõ vào khi muốn phủ khác nhịp.
   const [coverDaysOverride, setCoverDaysOverride] = useState("");
-  const [schedule, setSchedule] = useState<OrderScheduleInfo | null>(null);
   // SL người dùng sửa tay, đè lên SL đề xuất. Khoá theo productId, chỉ dòng nào sửa mới có mặt.
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [suggestions, setSuggestions] = useState<ReorderSuggestion[] | null>(null);
@@ -74,13 +72,12 @@ export default function QuickOrderPage() {
     preview.mutate(
       {
         onHand: buildOnHand(),
-        // Chỉ gửi khi người dùng thật sự gõ số — gửi mặc định sẽ đè số tự tính từ lịch gọi.
+        // Chỉ gửi khi người dùng thật sự gõ số — gửi mặc định sẽ đè số tự tính theo nhịp gọi.
         coverDays: coverDaysOverride.trim() !== "" && Number.isFinite(override) && override > 0 ? override : undefined,
       },
       {
         onSuccess: (result) => {
           setSuggestions(result.items);
-          setSchedule(result.schedule);
           setOverrides({});
         },
         onError: (err) => setError(err instanceof ApiError ? err.message : "Không tính được số lượng đề xuất"),
@@ -271,18 +268,13 @@ export default function QuickOrderPage() {
               type="number"
               min="1"
               max="365"
-              placeholder={schedule?.daysUntilNextOrder != null ? String(schedule.daysUntilNextOrder) : "theo lịch gọi"}
+              placeholder="theo nhịp gọi"
               value={coverDaysOverride}
               onChange={(e) => setCoverDaysOverride(e.target.value)}
             />
             <span className="text-xs text-slate-400">
-              {schedule == null
-                ? "Để trống = tự tính theo lịch gọi đồ"
-                : schedule.daysUntilNextOrder == null
-                  ? "Chưa khai lịch gọi đồ — phải gõ số ngày vào đây"
-                  : `Để trống = ${schedule.daysUntilNextOrder} ngày tới lần gọi kế tiếp (${schedule.orderWeekdays
-                      .map((w) => WEEKDAY_LABELS[w])
-                      .join(", ")})`}
+              Để trống = tự tính theo từng hàng hoá: có công nợ thì phủ tới mốc gọi ngày 15 / 30, trả tiền
+              ngay thì phủ số ngày khai ở Danh mục › Hàng hoá. Cột lý do nói rõ đã dùng số nào.
             </span>
           </div>
           <div className="flex flex-col gap-1">

@@ -14,6 +14,8 @@ export const productSupplierPricesPutSchema = z.object({
         // Số lượng đặt tối thiểu, tính theo đơn vị gọi ở trên.
         minQuantity: z.coerce.number().nonnegative().nullable().optional(),
         priority: z.coerce.number().int().min(1).nullable().optional(),
+        // Không dùng z.coerce.boolean(): chuỗi "false" cũng thành true, và web gửi JSON nên đã là boolean.
+        hasCredit: z.boolean().optional(),
       })
       // Khai đơn vị gọi mà bỏ trống hệ số quy đổi thì phần tổng hợp sẽ chia cho 0, nên chặn ngay
       // ở đây thay vì để ra số lượng đặt vô nghĩa.

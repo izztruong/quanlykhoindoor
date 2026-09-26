@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
-import type { OrderScheduleInfo, ReorderSuggestion, SalesOrder } from "@/types";
+import type { ReorderSuggestion, SalesOrder } from "@/types";
 
 export interface OnHandInput {
   productId: string;
@@ -10,13 +10,12 @@ export interface OnHandInput {
 export interface PreviewInput {
   userId?: string;
   onHand: OnHandInput[];
-  /** Bỏ trống thì server tự tính từ lịch gọi đồ — đó là đường chạy thường ngày. */
+  /** Bỏ trống thì server tự tính theo nhịp gọi của từng hàng hoá — đó là đường chạy thường ngày. */
   coverDays?: number;
 }
 
 export interface PreviewResult {
   items: ReorderSuggestion[];
-  schedule: OrderScheduleInfo;
 }
 
 /**

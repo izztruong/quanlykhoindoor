@@ -20,6 +20,14 @@ export interface CatalogFieldConfig {
   label: string;
   type?: "text" | "number" | "select" | "textarea" | "checkbox";
   required?: boolean;
+  /**
+   * Để trống ô này thì gửi **null** thay vì bỏ qua trường.
+   *
+   * Mặc định (undefined) thì trường bị loại khỏi payload, nên PUT không đụng tới cột — nghĩa là khai
+   * xong KHÔNG GỠ ĐƯỢC. Chỉ bật cho trường mà Zod phía server khai `.nullable()`; bật cho trường chỉ
+   * `.optional()` sẽ bị 400.
+   */
+  clearable?: boolean;
   options?: { value: string; label: string }[];
 }
 
@@ -56,12 +64,13 @@ function buildPayload(fields: CatalogFieldConfig[], values: Record<string, strin
   const payload: Record<string, unknown> = {};
   for (const field of fields) {
     const raw = values[field.name] ?? "";
+    const empty = field.clearable ? null : undefined;
     if (field.type === "number") {
-      payload[field.name] = raw === "" ? (field.required ? 0 : undefined) : Number(raw);
+      payload[field.name] = raw === "" ? (field.required ? 0 : empty) : Number(raw);
     } else if (field.type === "checkbox") {
       payload[field.name] = raw === "true";
     } else {
-      payload[field.name] = raw || undefined;
+      payload[field.name] = raw === "" ? empty : raw;
     }
   }
   return payload;

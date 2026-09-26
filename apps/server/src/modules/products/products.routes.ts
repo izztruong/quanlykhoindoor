@@ -20,7 +20,12 @@ const schema = z.object({
   // không phải theo dõi hạn từng lô. Cho phép null để form gỡ được giá trị đã khai.
   shelfLifeDays: z.coerce.number().int().positive().nullable().optional(),
   // Số ngày từ lúc đặt tới lúc quán nhận được hàng — khác nhau theo hàng hoá (cà phê 4–5, bột 1–2).
+  // Với hàng CENTRAL còn là ngưỡng kích hoạt: gọi khi tồn toàn chuỗi còn đủ dùng dưới leadDays ngày.
   leadDays: z.coerce.number().int().min(0).max(60).nullable().optional(),
+  // Nhịp gọi. Để trống = tự suy từ công nợ của NCC ưu tiên, nên null là giá trị hợp lệ và có ý nghĩa.
+  orderCadence: z.enum(["CREDIT_TWICE_MONTHLY", "BY_COVER_DAYS", "CENTRAL"]).nullable().optional(),
+  // Số ngày cần phủ mặc định cho hàng hoá này (hoa quả để 1). Chỉ có nghĩa với BY_COVER_DAYS.
+  coverDays: z.coerce.number().int().min(1).max(365).nullable().optional(),
   // Hàng hoá ngừng dùng (active=false) bị ẩn khỏi ô chọn hàng hoá khi tạo phiếu/đơn hàng mới.
   active: z.boolean().optional().default(true),
 });

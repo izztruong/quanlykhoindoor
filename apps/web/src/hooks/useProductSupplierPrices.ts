@@ -10,6 +10,7 @@ export interface ProductSupplierPriceItemInput {
   baseUnitsPerPurchaseUnit: number | null;
   minQuantity: number | null;
   priority: number | null;
+  hasCredit: boolean;
 }
 
 /** Omit supplierId to get every price row (used for per-line supplier lookups on stock exports). */

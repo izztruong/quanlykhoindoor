@@ -30,14 +30,14 @@ function vnParts(date: Date): VnParts {
 }
 
 /**
- * Thứ theo giờ VN, 1 = Thứ 2 … 7 = Chủ nhật (ISO-8601).
+ * Lịch ngày–tháng–năm–thứ theo giờ VN của một mốc thời gian.
  *
- * Xuất ra để `utils/orderSchedule` dùng chung: tính "hôm nay là thứ mấy" phải đi qua đúng hằng UTC+7
- * này, nếu viết lại bằng `getDay()` thì trên Render (chạy UTC) tối Chủ nhật ở VN sẽ thành Chủ nhật hay
- * Thứ 2 tuỳ giờ — sai đúng vào buổi quán gọi đồ.
+ * Xuất ra để `utils/orderCadence` dùng chung: mọi phép tính "hôm nay là ngày mấy / thứ mấy" phải đi qua
+ * đúng hằng UTC+7 này. Viết lại bằng `getDate()` thì trên Render (chạy UTC) tối ngày 30 ở VN sẽ thành
+ * ngày 30 hay ngày 1 tuỳ giờ — sai đúng vào buổi chốt đơn công nợ.
  */
-export function vnWeekday(date: Date): number {
-  return vnParts(date).weekday;
+export function vnCalendar(date: Date): VnParts {
+  return vnParts(date);
 }
 
 /**

@@ -191,6 +191,19 @@ enum ProductType {
   KHAC
 }
 
+/**
+ * Nhịp gọi của một hàng hoá — quyết định SỐ NGÀY một đơn phải phủ.
+ *
+ * Không phải một lịch tuần dùng chung: nhịp do ĐIỀU KIỆN THANH TOÁN quyết định. Công nợ 2 tháng mà
+ * hàng quay vòng ~15 ngày nghĩa là bán xong mới phải trả, nên giữ hàng gần như không tốn gì; hàng trả
+ * ngay thì mỗi đơn là tiền ra khỏi túi nên phải giữ tồn thấp nhất có thể.
+ */
+enum OrderCadence {
+  CREDIT_TWICE_MONTHLY // gọi ngày 15 và ngày 30 — hàng có công nợ
+  BY_COVER_DAYS        // gọi liên tục, đủ dùng coverDays ngày — hàng trả ngay; hoa quả để 1
+  CENTRAL              // admin mua tập trung ở màn riêng, quán KHÔNG gọi (cốc giấy)
+}
+
 model Product {
   id             String       @id @default(cuid())
   code           String       @unique
@@ -232,7 +245,19 @@ model Product {
   //
   // Để trống = coi như 0 (hàng về ngay). Dùng cộng vào số ngày cần phủ: lượng tiêu thụ từ lúc đặt tới
   // lúc hàng về phải lấy từ tồn đang có, nên cũng phải mua.
+  //
+  // Với hàng mua tập trung (orderCadence = CENTRAL), cột này CÒN LÀ NGƯỠNG KÍCH HOẠT: gọi khi tồn toàn
+  // chuỗi còn đủ dùng dưới `leadDays` ngày. Đúng nghĩa điểm đặt hàng — đặt lúc lượng còn lại vừa đủ
+  // cầm cự tới khi lô mới về. Cốc giấy để 20.
   leadDays Int?
+
+  // Nhịp gọi. Để TRỐNG thì tự suy từ công nợ của NCC ưu tiên: có công nợ → CREDIT_TWICE_MONTHLY,
+  // không → BY_COVER_DAYS. Khai tay thì đè lên suy luận đó.
+  orderCadence OrderCadence?
+
+  // Số ngày cần phủ mặc định cho hàng hoá này, dùng chung mọi quán (hoa quả để 1). Chỉ có nghĩa với
+  // BY_COVER_DAYS. Một quán muốn khác thì khai riêng ở ProductReorderThreshold.coverDays.
+  coverDays Int?
 
   stockImportItems      StockImportItem[]
   stockExportItems      StockExportItem[]
@@ -270,6 +295,14 @@ model ProductSupplierPrice {
   minQuantity              Decimal? @db.Decimal(18, 3)
   // Thứ tự ưu tiên gọi NCC cho mặt hàng này: 1 = gọi trước.
   priority                 Int      @default(1)
+
+  // NCC này có cho công nợ với MẶT HÀNG NÀY không — một NCC có thể cho nợ hàng này mà không cho hàng
+  // khác, nên cờ nằm ở đây chứ không ở Supplier.
+  //
+  // Quyết định nhịp gọi: có công nợ thì gom đơn gọi 2 lần/tháng (ngày 15 và 30) vì trả sau 2 tháng nên
+  // giữ hàng gần như không tốn gì; không công nợ thì gọi liên tục theo số ngày phủ, vì mỗi đơn là tiền
+  // ra khỏi túi ngay.
+  hasCredit                Boolean  @default(false)
 
   @@unique([productId, supplierId])
   @@index([purchaseUnitId])
@@ -314,6 +347,11 @@ model Supplier {
   name    String
   phone   String?
   address String?
+
+  // Đơn từ ngưỡng này trở lên thì NCC miễn phí vận chuyển. Null = NCC không có chính sách đó.
+  // Ship tính theo TỪNG QUÁN, nên ngưỡng áp cho mỗi (quán × NCC) — ba quán đặt lẻ là ba lần ship.
+  // Chỉ admin thấy con số này vì nó suy ra từ giá nhập, mà quán không có quyền xem giá NCC.
+  freeShipThreshold Decimal? @db.Decimal(18, 2)
 
   stockImports          StockImport[]
   stockExports          StockExport[]
@@ -1164,15 +1202,3 @@ model ShiftDefinition {
   updatedAt   DateTime  @updatedAt
 }
 
-/**
- * Các thứ trong tuần quán gọi đồ — dùng chung mọi quán, mỗi thứ tối đa một dòng.
- * `weekday` theo ISO-8601: 1 = Thứ 2 … 7 = Chủ nhật, khớp quy ước của `Deadline.weekday` và
- * `utils/deadlines`. Hiện tại quán gọi tối Thứ 5 (4) và tối Chủ nhật (7).
- * Dùng để suy ra SỐ NGÀY CẦN PHỦ của mỗi đơn: khoảng cách từ hôm nay tới ngày gọi kế tiếp. Không phụ
- * thuộc thời gian chờ hàng — lô này về `D + chờ`, lô sau về `D' + chờ`, chờ triệt tiêu.
- * Bảng chỉ có một cột nên `weekday` làm luôn khoá chính: không có gì khác để lưu, và cách này khiến
- * việc chèn trùng là bất khả thi thay vì phải nhớ đặt @unique.
- */
-model OrderScheduleDay {
-  weekday Int @id
-}

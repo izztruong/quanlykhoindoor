@@ -69,13 +69,33 @@ export async function importPosSales(userId: string, rows: PosSaleRow[]): Promis
   }
 
   const cells = [...byCell.values()];
-  // Ngày cần ghi đè suy từ CÁC Ô THẬT, không phải từ mọi dòng trong file: một ngày mà cả file chỉ có
-  // dòng bị bỏ qua thì không được đụng tới — xoá ngày đó rồi ghi 0 ô là xoá trắng dữ liệu đã có.
   const days = [...new Set(cells.map((c) => c.soldOn))];
+
+  /**
+   * Ghi đè theo GIỜ, không theo ngày.
+   *
+   * Quán nhập doanh số **mỗi ca một lần**, nên xoá cả ngày rồi ghi lại sẽ khiến file ca chiều xoá sạch
+   * dữ liệu ca sáng. Chỉ xoá đúng những ô `(ngày, giờ)` có mặt trong file rồi ghi lại: nhập lại cùng
+   * một file vẫn không nhân đôi, mà từng ca không đạp lên nhau.
+   *
+   * Đánh đổi: một giờ đã có dữ liệu mà file mới không nhắc tới thì KHÔNG bị xoá. Muốn xoá hẳn thì dùng
+   * `DELETE /day`.
+   *
+   * Cũng suy từ CÁC Ô THẬT chứ không phải mọi dòng trong file: một ngày mà cả file chỉ có dòng bị bỏ
+   * qua thì không đụng tới gì cả.
+   */
+  const hourSlots = [...new Set(cells.map((c) => `${c.soldOn}|${c.hour}`))].map((key) => {
+    const [soldOn, hour] = key.split("|");
+    return { soldOn: parseDateOnly(soldOn), hour: Number(hour) };
+  });
 
   await prisma.$transaction(
     async (tx) => {
-      await tx.posSaleHour.deleteMany({ where: { userId, soldOn: { in: days.map(parseDateOnly) } } });
+      // OR theo từng (ngày, giờ) thay vì `soldOn in days`: đúng độ mịn cần xoá. Một file 2 tháng sinh
+      // tối đa 60 × 24 = 1.440 mệnh đề, Postgres chịu được thoải mái.
+      await tx.posSaleHour.deleteMany({
+        where: { userId, OR: hourSlots.map((slot) => ({ soldOn: slot.soldOn, hour: slot.hour })) },
+      });
       await tx.posSaleHour.createMany({
         data: cells.map((cell) => ({
           userId,
