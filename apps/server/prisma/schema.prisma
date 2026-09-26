@@ -73,6 +73,9 @@ model User {
   shiftStockCountsCreated   ShiftStockCount[]         @relation("ShiftStockCountCreatedBy")
   shiftPrepRuns             ShiftPrepRun[]            @relation("ShiftPrepRunShop")
   shiftPrepRunsCreated      ShiftPrepRun[]            @relation("ShiftPrepRunCreatedBy")
+  dailyWatchRuns            DailyWatchRun[]           @relation("DailyWatchTriggeredBy")
+  dailyWatchFindings        DailyWatchFinding[]       @relation("DailyWatchShop")
+  dailyWatchFindingsFrom    DailyWatchFinding[]       @relation("DailyWatchFromShop")
 }
 
 enum DeadlineKind {
@@ -281,6 +284,7 @@ model Product {
   // BY_COVER_DAYS. Một quán muốn khác thì khai riêng ở ProductReorderThreshold.coverDays.
   coverDays Int?
 
+  dailyWatchFindings    DailyWatchFinding[]
   stockImportItems      StockImportItem[]
   stockExportItems      StockExportItem[]
   inventoryCountItems   InventoryCountItem[]
@@ -378,6 +382,7 @@ model Supplier {
   stockImports          StockImport[]
   stockExports          StockExport[]
   productPrices         ProductSupplierPrice[]
+  dailyWatchFindings    DailyWatchFinding[]
   stockExportItems      StockExportItem[]
   materialTransferItems MaterialTransferItem[]
 }
@@ -1025,6 +1030,10 @@ model ExpenseProposalImage {
  * (src/modules/notifications/notifications.service.ts) + gọi notify() ở luồng phát sinh.
  */
 enum NotificationType {
+  /// Quán sắp hết nguyên liệu trước ngày gọi kế tiếp — chỉ bắn khi GẤP, không bắn mỗi tối.
+  MATERIAL_RUNNING_OUT
+  /// Có đề xuất điều chuyển giữa các quán chờ duyệt.
+  TRANSFER_SUGGESTED
   ORDER_CREATED
   ORDER_CONFIRMED
   ORDER_SHORT
@@ -1364,4 +1373,88 @@ model SalesDayFactor {
   note   String?
 
   updatedAt DateTime @updatedAt
+}
+
+/**
+ * Loại việc mà màn theo dõi cuối ngày nêu ra. Xếp theo mức gấp khi hiển thị, không theo thứ tự enum.
+ */
+enum DailyWatchKind {
+  /// Quán sẽ hết một nguyên liệu TRƯỚC ngày gọi kế tiếp.
+  SHORTFALL
+  /// Có quán khác đang dư — đề xuất phiếu điều chuyển.
+  TRANSFER
+  /// Đơn tới một NCC đã đạt ngưỡng miễn ship: gọi luôn, không cần đợi tới ngày gọi.
+  FREE_SHIP_READY
+  /// Hôm nay đúng mốc gọi của nhóm hàng đó.
+  ORDER_DUE
+}
+
+/**
+ * Một lượt chạy theo dõi cuối ngày.
+ *
+ * Kết quả LƯU LẠI chứ không tính lúc mở màn: mở màn phải nhanh, và giữ lịch sử "ngày nào hệ thống đã
+ * cảnh báo gì" là cách duy nhất về sau đo được nó có báo đúng không — cùng tinh thần với ReorderRun.
+ *
+ * Đúng MỘT lượt cho mỗi ngày kinh doanh: GitHub Actions có thể chạy lại khi lỗi mạng, và chạy lần hai
+ * phải ghi đè chứ không nhân đôi kết quả.
+ */
+model DailyWatchRun {
+  id           String   @id @default(cuid())
+  businessDate DateTime @unique @db.Date
+
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  /// "CRON" = GitHub Actions gọi bằng token riêng · "MANUAL" = admin bấm trên màn.
+  triggeredBy String
+  /// Người bấm, null khi chạy bằng token.
+  triggeredById String?
+  triggeredBy_  User?   @relation("DailyWatchTriggeredBy", fields: [triggeredById], references: [id])
+
+  shopCount Int @default(0)
+  /// Lỗi của cả lượt (không phải của một dòng). Null = chạy xong bình thường.
+  error String?
+
+  findings DailyWatchFinding[]
+
+  @@index([businessDate])
+}
+
+model DailyWatchFinding {
+  id    String        @id @default(cuid())
+  runId String
+  run   DailyWatchRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  kind  DailyWatchKind
+
+  /// Quán mà việc này thuộc về. Với TRANSFER là quán NHẬN.
+  userId String
+  user   User   @relation("DailyWatchShop", fields: [userId], references: [id], onDelete: Cascade)
+
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  supplierId String?
+  supplier   Supplier? @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  /// Quán GỬI trong đề xuất điều chuyển.
+  fromUserId String?
+  fromUser   User?   @relation("DailyWatchFromShop", fields: [fromUserId], references: [id])
+
+  /// Số ngày còn lại tới lúc hết hàng. Càng nhỏ càng gấp; null = không tính được (thiếu mức dùng).
+  daysLeft Decimal? @db.Decimal(10, 2)
+  /// Số ngày tới mốc gọi kế tiếp của hàng đó.
+  daysToOrder Int?
+  /// SL đề xuất chuyển, hoặc SL thiếu.
+  quantity Decimal? @db.Decimal(18, 3)
+  /// Số tiền — dùng cho FREE_SHIP_READY.
+  amount Decimal? @db.Decimal(18, 2)
+  /// Chuyển vào ngày miễn phí (T3/T7) hay phải chịu ship vì không kịp.
+  freeTransfer Boolean @default(false)
+
+  title  String
+  /// Các dòng giải thích, mảng chuỗi tiếng Việt — cùng khuôn reasons[] của phần gọi đồ.
+  reasons Json
+
+  @@index([runId, kind])
+  @@index([userId])
+  @@index([productId])
 }

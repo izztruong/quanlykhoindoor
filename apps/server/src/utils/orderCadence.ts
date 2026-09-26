@@ -17,6 +17,18 @@ function creditOrderDays(year: number, month: number): number[] {
 }
 
 /**
+ * Hôm nay có phải MỐC GỌI công nợ không.
+ *
+ * Phải có hàm riêng, không suy từ `daysUntilNextCreditOrder`: hàm đó trả 15 cả khi hôm nay là mốc (ngày
+ * 15 → mốc 30) lẫn khi hôm nay chỉ tình cờ cách mốc 15 ngày (28/2 → 15/3, 31/1 → 15/2). Suy bằng
+ * `=== 15` sẽ báo "hôm nay là mốc gọi" vào những ngày không phải mốc.
+ */
+export function isCreditOrderDay(now: Date): boolean {
+  const { year, month, day } = vnCalendar(now);
+  return creditOrderDays(year, month).includes(day);
+}
+
+/**
  * Số ngày từ hôm nay tới MỐC GỌI CÔNG NỢ kế tiếp.
  *
  * Hôm nay LÀ mốc gọi thì trả về mốc sau, không phải 0: đơn đặt hôm nay phải phủ tới lúc lô sau về.

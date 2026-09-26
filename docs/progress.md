@@ -95,8 +95,25 @@ trả null (đổi sang `findFirst`, ghi vào CLAUDE.md); phần bù phiếu hu�
 ghi (không kẹp thì bù 134 cho hàng tồn 1); tầm nhìn đề xuất phải dừng ở hết ngày kinh doanh.
 Chưa làm: mobile; backtest 1.5 vẫn chờ 2 tháng doanh số thật.
 
-Còn lại của mục 1.8: không còn gì. Bước 2 đã xong phần server + web; tiếp theo là Bước 3 (màn theo dõi
-cuối ngày cho admin + gợi ý điều chuyển), nay đã có `getEstimatedOnHand` nên không còn bị chặn.
+### Theo dõi cuối ngày cho admin — CHƯA thử trên trình duyệt, chưa lên `staging`/`main`
+`/admin/daily-watch`: mỗi tối tính sẵn 4 loại việc (sắp hết trước ngày gọi · đề xuất điều chuyển · đã đủ
+ngưỡng miễn ship · đến mốc gọi công nợ), xếp theo mức gấp, lưu thành `DailyWatchRun` + `DailyWatchFinding`
+để sau này đo được "hệ thống có báo đúng không". Chạy bằng GitHub Actions 22:30 giờ VN qua
+`POST /api/daily-watch-cron/run` — endpoint duy nhất không cần đăng nhập, xác thực bằng `DAILY_WATCH_TOKEN`.
+Hai loại thông báo đẩy mới, chỉ bắn khi GẤP (hết trước cả ngày chuyển miễn phí gần nhất).
+Đã kiểm typecheck 2 app, lint web (vẫn đúng 14 lỗi **từ trước**), `migrate deploy` trên DB dev + bản copy
++ DB trắng, 23 ca trên bản copy production (57 việc / 4 quán, xếp đúng mức gấp, chạy lại ghi đè không nhân
+đôi, hàng mua tập trung không lọt vào) và curl 5 ca token (không gửi / sai / sai đúng độ dài / đúng / GET
+chưa đăng nhập → 401).
+**Cần trước khi dùng**: đặt `DAILY_WATCH_TOKEN` trên Render + hai secret `DAILY_WATCH_API_ORIGIN` và
+`DAILY_WATCH_TOKEN` trên GitHub; tick quyền "Theo dõi cuối ngày" **kèm** "Xem & thao tác dữ liệu của mọi
+quán" cho vai trò cần xem — thiếu phạm vi thì nhận thông báo mà mở màn không thấy quán nào.
+**Phiếu `DC` nháp CHƯA tự sinh**: chưa kiểm được quán nhận có cầm cự tới ngày chuyển hay không, nên màn
+chỉ đề xuất và nói thẳng giới hạn đó. Trên dữ liệu thật lượng đề xuất chuyển ra những số như 0,1 Túi —
+đúng số học nhưng không ai chuyển lẻ thế, nên màn ghi rõ "đây là lượng TỐI THIỂU".
+
+Còn lại của mục 1.8: không còn gì. Bước 2 và Bước 3 đã xong phần server + web. Còn lại của cả kế hoạch:
+Bước 4 (MCP, thời tiết), backtest 1.5, và mobile cho Order nhanh / Chuẩn bị ca.
 
 ### Chi chốt ca: cột "Đã chi" + cột Ngày lập phiếu — CHƯA thử trên trình duyệt/app, chưa lên `staging`/`main`
 Quyền mới `SHIFT_EXPENSES.PAY` bật/tắt dấu "đã chi"; đã đánh dấu thì quán hết sửa/xoá/đổi ảnh (409). Cột "Ngày" đổi thành "Ngày chi", thêm "Ngày lập phiếu" (từ `createdAt`), lọc theo trạng thái chi. Excel chỉ thêm cột cuối, file mẫu giữ nguyên.

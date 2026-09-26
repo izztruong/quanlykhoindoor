@@ -33,4 +33,8 @@ export const env = {
   // Tắt gửi push lên Expo (vẫn lưu thông báo trong app). Local nên để false: điện thoại cài bản thật
   // vẫn giữ token cũ trong DB local nên sẽ nhận nhầm thông báo của dữ liệu thử.
   pushEnabled: process.env.PUSH_ENABLED !== "false",
+  // Token cho GitHub Actions gọi POST /api/daily-watch-cron/run — endpoint duy nhất chạy được mà không
+  // có ai đăng nhập. Để TRỐNG thì route trả 503: quên cấu hình phải là "không chạy được", không bao giờ
+  // là "ai cũng chạy được".
+  dailyWatchToken: process.env.DAILY_WATCH_TOKEN ?? "",
 };

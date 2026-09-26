@@ -90,6 +90,7 @@ export const navSections: NavSection[] = [
       { label: "Tổng hợp đặt NCC", href: "/admin/purchase-summary", permission: "PURCHASE_SUMMARY.VIEW" },
       { label: "Hàng mua tập trung", href: "/admin/central-purchasing", permission: "CENTRAL_PURCHASING.VIEW" },
       { label: "Gom đơn & miễn ship", href: "/admin/order-consolidation", permission: "ORDER_CONSOLIDATION.VIEW" },
+      { label: "Theo dõi cuối ngày", href: "/admin/daily-watch", permission: "DAILY_WATCH.VIEW" },
       { label: "Hạn order & kiểm kê", href: "/admin/deadlines", permission: "DEADLINES.VIEW" },
       { label: "Khung giờ ca", href: "/admin/shift-definitions", permission: "SHIFT_DEFINITIONS.VIEW" },
       { label: "Mức chuẩn bị theo ca", href: "/admin/shift-prep-targets", permission: "SHIFT_PREP_TARGETS.VIEW" },

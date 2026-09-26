@@ -1,0 +1,70 @@
+name: Theo dõi cuối ngày
+
+# Chạy bằng GitHub Actions chứ không phải job trong tiến trình server: gói Render free ngủ sau 15 phút
+# không hoạt động nên không có gì đánh thức để chạy job nền (xem CLAUDE.md). Thêm nữa mỗi lượt có nhật ký
+# riêng ở tab Actions, xem lại được khi số liệu trông lạ.
+on:
+  schedule:
+    # 22:30 giờ VN = 15:30 UTC. Cron của GitHub luôn theo UTC.
+    #
+    # Đặt 22:30 vì quán nhập doanh số MỖI KHI HẾT CA, nên ca cuối trong ngày đã nhập xong. Chạy sớm hơn
+    # thì tồn ước tính thiếu doanh số ca tối và sẽ cao hơn thực tế, tức báo thiếu hàng muộn.
+    - cron: "30 15 * * *"
+  # Bấm chạy tay từ tab Actions khi cần kiểm.
+  workflow_dispatch:
+
+# Không cho hai lượt chạy chồng nhau: lượt sau ghi đè kết quả lượt trước theo ngày kinh doanh, chạy song
+# song thì hai lượt cùng xoá/ghi một bộ findings.
+concurrency:
+  group: daily-watch
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gọi endpoint chạy lượt theo dõi
+        env:
+          API_ORIGIN: ${{ secrets.DAILY_WATCH_API_ORIGIN }}
+          TOKEN: ${{ secrets.DAILY_WATCH_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${API_ORIGIN:-}" ] || [ -z "${TOKEN:-}" ]; then
+            echo "Thiếu secret DAILY_WATCH_API_ORIGIN hoặc DAILY_WATCH_TOKEN" >&2
+            exit 1
+          fi
+
+          # Render gói free ngủ sau 15 phút: request đầu tiên chờ 30–60 giây để đánh thức. Nên --max-time
+          # phải rộng, và thử lại vài lần thay vì coi timeout đầu là thất bại.
+          #
+          # Lượt chạy ghi đè theo ngày kinh doanh nên thử lại KHÔNG nhân đôi kết quả — đó là lý do dám
+          # retry ở đây.
+          for attempt in 1 2 3; do
+            echo "Lần thử $attempt..."
+            code=$(curl -sS -o response.json -w "%{http_code}" \
+              --max-time 180 \
+              -X POST "$API_ORIGIN/api/daily-watch-cron/run" \
+              -H "x-daily-watch-token: $TOKEN") || code="000"
+            echo "HTTP $code"
+            if [ "$code" = "200" ]; then
+              # In số việc đã nêu để nhật ký Actions tự nó đã trả lời được "tối qua có gì".
+              node -e '
+                const r = JSON.parse(require("fs").readFileSync("response.json", "utf8")).run;
+                const byKind = {};
+                for (const f of r.findings ?? []) byKind[f.kind] = (byKind[f.kind] ?? 0) + 1;
+                console.log(`Ngày ${String(r.businessDate).slice(0, 10)} · ${r.shopCount} quán · ${(r.findings ?? []).length} việc`);
+                console.log(JSON.stringify(byKind));
+                if (r.error) { console.error("Lượt chạy có lỗi:", r.error); process.exit(1); }
+              '
+              exit 0
+            fi
+            # 401/503 là lỗi cấu hình, thử lại cũng vậy — dừng ngay để người đọc nhật ký thấy lý do.
+            if [ "$code" = "401" ] || [ "$code" = "503" ]; then
+              cat response.json >&2
+              exit 1
+            fi
+            sleep 30
+          done
+          echo "Không gọi được sau 3 lần thử" >&2
+          cat response.json >&2 || true
+          exit 1

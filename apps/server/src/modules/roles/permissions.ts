@@ -107,6 +107,10 @@ export const PERMISSION_RESOURCES = [
   // từ giá nhập nên chỉ giao cho người đã được xem bảng giá.
   { resource: "ORDER_CONSOLIDATION", label: "Gom đơn & miễn ship", group: "Quản trị", actions: ["VIEW"] },
 
+  // Màn theo dõi cuối ngày. Người nhận thông báo của màn này phải có CẢ mã này lẫn DATA.SCOPE_ALL —
+  // thiếu phạm vi thì mở màn ra không thấy quán nào, tức nhận thông báo mà không làm được gì.
+  { resource: "DAILY_WATCH", label: "Theo dõi cuối ngày", group: "Quản trị", actions: ["VIEW", "ADD"] },
+
   // ADD = nhập file doanh số (nhập lại cùng ngày là ghi đè, nên không cần EDIT riêng) ·
   // DELETE = xoá dữ liệu một ngày khi nhập sai nguồn.
   { resource: "POS_SALES", label: "Doanh số POS", group: "Quản trị", actions: ["VIEW", "ADD", "DELETE"] },

@@ -194,6 +194,11 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
   Luôn trả kèm mốc khai để màn hình hiện được số đó **cũ bao nhiêu ngày**.
 - **Hàng `orderCadence = CENTRAL` phải biến khỏi mọi màn của quán** (`buildSuggestions` lọc ở cuối) và
   chỉ hiện ở `/admin/central-purchasing`: SL đặt tối thiểu và tồn "đủ dùng N ngày" đều là của cả chuỗi.
+- **`POST /api/daily-watch-cron/run` là endpoint DUY NHẤT gọi được mà không có phiên người dùng.**
+  Mount **trước** `app.use("/api", requireAuth)`, tự xác thực bằng `DAILY_WATCH_TOKEN` trong header
+  `x-daily-watch-token`. Không đặt token thì trả **503**, không bao giờ mở cửa. Ghi đè theo ngày kinh
+  doanh nên GitHub Actions retry được mà không nhân đôi kết quả. Đổi đường dẫn này thì phải sửa cả
+  `.github/workflows/daily-watch.yml`.
 - `orderConsolidation` và `centralPurchasing` **cố ý không áp phạm vi quán** — cả ý nghĩa của chúng là
   so số liệu giữa các quán. Chặn bằng chính quyền `ORDER_CONSOLIDATION.VIEW` / `CENTRAL_PURCHASING.VIEW`,
   và **không bao giờ trả tiền/giá xuống màn của quán**: quán không có `SUPPLIER_PRICES.VIEW`.
@@ -227,6 +232,9 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
   không phải 0 — coi bằng 0 là lệch một chiều và tích luỹ, làm agent đặt thiếu. Nhưng phần bù **bị kẹp ở
   mức lượng huỷ đã ghi**: dữ liệu thật có hàng tồn khai 1 với đúng một phiếu huỷ 2 trong 68 ngày, không
   kẹp thì bù 134 và xoá sạch tồn.
+- **`isCreditOrderDay(now)` phải dùng hàm riêng, KHÔNG suy từ `daysUntilNextCreditOrder`**: hàm đó trả
+  15 cả khi hôm nay là mốc (15 → 30) lẫn khi hôm nay chỉ tình cờ cách mốc 15 ngày (28/2 → 15/3, 31/1 →
+  15/2). Suy bằng `=== 15` sẽ báo "hôm nay là mốc gọi" vào những ngày không phải mốc.
 - **Đánh dấu muộn chốt lúc tạo**: `dueAt`/`isLate` đóng dấu ngay khi tạo bản ghi, không tính lại lúc hiển thị — nhờ đó lọc được bằng SQL và đổi lịch không viết lại lịch sử. Kỳ của phiếu kiểm suy từ `checkedAt` (quán tự khai), còn hạn lấy từ lịch admin đặt; đo muộn bằng `createdAt` vì hai cột kia người dùng sửa được. Bản ghi chưa từng được đánh giá thì `dueAt = null` và hiển thị **chấm xám**, không phải xanh.
 - **Include cho danh sách tách khỏi include cho chi tiết**: `salesOrderListInclude` cố ý nhẹ hơn `salesOrderDetailInclude`. Dùng chung từng làm payload danh sách phình lên 187 KB cho 20 đơn.
 - **Độ trễ Neon**: gộp nhiều lệnh ghi thành một `UPDATE ... FROM (VALUES ...)` (xem `salesOrders.service.ts`) và đặt `$transaction(ops, { timeout: 20000 })` — mặc định 5 giây không đủ cho đơn nhiều dòng.
@@ -281,6 +289,11 @@ Hai service Render: **`quanlykhoindoortest`** ← nhánh `staging`, **`quanlykho
 - App hiện nhãn `LOCAL`/`STAGING` ở màn đăng nhập và đầu trang (suy từ URL thật, `src/lib/apiEnvironment.ts`);
   bản production không có nhãn.
 
+- **Lượt theo dõi cuối ngày chạy bằng GitHub Actions**, không phải job trong server: gói Render free ngủ
+  sau 15 phút nên không có gì đánh thức job nền. Cần hai secret trên GitHub —
+  `DAILY_WATCH_API_ORIGIN` (vd `https://quanlykhoindoor1.onrender.com`) và `DAILY_WATCH_TOKEN` (khớp biến
+  cùng tên trên Render). Thiếu một trong hai thì workflow dừng ngay với thông báo, không chạy nửa vời.
+  Giờ chạy 22:30 giờ VN = `30 15 * * *` UTC, đặt sau khi ca cuối đã nhập doanh số.
 - **Chẩn đoán sự cố thì kiểm staging trước**, rồi mới tới production.
 - Header `x-render-routing` cho biết trạng thái (`hibernate-wake-error`, `no-deploy`); `status.render.com/api/v2/status.json` cho biết có phải sự cố toàn hệ thống Render không.
 - Gói free ngủ sau 15 phút không hoạt động → request đầu tiên chờ 30–60 giây, và **không có gì đánh thức nên không dùng được job chạy nền**.

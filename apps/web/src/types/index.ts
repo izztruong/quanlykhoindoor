@@ -118,6 +118,60 @@ export const USAGE_SOURCE_LABELS: Record<DailyUsageSource, string> = {
   NONE: "Chưa có dữ liệu",
 };
 
+export type DailyWatchKind = "SHORTFALL" | "TRANSFER" | "FREE_SHIP_READY" | "ORDER_DUE";
+
+export const DAILY_WATCH_KIND_LABELS: Record<DailyWatchKind, string> = {
+  SHORTFALL: "Sắp hết trước ngày gọi",
+  TRANSFER: "Đề xuất điều chuyển",
+  FREE_SHIP_READY: "Đã đủ miễn ship",
+  ORDER_DUE: "Đến mốc gọi",
+};
+
+/** Một việc màn theo dõi cuối ngày nêu ra. `reasons` là mảng chuỗi tiếng Việt lưu dạng Json. */
+export interface DailyWatchFinding {
+  id: string;
+  kind: DailyWatchKind;
+  userId: string;
+  user: { id: string; name: string };
+  fromUserId?: string | null;
+  fromUser?: { id: string; name: string } | null;
+  productId?: string | null;
+  product?: { id: string; code: string; name: string; unit?: { name: string } | null } | null;
+  supplierId?: string | null;
+  supplier?: { id: string; name: string } | null;
+  daysLeft?: string | number | null;
+  daysToOrder?: number | null;
+  quantity?: string | number | null;
+  amount?: string | number | null;
+  freeTransfer: boolean;
+  title: string;
+  reasons: string[];
+}
+
+export interface DailyWatchRun {
+  id: string;
+  businessDate: string;
+  startedAt: string;
+  /** Null = lượt chưa chạy xong (hoặc đã hỏng giữa đường). Màn dùng mốc này để nói "số liệu tính đến lúc nào". */
+  finishedAt?: string | null;
+  triggeredBy: string;
+  triggeredBy_?: { id: string; name: string } | null;
+  shopCount: number;
+  error?: string | null;
+  findings: DailyWatchFinding[];
+}
+
+export interface DailyWatchRunSummary {
+  id: string;
+  businessDate: string;
+  startedAt: string;
+  finishedAt?: string | null;
+  triggeredBy: string;
+  shopCount: number;
+  error?: string | null;
+  _count: { findings: number };
+}
+
 /** Tiền hàng KHÔNG công nợ của một quán tới một NCC, so với ngưỡng miễn ship. */
 export interface ConsolidationShopAmount {
   userId: string;

@@ -17,7 +17,7 @@ export interface NotificationViewer {
 }
 
 interface CatalogEntry {
-  group: "Đơn hàng" | "Đề xuất chi";
+  group: "Đơn hàng" | "Đề xuất chi" | "Theo dõi cuối ngày";
   label: string;
   description: string;
   /** Người này có khả năng nhận loại thông báo này không — màn cài đặt chỉ hiện những loại trả true. */
@@ -31,6 +31,11 @@ interface CatalogEntry {
  */
 function isOrderApprover(user: AuthUser): boolean {
   return user.isSystem || (can(user, "ORDERS", "APPROVE") && user.scope === "ALL");
+}
+
+/** Người xem màn theo dõi cuối ngày. Cùng lý do đòi phạm vi mọi quán: màn này so số liệu GIỮA các quán. */
+function isDailyWatcher(user: AuthUser): boolean {
+  return user.isSystem || (can(user, "DAILY_WATCH", "VIEW") && user.scope === "ALL");
 }
 
 /** Danh mục duy nhất của các loại thông báo. Thêm loại mới: thêm enum trong schema.prisma + một dòng ở đây. */
@@ -72,6 +77,18 @@ export const NOTIFICATION_CATALOG: Record<NotificationType, CatalogEntry> = {
     description: "Khi phiếu bạn lập (hoặc bảng hạng mục dự kiến bạn gửi bổ sung) được duyệt hoặc bị từ chối",
     appliesTo: ({ user }) => can(user, "EXPENSE_PROPOSALS", "ADD"),
   },
+  MATERIAL_RUNNING_OUT: {
+    group: "Theo dõi cuối ngày",
+    label: "Quán sắp hết nguyên liệu",
+    description: "Khi một quán sẽ hết nguyên liệu TRƯỚC ngày gọi kế tiếp — chỉ báo khi gấp, không báo mỗi tối",
+    appliesTo: ({ user }) => isDailyWatcher(user),
+  },
+  TRANSFER_SUGGESTED: {
+    group: "Theo dõi cuối ngày",
+    label: "Có đề xuất điều chuyển",
+    description: "Khi có quán dư hàng mà quán khác đang thiếu, và việc chuyển còn kịp",
+    appliesTo: ({ user }) => isDailyWatcher(user),
+  },
   EXPENSE_PROPOSAL_PAID: {
     group: "Đề xuất chi",
     label: "Phiếu được tạm ứng hoặc đã hoàn thành",
@@ -86,6 +103,28 @@ export async function orderApproverIds(): Promise<string[]> {
     where: {
       role: {
         OR: [{ isSystem: true }, { permissions: { hasEvery: ["ORDERS.APPROVE", SCOPE_ALL_CODE] } }],
+      },
+    },
+    select: { id: true },
+  });
+  return users.map((u) => u.id);
+}
+
+/**
+ * Người nhận thông báo của màn theo dõi cuối ngày.
+ *
+ * Phải có **cả** phạm vi mọi quán lẫn một trong hai quyền hành động, cùng lý do đã ghi ở
+ * `isOrderApprover`: thiếu phạm vi thì mở màn ra không thấy quán nào, tức nhận thông báo mà không làm
+ * được gì. Giữ khớp với `isDailyWatcher` bên trên.
+ */
+export async function dailyWatchRecipientIds(): Promise<string[]> {
+  const users = await prisma.user.findMany({
+    where: {
+      role: {
+        OR: [
+          { isSystem: true },
+          { permissions: { hasEvery: ["DAILY_WATCH.VIEW", SCOPE_ALL_CODE] } },
+        ],
       },
     },
     select: { id: true },
@@ -343,3 +382,39 @@ export async function listPreferences(viewer: NotificationViewer) {
 export function isNotificationType(value: string): value is NotificationType {
   return value in NotificationType;
 }
+
+/**
+ * Thông báo của màn theo dõi cuối ngày.
+ *
+ * **Không có `href`**: app mobile chưa có màn theo dõi cuối ngày, nên đưa đường dẫn vào là bấm ra trang
+ * trắng. Người nhận mở màn trên web — đúng chỗ số liệu này dùng được.
+ *
+ * **Chỉ bắn khi GẤP**, không bắn mỗi tối: thông báo đều đặn hằng ngày sẽ bị tắt sau một tuần, và khi đó
+ * cái gấp thật cũng không ai thấy.
+ */
+export const dailyWatchNotifications = {
+  runningOut(items: { shopName: string; productName: string; daysLeft: number }[]) {
+    if (items.length === 0) return;
+    const first = items[0]!;
+    const more = items.length > 1 ? ` và ${items.length - 1} trường hợp khác` : "";
+    notifyInBackground({
+      type: "MATERIAL_RUNNING_OUT",
+      recipientIds: dailyWatchRecipientIds,
+      title: "Quán sắp hết nguyên liệu",
+      body: `${first.shopName} còn ${first.daysLeft} ngày ${truncate(first.productName, 40)}${more}. Mở Theo dõi cuối ngày trên web để xem.`,
+    });
+  },
+
+  transferSuggested(count: number, freeCount: number) {
+    if (count === 0) return;
+    notifyInBackground({
+      type: "TRANSFER_SUGGESTED",
+      recipientIds: dailyWatchRecipientIds,
+      title: "Có đề xuất điều chuyển",
+      body:
+        freeCount > 0
+          ? `${count} đề xuất chuyển hàng giữa các quán, ${freeCount} cái kịp ngày chuyển miễn phí.`
+          : `${count} đề xuất chuyển hàng giữa các quán — không cái nào kịp ngày miễn phí, sẽ mất ship.`,
+    });
+  },
+};

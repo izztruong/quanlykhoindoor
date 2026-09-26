@@ -23,6 +23,7 @@ import { productSupplierPricesRouter } from "./modules/productSupplierPrices/pro
 import { notificationsRouter } from "./modules/notifications/notifications.routes";
 import { profileRouter } from "./modules/profile/profile.routes";
 import { centralPurchasingRouter } from "./modules/centralPurchasing/centralPurchasing.routes";
+import { dailyWatchCronRouter, dailyWatchRouter } from "./modules/dailyWatch/dailyWatch.routes";
 import { orderConsolidationRouter } from "./modules/orderConsolidation/orderConsolidation.routes";
 import { posItemMappingsRouter } from "./modules/posItemMappings/posItemMappings.routes";
 import { posSalesRouter } from "./modules/posSales/posSales.routes";
@@ -67,6 +68,10 @@ app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
 app.use("/api/auth/google", googleAuthRouter);
 app.use("/api/auth", authRouter);
 
+// Lượt chạy theo dõi cuối ngày gọi từ GitHub Actions: KHÔNG có phiên người dùng, nên phải mount TRƯỚC
+// requireAuth. Tự xác thực bằng token riêng trong header (xem dailyWatch.routes.ts).
+app.use("/api/daily-watch-cron", dailyWatchCronRouter);
+
 // Everything below requires an authenticated session.
 app.use("/api", requireAuth);
 
@@ -87,6 +92,7 @@ app.use("/api/shift-prep-targets", shiftPrepTargetsRouter);
 app.use("/api/sales-day-factors", salesDayFactorsRouter);
 app.use("/api/central-purchasing", centralPurchasingRouter);
 app.use("/api/order-consolidation", orderConsolidationRouter);
+app.use("/api/daily-watch", dailyWatchRouter);
 app.use("/api/product-groups", productGroupsRouter);
 app.use("/api/units", unitsRouter);
 app.use("/api/suppliers", suppliersRouter);
