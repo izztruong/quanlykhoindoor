@@ -77,7 +77,20 @@ export function PurchaseSummaryClient() {
       {
         header: "Nhà cung cấp",
         id: "supplier",
-        cell: ({ row }) => (row.original.supplier ? row.original.supplier.name : <Badge tone="red">Chưa có NCC</Badge>),
+        cell: ({ row }) => {
+          const item = row.original;
+          if (!item.supplier) return <Badge tone="red">Chưa có NCC</Badge>;
+          return (
+            <div className="flex flex-col gap-1">
+              <span>{item.supplier.name}</span>
+              <div className="flex flex-wrap items-center gap-1">
+                {item.hasCredit && <Badge tone="green">công nợ</Badge>}
+                {/* Nói rõ vì sao không chọn NCC rẻ nhất — không nói thì bị cho là chọn sai giá. */}
+                {item.chosenForCredit && <Badge tone="blue">chọn vì công nợ</Badge>}
+              </div>
+            </div>
+          );
+        },
       },
       { header: "Mã", accessorFn: (row) => row.product.code, id: "productCode" },
       { header: "Tên hàng hoá", accessorFn: (row) => row.product.name, id: "productName" },

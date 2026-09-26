@@ -118,6 +118,75 @@ export const USAGE_SOURCE_LABELS: Record<DailyUsageSource, string> = {
   NONE: "Chưa có dữ liệu",
 };
 
+/** Tiền hàng KHÔNG công nợ của một quán tới một NCC, so với ngưỡng miễn ship. */
+export interface ConsolidationShopAmount {
+  userId: string;
+  userName: string;
+  amount: number;
+  orderCodes: string[];
+  reachesThreshold: boolean;
+  shortfall: number;
+}
+
+/** Một NCC trên màn Gom đơn & miễn ship — xem getOrderConsolidationReport ở apps/server. */
+export interface SupplierConsolidation {
+  supplierId: string;
+  supplierName: string;
+  freeShipThreshold: number | null;
+  shops: ConsolidationShopAmount[];
+  totalAmount: number;
+  shopsReaching: number;
+  shouldConsolidate: boolean;
+  consolidateIntoUserId: string | null;
+  consolidateIntoUserName: string | null;
+  shipmentsSaved: number;
+  reasons: string[];
+}
+
+export interface OrderConsolidationReport {
+  /** 1 = Thứ 2 … 7 = Chủ nhật. Ngày chuyển hàng miễn phí gần nhất. */
+  nextTransferWeekday: number;
+  nextTransferDaysAway: number;
+  suppliers: SupplierConsolidation[];
+}
+
+/** Tồn một quán khai cho hàng mua tập trung, kèm số đó cũ bao nhiêu ngày. */
+export interface ShopStock {
+  userId: string;
+  userName: string;
+  quantity: number;
+  declaredAt: string | null;
+  source: "REORDER_RUN" | "STOCK_CHECK" | "NONE";
+  ageDays: number | null;
+}
+
+/** Một dòng hàng mua tập trung (cốc giấy…): tồn toàn chuỗi so với ngưỡng gọi. */
+export interface CentralPurchasingRow {
+  productId: string;
+  code: string;
+  name: string;
+  unitLabel: string;
+  productGroupName: string;
+  /** Số ngày chờ hàng, cũng là ngưỡng gọi. Null = chưa khai, không kết luận được. */
+  leadDays: number | null;
+  warehouseQty: number;
+  shopQty: number;
+  chainQty: number;
+  shopStocks: ShopStock[];
+  dailyUsage: number | null;
+  coverDays: number | null;
+  needsOrder: boolean;
+  prioritySupplierName: string | null;
+  purchaseUnitName: string | null;
+  baseUnitsPerPurchaseUnit: number | null;
+  minQuantity: number | null;
+  purchaseQty: number;
+  finalBaseQty: number;
+  oldestShopStockAgeDays: number | null;
+  shopsWithoutStock: number;
+  reasons: string[];
+}
+
 /** Một dòng gợi ý đặt hàng do server tính. `reasons` là lời giải thích để người duyệt tin được con số. */
 export interface ReorderSuggestion {
   productId: string;
@@ -358,6 +427,10 @@ export interface PurchaseSummaryRow {
   finalBaseQty: number;
   roundedUpToPack: boolean;
   raisedToMinimum: boolean;
+  /** NCC đã chọn có cho công nợ mặt hàng này không. */
+  hasCredit: boolean;
+  /** True = đã bỏ qua NCC rẻ hơn để lấy công nợ (chênh dưới 3%). */
+  chosenForCredit: boolean;
   importPrice: number;
   amount: number;
 }

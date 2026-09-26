@@ -60,8 +60,26 @@ bật thì phủ tới mốc gọi ngày 15 / 30, không thì theo `coverDays` (
 DB dev + bản copy + DB trắng (bảng cũ biến mất, 3 cột mới có mặt), 17 ca số học nhịp gọi (mốc 15/30, tháng
 2, năm nhuận, ranh giới 23:30 giờ VN, chọn NCC ưu tiên), và `buildSuggestions` trên bản copy production:
 suy nhịp từ công nợ, thứ tự lấy `coverDays`, hàng `CENTRAL` mất khỏi 133/134 dòng.
-Còn lại của mục 1.8: màn `/admin/central-purchasing`, gợi ý miễn ship 1 triệu, gom đơn rồi chuyển T3/T7,
-ưu tiên NCC cho công nợ trong Tổng hợp đặt NCC.
+
+### Hàng mua tập trung + gom đơn miễn ship — CHƯA thử trên trình duyệt, chưa lên `staging`/`main`
+Hai màn admin mới, đều **không áp phạm vi quán** (cả ý nghĩa là so số liệu giữa các quán) và không phân
+trang (mỗi màn là một quyết định đặt hàng duy nhất). `/admin/central-purchasing`: tồn kho + tồn mọi quán
+so với ngưỡng `leadDays`, làm tròn lên SL tối thiểu NCC. `/admin/order-consolidation`: tiền hàng không
+công nợ theo (quán × NCC), còn thiếu bao nhiêu để miễn ship, gom về quán nào.
+Phép chọn NCC ưu tiên gộp về một hàm duy nhất (`utils/orderCadence`) và giờ **ưu tiên NCC cho công nợ khi
+giá chênh dưới 3%** — Tổng hợp đặt NCC hiện nhãn "chọn vì công nợ".
+Đã kiểm typecheck 2 app (lint web đỏ **từ trước**), 24 ca số học (dung sai 3%, khác priority, ngày chuyển
+T3/T7 cho cả 5 thứ) và cả hai màn trên bản copy production: cộng tay khớp tồn chuỗi, MOQ nâng lên 10.000,
+chưa khai `leadDays` thì không kết luận, ba ngưỡng miễn ship chạm đủ ba nhánh (gom 1 lần ship / 2 lần /
+không gom được), bật công nợ mọi dòng thì màn gom đơn trống đúng.
+**Sau khi deploy phải tick "Hàng mua tập trung" + "Gom đơn & miễn ship" cho vai trò cần xem** — admin
+(`isSystem`) thấy sẵn, vai trò khác không tick thì không có mục menu.
+Hai giới hạn đã ghi thẳng lên màn: tồn kho sổ sách có thể **âm** (kho xuất nhiều hơn nhập trên phiếu, dữ
+liệu thật đang âm ở cả 3 loại cốc) và quán chưa có dữ liệu tiêu thụ thì không góp vào mức dùng, nên
+"còn đủ N ngày" lạc quan hơn thực tế. Đề xuất gom đơn **chưa kiểm** quán nhận có cầm cự tới ngày chuyển —
+cần tồn nguyên liệu ước tính hàng ngày (Bước 2).
+
+Còn lại của mục 1.8: không còn gì. Tiếp theo là Bước 2 (chuẩn bị đồ theo ca + tồn ước tính hàng ngày).
 
 ### Chi chốt ca: cột "Đã chi" + cột Ngày lập phiếu — CHƯA thử trên trình duyệt/app, chưa lên `staging`/`main`
 Quyền mới `SHIFT_EXPENSES.PAY` bật/tắt dấu "đã chi"; đã đánh dấu thì quán hết sửa/xoá/đổi ảnh (409). Cột "Ngày" đổi thành "Ngày chi", thêm "Ngày lập phiếu" (từ `createdAt`), lọc theo trạng thái chi. Excel chỉ thêm cột cuối, file mẫu giữ nguyên.

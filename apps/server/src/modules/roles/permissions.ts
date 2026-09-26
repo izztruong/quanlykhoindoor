@@ -95,8 +95,14 @@ export const PERMISSION_RESOURCES = [
   { resource: "SUPPLIER_PRICES", label: "Giá theo Nhà cung cấp", group: "Quản trị", actions: ["VIEW", "EDIT"] },
   { resource: "PURCHASE_SUMMARY", label: "Tổng hợp đặt NCC", group: "Quản trị", actions: ["VIEW"] },
   { resource: "DEADLINES", label: "Hạn order & kiểm kê", group: "Quản trị", actions: ["VIEW", "EDIT"] },
-  // Các thứ trong tuần quán gọi đồ — quyết định số ngày một đơn phải phủ. Giao diện nằm chung trang
-  // "Hạn order & kiểm kê" nhưng quyền tách riêng: đổi lịch gọi làm đổi SL đề xuất của mọi quán.
+
+  // Hàng mua tập trung (cốc giấy): số liệu TOÀN CHUỖI nên không áp phạm vi quán. Chỉ VIEW — màn này
+  // chỉ báo "đến lúc gọi chưa", còn đơn thì admin tạo bằng phiếu nhập/đơn hàng như thường.
+  { resource: "CENTRAL_PURCHASING", label: "Hàng mua tập trung", group: "Quản trị", actions: ["VIEW"] },
+
+  // Gom đơn cho đạt ngưỡng miễn ship — so tiền GIỮA các quán nên không áp phạm vi quán, và con số suy
+  // từ giá nhập nên chỉ giao cho người đã được xem bảng giá.
+  { resource: "ORDER_CONSOLIDATION", label: "Gom đơn & miễn ship", group: "Quản trị", actions: ["VIEW"] },
 
   // ADD = nhập file doanh số (nhập lại cùng ngày là ghi đè, nên không cần EDIT riêng) ·
   // DELETE = xoá dữ liệu một ngày khi nhập sai nguồn.

@@ -87,6 +87,8 @@ export const navSections: NavSection[] = [
       { label: "Định lượng Order nhanh", href: "/admin/reorder-thresholds", permission: "REORDER_THRESHOLDS.VIEW" },
       { label: "Giá theo Nhà cung cấp", href: "/admin/product-supplier-prices", permission: "SUPPLIER_PRICES.VIEW" },
       { label: "Tổng hợp đặt NCC", href: "/admin/purchase-summary", permission: "PURCHASE_SUMMARY.VIEW" },
+      { label: "Hàng mua tập trung", href: "/admin/central-purchasing", permission: "CENTRAL_PURCHASING.VIEW" },
+      { label: "Gom đơn & miễn ship", href: "/admin/order-consolidation", permission: "ORDER_CONSOLIDATION.VIEW" },
       { label: "Hạn order & kiểm kê", href: "/admin/deadlines", permission: "DEADLINES.VIEW" },
       { label: "Khung giờ ca", href: "/admin/shift-definitions", permission: "SHIFT_DEFINITIONS.VIEW" },
       { label: "Doanh số POS", href: "/admin/pos-sales", permission: "POS_SALES.VIEW" },

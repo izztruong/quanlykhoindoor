@@ -287,7 +287,9 @@ export async function buildSuggestions(input: ReorderPreviewInput & { userId: st
     const onHandQty = onHandByProduct.get(threshold.productId) ?? null;
 
     // Nhịp gọi: khai tay thì dùng luôn, không thì suy từ công nợ của NCC ưu tiên.
-    const prioritySupplier = pickPrioritySupplier(pricesByProduct.get(threshold.productId) ?? []);
+    const { supplier: prioritySupplier, chosenForCredit } = pickPrioritySupplier(
+      pricesByProduct.get(threshold.productId) ?? [],
+    );
     const cadence = resolveCadence(product.orderCadence, prioritySupplier?.hasCredit ?? false);
     const creditSupplierName = prioritySupplier?.supplierName ?? "chưa khai NCC";
 
@@ -412,6 +414,9 @@ export async function buildSuggestions(input: ReorderPreviewInput & { userId: st
             ? `Hàng có công nợ (${creditSupplierName}) — gọi ngày 15 và 30, còn ${creditDays} ngày tới mốc kế tiếp`
             : `Hàng trả ngay — phủ ${requestedDays} ngày`,
         );
+        if (chosenForCredit) {
+          row.reasons.push(`Đã chọn ${creditSupplierName} dù giá nhập cao hơn một chút, vì NCC này cho công nợ`);
+        }
         if (product.shelfLifeDays != null && effectiveDays < requestedDays) {
           row.reasons.push(`Kẹp còn ${effectiveDays} ngày vì hàng chỉ dùng được ${product.shelfLifeDays} ngày`);
         }

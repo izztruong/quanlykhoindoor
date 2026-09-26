@@ -1,5 +1,6 @@
 import { prisma } from "../../config/db";
 import type { SalesOrderStatus } from "../../generated/prisma/client";
+import { pickPrioritySupplier } from "../../utils/orderCadence";
 
 export interface ReportFilter {
   warehouseId?: string;
@@ -318,21 +319,23 @@ export async function getPurchaseSummary(filter: PurchaseSummaryFilter) {
     }),
   ]);
 
-  // NCC ưu tiên nhất cho từng hàng hoá: priority nhỏ nhất, hoà thì giá nhập rẻ hơn, rồi tên NCC
-  // để kết quả không đổi thứ tự giữa các lần chạy khi hai NCC trùng cả hai tiêu chí trên.
-  const bestByProductId = new Map<string, (typeof prices)[number]>();
+  // NCC ưu tiên nhất cho từng hàng hoá — đi qua utils/orderCadence để phần gợi ý đặt hàng (suy nhịp
+  // gọi từ công nợ của NCC này) và phần tổng hợp không bao giờ chọn khác nhau. Phép chọn viết tay ở đây
+  // trước kia là bản sao thứ hai của cùng một quy tắc, và bản sao đó không biết tới công nợ.
+  const pricesByProductId = new Map<string, (typeof prices)[number][]>();
   for (const price of prices) {
-    const current = bestByProductId.get(price.productId);
-    if (
-      !current ||
-      price.priority < current.priority ||
-      (price.priority === current.priority && Number(price.importPrice) < Number(current.importPrice)) ||
-      (price.priority === current.priority &&
-        Number(price.importPrice) === Number(current.importPrice) &&
-        price.supplier.name.localeCompare(current.supplier.name) < 0)
-    ) {
-      bestByProductId.set(price.productId, price);
-    }
+    const list = pricesByProductId.get(price.productId) ?? [];
+    list.push(price);
+    pricesByProductId.set(price.productId, list);
+  }
+  const bestByProductId = new Map<string, (typeof prices)[number]>();
+  const chosenForCreditByProductId = new Set<string>();
+  for (const [productId, list] of pricesByProductId) {
+    const { supplier, chosenForCredit } = pickPrioritySupplier(list.map((p) => ({ ...p, supplierName: p.supplier.name })));
+    if (!supplier) continue;
+    // pickPrioritySupplier trả về bản đã thêm supplierName; lấy lại dòng gốc để giữ nguyên include.
+    bestByProductId.set(productId, list.find((p) => p.id === supplier.id)!);
+    if (chosenForCredit) chosenForCreditByProductId.add(productId);
   }
 
   const rows = products.map((product) => {
@@ -362,6 +365,9 @@ export async function getPurchaseSummary(filter: PurchaseSummaryFilter) {
       finalBaseQty,
       roundedUpToPack: hasPurchaseUnit && packedQty > rawQty,
       raisedToMinimum: purchaseQty > packedQty,
+      hasCredit: best?.hasCredit ?? false,
+      /** True = đã bỏ qua NCC rẻ hơn để lấy công nợ. Hiện lên màn, vì đây là chỗ dễ bị cho là chọn sai giá. */
+      chosenForCredit: chosenForCreditByProductId.has(product.id),
       importPrice,
       amount: finalBaseQty * importPrice,
     };

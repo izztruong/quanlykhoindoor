@@ -162,9 +162,10 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
 - `costChecks` đọc dữ liệu của 5 module khác (`StockCheck`, `MaterialWasteItem`,
   `MaterialTransferItem`, `SalesOrderItem`, `FinishedGoodRecipeItem`) — đổi schema mấy bảng đó thì
   phải ngó lại Check Cost.
-- `salesOrders` và `products/productStock.routes.ts` cùng dùng
-  `reports.service.getInventoryCountReport()` để kiểm tồn. Đây là **chỗ duy nhất** trong dự án một
-  module gọi service của module khác.
+- **Gọi service của module khác** chỉ có ở ba chỗ, đừng thêm chỗ thứ tư mà không cân nhắc:
+  `salesOrders` và `products/productStock.routes.ts` dùng `reports.service.getInventoryCountReport()`
+  để kiểm tồn; `centralPurchasing` dùng cả hàm đó (tồn kho trung tâm) lẫn
+  `reorderSuggestions.service.getDailyUsage()` (mức dùng từng quán).
 - Xác nhận đơn hàng **tự sinh phiếu xuất kho**, nên sửa `salesOrders` là đụng tới tồn kho.
 - SL lẻ ở `stockChecks`, `materialWaste`, `materialTransfers` luôn đi qua `utils/tareWeight`.
 - `utils/deadlines` được gọi lúc tạo đơn (`salesOrders`) và lúc tạo/sửa phiếu (`stockChecks`).
@@ -177,6 +178,16 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
   thì đặt đơn thử cũng bắn thông báo sang máy đó.
 - Người nhận thông báo "đơn cần duyệt" phải có **cả** `ORDERS.APPROVE` lẫn `DATA.SCOPE_ALL`: thiếu
   phạm vi thì `assertOwner` trả 404 và thông báo bấm vào không mở được đơn.
+- **Chọn NCC ưu tiên chỉ có đúng một bản**: `utils/orderCadence.pickPrioritySupplier()`, dùng bởi
+  `reorderSuggestions` (suy nhịp gọi từ công nợ), `reports.getPurchaseSummary`, `centralPurchasing` và
+  `orderConsolidation`. Viết lại phép chọn tại chỗ là để nhịp gọi suy theo một NCC còn đơn đặt cho NCC
+  khác. Hàm này **cố ý không thuần theo giá**: NCC cho công nợ đắt hơn dưới 3%
+  (`CREDIT_PRICE_TOLERANCE`) vẫn thắng, và trả kèm `chosenForCredit` để màn hình nói ra lý do.
+- **Hàng `orderCadence = CENTRAL` phải biến khỏi mọi màn của quán** (`buildSuggestions` lọc ở cuối) và
+  chỉ hiện ở `/admin/central-purchasing`: SL đặt tối thiểu và tồn "đủ dùng N ngày" đều là của cả chuỗi.
+- `orderConsolidation` và `centralPurchasing` **cố ý không áp phạm vi quán** — cả ý nghĩa của chúng là
+  so số liệu giữa các quán. Chặn bằng chính quyền `ORDER_CONSOLIDATION.VIEW` / `CENTRAL_PURCHASING.VIEW`,
+  và **không bao giờ trả tiền/giá xuống màn của quán**: quán không có `SUPPLIER_PRICES.VIEW`.
 
 ### Xác thực và phân quyền
 
@@ -193,6 +204,11 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
 
 - **`utils/crudFactory.ts`** sinh nguyên router CRUD cho danh mục (`resource`, `publicRead`, `filterFields`, `bulkImportKey`, mặc định `orderBy: { name: "asc" }`). Thêm danh mục mới thì dùng nó, đừng viết tay.
 - **Check Cost chốt cứng số liệu**: `CostCheck.reportSnapshot` ghi lúc tạo phiếu, nên sửa giá vốn hay công thức về sau không làm đổi phiếu đã tạo. Vì vậy khi sửa/xoá phiếu kiểm kê, huỷ, điều chuyển **phải gọi `utils/costCheckImpact.ts`** để cảnh báo admin tạo lại phiếu Check Cost bị ảnh hưởng.
+- **Nhịp gọi đồ do CÔNG NỢ quyết định, không phải lịch tuần**: `ProductSupplierPrice.hasCredit` bật
+  thì đơn phủ tới mốc gọi ngày **15 / 30** (`utils/orderCadence.daysUntilNextCreditOrder`), không thì
+  phủ `coverDays` — thứ tự lấy: `ProductReorderThreshold.coverDays` → `Product.coverDays` → **3**.
+  `Product.orderCadence` khai tay thì đè lên suy luận. Từng có bảng `OrderScheduleDay` (lịch T5+CN
+  dùng chung) — **đã xoá**, vì đơn thật được tạo cả 7 thứ; đừng dựng lại.
 - **Đánh dấu muộn chốt lúc tạo**: `dueAt`/`isLate` đóng dấu ngay khi tạo bản ghi, không tính lại lúc hiển thị — nhờ đó lọc được bằng SQL và đổi lịch không viết lại lịch sử. Kỳ của phiếu kiểm suy từ `checkedAt` (quán tự khai), còn hạn lấy từ lịch admin đặt; đo muộn bằng `createdAt` vì hai cột kia người dùng sửa được. Bản ghi chưa từng được đánh giá thì `dueAt = null` và hiển thị **chấm xám**, không phải xanh.
 - **Include cho danh sách tách khỏi include cho chi tiết**: `salesOrderListInclude` cố ý nhẹ hơn `salesOrderDetailInclude`. Dùng chung từng làm payload danh sách phình lên 187 KB cho 20 đơn.
 - **Độ trễ Neon**: gộp nhiều lệnh ghi thành một `UPDATE ... FROM (VALUES ...)` (xem `salesOrders.service.ts`) và đặt `$transaction(ops, { timeout: 20000 })` — mặc định 5 giây không đủ cho đơn nhiều dòng.
