@@ -88,6 +88,17 @@ thật, đồng thời **làm rỗng 4 biến `R2_*` và tắt push**: dữ li�
 một khoản chi trong lúc thử sẽ xoá file thật trên bucket production nếu không tắt. Đổi lại thì dừng lệnh
 rồi `npm run dev` — không sửa `.env` nên không có gì phải hoàn tác.
 
+**Có HAI bản copy, cùng container PG 18 cổng 5434** — vì mỗi nhánh một bộ migration khác nhau, dùng lẫn
+là Prisma báo lệch (migration có trong DB mà không có trong thư mục):
+
+| Database | Cho nhánh | Ghi chú |
+|---|---|---|
+| `kho_dev_copy` | `dev` | khớp đúng bộ migration của `dev`/`main` |
+| `kho_prod_copy` | `testagent` | có thêm các migration của phần agent gọi đồ |
+
+`dev:copy` đọc `PROD_COPY_DATABASE_URL` trong `.env` để biết trỏ vào đâu (mặc định `kho_prod_copy`), nên
+**đổi nhánh thì sửa một dòng đó**. Nạp lại bản nào thì thay tên database trong lệnh `pg_dump` bên dưới.
+
 Script **từ chối chạy với bất kỳ host không phải localhost** và không có cờ nào bỏ qua: `.env` đang giữ
 `PROD_DATABASE_URL`, một lần gõ nhầm là server dev ghi thẳng vào production.
 
