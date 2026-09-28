@@ -88,6 +88,9 @@ export const navSections: NavSection[] = [
       { label: "Giá theo Nhà cung cấp", href: "/admin/product-supplier-prices", permission: "SUPPLIER_PRICES.VIEW" },
       { label: "Tổng hợp đặt NCC", href: "/admin/purchase-summary", permission: "PURCHASE_SUMMARY.VIEW" },
       { label: "Hạn order & kiểm kê", href: "/admin/deadlines", permission: "DEADLINES.VIEW" },
+      { label: "Khung giờ ca", href: "/admin/shift-definitions", permission: "SHIFT_DEFINITIONS.VIEW" },
+      { label: "Doanh số POS", href: "/admin/pos-sales", permission: "POS_SALES.VIEW" },
+      { label: "Ánh xạ món POS", href: "/admin/pos-item-mapping", permission: "POS_ITEM_MAPPING.VIEW" },
     ],
   },
 ];

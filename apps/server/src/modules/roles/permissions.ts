@@ -86,6 +86,12 @@ export const PERMISSION_RESOURCES = [
   { resource: "SUPPLIER_PRICES", label: "Giá theo Nhà cung cấp", group: "Quản trị", actions: ["VIEW", "EDIT"] },
   { resource: "PURCHASE_SUMMARY", label: "Tổng hợp đặt NCC", group: "Quản trị", actions: ["VIEW"] },
   { resource: "DEADLINES", label: "Hạn order & kiểm kê", group: "Quản trị", actions: ["VIEW", "EDIT"] },
+
+  // ADD = nhập doanh số (nhập lại cùng ngày/ca là GHI ĐÈ, nên không cần EDIT riêng) ·
+  // DELETE = xoá dữ liệu một ngày khi nhập sai nguồn.
+  { resource: "POS_SALES", label: "Doanh số POS", group: "Quản trị", actions: ["VIEW", "ADD", "DELETE"] },
+  { resource: "POS_ITEM_MAPPING", label: "Ánh xạ món POS", group: "Quản trị", actions: ["VIEW", "EDIT"] },
+  { resource: "SHIFT_DEFINITIONS", label: "Khung giờ ca", group: "Quản trị", actions: ["VIEW", "EDIT"] },
 ] as const satisfies readonly { resource: string; label: string; group: string; actions: readonly PermissionAction[] }[];
 
 export type PermissionResource = (typeof PERMISSION_RESOURCES)[number]["resource"];

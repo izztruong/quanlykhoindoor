@@ -106,6 +106,49 @@ export interface ProductSupplierPrice {
   priority?: number | null;
 }
 
+export type ShiftCode = "CA1" | "CA2" | "CA3";
+
+/** Khung giờ 3 ca dùng chung mọi quán. endHour < startHour nghĩa là ca chạy qua nửa đêm. */
+export interface ShiftDefinition {
+  id: string;
+  code: ShiftCode;
+  name: string;
+  startHour: number;
+  startMinute: number;
+  endHour: number;
+  endMinute: number;
+}
+
+/** Số này đo được tới mức giờ (EXCEL) hay chỉ tới mức ca (MANUAL, giờ chỉ là chỗ đặt). */
+export type PosSaleSource = "EXCEL" | "MANUAL";
+
+export const POS_SALE_SOURCE_LABELS: Record<PosSaleSource, string> = {
+  EXCEL: "Nhập từ file POS",
+  MANUAL: "Gõ tay theo ca",
+};
+
+export interface PosSaleDay {
+  userId: string;
+  user: { id: string; name: string } | null;
+  soldOn: string;
+  totalQuantity: number;
+  cellCount: number;
+}
+
+export interface PosItemMapping {
+  id: string;
+  posName: string;
+  posNameRaw: string;
+  // null = cố ý bỏ qua tên này (phí ship, voucher…), khác hẳn "chưa ánh xạ" là chưa có dòng nào.
+  finishedGoodItemId: string | null;
+  finishedGoodItem: { id: string; code: string; name: string } | null;
+}
+
+export interface PosMappingSuggestion {
+  posNameRaw: string;
+  suggestions: { finishedGoodItemId: string; code: string; name: string; score: number }[];
+}
+
 export interface Customer {
   id: string;
   code: string;

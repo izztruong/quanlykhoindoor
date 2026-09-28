@@ -65,6 +65,7 @@ model User {
   notifications             Notification[]
   pushTokens                PushToken[]
   notificationPreferences   NotificationPreference[]
+  posSaleHours              PosSaleHour[]
 }
 
 enum DeadlineKind {
@@ -159,6 +160,8 @@ model FinishedGoodItem {
   // Công thức: nguyên liệu + định lượng cần để làm ra 1 đơn vị đồ thành phẩm/món này — dùng cho tính Check Cost.
   recipeItems                FinishedGoodRecipeItem[]
   costCheckSoldItems         CostCheckSoldItem[]
+  posSaleHours               PosSaleHour[]
+  posItemMappings            PosItemMapping[]
 }
 
 // Công thức (BOM): 1 đơn vị của 1 đồ thành phẩm/món cần bao nhiêu nguyên liệu — định lượng luôn tính theo
@@ -980,4 +983,100 @@ model NotificationPreference {
   enabled Boolean
 
   @@id([userId, type])
+}
+
+enum ShiftCode {
+  CA1
+  CA2
+  CA3
+}
+
+/**
+ * Khung giờ 3 ca, dùng chung cho mọi quán — đúng một dòng cho mỗi ca.
+ * Giờ lưu bằng HAI CỘT SỐ NGUYÊN chứ không phải DateTime, cùng lý do đã ghi ở model Deadline: một
+ * mốc giờ đi qua ô nhập datetime-local rồi lưu lại sẽ bị trừ dần phần lệch múi giờ mỗi lần lưu.
+ * endHour < startHour nghĩa là ca chạy qua nửa đêm.
+ */
+model ShiftDefinition {
+  id          String    @id @default(cuid())
+  code        ShiftCode @unique
+  name        String
+  startHour   Int
+  startMinute Int
+  endHour     Int
+  endMinute   Int
+  updatedAt   DateTime  @updatedAt
+}
+
+/**
+ * Doanh số nhập ở mức GIỜ, không ở mức ca.
+ *
+ * Ca chỉ là cấu hình (ShiftDefinition), nên lưu theo giờ thì đổi mốc chia ca về sau là TÍNH LẠI chứ
+ * không phải nhập lại. Lưu sẵn theo ca thì một lần đổi khung giờ là mất cả kho lịch sử.
+ */
+model PosSaleHour {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // NGÀY THEO LỊCH của giờ bán, cố ý không phải "ngày kinh doanh": ca qua nửa đêm nằm trên hai ngày
+  // lịch, và việc ghép lại là chuyện của truy vấn cắt ca chứ không phải của lúc nhập. Kiểu DATE nên
+  // không dính lệch múi giờ như DateTime.
+  soldOn DateTime @db.Date
+  // Giờ đồng hồ thực 0–23, theo giờ VN.
+  hour   Int
+
+  finishedGoodItemId String
+  finishedGoodItem   FinishedGoodItem @relation(fields: [finishedGoodItemId], references: [id], onDelete: Cascade)
+  quantity           Decimal          @db.Decimal(18, 3)
+
+  // Số này biết tới mức nào. EXCEL = có giờ thật từ file POS. MANUAL = người gõ TỔNG CỦA CẢ CA, hệ
+  // thống đặt vào giờ giữa ca để phép cắt ca vẫn đúng — nhưng chi tiết theo giờ là bịa.
+  //
+  // Phải có cột này: không có nó thì màn chi tiết theo giờ hiện một cột dựng đứng ở giữa ca và không ai
+  // biết vì sao. Một con số đặt chỗ trông y hệt một con số đo được.
+  source PosSaleSource @default(EXCEL)
+
+  @@unique([userId, soldOn, hour, finishedGoodItemId])
+  @@index([userId, soldOn])
+  @@index([finishedGoodItemId])
+}
+
+/**
+ * Số này đo được tới mức giờ, hay chỉ tới mức ca.
+ *
+ * Dùng để cảnh báo trên màn, và để về sau phần dự báo theo ca biết dòng nào đáng tin tới mức giờ.
+ */
+enum PosSaleSource {
+  /// Nhập từ file Excel của POS — có giờ thật của từng đơn.
+  EXCEL
+  /// Người gõ tay tổng của cả ca; giờ chỉ là chỗ đặt.
+  MANUAL
+}
+
+/**
+ * Ánh xạ TÊN MÓN TRÊN POS sang đồ thành phẩm trong danh mục.
+ *
+ * Tên POS lệch nhiều so với danh mục (viết tắt, size, dấu, thứ tự từ), nên phải khai một lần rồi dùng mãi.
+ */
+model PosItemMapping {
+  id         String @id @default(cuid())
+  // Tên đã chuẩn hoá (trim + lower + gộp khoảng trắng) — khoá tra cứu.
+  posName    String @unique
+  // Bản gốc như POS xuất ra, giữ để admin nhận ra mình đang ánh xạ cái gì.
+  posNameRaw String
+
+  // NULL = cố ý BỎ QUA tên này. File POS luôn có dòng không phải món (phí ship, voucher giảm giá,
+  // combo, topping tính riêng); không có cách khai "bỏ qua" thì những dòng đó CHẶN phần nhập vĩnh
+  // viễn, vì không tên nào được phép còn thiếu ánh xạ. Khác hẳn "chưa ánh xạ" = chưa có dòng nào.
+  //
+  // Vẫn giữ onDelete: Cascade chứ KHÔNG SetNull — xoá một đồ thành phẩm thì dòng ánh xạ biến mất và
+  // tên POS đó quay về "chưa ánh xạ", tức chặn phần nhập cho tới khi có người xử lý. SetNull sẽ lặng
+  // lẽ biến nó thành "bỏ qua" và từ đó mất dữ liệu bán mà không báo gì.
+  finishedGoodItemId String?
+  finishedGoodItem   FinishedGoodItem? @relation(fields: [finishedGoodItemId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([finishedGoodItemId])
 }

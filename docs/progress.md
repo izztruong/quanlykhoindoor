@@ -31,6 +31,17 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
+### Nhập doanh số POS: file Excel + gõ tay theo ca — CHƯA thử trên trình duyệt, chưa lên `staging`/`main`
+Ba trang mới ở Quản trị: **Doanh số POS** (nhập Excel + gõ tay theo ca trên cùng một trang), **Ánh xạ món
+POS**, **Khung giờ ca**. Lưu ở mức giờ nên đổi mốc chia ca không phải nhập lại; số gõ tay đặt ở ô giữa ca,
+đánh dấu `source = MANUAL`. Chặn ở server không cho nhập doanh số cho đồ thành phẩm (`THANH_PHAM`).
+Đã kiểm typecheck 2 app, lint web (vẫn đúng 14 lỗi **từ trước**, không thêm), `migrate deploy` trên DB dev
++ bản copy + **DB trắng** (migration chèn 3 ca, chạy lại không nhân đôi), và 24 ca script: ô giờ của ca
+thường và ca qua nửa đêm, ô giữa chịu được việc dịch mốc ca, nhập lại là sửa chứ không cộng dồn, chặn đồ
+thành phẩm, và **tình huống cộng đúp giữa hai đường nhập** (đã sửa `importPosSales`).
+**Sau khi deploy phải tick 3 quyền**: "Doanh số POS", "Ánh xạ món POS", "Khung giờ ca".
+Còn lại: chưa nhập dữ liệu thật (đây là rào chặn cứng của cả phần dự báo); mobile chưa làm.
+
 ### Chi chốt ca: cột "Đã chi" + cột Ngày lập phiếu — CHƯA thử trên trình duyệt/app, chưa lên `staging`/`main`
 Quyền mới `SHIFT_EXPENSES.PAY` bật/tắt dấu "đã chi"; đã đánh dấu thì quán hết sửa/xoá/đổi ảnh (409). Cột "Ngày" đổi thành "Ngày chi", thêm "Ngày lập phiếu" (từ `createdAt`), lọc theo trạng thái chi. Excel chỉ thêm cột cuối, file mẫu giữ nguyên.
 Đã kiểm typecheck 3 app, bundle Android, curl (quán có ADD+DELETE vẫn 403 ở `/pay`, 409 sửa/xoá/ảnh khi đã chi, lọc paid, gỡ dấu rồi sửa lại được, có PAY thiếu `DATA.SCOPE_ALL` → 404).
