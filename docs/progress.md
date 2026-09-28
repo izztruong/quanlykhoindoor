@@ -31,14 +31,15 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
-### Nhập doanh số POS: file Excel + gõ tay theo ca — CHƯA thử trên trình duyệt, chưa lên `staging`/`main`
-Ba trang mới ở Quản trị: **Doanh số POS** (nhập Excel + gõ tay theo ca trên cùng một trang), **Ánh xạ món
-POS**, **Khung giờ ca**. Lưu ở mức giờ nên đổi mốc chia ca không phải nhập lại; số gõ tay đặt ở ô giữa ca,
-đánh dấu `source = MANUAL`. Chặn ở server không cho nhập doanh số cho đồ thành phẩm (`THANH_PHAM`).
+### Nhập doanh số POS: file Excel + gõ tay từng dòng — CHƯA thử trên trình duyệt, chưa lên `staging`/`main`
+Ba trang mới ở Quản trị: **Doanh số POS** (nhập Excel + gõ tay từng dòng trên cùng một trang), **Ánh xạ
+món POS**, **Khung giờ ca**. Gõ tay theo dòng *ngày · món · giờ · SL* nên mịn đúng bằng nhập Excel; danh
+sách có lọc **từ ngày → đến ngày + theo quán**, mặc định hôm nay, **phân trang 20**, sửa/xoá từng dòng.
+Chặn ở server không cho nhập doanh số cho đồ thành phẩm (`THANH_PHAM`).
 Đã kiểm typecheck 2 app, lint web (vẫn đúng 14 lỗi **từ trước**, không thêm), `migrate deploy` trên DB dev
-+ bản copy + **DB trắng** (migration chèn 3 ca, chạy lại không nhân đôi), và 24 ca script: ô giờ của ca
-thường và ca qua nửa đêm, ô giữa chịu được việc dịch mốc ca, nhập lại là sửa chứ không cộng dồn, chặn đồ
-thành phẩm, và **tình huống cộng đúp giữa hai đường nhập** (đã sửa `importPosSales`).
++ bản copy + **DB trắng** (migration chèn 3 ca, chạy lại không nhân đôi), và 22 ca script: lọc khoảng ngày,
+ghi lại là sửa chứ không cộng dồn, xoá đúng một dòng, đổi giờ một dòng, chặn trùng khoá, chặn đồ thành
+phẩm, phân trang 25 dòng, và **hồi quy: nhập Excel không xoá dòng gõ tay ở giờ khác cùng ca**.
 **Sau khi deploy phải tick 3 quyền**: "Doanh số POS", "Ánh xạ món POS", "Khung giờ ca".
 Còn lại: chưa nhập dữ liệu thật (đây là rào chặn cứng của cả phần dự báo); mobile chưa làm.
 

@@ -188,13 +188,12 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
   thì đặt đơn thử cũng bắn thông báo sang máy đó.
 - Người nhận thông báo "đơn cần duyệt" phải có **cả** `ORDERS.APPROVE` lẫn `DATA.SCOPE_ALL`: thiếu
   phạm vi thì `assertOwner` trả 404 và thông báo bấm vào không mở được đơn.
-- **Mọi thứ "giờ nào thuộc ca nào" nằm đúng một file**: `modules/posSales/shiftSlicing.ts`.
-  `sliceByShift` gom giờ thành ca; `shiftCells`/`shiftMidCell` là phép ngược, dùng cho phần nhập tay.
-  Viết lại phép này ở chỗ khác là để hai bản lệch nhau về ca qua nửa đêm.
-- **Nhập Excel và nhập tay theo ca đè nhau theo hai độ mịn khác nhau** — đây là chỗ đã sinh lỗi cộng
-  đúp: Excel xoá theo **ô giờ**, còn số gõ tay là tổng của cả ca đặt ở một ô giữa ca. Nên
-  `importPosSales` phải xoá thêm **mọi dòng `MANUAL` của những ca mà file chạm tới** — thiếu bước đó thì
-  file Excel không có dòng nào đúng giờ giữa ca sẽ để số gõ tay sống sót và tổng ca bị cộng đúp.
+- **Mọi thứ "giờ nào thuộc ca nào" nằm đúng một file**: `modules/posSales/shiftSlicing.ts`. Viết lại
+  phép này ở chỗ khác là để hai bản lệch nhau về ca qua nửa đêm.
+- **Cả hai đường nhập doanh số đều ghi đè theo đúng một độ mịn: ô `(quán, ngày, giờ, món)`** — đó cũng là
+  khoá `@@unique` của `PosSaleHour`. Đừng để đường nào xoá theo phạm vi rộng hơn (theo ngày, theo ca):
+  màn nhập tay có **phân trang** nên chỉ tải 20 dòng, và một phép xoá rộng sẽ xoá mất dữ liệu người dùng
+  không nhìn thấy. Muốn xoá cả ngày thì có `DELETE /pos-sales/day` riêng.
 
 ### Xác thực và phân quyền
 
@@ -210,9 +209,10 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
 ### Dữ liệu và nghiệp vụ
 
 - **Doanh số POS lưu ở mức GIỜ, không ở mức ca.** Ca chỉ là cấu hình (`ShiftDefinition`), nên lưu theo giờ
-  thì đổi mốc chia ca về sau là **tính lại**, không phải nhập lại. Số **gõ tay** là tổng của cả ca nên được
-  đặt vào **ô giữa ca** (không phải ô đầu — admin dịch mốc bắt đầu là ô đầu rơi ra ngoài ca) và đánh dấu
-  `PosSaleHour.source = MANUAL`: tổng theo ca vẫn đúng, còn chi tiết theo giờ thì màn nói thẳng là không có.
+  thì đổi mốc chia ca về sau là **tính lại**, không phải nhập lại. Hai đường nhập — file Excel và gõ tay
+  từng dòng — **cùng độ mịn**: người gõ tay tự khai giờ thật. `PosSaleHour.source` vì vậy chỉ mang nghĩa
+  **xuất xứ** (`EXCEL` = POS xuất ra, `MANUAL` = người gõ), không phải độ tin; nó dùng khi một con số
+  trông lạ, để biết nên soát lại file hay soát lại người nhập.
 - **POS chỉ bán món `TRA`/`DAV`.** `THANH_PHAM` là đồ pha sẵn đếm ở phiếu kiểm kê quán, không có doanh thu.
   Chặn ở **server** trong `saveShiftSales`, không chỉ lọc trên giao diện — dữ liệu thật đã có 12 dòng
   `CostCheckSoldItem` ghi nhầm đồ thành phẩm thành món đã bán, vì hai tên chỉ khác nhau chữ hoa

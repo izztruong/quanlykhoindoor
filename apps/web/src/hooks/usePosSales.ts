@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
-import type { PosItemMapping, PosMappingSuggestion, PosSaleDay, PosSaleSource, ShiftCode, ShiftDefinition } from "@/types";
+import type { PagedResult, PosItemMapping, PosMappingSuggestion, PosSaleDay, PosSaleSource, ShiftDefinition } from "@/types";
 
 export interface PosSaleRowInput {
   /** YYYY-MM-DD. Chuỗi ngày thuần, KHÔNG phải Date — chuỗi không có múi giờ nên không bị trừ 7 tiếng. */
@@ -102,54 +102,56 @@ export function useSaveShiftDefinition() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Nhập TAY theo ca
+// Nhập TAY theo DÒNG (ngày × giờ × món)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export interface ShiftSalesRow {
-  finishedGoodItemId: string;
-  code: string;
-  name: string;
-  quantity: number;
+export interface PosSaleRowItem {
+  id: string;
+  soldOn: string;
+  hour: number;
+  quantity: string | number;
+  source: PosSaleSource;
+  finishedGoodItem: { id: string; code: string; name: string };
 }
 
-export interface ShiftSalesSnapshot {
-  businessDate: string;
-  shift: ShiftCode;
-  shiftName: string;
-  /** Các giờ mà ca này phủ — để màn nói rõ "ca này gồm những giờ nào". */
-  hours: number[];
-  items: ShiftSalesRow[];
-  sources: PosSaleSource[];
-}
-
-/** Doanh số một ca đang có, gộp theo món — mở màn là thấy sẵn số để SỬA, không phải gõ lại. */
-export function useShiftSales(params: { userId?: string; businessDate: string; shift: ShiftCode }, enabled = true) {
+/** Danh sách dòng doanh số, lọc theo quán + khoảng ngày, phân trang 20. */
+export function usePosSaleRows(params: { userId?: string; from: string; to: string; page?: number; pageSize?: number }) {
   return useQuery({
-    queryKey: ["pos-shift-sales", params],
-    queryFn: () => api.get<ShiftSalesSnapshot>("/pos-sales/shift", params),
-    enabled,
+    queryKey: ["pos-sale-rows", params],
+    queryFn: () =>
+      api.get<PagedResult<PosSaleRowItem>>("/pos-sales/rows", {
+        userId: params.userId,
+        from: params.from,
+        to: params.to,
+        page: params.page ?? 1,
+        pageSize: params.pageSize ?? 20,
+      }),
   });
 }
 
-export interface SaveShiftSalesResult {
-  written: number;
-  replaced: number;
-  storedAt: { soldOn: string; hour: number };
-  /** Ca này trước đó có dữ liệu Excel — ghi tay là mất chi tiết theo giờ. */
-  hadExcelData: boolean;
+export interface ManualRowKey {
+  soldOn: string;
+  hour: number;
+  finishedGoodItemId: string;
 }
 
-export function useSaveShiftSales() {
+export interface SaveManualRowsResult {
+  written: number;
+  deleted: number;
+  /** Trong số `written`, bao nhiêu dòng là ghi đè lên dòng đã có. */
+  replaced: number;
+}
+
+export function useSaveManualRows() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data: {
       userId?: string;
-      businessDate: string;
-      shift: ShiftCode;
-      items: { finishedGoodItemId: string; quantity: number }[];
-    }) => api.post<SaveShiftSalesResult>("/pos-sales/shift", data),
+      upserts?: (ManualRowKey & { quantity: number })[];
+      deletes?: ManualRowKey[];
+    }) => api.post<SaveManualRowsResult>("/pos-sales/manual", data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["pos-shift-sales"] });
+      queryClient.invalidateQueries({ queryKey: ["pos-sale-rows"] });
       queryClient.invalidateQueries({ queryKey: ["pos-sale-days"] });
     },
   });

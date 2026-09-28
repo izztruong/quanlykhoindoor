@@ -4,13 +4,13 @@ import { requirePermission } from "../../middleware/auth";
 import { HttpError } from "../../utils/httpError";
 import { parsePagination } from "../../utils/pagination";
 import {
+  manualRowsSchema,
+  posSaleRowsQuerySchema,
   posSalesByShiftSchema,
   posSalesDeleteDaySchema,
   posSalesImportSchema,
-  shiftSalesQuerySchema,
-  shiftSalesSchema,
 } from "./posSales.schemas";
-import { getShiftSales, importPosSales, parseDateOnly, saveShiftSales } from "./posSales.service";
+import { importPosSales, parseDateOnly, saveManualRows } from "./posSales.service";
 import { sliceByShift } from "./shiftSlicing";
 
 export const posSalesRouter = Router();
@@ -146,23 +146,40 @@ posSalesRouter.delete("/day", requirePermission("POS_SALES", "DELETE"), async (r
 });
 
 /**
- * Doanh số một ca, gộp theo món — mở màn nhập tay là thấy sẵn số đang có để SỬA, không phải gõ lại.
- * Dùng được cho cả ca đã nhập bằng Excel.
+ * Danh sách DÒNG doanh số, lọc theo quán và khoảng ngày, phân trang 20 — nguồn dữ liệu cho màn nhập tay.
+ *
+ * Khác `GET /` (gộp theo ngày, để biết ngày nào đã có dữ liệu): ở đây là từng dòng, vì màn nhập tay phải
+ * sửa và xoá được đúng dòng.
  */
-posSalesRouter.get("/shift", requirePermission("POS_SALES", "VIEW"), async (req, res) => {
-  const { businessDate, shift, userId: requested } = shiftSalesQuerySchema.parse(req.query);
+posSalesRouter.get("/rows", requirePermission("POS_SALES", "VIEW"), async (req, res) => {
+  const { from, to, userId: requested } = posSaleRowsQuerySchema.parse(req.query);
   const userId = resolveTargetUserId(req, requested);
-  res.json(await getShiftSales(userId, businessDate, shift));
+  const { skip, take, page, pageSize } = parsePagination(req, 20);
+
+  const where = { userId, soldOn: { gte: parseDateOnly(from), lte: parseDateOnly(to) } };
+  const [items, total] = await Promise.all([
+    prisma.posSaleHour.findMany({
+      where,
+      include: { finishedGoodItem: { select: { id: true, code: true, name: true } } },
+      orderBy: [{ soldOn: "desc" }, { hour: "asc" }],
+      skip,
+      take,
+    }),
+    prisma.posSaleHour.count({ where }),
+  ]);
+
+  res.json({ items, total, page, pageSize });
 });
 
 /**
- * Ghi doanh số một ca do người dùng gõ tay. GHI ĐÈ trọn ca — xem chú thích `saveShiftSales`.
+ * Ghi / sửa / xoá từng dòng doanh số gõ tay. Chỉ đụng đúng những ô được nêu — xem chú thích
+ * `saveManualRows`: màn có phân trang nên mọi phép xoá theo phạm vi rộng hơn sẽ xoá mất dữ liệu người
+ * dùng không nhìn thấy.
  *
- * Cùng quyền `POS_SALES.ADD` với nhập Excel: cùng một việc, chỉ khác đường vào. Tách quyền chỉ tạo thêm
- * một ô tick mà không ai hiểu để làm gì.
+ * Cùng quyền `POS_SALES.ADD` với nhập Excel: cùng một việc, chỉ khác đường vào.
  */
-posSalesRouter.post("/shift", requirePermission("POS_SALES", "ADD"), async (req, res) => {
-  const input = shiftSalesSchema.parse(req.body);
+posSalesRouter.post("/manual", requirePermission("POS_SALES", "ADD"), async (req, res) => {
+  const input = manualRowsSchema.parse(req.body);
   const userId = resolveTargetUserId(req, input.userId);
-  res.json(await saveShiftSales(userId, input.businessDate, input.shift, input.items));
+  res.json(await saveManualRows(userId, input.upserts, input.deletes));
 });

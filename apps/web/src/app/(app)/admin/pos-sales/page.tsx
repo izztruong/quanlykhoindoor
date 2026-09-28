@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
-import { ManualShiftEntry } from "@/components/posSales/ManualShiftEntry";
+import { ManualEntry } from "@/components/posSales/ManualEntry";
 import { PosMappingEditor } from "@/components/posSales/PosMappingEditor";
 import {
   useDeletePosSaleDay,
@@ -189,7 +189,7 @@ export default function PosSalesPage() {
         </p>
       </div>
 
-      <ManualShiftEntry userId={userId || undefined} />
+      <ManualEntry />
 
       <Card>
         <CardBody className="grid grid-cols-1 gap-4 md:grid-cols-3">

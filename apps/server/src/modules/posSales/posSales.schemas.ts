@@ -35,28 +35,34 @@ export const posSalesByShiftSchema = z.object({
 });
 
 /**
- * Nhập TAY theo ca: người dùng gõ tổng của cả ca cho từng món.
+ * Nhập TAY theo DÒNG: mỗi dòng tự mang ngày, vì danh sách trải nhiều ngày (có ô lọc từ ngày → đến ngày)
+ * nên không có một ngày dùng chung như bản trước.
  *
- * `businessDate` là NGÀY KINH DOANH (ca đêm qua nửa đêm vẫn thuộc ngày hôm trước), khác `soldOn` của
- * phần nhập Excel vốn là ngày lịch. Nhận chuỗi thuần để không dính lệch múi giờ trên đường truyền.
+ * `upserts` để ghi mới hoặc sửa, `deletes` để xoá. Đổi giờ hay đổi món của một dòng thì gửi khoá cũ vào
+ * `deletes` và khoá mới vào `upserts` trong cùng một lần gọi.
  */
-export const shiftSalesSchema = z.object({
-  userId: z.string().min(1).optional(),
-  businessDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Ngày phải có dạng YYYY-MM-DD"),
-  shift: z.enum(["CA1", "CA2", "CA3"]),
-  items: z
-    .array(
-      z.object({
-        finishedGoodItemId: z.string().min(1),
-        // Cho phép 0: đó là cách người dùng xoá một món khỏi ca mà không phải nhớ nó từng có mặt.
-        quantity: z.coerce.number().nonnegative(),
-      }),
-    )
-    .max(500),
+const dateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Ngày phải có dạng YYYY-MM-DD");
+
+const manualRowKey = z.object({
+  soldOn: dateOnly,
+  hour: z.coerce.number().int().min(0).max(23),
+  finishedGoodItemId: z.string().min(1),
 });
 
-export const shiftSalesQuerySchema = z.object({
+export const manualRowsSchema = z
+  .object({
+    userId: z.string().min(1).optional(),
+    // SL phải dương: muốn bỏ một dòng thì đưa khoá của nó vào `deletes`, không gửi số 0.
+    upserts: z.array(manualRowKey.extend({ quantity: z.coerce.number().positive() })).max(500).default([]),
+    deletes: z.array(manualRowKey).max(500).default([]),
+  })
+  .refine((v) => v.upserts.length > 0 || v.deletes.length > 0, {
+    message: "Không có dòng nào để lưu",
+  });
+
+/** Danh sách dòng doanh số, lọc theo quán và khoảng ngày. Phân trang lấy từ query qua parsePagination. */
+export const posSaleRowsQuerySchema = z.object({
   userId: z.string().min(1).optional(),
-  businessDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  shift: z.enum(["CA1", "CA2", "CA3"]),
+  from: dateOnly,
+  to: dateOnly,
 });

@@ -40,49 +40,6 @@ export function hourBelongsToShift(
   return spansMidnight(shift) ? mid >= start || mid < end : mid >= start && mid < end;
 }
 
-/** Một ô lưu trữ: ngày theo lịch + giờ đồng hồ. Đúng cặp khoá của PosSaleHour. */
-export interface ShiftCellRef {
-  /** "YYYY-MM-DD" theo NGÀY LỊCH (không phải ngày kinh doanh). */
-  soldOn: string;
-  hour: number;
-}
-
-/**
- * Mọi ô (ngày lịch × giờ) thuộc một ca của một NGÀY KINH DOANH, xếp theo thứ tự thời gian.
- *
- * Đây là phép NGƯỢC của `sliceByShift`: nó gom giờ thành ca, hàm này trả về đúng những giờ đã gom.
- * Cần cho phần nhập TAY — người gõ tổng của cả ca, hệ thống phải biết xoá những ô nào rồi ghi vào đâu.
- *
- * Ca qua nửa đêm trả về hai đoạn: phần sau mốc bắt đầu thuộc chính ngày kinh doanh, phần trước mốc kết
- * thúc thuộc ngày lịch HÔM SAU.
- */
-export function shiftCells(businessDate: string, shift: ShiftDefinition): ShiftCellRef[] {
-  const cells: ShiftCellRef[] = [];
-  const nextDay = shiftDateKey(businessDate, 1);
-  const endMinutes = toMinutes(shift.endHour, shift.endMinute);
-
-  for (let hour = 0; hour < 24; hour++) {
-    if (!hourBelongsToShift(hour, shift)) continue;
-    // Với ca qua nửa đêm, giờ nằm TRƯỚC mốc kết thúc là phần thuộc ngày lịch hôm sau.
-    const afterMidnight = spansMidnight(shift) && bucketMidpointMinutes(hour) < endMinutes;
-    cells.push({ soldOn: afterMidnight ? nextDay : businessDate, hour });
-  }
-
-  // Xếp theo trục thời gian thật: ngày trước, rồi giờ. Ca qua nửa đêm nhờ đó ra 22,23,0,1 thay vì 0,1,22,23.
-  return cells.sort((a, b) => a.soldOn.localeCompare(b.soldOn) || a.hour - b.hour);
-}
-
-/**
- * Ô GIỮA ca — chỗ đặt số khi người dùng gõ tổng của cả ca.
- *
- * Chọn ô giữa chứ không phải ô đầu: nếu admin chỉnh mốc bắt đầu ca muộn hơn một chút thì ô đầu rơi ra
- * ngoài ca và số nhập tay nhảy sang ca khác. Ô giữa chịu được thay đổi biên ở cả hai phía.
- */
-export function shiftMidCell(businessDate: string, shift: ShiftDefinition): ShiftCellRef | null {
-  const cells = shiftCells(businessDate, shift);
-  return cells.length === 0 ? null : cells[Math.floor((cells.length - 1) / 2)]!;
-}
-
 export interface HourCell {
   soldOn: Date;
   hour: number;

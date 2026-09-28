@@ -1030,11 +1030,11 @@ model PosSaleHour {
   finishedGoodItem   FinishedGoodItem @relation(fields: [finishedGoodItemId], references: [id], onDelete: Cascade)
   quantity           Decimal          @db.Decimal(18, 3)
 
-  // Số này biết tới mức nào. EXCEL = có giờ thật từ file POS. MANUAL = người gõ TỔNG CỦA CẢ CA, hệ
-  // thống đặt vào giờ giữa ca để phép cắt ca vẫn đúng — nhưng chi tiết theo giờ là bịa.
+  // XUẤT XỨ của dòng, không phải độ chính xác: cả hai đường nhập đều khai GIỜ THẬT.
+  // EXCEL = POS xuất ra · MANUAL = người gõ tay.
   //
-  // Phải có cột này: không có nó thì màn chi tiết theo giờ hiện một cột dựng đứng ở giữa ca và không ai
-  // biết vì sao. Một con số đặt chỗ trông y hệt một con số đo được.
+  // Đáng giữ vì khi một con số trông lạ thì nó cho biết nên soát lại file hay soát lại người nhập. Sửa
+  // một dòng vốn từ Excel thì dòng đó chuyển thành MANUAL — đúng, vì đã có người đổi nó.
   source PosSaleSource @default(EXCEL)
 
   @@unique([userId, soldOn, hour, finishedGoodItemId])
@@ -1042,15 +1042,11 @@ model PosSaleHour {
   @@index([finishedGoodItemId])
 }
 
-/**
- * Số này đo được tới mức giờ, hay chỉ tới mức ca.
- *
- * Dùng để cảnh báo trên màn, và để về sau phần dự báo theo ca biết dòng nào đáng tin tới mức giờ.
- */
+/** Dòng doanh số này do ai đặt vào. Cả hai đường đều khai giờ thật, nên đây là xuất xứ chứ không phải độ tin. */
 enum PosSaleSource {
-  /// Nhập từ file Excel của POS — có giờ thật của từng đơn.
+  /// Nhập từ file Excel của POS.
   EXCEL
-  /// Người gõ tay tổng của cả ca; giờ chỉ là chỗ đặt.
+  /// Người gõ tay từng dòng (ngày × giờ × món).
   MANUAL
 }
 
