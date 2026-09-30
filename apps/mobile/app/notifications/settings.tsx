@@ -8,7 +8,6 @@ import { ErrorState, LoadingState, Screen } from "@/components/ui/Screen";
 import { useNotificationPreferences, useUpdateNotificationPreference } from "@/hooks/useNotifications";
 import { Notifications, pushAvailability, registerPushToken } from "@/lib/pushNotifications";
 import { colors, fontSize, radius, spacing } from "@/lib/theme";
-import { pushToast } from "@/lib/toastBus";
 import type { NotificationPreference } from "@/types";
 
 type PermissionState = "checking" | "granted" | "denied";
@@ -73,123 +72,59 @@ export default function NotificationSettingsScreen() {
   );
 }
 
-/** Khung trạng thái của chính chiếc máy: có nhận được thông báo đẩy không, và vì sao. */
+/**
+ * Chỉ báo đúng một chuyện người dùng xử lý được: máy đang chặn thông báo. Các trạng thái kỹ thuật
+ * (đang bật, chạy trong Expo Go, app chưa gắn dự án Expo) cố ý KHÔNG hiện lên giao diện — soi lỗi
+ * push bằng log server, xem `console.error("[notifications] …")` trong notifications.service.ts.
+ */
 function DeviceStatus() {
   const availability = pushAvailability();
   const [permission, setPermission] = useState<PermissionState>("checking");
-  const [registering, setRegistering] = useState(false);
 
   const check = useCallback(async () => {
     const status = await Notifications.getPermissionsAsync();
     setPermission(status.granted ? "granted" : "denied");
   }, []);
 
-  /**
-   * Quyền hệ điều hành đã cấp KHÔNG có nghĩa là token đã ghi được lên server — hai chuyện khác
-   * nhau (lấy token từ Expo có thể lỗi vì thiếu khoá FCM, hoặc gửi lên server có thể lỗi mạng).
-   * `announce` bật khi bấm nút thử lại thủ công; tắt khi tự chạy lúc quay về foreground, để không
-   * bắn toast mỗi lần mở lại app.
-   */
-  const retryRegister = useCallback(async (announce: boolean) => {
-    if (announce) setRegistering(true);
-    try {
-      await registerPushToken();
-      if (announce) pushToast("success", "Đã đăng ký thông báo cho máy này");
-    } catch (err) {
-      if (announce) pushToast("error", err instanceof Error ? err.message : String(err));
-    } finally {
-      if (announce) setRegistering(false);
-    }
-  }, []);
-
   useEffect(() => {
     if (availability !== "available") return;
     check();
-    // Người dùng thường bấm "Mở cài đặt" rồi quay lại — kiểm lại ngay khi app trở về foreground.
+    // Người dùng thường bấm "Mở cài đặt" rồi quay lại — kiểm lại ngay khi app trở về foreground, và
+    // ghi token luôn: quyền vừa được cấp KHÔNG tự động nghĩa là server đã có token của máy này.
     const sub = AppState.addEventListener("change", (state) => {
       if (state === "active") {
         check();
-        retryRegister(false);
+        registerPushToken().catch(() => undefined);
       }
     });
     return () => sub.remove();
-  }, [availability, check, retryRegister]);
+  }, [availability, check]);
 
-  if (availability === "expo-go") {
-    return (
-      <StatusCard
-        tone="warning"
-        icon="information-circle"
-        title="Đang chạy trong Expo Go"
-        text="Expo Go trên Android không nhận được thông báo đẩy. Cần cài bản riêng của app để thông báo hiện lên thanh thông báo. Cài đặt bên dưới vẫn được lưu."
-      />
-    );
-  }
-
-  if (availability === "not-configured") {
-    return (
-      <StatusCard
-        tone="warning"
-        icon="construct"
-        title="App chưa cấu hình thông báo đẩy"
-        text="Bản app này chưa gắn dự án Expo nên không nhận được thông báo đẩy."
-      />
-    );
-  }
-
-  if (permission === "checking") return null;
-
-  if (permission === "denied") {
-    return (
-      <StatusCard
-        tone="danger"
-        icon="notifications-off"
-        title="Thông báo đang bị tắt trên điện thoại"
-        text="Bạn sẽ không thấy thông báo trên thanh thông báo cho tới khi bật lại trong cài đặt của máy."
-        action={<Button title="Mở cài đặt điện thoại" size="sm" onPress={() => Linking.openSettings()} />}
-      />
-    );
-  }
+  if (availability !== "available" || permission !== "denied") return null;
 
   return (
     <StatusCard
-      tone="success"
-      icon="notifications"
-      title="Thông báo đang bật trên máy này"
-      text="Thông báo sẽ hiện lên thanh thông báo kể cả khi app đang đóng."
-      action={
-        <Button
-          title="Thử đăng ký lại"
-          size="sm"
-          variant="secondary"
-          loading={registering}
-          onPress={() => retryRegister(true)}
-        />
-      }
+      icon="notifications-off"
+      title="Thông báo đang bị tắt trên điện thoại"
+      text="Bạn sẽ không thấy thông báo trên thanh thông báo cho tới khi bật lại trong cài đặt của máy."
+      action={<Button title="Mở cài đặt điện thoại" size="sm" onPress={() => Linking.openSettings()} />}
     />
   );
 }
 
-const TONES = {
-  success: { bg: colors.successSoft, fg: colors.success },
-  warning: { bg: colors.warningSoft, fg: colors.warning },
-  danger: { bg: colors.dangerSoft, fg: colors.danger },
-} as const;
-
 function StatusCard({
-  tone,
   icon,
   title,
   text,
   action,
 }: {
-  tone: keyof typeof TONES;
   icon: React.ComponentProps<typeof Ionicons>["name"];
   title: string;
   text: string;
   action?: React.ReactNode;
 }) {
-  const { bg, fg } = TONES[tone];
+  const bg = colors.dangerSoft;
+  const fg = colors.danger;
   return (
     <View style={[styles.status, { backgroundColor: bg }]}>
       <Ionicons name={icon} size={22} color={fg} />

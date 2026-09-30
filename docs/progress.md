@@ -31,6 +31,17 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
+### Bỏ thẻ trạng thái push kỹ thuật ở màn Cài đặt thông báo (mobile) — CHƯA thử trên máy, chưa lên `staging`/`main`
+Bỏ thẻ "Thông báo đang bật trên máy này" (kèm nút Thử đăng ký lại), thẻ Expo Go và thẻ chưa cấu hình push; chỉ còn
+thẻ đỏ khi máy chặn thông báo. Lỗi push soi bằng log server. Đã kiểm typecheck + bundle Android; cần build mobile mới.
+
+### Check Cost: cột "% chênh lệch thực" trừ đi 100% (web + mobile) — CHƯA thử trên trình duyệt/app, chưa lên `staging`/`main`
+Cột này trước hiện tỷ lệ (khớp định mức = 100%), giờ hiện mức chênh: khớp = `0,0%`, vượt = `+50,0%`,
+hụt = `-20,0%`; mẫu số 0 vẫn để `-`. Nhãn bên mobile đổi cho khớp web. Excel dùng `numFmt` ba vế nên
+file xuất ra cũng có dấu +.
+Đã kiểm typecheck 2 app, bundle Android, lint web (vẫn đúng 14 lỗi **từ trước**), và đối chiếu công
+thức cũ/mới trên 130+ dòng của một phiếu thật.
+
 ### Nhập doanh số POS: file Excel + gõ tay từng dòng — CHƯA thử trên trình duyệt, chưa lên `staging`/`main`
 Ba trang mới ở Quản trị: **Doanh số POS** (nhập Excel + gõ tay từng dòng trên cùng một trang), **Ánh xạ
 món POS**, **Khung giờ ca**. Gõ tay theo dòng *ngày · món · giờ · SL* nên mịn đúng bằng nhập Excel; danh
