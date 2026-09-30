@@ -8,8 +8,8 @@ import { GroupSection } from "@/components/ui/GroupSection";
 import { InfoRow } from "@/components/ui/InfoRow";
 import { ErrorState, LoadingState, Screen } from "@/components/ui/Screen";
 import { useCostCheck, useUpdateCostCheckStatus } from "@/hooks/useCostChecks";
-import { actualOverTheoreticalPct, buildCostRatioRows, groupCostReport, varianceTone } from "@/lib/costCheck";
-import { formatCurrency, formatDateTime, formatNumber, formatPercent, labels } from "@/lib/format";
+import { buildCostRatioRows, groupCostReport, varianceTone, varianceVsTheoreticalPct } from "@/lib/costCheck";
+import { formatCurrency, formatDateTime, formatNumber, formatPercent, formatSignedPercent, labels } from "@/lib/format";
 import { useCan } from "@/lib/permissions";
 import { colors, fontSize, radius, spacing } from "@/lib/theme";
 import type { CostCheckReportRow, ProductType } from "@/types";
@@ -109,7 +109,7 @@ export function CostCheckDetail({ id }: { id: string }) {
 function MaterialCard({ row }: { row: CostCheckReportRow }) {
   const tone = varianceTone(row.variance);
   const color = tone === "red" ? colors.danger : tone === "green" ? colors.success : colors.textMuted;
-  const pct = actualOverTheoreticalPct(row);
+  const pct = varianceVsTheoreticalPct(row);
   const metrics = [
     { label: "Tồn đầu kỳ", value: formatNumber(row.openingQty) },
     { label: "Nhận trong kỳ", value: formatNumber(row.receivedQty) },
@@ -119,7 +119,7 @@ function MaterialCard({ row }: { row: CostCheckReportRow }) {
     { label: "Thực tế dùng", value: formatNumber(row.actualUsed) },
     { label: "Theo công thức", value: formatNumber(row.theoretical) },
     { label: "Chênh lệch", value: formatNumber(row.variance), color },
-    { label: "% thực tế / công thức", value: pct === null ? "—" : formatPercent(pct), color },
+    { label: "% chênh lệch thực", value: pct === null ? "—" : formatSignedPercent(pct), color },
   ];
   return <View style={styles.material}>
     <Text style={styles.name}>{row.name} · {row.unitLabel}</Text>

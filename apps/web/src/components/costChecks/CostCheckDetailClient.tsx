@@ -6,7 +6,7 @@ import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { useCostCheck, useUpdateCostCheckStatus } from "@/hooks/useCostChecks";
 import { ApiError } from "@/lib/api-client";
 import { sanitizeExcelRow } from "@/lib/excelExport";
-import { formatCurrency, formatDateTime, formatNumber, formatPercent, labels } from "@/lib/format";
+import { formatCurrency, formatDateTime, formatNumber, formatPercent, formatSignedPercent, labels } from "@/lib/format";
 import type { CostCheck, CostCheckFinancialSummary, CostCheckReportRow, ProductType } from "@/types";
 import ExcelJS from "exceljs";
 import { Ban, FileSpreadsheet, RotateCcw } from "lucide-react";
@@ -20,12 +20,13 @@ interface CostRatioRow {
 }
 
 /**
- * % chênh lệch thực = SL thực tế dùng / SL theo công thức — dạng phân số để dùng chung với
- * formatPercent. null khi hàng hoá không nằm trong công thức nào (mẫu số 0): không có định mức
- * để so thì bỏ trống, hiện 0% sẽ bị đọc nhầm thành "dùng đúng định mức".
+ * % chênh lệch thực = SL thực tế dùng / SL theo công thức − 1, tức là dùng vượt (dương) hay hụt
+ * (âm) bao nhiêu phần trăm so với định mức; khớp định mức là 0%. null khi hàng hoá không nằm trong
+ * công thức nào (mẫu số 0): không có định mức để so thì bỏ trống, hiện 0% sẽ bị đọc nhầm thành
+ * "dùng đúng định mức".
  */
-function actualOverTheoreticalPct(row: { theoretical: number; actualUsed: number }): number | null {
-  return row.theoretical !== 0 ? row.actualUsed / row.theoretical : null;
+function varianceVsTheoreticalPct(row: { theoretical: number; actualUsed: number }): number | null {
+  return row.theoretical !== 0 ? row.actualUsed / row.theoretical - 1 : null;
 }
 
 function buildCostRatioRows(s: CostCheckFinancialSummary): CostRatioRow[] {
@@ -103,7 +104,7 @@ async function exportCostCheckToExcel(costCheck: CostCheck) {
   ];
   reportSheet.getRow(1).font = { bold: true };
   (costCheck.report ?? []).forEach((row) => {
-    const pct = actualOverTheoreticalPct(row);
+    const pct = varianceVsTheoreticalPct(row);
     const excelRow = reportSheet.addRow(
       sanitizeExcelRow([
         labels.productType(row.productType),
@@ -121,7 +122,8 @@ async function exportCostCheckToExcel(costCheck: CostCheck) {
         pct,
       ]),
     );
-    if (pct !== null) excelRow.getCell(13).numFmt = "0.0%";
+    // Ba vế dương;âm;không — để file xuất ra kèm dấu + giống hệt trên màn hình.
+    if (pct !== null) excelRow.getCell(13).numFmt = "+0.0%;-0.0%;0.0%";
   });
 
   const buffer = await workbook.xlsx.writeBuffer();
@@ -393,7 +395,7 @@ export function CostCheckDetailClient({ id }: { id: string }) {
                       {groupRows.map((row) => {
                         const tone =
                           row.variance > 1e-6 ? "text-red-600" : row.variance < -1e-6 ? "text-emerald-600" : "text-slate-600";
-                        const pct = actualOverTheoreticalPct(row);
+                        const pct = varianceVsTheoreticalPct(row);
                         return (
                           <tr key={row.productId}>
                             <td className="sticky left-0 z-10 whitespace-nowrap border border-slate-200 bg-white px-4 py-2">
@@ -425,7 +427,7 @@ export function CostCheckDetailClient({ id }: { id: string }) {
                               {formatNumber(row.variance)}
                             </td>
                             <td className={`whitespace-nowrap border border-slate-200 px-4 py-2 text-right font-medium ${tone}`}>
-                              {pct === null ? "-" : formatPercent(pct)}
+                              {pct === null ? "-" : formatSignedPercent(pct)}
                             </td>
                           </tr>
                         );

@@ -10,6 +10,16 @@ export function formatPercent(value: number | string) {
   return new Intl.NumberFormat("vi-VN", { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(Number(value) * 100) + "%";
 }
 
+/**
+ * Như formatPercent nhưng số dương kèm dấu +, cho con số đọc là "chênh bao nhiêu" chứ không phải
+ * tỷ lệ. Ghép dấu bằng tay thay vì signDisplay của Intl: Hermes bên React Native hỗ trợ Intl không
+ * đầy đủ, tuỳ chọn không nhận sẽ âm thầm bị bỏ qua và web/mobile hiện khác nhau.
+ */
+export function formatSignedPercent(value: number | string) {
+  const n = Number(value);
+  return (n > 0 ? "+" : "") + formatPercent(n);
+}
+
 export function formatDateTime(value: string) {
   return new Date(value).toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" });
 }

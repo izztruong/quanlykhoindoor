@@ -27,8 +27,12 @@ export function groupCostReport(rows: CostCheckReportRow[]) {
   return [...byType].map(([type, groups]) => ({ type, groups: [...groups] }));
 }
 
-export function actualOverTheoreticalPct(row: { theoretical: number; actualUsed: number }): number | null {
-  return row.theoretical !== 0 ? row.actualUsed / row.theoretical : null;
+/**
+ * % chênh lệch thực = Thực tế dùng / Theo công thức − 1: dùng vượt (dương) hay hụt (âm) bao nhiêu
+ * phần trăm so với định mức, khớp định mức là 0%. null khi hàng hoá không nằm trong công thức nào.
+ */
+export function varianceVsTheoreticalPct(row: { theoretical: number; actualUsed: number }): number | null {
+  return row.theoretical !== 0 ? row.actualUsed / row.theoretical - 1 : null;
 }
 
 export function varianceTone(variance: number) {

@@ -35,7 +35,7 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 Bỏ thẻ "Thông báo đang bật trên máy này" (kèm nút Thử đăng ký lại), thẻ Expo Go và thẻ chưa cấu hình push; chỉ còn
 thẻ đỏ khi máy chặn thông báo. Lỗi push soi bằng log server. Đã kiểm typecheck + bundle Android; cần build mobile mới.
 
-### Check Cost: cột "% chênh lệch thực" trừ đi 100% (web + mobile) — CHƯA thử trên trình duyệt/app, chưa lên `staging`/`main`
+### Check Cost: cột "% chênh lệch thực" trừ đi 100% (web + mobile) — đã lên `main`, CHƯA thử trên trình duyệt/app
 Cột này trước hiện tỷ lệ (khớp định mức = 100%), giờ hiện mức chênh: khớp = `0,0%`, vượt = `+50,0%`,
 hụt = `-20,0%`; mẫu số 0 vẫn để `-`. Nhãn bên mobile đổi cho khớp web. Excel dùng `numFmt` ba vế nên
 file xuất ra cũng có dấu +.
