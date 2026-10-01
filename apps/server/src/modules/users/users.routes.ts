@@ -5,6 +5,7 @@ import type { Prisma } from "../../generated/prisma/client";
 import { requirePermission, type AuthUser } from "../../middleware/auth";
 import { HttpError } from "../../utils/httpError";
 import { parsePagination } from "../../utils/pagination";
+import { allPermissionCodes } from "../roles/permissions";
 import { userCreateSchema, userUpdateSchema } from "./users.schemas";
 
 export const usersRouter = Router();
@@ -48,7 +49,7 @@ async function assertManageableUser(target: { role: { isSystem: boolean; permiss
 // Tách khỏi GET "/" để trang đơn hàng, Check Cost, điều chuyển… không phải có quyền USERS.VIEW.
 // `?scope=`: mặc định "shop" = chỉ tài khoản thuộc vai trò là quán (Role.isShop), để admin hay tài
 // khoản chỉ lập đề xuất chi không lẫn vào ô chọn quán · "other" = ngược lại, dùng cho ô chọn người
-// xác nhận · "all" = mọi tài khoản, cho ô lọc theo người lập.
+// duyệt · "all" = mọi tài khoản, cho ô lọc theo người lập.
 const OPTION_SCOPES = {
   shop: { role: { isShop: true } },
   other: { role: { isShop: false } },
@@ -58,8 +59,18 @@ const OPTION_SCOPES = {
 usersRouter.get("/options", async (req, res) => {
   const scope = String(req.query.scope ?? "shop");
   const where = scope in OPTION_SCOPES ? OPTION_SCOPES[scope as keyof typeof OPTION_SCOPES] : OPTION_SCOPES.shop;
+
+  // `?permission=RESOURCE.ACTION`: chỉ tài khoản làm được việc đó — vd ô chọn người duyệt của phiếu
+  // đề xuất chi chỉ nên hiện người có EXPENSE_PROPOSALS.APPROVE, chọn nhầm người khác là phiếu kẹt
+  // không ai duyệt được. Vai trò hệ thống bỏ qua mọi kiểm tra quyền nên luôn được tính là có.
+  // Mã lạ thì bỏ qua bộ lọc, giống cách `scope` xử lý giá trị lạ.
+  const permission = String(req.query.permission ?? "");
+  const permissionWhere: Prisma.UserWhereInput | undefined = allPermissionCodes().includes(permission)
+    ? { role: { OR: [{ isSystem: true }, { permissions: { has: permission } }] } }
+    : undefined;
+
   const items = await prisma.user.findMany({
-    where,
+    where: { AND: [where ?? {}, permissionWhere ?? {}] },
     select: { id: true, name: true, email: true },
     orderBy: { createdAt: "asc" },
   });

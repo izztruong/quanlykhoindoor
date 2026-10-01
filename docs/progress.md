@@ -156,6 +156,7 @@ Migration chuyển lần ứng cũ sang bảng mới, tách quyền PAY → Tạ
 `migrate deploy` trên DB trắng và DB có phiếu cũ, 46 ca curl; staging + APK preview người dùng đã thử ổn.
 App production đang cài gọi `/spend` (đã bỏ) và `/advance` không kèm số tiền — hỏng luồng đề xuất chi tới khi có build production mới.
 Đã bỏ Loại phiếu (MKT/Vận hành/CSVC), dữ liệu cũ bị xoá; production chưa dùng đề xuất chi nên đẩy `main` không sao lưu DB.
+Mới (chỉ trên `dev`, CHƯA thử giao diện): quán lập phiếu thì quán chi khoá cứng là chính họ, ô người duyệt chỉ hiện người có quyền Duyệt. Đã kiểm typecheck ba app, bundle Android, 17 ca curl.
 
 ### Cờ "Là quán" trên vai trò — CHƯA kiểm thử trên trình duyệt, đã lên `main`
 Ô chọn/lọc quán chỉ hiện tài khoản thuộc vai trò có tick (admin bị ẩn); lọc Người lập ở đề xuất chi vẫn thấy mọi tài khoản.

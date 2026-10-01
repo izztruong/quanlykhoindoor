@@ -37,15 +37,17 @@ export function ExpenseProposalForm({ existing }: { existing?: ExpenseProposal }
   const [payer, setPayer] = useState<ExpensePayer>(existing?.payer ?? "CREATOR");
 
   const { data: shops = [] } = useUserOptions({ scope: "shop" });
-  // null = chưa đụng tới ô chọn: phiếu mới chọn sẵn chính người lập nếu họ là quán. Tính lúc render vì
-  // danh sách quán và tài khoản đăng nhập tải về sau khi state đã khởi tạo.
-  const [pickedShopId, setPickedShopId] = useState<string | null>(existing ? (existing.shopId ?? "") : null);
-  const wantedShopId = pickedShopId ?? currentUser?.id ?? "";
-  // Quán không còn trong danh sách (vd vai trò đã bỏ cờ "là quán") thì coi như chưa chọn.
-  const shopId = shops.some((s) => s.id === wantedShopId) ? wantedShopId : "";
+  // Người lập là quán thì quán chi chính là họ, không chọn quán khác (server cũng chặn trong
+  // assertParties). Luật tính theo NGƯỜI LẬP phiếu, nên khi sửa hộ thì lấy người lập của phiếu.
+  // Có mặt trong danh sách quán = là quán — khỏi phải thêm trường vào /auth/me.
+  const creatorId = isEdit ? (existing?.createdBy?.id ?? "") : (currentUser?.id ?? "");
+  const creatorShop = shops.find((s) => s.id === creatorId) ?? null;
+  const [pickedShopId, setPickedShopId] = useState(existing?.shopId ?? "");
+  // Quán đã chọn không còn trong danh sách (vd vai trò vừa bỏ cờ "là quán") thì bắt chọn lại.
+  const shopId = creatorShop ? creatorShop.id : shops.some((s) => s.id === pickedShopId) ? pickedShopId : "";
 
-  // Người duyệt: ngược với quán — chỉ tài khoản KHÔNG phải quán. Chỉ người này (hoặc admin) duyệt được phiếu.
-  const { data: approvers = [] } = useUserOptions({ scope: "other" });
+  // Người duyệt: tài khoản KHÔNG phải quán và có quyền Duyệt — chọn người không có quyền thì phiếu kẹt.
+  const { data: approvers = [] } = useUserOptions({ scope: "other", permission: "EXPENSE_PROPOSALS.APPROVE" });
   const [pickedApproverId, setPickedApproverId] = useState(existing?.approverId ?? "");
   const approverId = approvers.some((a) => a.id === pickedApproverId) ? pickedApproverId : "";
 
@@ -124,14 +126,18 @@ export function ExpenseProposalForm({ existing }: { existing?: ExpenseProposal }
             options={PAYER_OPTIONS}
             searchable={false}
           />
-          <Select
-            label="Quán chi"
-            required
-            value={shopId}
-            onChange={setPickedShopId}
-            options={shops.map((s) => ({ value: s.id, label: s.name, sublabel: s.email }))}
-            placeholder="Chọn quán chi"
-          />
+          {creatorShop ? (
+            <Input label="Quán chi" value={creatorShop.name} editable={false} />
+          ) : (
+            <Select
+              label="Quán chi"
+              required
+              value={shopId}
+              onChange={setPickedShopId}
+              options={shops.map((s) => ({ value: s.id, label: s.name, sublabel: s.email }))}
+              placeholder="Chọn quán chi"
+            />
+          )}
           <Select
             label="Người duyệt"
             required

@@ -43,13 +43,15 @@ export type UserOptionScope = "shop" | "other" | "all";
 
 /**
  * Chỉ id, tên, email — cho ô chọn/lọc tài khoản ở các trang nghiệp vụ — mọi tài khoản đăng nhập đều
- * gọi được. Mặc định chỉ tài khoản thuộc vai trò "là quán" (Role.isShop).
+ * gọi được. Mặc định chỉ tài khoản thuộc vai trò "là quán" (Role.isShop). `permission` ("RESOURCE.ACTION")
+ * lọc thêm theo việc tài khoản làm được, vd ô chọn người duyệt phiếu đề xuất chi.
  */
-export function useUserOptions(options?: { enabled?: boolean; scope?: UserOptionScope }) {
+export function useUserOptions(options?: { enabled?: boolean; scope?: UserOptionScope; permission?: string }) {
   const scope = options?.scope ?? "shop";
+  const permission = options?.permission;
   return useQuery({
-    queryKey: ["users", "options", { scope }],
-    queryFn: () => api.get<{ items: UserOption[] }>("/users/options", { scope }).then((r) => r.items),
+    queryKey: ["users", "options", { scope, permission }],
+    queryFn: () => api.get<{ items: UserOption[] }>("/users/options", { scope, permission }).then((r) => r.items),
     enabled: options?.enabled ?? true,
   });
 }

@@ -27,14 +27,16 @@ export function ExpenseProposalFormClient({ existing }: { existing?: ExpenseProp
   const [payer, setPayer] = useState<ExpensePayer>(existing?.payer ?? "CREATOR");
   // Chỉ tài khoản thuộc vai trò "là quán" (mặc định của /users/options).
   const { data: shops = [] } = useUserOptions();
-  // null = chưa đụng tới ô chọn: phiếu mới thì chọn sẵn chính người lập nếu họ là quán. Phải tính lúc
-  // render vì danh sách quán và tài khoản đăng nhập tải về sau khi form đã khởi tạo state.
-  const [pickedShopId, setPickedShopId] = useState<string | null>(existing ? (existing.shopId ?? "") : null);
-  const wantedShopId = pickedShopId ?? currentUser?.id ?? "";
-  // Quán không còn trong danh sách (vd vai trò đã bỏ cờ "là quán") thì coi như chưa chọn, bắt chọn lại.
-  const shopId = shops.some((s) => s.id === wantedShopId) ? wantedShopId : "";
-  // Người duyệt: ngược lại với quán — chỉ tài khoản KHÔNG phải quán.
-  const { data: approvers = [] } = useUserOptions({ scope: "other" });
+  // Người lập là quán thì quán chi chính là họ, không chọn quán khác (server cũng chặn trong
+  // assertParties). Luật tính theo NGƯỜI LẬP phiếu, nên khi sửa hộ thì lấy người lập của phiếu.
+  // Có mặt trong danh sách quán = là quán — khỏi phải thêm trường vào /auth/me.
+  const creatorId = isEdit ? (existing?.createdBy?.id ?? "") : (currentUser?.id ?? "");
+  const creatorShop = shops.find((s) => s.id === creatorId) ?? null;
+  const [pickedShopId, setPickedShopId] = useState(existing?.shopId ?? "");
+  // Quán đã chọn không còn trong danh sách (vd vai trò vừa bỏ cờ "là quán") thì bắt chọn lại.
+  const shopId = creatorShop ? creatorShop.id : shops.some((s) => s.id === pickedShopId) ? pickedShopId : "";
+  // Người duyệt: tài khoản KHÔNG phải quán và có quyền Duyệt — chọn người không có quyền thì phiếu kẹt.
+  const { data: approvers = [] } = useUserOptions({ scope: "other", permission: "EXPENSE_PROPOSALS.APPROVE" });
   const [pickedApproverId, setPickedApproverId] = useState(existing?.approverId ?? "");
   const approverId = approvers.some((a) => a.id === pickedApproverId) ? pickedApproverId : "";
   const [purpose, setPurpose] = useState(existing?.purpose ?? "");
@@ -123,14 +125,18 @@ export function ExpenseProposalFormClient({ existing }: { existing?: ExpenseProp
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-slate-600">Quán chi</label>
-            <Select value={shopId} onChange={(e) => setPickedShopId(e.target.value)}>
-              <option value="">— Chọn quán —</option>
-              {shops.map((shop) => (
-                <option key={shop.id} value={shop.id}>
-                  {shop.name}
-                </option>
-              ))}
-            </Select>
+            {creatorShop ? (
+              <Input value={creatorShop.name} disabled className="bg-slate-50 text-slate-600" />
+            ) : (
+              <Select value={shopId} onChange={(e) => setPickedShopId(e.target.value)}>
+                <option value="">— Chọn quán —</option>
+                {shops.map((shop) => (
+                  <option key={shop.id} value={shop.id}>
+                    {shop.name}
+                  </option>
+                ))}
+              </Select>
+            )}
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-slate-600">Người duyệt</label>

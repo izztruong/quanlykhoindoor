@@ -83,13 +83,26 @@ export function toProposalData(data: ExpenseProposalInput) {
  * Quán chi phải là tài khoản thuộc vai trò "là quán", người duyệt phải là tài khoản KHÔNG phải quán —
  * ô chọn đã lọc sẵn, server kiểm lại.
  */
-export async function assertParties(data: { shopId: string; approverId: string }) {
-  const [shop, approver] = await Promise.all([
+export async function assertParties(data: { shopId: string; approverId: string }, creatorId: string | null | undefined) {
+  const [shop, approver, creator] = await Promise.all([
     prisma.user.findFirst({ where: { id: data.shopId, role: { isShop: true } }, select: { id: true } }),
-    prisma.user.findFirst({ where: { id: data.approverId, role: { isShop: false } }, select: { id: true } }),
+    // Người duyệt phải thật sự duyệt được: thiếu quyền thì phiếu kẹt, vì assertCanApprove chỉ cho
+    // ĐÚNG người duyệt của phiếu bấm Duyệt. Vai trò hệ thống bỏ qua mọi kiểm tra quyền.
+    prisma.user.findFirst({
+      where: {
+        id: data.approverId,
+        role: { isShop: false, OR: [{ isSystem: true }, { permissions: { has: "EXPENSE_PROPOSALS.APPROVE" } }] },
+      },
+      select: { id: true },
+    }),
+    creatorId ? prisma.user.findUnique({ where: { id: creatorId }, select: { id: true, role: { select: { isShop: true } } } }) : null,
   ]);
   if (!shop) throw new HttpError(400, "Quán chi không hợp lệ");
   if (!approver) throw new HttpError(400, "Người duyệt không hợp lệ");
+  // Quán chỉ lập phiếu cho chính mình; người không phải quán (admin, kế toán) lập hộ quán nào cũng được.
+  if (creator?.role.isShop && data.shopId !== creator.id) {
+    throw new HttpError(400, "Quán chỉ lập được phiếu chi cho chính mình");
+  }
 }
 
 /**

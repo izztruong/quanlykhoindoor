@@ -71,7 +71,7 @@ expenseProposalsRouter.get("/:id", requirePermission("EXPENSE_PROPOSALS"), async
 
 expenseProposalsRouter.post("/", requirePermission("EXPENSE_PROPOSALS"), async (req, res) => {
   const data = expenseProposalSchema.parse(req.body);
-  await assertParties(data);
+  await assertParties(data, req.user?.id);
   const { header, items } = toProposalData(data);
   const item = await prisma.expenseProposal.create({
     data: {
@@ -92,11 +92,14 @@ expenseProposalsRouter.post("/", requirePermission("EXPENSE_PROPOSALS"), async (
 expenseProposalsRouter.put("/:id", requirePermission("EXPENSE_PROPOSALS"), async (req, res) => {
   const id = req.params.id as string;
   const data = expenseProposalSchema.parse(req.body);
-  await assertParties(data);
-  const { header, items } = toProposalData(data);
 
   const existing = await findOwnedProposal(id, req.user);
   if (existing.status !== "PENDING") throw new HttpError(409, "Chỉ sửa được phiếu đang chờ duyệt");
+
+  // Luật quán chi tính theo NGƯỜI LẬP phiếu, không phải người đang sửa: admin sửa hộ phiếu của quán
+  // thì quán chi vẫn phải là quán đó.
+  await assertParties(data, existing.createdById);
+  const { header, items } = toProposalData(data);
 
   const item = await prisma.$transaction(
     async (tx) => {
