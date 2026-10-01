@@ -35,6 +35,7 @@ export const navSections: NavSection[] = [
     items: [
       { label: "Phiếu đề xuất chi", href: "/expense-proposals", permission: "EXPENSE_PROPOSALS.VIEW" },
       { label: "Chi chốt ca", href: "/shift-expenses", permission: "SHIFT_EXPENSES.VIEW" },
+      { label: "Chi ngoài", href: "/other-expenses", permission: "OTHER_EXPENSES.VIEW" },
     ],
   },
   {

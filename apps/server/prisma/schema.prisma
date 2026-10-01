@@ -50,6 +50,7 @@ model User {
   materialWastes            MaterialWaste[]
   shiftExpenses             ShiftExpense[]            @relation("ShiftExpenseCreatedBy")
   shiftExpensesPaid         ShiftExpense[]            @relation("ShiftExpensePaidBy")
+  otherExpenses             OtherExpense[]            @relation("OtherExpenseCreatedBy")
   costChecks                CostCheck[]               @relation("CostCheckShop")
   costChecksCreated         CostCheck[]               @relation("CostCheckCreatedBy")
   materialTransfersFrom     MaterialTransfer[]        @relation("MaterialTransferFrom")
@@ -697,6 +698,50 @@ model ShiftExpenseImage {
   createdAt      DateTime     @default(now())
 
   @@index([shiftExpenseId])
+}
+
+// Sổ "Chi ngoài": cùng hình dạng dòng sổ như ShiftExpense nhưng là sổ RIÊNG, không phải một loại
+// chi của nó — chi ngoài không gắn với ca nào, không có loại NVL/Khác và không có bước đánh dấu
+// "đã chi" nên không bao giờ bị khoá. Tách bảng thay vì thêm cột phân biệt: gộp lại thì mọi truy
+// vấn, mọi aggregate và cả quyền đều phải nhớ lọc thêm một cột, quên một chỗ là số liệu hai sổ
+// trộn vào nhau.
+model OtherExpense {
+  id          String   @id @default(cuid())
+  // Ngày chi do người lập khai. Kiểu DATE (không có phần giờ) nên không dính lệch múi giờ.
+  spentAt     DateTime @db.Date
+  content     String
+  unit        String?
+  quantity    Decimal  @db.Decimal(18, 3)
+  unitPrice   Decimal  @db.Decimal(18, 2)
+  // Thành tiền = SL × đơn giá, tính ở SERVER lúc ghi rồi lưu lại — cùng lý do như ShiftExpense.amount:
+  // ô "Tổng tiền" cộng trên toàn bộ bộ lọc chứ không chỉ 20 dòng đang hiển thị, có cột này thì
+  // dùng thẳng aggregate _sum.
+  amount      Decimal  @db.Decimal(18, 2)
+  note        String?
+  createdById String?
+  createdBy   User?    @relation("OtherExpenseCreatedBy", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  images OtherExpenseImage[]
+
+  @@index([createdById, spentAt])
+}
+
+// Ảnh chứng từ của một khoản chi ngoài. Chỉ lưu KHOÁ object trong R2, không lưu URL — URL phát ra
+// là URL ký có hạn nên lưu lại vô nghĩa. Xoá dòng này KHÔNG xoá file trên R2: chỗ nào xoá cũng
+// phải gọi deleteImages (utils/objectStorage).
+model OtherExpenseImage {
+  id             String       @id @default(cuid())
+  otherExpenseId String
+  otherExpense   OtherExpense @relation(fields: [otherExpenseId], references: [id], onDelete: Cascade)
+  objectKey      String       @unique
+  contentType    String
+  size           Int
+  sortOrder      Int          @default(0)
+  createdAt      DateTime     @default(now())
+
+  @@index([otherExpenseId])
 }
 
 enum CostCheckStatus {

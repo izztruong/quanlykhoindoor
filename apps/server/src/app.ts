@@ -25,6 +25,7 @@ import { productSupplierPricesRouter } from "./modules/productSupplierPrices/pro
 import { shiftDefinitionsRouter } from "./modules/shiftDefinitions/shiftDefinitions.routes";
 import { notificationsRouter } from "./modules/notifications/notifications.routes";
 import { profileRouter } from "./modules/profile/profile.routes";
+import { otherExpensesRouter } from "./modules/otherExpenses/otherExpenses.routes";
 import { reorderThresholdsRouter } from "./modules/reorderThresholds/reorderThresholds.routes";
 import { reportsRouter } from "./modules/reports/reports.routes";
 import { rolesRouter } from "./modules/roles/roles.routes";
@@ -87,6 +88,7 @@ app.use("/api/stock-checks", stockChecksRouter);
 app.use("/api/material-waste", materialWasteRouter);
 app.use("/api/shift-expenses", shiftExpensesRouter);
 app.use("/api/expense-proposals", expenseProposalsRouter);
+app.use("/api/other-expenses", otherExpensesRouter);
 app.use("/api/dashboard", dashboardRouter);
 
 app.use("/api/stock-imports", stockImportsRouter);

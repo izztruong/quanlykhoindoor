@@ -535,6 +535,38 @@ export interface ShiftExpenseImage {
   size: number;
 }
 
+/**
+ * Một dòng trong sổ "Chi ngoài" — cùng hình dạng dòng sổ như ShiftExpense nhưng là sổ riêng:
+ * không có loại chi và không có bước đánh dấu "đã chi" nên không bao giờ bị khoá.
+ * Chép từ web (apps/web/src/types/index.ts) — đổi payload bên đó thì phải sửa cả đây.
+ */
+export interface OtherExpense {
+  id: string;
+  /** Chỉ có ngày (cột DATE ở server), phần giờ trong chuỗi ISO không mang ý nghĩa. */
+  spentAt: string;
+  content: string;
+  unit?: string | null;
+  quantity: string | number;
+  unitPrice: string | number;
+  /** Thành tiền server tính và lưu, không phải client gửi lên. */
+  amount: string | number;
+  note?: string | null;
+  createdBy?: { id: string; name: string } | null;
+  /** Mốc hệ thống đóng dấu lúc tạo bản ghi = "ngày lập phiếu". Khác spentAt và là DateTime thật,
+   *  nên hiển thị phải qua formatDateTime — formatDateOnly đọc theo getUTC* sẽ lùi một ngày. */
+  createdAt: string;
+  /** Số ảnh chứng từ đã đính. Danh sách chỉ đếm; URL xem ảnh lấy riêng qua GET /:id/images. */
+  imageCount?: number;
+}
+
+/** Ảnh chứng từ của khoản chi ngoài, URL đã ký và sống 1 giờ kể từ lúc gọi API. */
+export interface OtherExpenseImage {
+  id: string;
+  url: string;
+  contentType: string;
+  size: number;
+}
+
 /** Ô "Huỷ hàng" ở trang chủ — tiền tính theo giá vốn hiện tại, không phải số chốt. */
 export interface DashboardWasteSummary {
   value: number;

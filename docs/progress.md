@@ -45,6 +45,15 @@ một lượt gọi API mỗi lần đổi kho).
 Cần thử trên trình duyệt: danh sách đơn + nhập/xuất kho (đổi bộ lọc phải về trang 1), Vai trò và Tài
 khoản (phân trang, xoá dòng cuối trang cuối), Hạn order & kiểm kê (sửa rồi lưu), sửa công thức BOM.
 
+### Trang "Chi ngoài" (server + web + mobile) — CHƯA thử trên trình duyệt/app, CHƯA lên `main`
+Sổ chi riêng trong nhóm Tài chính, module `otherExpenses`: ngày chi · nội dung · đơn vị · SL · đơn giá ·
+thành tiền · ghi chú · người tạo · tối đa 5 ảnh. Lọc khoảng ngày + người tạo + nội dung, ô tổng tiền
+theo bộ lọc, phân trang 20, nhập/xuất Excel (chỉ web). Không có loại chi, không có dấu "đã chi".
+Đã kiểm typecheck 3 app, lint web (vẫn đúng 14 lỗi **từ trước**), bundle Android, `migrate deploy` trên
+DB trắng, 50 ca script API (phạm vi SELF 404, thiếu quyền 403, totalAmount cả bộ lọc, vòng R2 thật xoá
+sạch file) và 33 ca Excel (gồm hồi quy Chi chốt ca sau khi tách parser sang `lib/excelParse.ts`).
+**Sau khi deploy phải tick quyền "Chi ngoài"** — không tick thì ngoài admin không ai thấy menu.
+
 ### Check Cost: cột "% chênh lệch thực" trừ đi 100% (web + mobile) — đã lên `main`, CHƯA thử trên trình duyệt/app
 Cột này trước hiện tỷ lệ (khớp định mức = 100%), giờ hiện mức chênh: khớp = `0,0%`, vượt = `+50,0%`,
 hụt = `-20,0%`; mẫu số 0 vẫn để `-`. Nhãn bên mobile đổi cho khớp web. Excel dùng `numFmt` ba vế nên

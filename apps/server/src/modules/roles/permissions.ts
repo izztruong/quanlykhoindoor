@@ -58,6 +58,8 @@ export const PERMISSION_RESOURCES = [
     group: "Tài chính",
     actions: ["VIEW", "ADD", "EDIT", "DELETE", "PAY"],
   },
+  // Sổ chi ngoài: chỉ ghi lại giao dịch, không có bước duyệt hay đánh dấu đã chi nên CRUD là đủ.
+  { resource: "OTHER_EXPENSES", label: "Chi ngoài", group: "Tài chính", actions: CRUD },
 
   // ADD = tạo đơn, sửa & huỷ đơn nháp của mình · RECEIVE = nhận hàng, xác nhận SL báo ·
   // APPROVE = xác nhận đơn (sinh phiếu xuất kho), huỷ đơn ở mọi trạng thái, sửa ngày nhận.
