@@ -9,7 +9,7 @@ import { ApiError } from "@/lib/api-client";
 import { WEEKDAYS, deadlineKindLabel, describeDeadline } from "@/lib/deadlines";
 import type { DeadlineKind } from "@/types";
 import { Save } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 
 const cellClass = "border border-slate-200 px-4 py-2 align-top";
 const headClass = "border border-slate-200 px-4 py-2 text-left font-medium text-slate-600";
@@ -27,32 +27,37 @@ export default function DeadlinesPage() {
   const { data: deadlines, isLoading } = useDeadlines();
   const saveDeadline = useSaveDeadline();
 
-  const [drafts, setDrafts] = useState<Record<DeadlineKind, DeadlineInput>>(FALLBACK);
+  // State chỉ giữ những ô người dùng đã sửa, không phải bản sao của dữ liệu server. Trước đây là
+  // một bản sao được effect ghi đè mỗi lần `deadlines` đổi — vừa render thừa một lượt, vừa thổi
+  // bay thứ đang gõ dở mỗi khi query tự tải lại, trái hẳn với ý định ghi trong chú thích cũ.
+  const [edits, setEdits] = useState<Partial<Record<DeadlineKind, DeadlineInput>>>({});
   const [savedKind, setSavedKind] = useState<DeadlineKind | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Đổ dữ liệu server vào form một lần khi tải xong, sau đó form tự giữ trạng thái đang gõ.
-  useEffect(() => {
-    if (!deadlines) return;
-    setDrafts((prev) => {
-      const next = { ...prev };
-      for (const rule of deadlines) {
-        next[rule.kind] = {
-          kind: rule.kind,
-          weekday: rule.weekday,
-          periodWeekday: rule.periodWeekday,
-          graceDays: rule.graceDays,
-          hour: rule.hour,
-          minute: rule.minute,
-        };
-      }
-      return next;
-    });
+  /** Giá trị server, điền FALLBACK cho loại server chưa có dòng nào. */
+  const serverDrafts = useMemo(() => {
+    const next = { ...FALLBACK };
+    for (const rule of deadlines ?? []) {
+      next[rule.kind] = {
+        kind: rule.kind,
+        weekday: rule.weekday,
+        periodWeekday: rule.periodWeekday,
+        graceDays: rule.graceDays,
+        hour: rule.hour,
+        minute: rule.minute,
+      };
+    }
+    return next;
   }, [deadlines]);
+
+  const drafts = useMemo(
+    () => ({ ...serverDrafts, ...edits }) as Record<DeadlineKind, DeadlineInput>,
+    [serverDrafts, edits],
+  );
 
   function update(kind: DeadlineKind, patch: Partial<DeadlineInput>) {
     setSavedKind(null);
-    setDrafts((prev) => ({ ...prev, [kind]: { ...prev[kind], ...patch } }));
+    setEdits((prev) => ({ ...prev, [kind]: { ...(prev[kind] ?? serverDrafts[kind]), ...patch } }));
   }
 
   function save(kind: DeadlineKind) {

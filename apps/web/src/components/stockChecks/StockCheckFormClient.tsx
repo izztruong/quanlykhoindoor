@@ -91,7 +91,6 @@ function matchesQuery(name: string, code: string, query: string): boolean {
 // re-renders — nesting these would make React remount the whole table (losing scroll position)
 // on every keystroke, since a new function component is created for each parent render.
 interface MaterialGroupTableProps {
-  groupKey: string;
   label: string;
   items: Product[];
   filter: string;
@@ -100,7 +99,7 @@ interface MaterialGroupTableProps {
   onUpdateEntry: (productId: string, patch: Partial<MaterialEntry>) => void;
 }
 
-function MaterialGroupTable({ groupKey, label, items, filter, onFilterChange, entryFor, onUpdateEntry }: MaterialGroupTableProps) {
+function MaterialGroupTable({ label, items, filter, onFilterChange, entryFor, onUpdateEntry }: MaterialGroupTableProps) {
   const filtered = items.filter((p) => matchesQuery(p.name, p.code, filter));
   return (
     <Card>
@@ -648,7 +647,6 @@ export function StockCheckFormClient({ existing }: StockCheckFormClientProps) {
       {PRODUCT_TYPE_GROUPS.map((group) => (
         <MaterialGroupTable
           key={group.key}
-          groupKey={group.key}
           label={group.label}
           items={productsByType.get(group.key) ?? []}
           filter={groupFilterFor(group.key)}

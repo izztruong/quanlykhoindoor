@@ -17,7 +17,7 @@ import type { SalesOrderListRow } from "@/types";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 const statusTone: Record<string, "gray" | "green" | "red" | "yellow" | "blue"> = {
   DRAFT: "gray",
@@ -39,7 +39,23 @@ export default function OrdersPage() {
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
-  useEffect(() => setPage(1), [status, createdById, dateRange.from, dateRange.to]);
+
+  // Đổi bộ lọc thì về trang 1 ngay trong handler, không qua effect. Làm trong effect thì React
+  // render một lượt với (bộ lọc mới, trang cũ) trước khi effect chạy — và lượt đó đã kịp gọi API
+  // bằng số trang không còn đúng.
+  function changeStatus(value: string) {
+    setStatus(value);
+    setPage(1);
+  }
+  function changeCreatedById(value: string) {
+    setCreatedById(value);
+    setPage(1);
+  }
+  function changeDateRange(value: { from: string; to: string }) {
+    setDateRange(value);
+    setPage(1);
+  }
+
   const { data, isLoading } = useSalesOrders({
     status,
     createdById: scopeAll ? createdById || undefined : undefined,
@@ -103,7 +119,7 @@ export default function OrdersPage() {
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-500">Trạng thái</label>
             <div className="w-48">
-              <Select value={status} onChange={(e) => setStatus(e.target.value)}>
+              <Select value={status} onChange={(e) => changeStatus(e.target.value)}>
                 <option value="">Tất cả trạng thái</option>
                 <option value="DRAFT">Chưa xác nhận</option>
                 <option value="PENDING_CONFIRM">Chờ xác nhận</option>
@@ -118,7 +134,7 @@ export default function OrdersPage() {
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-slate-500">Tài khoản</label>
               <div className="w-48">
-                <Select value={createdById} onChange={(e) => setCreatedById(e.target.value)}>
+                <Select value={createdById} onChange={(e) => changeCreatedById(e.target.value)}>
                   <option value="">Tất cả tài khoản</option>
                   {users.map((u) => (
                     <option key={u.id} value={u.id}>
@@ -129,7 +145,7 @@ export default function OrdersPage() {
               </div>
             </div>
           )}
-          <DateRangeFilter value={dateRange} onChange={setDateRange} label="Ngày đặt" />
+          <DateRangeFilter value={dateRange} onChange={changeDateRange} label="Ngày đặt" />
         </CardBody>
       </Card>
 

@@ -290,8 +290,8 @@ export function ProductExcelImport({ search }: ProductExcelImportProps) {
               Chọn file Excel theo đúng thứ tự cột trong file mẫu: Mã hàng hoá*, Tên hàng hoá*, Đơn vị tính*, Nhóm hàng hoá*,
               Loại hàng hoá, Giá vốn, Đơn vị công thức, Quy đổi, Khối lượng vỏ, Ghi chú (cột có dấu * là bắt buộc phải điền).
               Mã đã tồn tại sẽ được cập nhật đè; dòng có đơn vị tính, nhóm hàng hoá, loại hàng hoá hoặc đơn vị công thức chưa
-              khai báo/không nhận ra trong hệ thống sẽ bị bỏ qua và báo lỗi. Bỏ trống "Loại hàng hoá" sẽ mặc định là Nguyên vật
-              liệu.
+              khai báo/không nhận ra trong hệ thống sẽ bị bỏ qua và báo lỗi. Bỏ trống &quot;Loại hàng hoá&quot; sẽ mặc định là
+              Nguyên vật liệu.
             </p>
             <Button type="button" variant="secondary" size="sm" className="self-start" onClick={downloadTemplate}>
               <Download size={14} />

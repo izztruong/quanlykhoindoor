@@ -35,10 +35,11 @@ export default function NewCostCheckPage() {
 
   const [userId, setUserId] = useState("");
   const { data: stockChecksResult } = useStockChecks({ createdById: userId || undefined, pageSize: 500 });
-  const stockChecks = stockChecksResult?.items ?? [];
+  // `?? []` nằm TRONG useMemo: để ngoài thì mỗi lần render lại sinh một mảng rỗng mới, dependency
+  // đổi liên tục và useMemo không giữ được gì.
   const sortedStockChecks = useMemo(
-    () => [...stockChecks].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-    [stockChecks],
+    () => [...(stockChecksResult?.items ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    [stockChecksResult],
   );
 
   const [openingStockCheckId, setOpeningStockCheckId] = useState("");

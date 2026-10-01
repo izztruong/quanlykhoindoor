@@ -14,7 +14,7 @@ import type { UseQueryResult } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 const statusTone: Record<string, "gray" | "green" | "red" | "yellow" | "blue"> = {
   DRAFT: "gray",
@@ -42,7 +42,19 @@ export function StockTransactionList({ title, description, useList, newHref, typ
   const [dateRange, setDateRange] = useState({ from: "", to: "" });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
-  useEffect(() => setPage(1), [status, dateRange.from, dateRange.to]);
+
+  // Đổi bộ lọc thì về trang 1 ngay trong handler, không qua effect. Làm trong effect thì React
+  // render một lượt với (bộ lọc mới, trang cũ) trước khi effect chạy — và lượt đó đã kịp gọi API
+  // bằng số trang không còn đúng.
+  function changeStatus(value: string) {
+    setStatus(value);
+    setPage(1);
+  }
+  function changeDateRange(value: { from: string; to: string }) {
+    setDateRange(value);
+    setPage(1);
+  }
+
   const { data, isLoading } = useList({
     status: status || undefined,
     from: dateRange.from || undefined,
@@ -95,7 +107,7 @@ export function StockTransactionList({ title, description, useList, newHref, typ
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-500">Trạng thái</label>
             <div className="w-48">
-              <Select value={status} onChange={(e) => setStatus(e.target.value)}>
+              <Select value={status} onChange={(e) => changeStatus(e.target.value)}>
                 <option value="">Tất cả trạng thái</option>
                 <option value="DRAFT">Nháp</option>
                 <option value="COMPLETED">Hoàn thành</option>
@@ -103,7 +115,7 @@ export function StockTransactionList({ title, description, useList, newHref, typ
               </Select>
             </div>
           </div>
-          <DateRangeFilter value={dateRange} onChange={setDateRange} />
+          <DateRangeFilter value={dateRange} onChange={changeDateRange} />
         </CardBody>
       </Card>
 

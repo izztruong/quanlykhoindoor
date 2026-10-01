@@ -5,17 +5,16 @@ import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
-import { useProducts, useProductStock, useWarehouses } from "@/hooks/useCatalog";
+import { useProducts, useWarehouses } from "@/hooks/useCatalog";
 import { useCreateSalesOrder } from "@/hooks/useSalesOrders";
 import { ApiError } from "@/lib/api-client";
 import { useCurrentUser } from "@/lib/auth";
 import { type ExcelColumn, exportRowsToExcel, sanitizeExcelRow } from "@/lib/excelExport";
-import { formatNumber } from "@/lib/format";
 import { zodResolver } from "@hookform/resolvers/zod";
 import ExcelJS from "exceljs";
 import { ChevronDown, Download, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -59,10 +58,6 @@ export default function NewOrderPage() {
 
   const { fields, append, remove, replace } = useFieldArray({ control, name: "items" });
   const items = watch("items");
-  const warehouseId = watch("warehouseId");
-
-  const { data: stockLevels = [] } = useProductStock(warehouseId);
-  const stockByProductId = useMemo(() => new Map(stockLevels.map((s) => [s.productId, s.quantity])), [stockLevels]);
 
   const [excelMenuOpen, setExcelMenuOpen] = useState(false);
   const excelMenuRef = useRef<HTMLDivElement>(null);

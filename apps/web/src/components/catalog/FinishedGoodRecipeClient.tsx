@@ -9,7 +9,7 @@ import { ApiError } from "@/lib/api-client";
 import type { Product } from "@/types";
 import { Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 interface RecipeRow {
   productId: string;
@@ -25,19 +25,27 @@ export function FinishedGoodRecipeClient({ id }: { id: string }) {
 
   const finishedGoodItem = finishedGoodItems.find((f) => f.id === id);
 
-  const [rows, setRows] = useState<RecipeRow[]>([]);
-  const [initialized, setInitialized] = useState(false);
+  const serverRows = useMemo<RecipeRow[]>(
+    () =>
+      (recipeItems ?? []).map((it) => ({
+        productId: it.productId,
+        product: it.product,
+        quantityPerUnit: String(it.quantityPerUnit),
+      })),
+    [recipeItems],
+  );
+
+  // null = chưa ai động vào, hiển thị thẳng dữ liệu server. Trước đây là một bản sao được effect
+  // đổ vào kèm cờ `initialized` — bảng hiện rỗng một lượt render rồi mới có dòng.
+  const [edited, setEdited] = useState<RecipeRow[] | null>(null);
+  const rows = edited ?? serverRows;
   const [search, setSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (recipeItems && !initialized) {
-      setRows(
-        recipeItems.map((it) => ({ productId: it.productId, product: it.product, quantityPerUnit: String(it.quantityPerUnit) })),
-      );
-      setInitialized(true);
-    }
-  }, [recipeItems, initialized]);
+  /** Lần sửa đầu tiên tách bản nháp ra khỏi dữ liệu server; các lần sau sửa tiếp trên bản nháp. */
+  function patchRows(fn: (prev: RecipeRow[]) => RecipeRow[]) {
+    setEdited((prev) => fn(prev ?? serverRows));
+  }
 
   const rowIds = useMemo(() => new Set(rows.map((r) => r.productId)), [rows]);
   const suggestions = useMemo(() => {
@@ -47,16 +55,16 @@ export function FinishedGoodRecipeClient({ id }: { id: string }) {
   }, [search, products, rowIds]);
 
   function addRow(product: Product) {
-    setRows((prev) => (prev.some((r) => r.productId === product.id) ? prev : [...prev, { productId: product.id, product, quantityPerUnit: "" }]));
+    patchRows((prev) => (prev.some((r) => r.productId === product.id) ? prev : [...prev, { productId: product.id, product, quantityPerUnit: "" }]));
     setSearch("");
   }
 
   function updateRow(productId: string, quantityPerUnit: string) {
-    setRows((prev) => prev.map((r) => (r.productId === productId ? { ...r, quantityPerUnit } : r)));
+    patchRows((prev) => prev.map((r) => (r.productId === productId ? { ...r, quantityPerUnit } : r)));
   }
 
   function removeRow(productId: string) {
-    setRows((prev) => prev.filter((r) => r.productId !== productId));
+    patchRows((prev) => prev.filter((r) => r.productId !== productId));
   }
 
   function handleSubmit() {

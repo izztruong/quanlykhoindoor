@@ -1,6 +1,6 @@
 # Tiến độ dự án
 
-Cập nhật: 2026-09-30
+Cập nhật: 2026-10-01
 
 Ghi **đúng những gì git không tự trả lời được**. Lý do thiết kế đã nằm trong commit message, đừng
 chép lại vào đây. Mỗi mục "Đang dở" tối đa 3–4 dòng, và dòng quan trọng nhất luôn là: *đã kiểm thử
@@ -34,6 +34,16 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 ### Bỏ thẻ trạng thái push kỹ thuật ở màn Cài đặt thông báo (mobile) — CHƯA thử trên máy, đã lên `main`
 Bỏ thẻ "Thông báo đang bật trên máy này" (kèm nút Thử đăng ký lại), thẻ Expo Go và thẻ chưa cấu hình push; chỉ còn
 thẻ đỏ khi máy chặn thông báo. Lỗi push soi bằng log server. Đã kiểm typecheck + bundle Android; cần build mobile mới.
+
+### Dọn sạch lint web (14 → 3) — CHƯA thử trên trình duyệt, CHƯA lên `main`
+Hết **0 error**; còn đúng 3 warning `incompatible-library` (React Compiler bỏ qua file dùng TanStack
+Table / react-hook-form) — không sửa được từ phía mình, từ nay mốc đúng là **3**.
+Gỡ 5 `set-state-in-effect`: `setPage(1)` chuyển vào handler lọc (`orders/page`, `StockTransactionList`),
+`useClientPagination` kẹp trang lúc đọc, `deadlines` và `FinishedGoodRecipeClient` suy từ dữ liệu
+server thay vì chép vào state. Gỡ code chết `useProductStock`/`stockByProductId` ở `orders/new` (bớt
+một lượt gọi API mỗi lần đổi kho).
+Cần thử trên trình duyệt: danh sách đơn + nhập/xuất kho (đổi bộ lọc phải về trang 1), Vai trò và Tài
+khoản (phân trang, xoá dòng cuối trang cuối), Hạn order & kiểm kê (sửa rồi lưu), sửa công thức BOM.
 
 ### Check Cost: cột "% chênh lệch thực" trừ đi 100% (web + mobile) — đã lên `main`, CHƯA thử trên trình duyệt/app
 Cột này trước hiện tỷ lệ (khớp định mức = 100%), giờ hiện mức chênh: khớp = `0,0%`, vượt = `+50,0%`,
