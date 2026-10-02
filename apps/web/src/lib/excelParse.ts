@@ -63,6 +63,16 @@ export function parseNumber(value: ExcelJS.CellValue, text: string): number | nu
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+/** Bỏ dấu tiếng Việt và hạ về chữ thường để so chuỗi người dùng gõ tay trong Excel. */
+export function foldVietnamese(text: string) {
+  return text
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/đ/g, "d");
+}
+
 /** So khớp hàng tiêu đề với file mẫu (bỏ qua dấu *, khoảng trắng và hoa/thường). */
 export function headerMatches(actual: (string | null | undefined)[], template: string[]): boolean {
   const normalise = (value: unknown) => String(value ?? "").replace("*", "").trim().toLowerCase();

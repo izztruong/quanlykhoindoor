@@ -20,6 +20,7 @@ export const otherExpensesRouter = Router();
 // Danh sách chỉ đếm ảnh, KHÔNG ký URL: 20 dòng × 5 ảnh là 100 chữ ký mỗi lần tải danh sách trong
 // khi phần lớn người xem không mở ảnh nào. URL chỉ ký ở GET /:id/images.
 const listInclude = {
+  shop: { select: { id: true, name: true } },
   createdBy: { select: { id: true, name: true } },
   _count: { select: { images: true } },
 };
@@ -28,6 +29,7 @@ const listInclude = {
 function toRow(data: OtherExpenseInput, createdById?: string) {
   return {
     spentAt: data.spentAt,
+    shopId: data.shopId,
     content: data.content,
     unit: data.unit || null,
     quantity: data.quantity,
@@ -43,6 +45,30 @@ function toApiRow<T extends { _count: { images: number } }>({ _count, ...row }: 
   return { ...row, imageCount: _count.images };
 }
 
+/**
+ * Quán chi phải là tài khoản thuộc vai trò "là quán" — ô chọn đã lọc sẵn, server kiểm lại. Rút gọn
+ * từ expenseProposals.service.ts::assertParties, bỏ phần người duyệt vì sổ này không có bước duyệt.
+ *
+ * Nhận cả danh sách để nhập Excel kiểm một lượt thay vì mỗi dòng một truy vấn.
+ */
+async function assertShops(shopIds: string[], creatorId: string | null | undefined) {
+  const wanted = [...new Set(shopIds)];
+  const [shops, creator] = await Promise.all([
+    prisma.user.findMany({ where: { id: { in: wanted }, role: { isShop: true } }, select: { id: true } }),
+    creatorId
+      ? prisma.user.findUnique({ where: { id: creatorId }, select: { id: true, role: { select: { isShop: true } } } })
+      : null,
+  ]);
+
+  const valid = new Set(shops.map((shop) => shop.id));
+  if (valid.size !== wanted.length) throw new HttpError(400, "Quán chi không hợp lệ");
+
+  // Quán chỉ ghi cho chính mình; người không phải quán (admin, kế toán) ghi hộ quán nào cũng được.
+  if (creator?.role.isShop && wanted.some((id) => id !== creator.id)) {
+    throw new HttpError(400, "Quán chỉ ghi được khoản chi cho chính mình");
+  }
+}
+
 /** Nạp khoản chi và chặn ngoài phạm vi. Dùng chung cho ba route ảnh bên dưới. */
 async function findOwnedExpense(id: string, user: Parameters<typeof assertOwner>[1]) {
   const expense = await prisma.otherExpense.findUnique({ where: { id } });
@@ -53,13 +79,16 @@ async function findOwnedExpense(id: string, user: Parameters<typeof assertOwner>
 
 otherExpensesRouter.get("/", requirePermission("OTHER_EXPENSES"), async (req, res) => {
   const { from, to } = parseDateRange(req);
-  const { search, createdById } = req.query as Record<string, string>;
+  const { search, createdById, shopId } = req.query as Record<string, string>;
   const { skip, take, page, pageSize } = parsePagination(req, 20);
 
   const where: Prisma.OtherExpenseWhereInput = {
     spentAt: from || to ? { gte: from, lte: to } : undefined,
     content: search ? { contains: search, mode: "insensitive" } : undefined,
-    // Phạm vi SELF chỉ thấy khoản chi của mình; ALL thấy hết, lọc theo người tạo qua ?createdById=.
+    // Lọc theo quán chi (khoản chi THUỘC VỀ quán nào) — khác hẳn phạm vi dữ liệu bên dưới.
+    shopId: shopId || undefined,
+    // Phạm vi SELF chỉ thấy khoản chi MÌNH TẠO; ALL thấy hết. Cố ý vẫn theo createdById chứ không
+    // theo shopId, giống expenseProposals: đổi sang shopId là đổi luật ai thấy gì ở cả hai sổ.
     createdById: ownerWhere(req.user, createdById),
   };
 
@@ -81,6 +110,7 @@ otherExpensesRouter.get("/", requirePermission("OTHER_EXPENSES"), async (req, re
 
 otherExpensesRouter.post("/", requirePermission("OTHER_EXPENSES"), async (req, res) => {
   const data = otherExpenseCreateSchema.parse(req.body);
+  await assertShops([data.shopId], req.user?.id);
   const item = await prisma.otherExpense.create({
     data: toRow(data, req.user?.id),
     include: listInclude,
@@ -93,6 +123,11 @@ otherExpensesRouter.post("/", requirePermission("OTHER_EXPENSES"), async (req, r
 // Ghi một lần bằng createMany để cả file vào hết hoặc không dòng nào vào.
 otherExpensesRouter.post("/bulk-import", requirePermission("OTHER_EXPENSES"), async (req, res) => {
   const { items } = otherExpenseBulkImportSchema.parse(req.body);
+  // Kiểm một lượt cho cả file: sai một dòng là cả file bị từ chối, đúng như giao diện đã hứa.
+  await assertShops(
+    items.map((item) => item.shopId),
+    req.user?.id,
+  );
   const result = await prisma.otherExpense.createMany({
     data: items.map((item) => toRow(item, req.user?.id)),
   });
@@ -104,6 +139,9 @@ otherExpensesRouter.put("/:id", requirePermission("OTHER_EXPENSES"), async (req,
   const data = otherExpenseCreateSchema.parse(req.body);
 
   await findOwnedExpense(id, req.user);
+  // Quán chi SỬA ĐƯỢC (khác createdById bên dưới): gõ nhầm quán là chuyện thường và sổ này không
+  // có dấu nào khoá bản ghi lại.
+  await assertShops([data.shopId], req.user?.id);
 
   // createdById giữ nguyên chủ cũ: sửa hộ thì khoản chi vẫn thuộc về người đã ghi.
   const { createdById: _ignored, ...row } = toRow(data);

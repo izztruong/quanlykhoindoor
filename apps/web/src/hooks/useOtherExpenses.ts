@@ -5,6 +5,8 @@ import type { OtherExpense, OtherExpenseImage, PagedResult } from "@/types";
 export interface OtherExpenseInput {
   /** "YYYY-MM-DD" — cột DATE ở server, không gửi kèm giờ. */
   spentAt: string;
+  /** Id tài khoản quán. Bắt buộc ở mọi đường ghi, server kiểm lại đúng là vai trò "là quán". */
+  shopId: string;
   content: string;
   unit?: string;
   quantity: number;
@@ -19,7 +21,8 @@ export interface OtherExpenseFilter {
   from?: string;
   to?: string;
   search?: string;
-  createdById?: string;
+  /** Lọc theo quán chi. Khác phạm vi dữ liệu — phạm vi vẫn do server ép theo người tạo. */
+  shopId?: string;
   page?: number;
   pageSize?: number;
 }

@@ -1,4 +1,4 @@
-import { headerMatches } from "./excelParse";
+import { foldVietnamese, headerMatches } from "./excelParse";
 
 // Phần đọc ngày/số dùng chung với các sổ khác nằm ở lib/excelParse.ts. Re-export lại ở đây để
 // ShiftExpenseExcelActions không phải biết tới hai file.
@@ -12,16 +12,6 @@ export const TEMPLATE_HEADER = ["Ngày*", "Loại chi*", "Nội dung chi*", "Đ�
 
 /** Chỉ số cột (1-based), gom một chỗ để mẫu/xuất/nhập không bao giờ lệch nhau. */
 export const COL = { spentAt: 1, type: 2, content: 3, unit: 4, quantity: 5, unitPrice: 6, note: 7 } as const;
-
-/** Bỏ dấu tiếng Việt và hạ về chữ thường để so chuỗi người dùng gõ tay trong Excel. */
-function foldVietnamese(text: string) {
-  return text
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/đ/g, "d");
-}
 
 const MATERIAL_WORDS = ["nvl", "nguyen vat lieu", "nguyen lieu", "material"];
 const OTHER_WORDS = ["khac", "chi khac", "other"];

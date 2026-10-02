@@ -11,7 +11,8 @@ import {
 import { ApiError, api } from "@/lib/api-client";
 import { exportRowsToExcel, sanitizeExcelRow } from "@/lib/excelExport";
 import { formatDateOnly, formatDateTime } from "@/lib/format";
-import { COL, TEMPLATE_HEADER, headerMatchesTemplate, parseNumber, parseSpentAt } from "@/lib/otherExpenseExcel";
+import { COL, TEMPLATE_HEADER, headerMatchesTemplate, matchShopByName, parseNumber, parseSpentAt } from "@/lib/otherExpenseExcel";
+import { useUserOptions } from "@/hooks/useUsers";
 import type { OtherExpense } from "@/types";
 import ExcelJS from "exceljs";
 import { ChevronDown, Download } from "lucide-react";
@@ -30,6 +31,9 @@ interface ImportResult {
 
 export function OtherExpenseExcelActions({ filter, scopeAll }: OtherExpenseExcelActionsProps) {
   const importExpenses = useImportOtherExpenses();
+  // Danh sách tài khoản quán để khớp cột "Quán chi" của file. `useUserOptions()` mặc định scope
+  // "shop" nên đây đúng là tập quán, không lẫn admin.
+  const { data: shops = [] } = useUserOptions();
 
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -53,7 +57,9 @@ export function OtherExpenseExcelActions({ filter, scopeAll }: OtherExpenseExcel
     const sheet = workbook.addWorksheet("Chi ngoài");
     sheet.columns = TEMPLATE_HEADER.map((header) => ({ header, width: 24 }));
     sheet.getRow(1).font = { bold: true };
-    sheet.addRow(sanitizeExcelRow(["01/09/2026", "Sửa máy xay", "lần", 1, 250000, ""]));
+    // Dòng ví dụ điền tên một quán có thật để người dùng biết cột "Quán chi" cần gõ gì.
+    const sampleShop = shops[0]?.name ?? "Tên quán";
+    sheet.addRow(sanitizeExcelRow(["01/09/2026", sampleShop, "Sửa máy xay", "lần", 1, 250000, ""]));
 
     const buffer = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
@@ -74,12 +80,13 @@ export function OtherExpenseExcelActions({ filter, scopeAll }: OtherExpenseExcel
       // Xuất theo bộ lọc đang áp, không phải 20 dòng của trang đang xem.
       const data = await api.get<OtherExpenseListResult>("/other-expenses", { ...filter, page: 1, pageSize: 500 });
 
-      // 6 cột đầu trùng file mẫu để xuất ra rồi nhập ngược lại được; cột thêm phía sau bị phần
+      // 7 cột đầu trùng file mẫu để xuất ra rồi nhập ngược lại được; cột thêm phía sau bị phần
       // nhập bỏ qua vì nó chỉ đọc theo COL.
       await exportRowsToExcel<OtherExpense>(
         "Chi ngoài",
         [
           { header: "Ngày", value: (row) => formatDateOnly(row.spentAt), width: 14 },
+          { header: "Quán chi", value: (row) => row.shop?.name ?? "", width: 20 },
           { header: "Nội dung chi", value: (row) => row.content, width: 34 },
           { header: "Đơn vị tính", value: (row) => row.unit ?? "", width: 14 },
           { header: "Số lượng", value: (row) => Number(row.quantity), width: 12 },
@@ -88,7 +95,7 @@ export function OtherExpenseExcelActions({ filter, scopeAll }: OtherExpenseExcel
           { header: "Thành tiền", value: (row) => Number(row.amount), width: 16 },
           ...(scopeAll ? [{ header: "Người tạo", value: (row: OtherExpense) => row.createdBy?.name ?? "", width: 20 }] : []),
           // Cột chỉ để đọc. Cột 1 vẫn phải là "Ngày" đúng như file mẫu dù giao diện đã đổi nhãn
-          // thành "Ngày chi": headerMatchesTemplate so đúng 6 tiêu đề đầu, đổi ở đây là chính file
+          // thành "Ngày chi": headerMatchesTemplate so đúng 7 tiêu đề đầu, đổi ở đây là chính file
           // vừa xuất cũng không nhập ngược lại được.
           { header: "Ngày lập phiếu", value: (row: OtherExpense) => formatDateTime(row.createdAt), width: 18 },
         ],
@@ -139,24 +146,41 @@ export function OtherExpenseExcelActions({ filter, scopeAll }: OtherExpenseExcel
 
         const content = text(COL.content);
         const dateText = text(COL.spentAt);
+        const shopText = text(COL.shop);
         const quantityText = text(COL.quantity);
         const unitPriceText = text(COL.unitPrice);
 
         // Dòng trống hoàn toàn thì bỏ qua, không tính là lỗi.
-        if (!content && !dateText && !quantityText && !unitPriceText) return;
+        if (!content && !dateText && !shopText && !quantityText && !unitPriceText) return;
 
         const spentAt = parseSpentAt(raw(COL.spentAt), dateText);
+        const shop = matchShopByName(shopText, shops);
         const quantity = parseNumber(raw(COL.quantity), quantityText);
         const unitPrice = parseNumber(raw(COL.unitPrice), unitPriceText);
 
         if (!spentAt) errors.push(`Dòng ${rowNumber}: ngày không hợp lệ ("${dateText}")`);
+        // Ô trống KHÔNG tự suy ra người đang nhập file: nhập hộ nhiều quán mà sót một dòng thì
+        // dòng đó phải được chỉ ra, không được âm thầm tính sang quán khác.
+        if (shop === "empty") errors.push(`Dòng ${rowNumber}: chưa khai quán chi`);
+        if (shop === "not-found") errors.push(`Dòng ${rowNumber}: không có quán nào tên "${shopText}"`);
+        if (shop === "ambiguous") errors.push(`Dòng ${rowNumber}: có nhiều quán cùng tên "${shopText}", sửa tên cho khác nhau`);
         if (!content) errors.push(`Dòng ${rowNumber}: thiếu nội dung chi`);
         if (quantity === null || quantity <= 0) errors.push(`Dòng ${rowNumber}: số lượng không hợp lệ ("${quantityText}")`);
         if (unitPrice === null || unitPrice < 0) errors.push(`Dòng ${rowNumber}: đơn giá không hợp lệ ("${unitPriceText}")`);
-        if (!spentAt || !content || quantity === null || quantity <= 0 || unitPrice === null || unitPrice < 0) return;
+        if (
+          !spentAt ||
+          typeof shop === "string" ||
+          !content ||
+          quantity === null ||
+          quantity <= 0 ||
+          unitPrice === null ||
+          unitPrice < 0
+        )
+          return;
 
         items.push({
           spentAt,
+          shopId: shop.id,
           content,
           unit: text(COL.unit) || undefined,
           quantity,

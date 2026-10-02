@@ -3,6 +3,9 @@
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
+import { Select } from "@/components/ui/Select";
+import { useUserOptions } from "@/hooks/useUsers";
+import { useCurrentUser } from "@/lib/auth";
 import {
   useCreateOtherExpense,
   useDeleteOtherExpenseImage,
@@ -36,7 +39,17 @@ function todayForDateInput() {
 
 export function OtherExpenseFormModal({ existing, onClose }: OtherExpenseFormModalProps) {
   const isEdit = Boolean(existing);
+
+  // `useUserOptions()` mặc định scope "shop", tức server đã lọc sẵn role.isShop — danh sách này
+  // đúng bằng tập tài khoản quán, không lẫn admin hay kế toán.
+  const { data: shops = [] } = useUserOptions();
+  const { data: currentUser } = useCurrentUser();
+  // Mình có phải quán không: suy từ chính danh sách trên thay vì thêm cờ isShop vào /auth/me.
+  // Danh sách đó là tập tài khoản quán nên phép kiểm này chính xác.
+  const myShop = shops.find((shop) => shop.id === currentUser?.id);
+
   const [spentAt, setSpentAt] = useState(existing ? toDateInput(existing.spentAt) : todayForDateInput());
+  const [shopId, setShopId] = useState(existing?.shop?.id ?? "");
   const [content, setContent] = useState(existing?.content ?? "");
   const [unit, setUnit] = useState(existing?.unit ?? "");
   const [quantity, setQuantity] = useState(existing ? String(Number(existing.quantity)) : "");
@@ -113,6 +126,10 @@ export function OtherExpenseFormModal({ existing, onClose }: OtherExpenseFormMod
   // Chỉ để người nhập nhìn cho yên tâm — số chốt vẫn do server tính lại khi lưu.
   const previewAmount = Number(quantity) * Number(unitPrice);
 
+  // Quán chỉ ghi được cho chính mình (server cũng chặn) nên chốt sẵn thay vì bắt họ tự chọn. Tính
+  // dẫn xuất chứ không setState trong effect — xem useClientPagination để biết vì sao.
+  const effectiveShopId = myShop ? myShop.id : shopId;
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -123,6 +140,10 @@ export function OtherExpenseFormModal({ existing, onClose }: OtherExpenseFormMod
     }
     if (!spentAt) {
       setError("Chưa chọn ngày chi");
+      return;
+    }
+    if (!effectiveShopId) {
+      setError("Vui lòng chọn quán chi");
       return;
     }
     if (!(Number(quantity) > 0)) {
@@ -136,6 +157,7 @@ export function OtherExpenseFormModal({ existing, onClose }: OtherExpenseFormMod
 
     const payload: OtherExpenseInput = {
       spentAt,
+      shopId: effectiveShopId,
       content: content.trim(),
       unit: unit.trim() || undefined,
       quantity: Number(quantity),
@@ -179,9 +201,21 @@ export function OtherExpenseFormModal({ existing, onClose }: OtherExpenseFormMod
             <Input type="date" value={spentAt} onChange={(e) => setSpentAt(e.target.value)} />
           </div>
           <div className="flex-1">
-            <label className="mb-1 block text-xs font-medium text-slate-500">Nội dung chi *</label>
-            <Input value={content} onChange={(e) => setContent(e.target.value)} placeholder="VD: Sửa máy xay, Grab giao hàng" />
+            <label className="mb-1 block text-xs font-medium text-slate-500">Quán chi *</label>
+            <Select value={effectiveShopId} onChange={(e) => setShopId(e.target.value)} disabled={Boolean(myShop)}>
+              <option value="">-- Chọn quán --</option>
+              {shops.map((shop) => (
+                <option key={shop.id} value={shop.id}>
+                  {shop.name}
+                </option>
+              ))}
+            </Select>
+            {myShop && <p className="mt-1 text-xs text-slate-400">Bạn chỉ ghi được khoản chi cho quán của mình.</p>}
           </div>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-slate-500">Nội dung chi *</label>
+          <Input value={content} onChange={(e) => setContent(e.target.value)} placeholder="VD: Sửa máy xay, Grab giao hàng" />
         </div>
         <div className="flex gap-3">
           <div className="w-32">

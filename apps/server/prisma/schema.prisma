@@ -51,6 +51,7 @@ model User {
   shiftExpenses             ShiftExpense[]            @relation("ShiftExpenseCreatedBy")
   shiftExpensesPaid         ShiftExpense[]            @relation("ShiftExpensePaidBy")
   otherExpenses             OtherExpense[]            @relation("OtherExpenseCreatedBy")
+  otherExpensesShop         OtherExpense[]            @relation("OtherExpenseShop")
   costChecks                CostCheck[]               @relation("CostCheckShop")
   costChecksCreated         CostCheck[]               @relation("CostCheckCreatedBy")
   materialTransfersFrom     MaterialTransfer[]        @relation("MaterialTransferFrom")
@@ -709,6 +710,12 @@ model OtherExpense {
   id          String   @id @default(cuid())
   // Ngày chi do người lập khai. Kiểu DATE (không có phần giờ) nên không dính lệch múi giờ.
   spentAt     DateTime @db.Date
+  // Quán chi: tài khoản thuộc vai trò "là quán" (server kiểm lúc ghi, xem assertShop ở routes).
+  // Khác createdById — đó là AI GÕ VÀO, còn đây là khoản chi THUỘC VỀ quán nào; kế toán nhập hộ
+  // thì hai cột khác nhau. Nullable ở tầng DB cho dòng ghi trước khi có trường này; mọi đường ghi
+  // mới đều bắt buộc có.
+  shopId      String?
+  shop        User?    @relation("OtherExpenseShop", fields: [shopId], references: [id])
   content     String
   unit        String?
   quantity    Decimal  @db.Decimal(18, 3)
@@ -726,6 +733,7 @@ model OtherExpense {
   images OtherExpenseImage[]
 
   @@index([createdById, spentAt])
+  @@index([shopId, spentAt])
 }
 
 // Ảnh chứng từ của một khoản chi ngoài. Chỉ lưu KHOÁ object trong R2, không lưu URL — URL phát ra

@@ -23,17 +23,19 @@ import { useMemo, useState } from "react";
 
 export default function OtherExpensesPage() {
   const { data: currentUser } = useCurrentUser();
-  // Phạm vi SELF chỉ thấy khoản chi của chính mình (router tự ép theo req.user), nên ô lọc theo
-  // người tạo vô nghĩa với họ.
+  // Phạm vi SELF chỉ thấy khoản chi của chính mình (router tự ép theo req.user), nên cột "Người
+  // tạo" vô nghĩa với họ. Ô lọc "Quán chi" thì vẫn hiện cho mọi người: kế toán ghi hộ nhiều quán
+  // nên ngay trong phạm vi của mình cũng cần tách ra xem.
   const scopeAll = hasScopeAll(currentUser);
   const canAdd = can(currentUser, "OTHER_EXPENSES", "ADD");
   const canEdit = can(currentUser, "OTHER_EXPENSES", "EDIT");
   const canDelete = can(currentUser, "OTHER_EXPENSES", "DELETE");
-  const { data: users = [] } = useUserOptions({ enabled: scopeAll });
+  // Mặc định scope "shop" — danh sách chỉ gồm tài khoản quán.
+  const { data: shops = [] } = useUserOptions();
 
   // Mọi ô lọc đều chờ bấm "Lọc" mới có hiệu lực — hai ô cạnh nhau mà một ô áp ngay, một ô chờ nút
   // thì không đoán được.
-  const emptyFilter = { from: "", to: "", search: "", createdById: "" };
+  const emptyFilter = { from: "", to: "", search: "", shopId: "" };
   const [filter, setFilter] = useState(emptyFilter);
   const [appliedFilter, setAppliedFilter] = useState(emptyFilter);
   const [page, setPage] = useState(1);
@@ -46,9 +48,9 @@ export default function OtherExpensesPage() {
     from: appliedFilter.from || undefined,
     to: appliedFilter.to || undefined,
     search: appliedFilter.search || undefined,
-    createdById: appliedFilter.createdById || undefined,
+    shopId: appliedFilter.shopId || undefined,
   };
-  const { data, isLoading } = useOtherExpenses({ ...queryFilter, page, pageSize });
+  const { data, isLoading, error: listError } = useOtherExpenses({ ...queryFilter, page, pageSize });
   const deleteExpense = useDeleteOtherExpense();
 
   function handleDelete(expense: OtherExpense) {
@@ -62,6 +64,8 @@ export default function OtherExpensesPage() {
   const columns = useMemo<ColumnDef<OtherExpense>[]>(() => {
     const base: ColumnDef<OtherExpense>[] = [
       { header: "Ngày chi", accessorFn: (row) => formatDateOnly(row.spentAt), id: "spentAt" },
+      // Dòng ghi trước khi có trường này mang shop = null, hiện "-".
+      { header: "Quán chi", accessorFn: (row) => row.shop?.name ?? "-", id: "shop" },
       {
         header: "Ngày lập phiếu",
         id: "createdAt",
@@ -190,19 +194,17 @@ export default function OtherExpensesPage() {
               placeholder="Tìm theo nội dung"
             />
           </div>
-          {scopeAll && (
-            <div className="w-48">
-              <label className="mb-1 block text-xs font-medium text-slate-500">Người tạo</label>
-              <Select value={filter.createdById} onChange={(e) => setFilter((f) => ({ ...f, createdById: e.target.value }))}>
-                <option value="">Tất cả tài khoản</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name}
-                  </option>
-                ))}
-              </Select>
-            </div>
-          )}
+          <div className="w-48">
+            <label className="mb-1 block text-xs font-medium text-slate-500">Quán chi</label>
+            <Select value={filter.shopId} onChange={(e) => setFilter((f) => ({ ...f, shopId: e.target.value }))}>
+              <option value="">Tất cả quán</option>
+              {shops.map((shop) => (
+                <option key={shop.id} value={shop.id}>
+                  {shop.name}
+                </option>
+              ))}
+            </Select>
+          </div>
           <Button
             variant="secondary"
             onClick={() => {
@@ -215,6 +217,13 @@ export default function OtherExpensesPage() {
         </CardBody>
       </Card>
 
+      {/* Lỗi tải danh sách phải nói ra: data undefined thì bảng hiện "Chưa có khoản chi nào" và
+          tổng 0đ, trông y hệt lúc chưa có dữ liệu — DB hỏng mà người dùng tưởng sổ trống. */}
+      {listError && (
+        <p className="text-sm text-red-600">
+          Không tải được danh sách: {listError instanceof ApiError ? listError.message : "lỗi kết nối"}
+        </p>
+      )}
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <Card>

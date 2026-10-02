@@ -46,13 +46,17 @@ Cần thử trên trình duyệt: danh sách đơn + nhập/xuất kho (đổi b
 khoản (phân trang, xoá dòng cuối trang cuối), Hạn order & kiểm kê (sửa rồi lưu), sửa công thức BOM.
 
 ### Trang "Chi ngoài" (server + web + mobile) — CHƯA thử trên trình duyệt/app, CHƯA lên `main`
-Sổ chi riêng trong nhóm Tài chính, module `otherExpenses`: ngày chi · nội dung · đơn vị · SL · đơn giá ·
-thành tiền · ghi chú · người tạo · tối đa 5 ảnh. Lọc khoảng ngày + người tạo + nội dung, ô tổng tiền
-theo bộ lọc, phân trang 20, nhập/xuất Excel (chỉ web). Không có loại chi, không có dấu "đã chi".
-Đã kiểm typecheck 3 app, lint web (vẫn đúng 14 lỗi **từ trước**), bundle Android, `migrate deploy` trên
-DB trắng, 50 ca script API (phạm vi SELF 404, thiếu quyền 403, totalAmount cả bộ lọc, vòng R2 thật xoá
-sạch file) và 33 ca Excel (gồm hồi quy Chi chốt ca sau khi tách parser sang `lib/excelParse.ts`).
+Sổ chi riêng trong nhóm Tài chính, module `otherExpenses`: ngày chi · **quán chi** · nội dung · đơn vị ·
+SL · đơn giá · thành tiền · ghi chú · người tạo · tối đa 5 ảnh. Lọc khoảng ngày + quán chi + nội dung,
+ô tổng tiền theo bộ lọc, phân trang 20, nhập/xuất Excel (chỉ web). Không có loại chi, không có dấu "đã chi".
+Quán chi bắt buộc ở mọi đường ghi (`assertShops`), tài khoản quán chỉ ghi được cho chính mình; **phạm vi
+dữ liệu vẫn theo người tạo** như `expenseProposals`, nên kế toán ghi hộ thì quán không thấy dòng đó.
+Trang giờ hiện lỗi tải danh sách thay vì im lặng hiện bảng rỗng (làm cả cho Chi chốt ca) — trước đó DB
+thiếu bảng mà trang trông như sổ trống.
+Đã kiểm typecheck 3 app, lint web, bundle Android, build web, `migrate deploy` trên DB trắng + 2 bản copy,
+86 ca script API và 64 ca Excel (gồm hồi quy Chi chốt ca sau khi tách parser sang `lib/excelParse.ts`).
 **Sau khi deploy phải tick quyền "Chi ngoài"** — không tick thì ngoài admin không ai thấy menu.
+Còn 1 dòng cũ ở `kho_db` có `shopId = NULL` (dòng thử tay), hiển thị `—`.
 
 ### Check Cost: cột "% chênh lệch thực" trừ đi 100% (web + mobile) — đã lên `main`, CHƯA thử trên trình duyệt/app
 Cột này trước hiện tỷ lệ (khớp định mức = 100%), giờ hiện mức chênh: khớp = `0,0%`, vượt = `+50,0%`,

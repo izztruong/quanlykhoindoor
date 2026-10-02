@@ -5,6 +5,9 @@ import { Button } from "@/components/ui/Button";
 import { DateTimeField } from "@/components/ui/DateTimeField";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
+import { Select } from "@/components/ui/Select";
+import { useUserOptions } from "@/hooks/useUsers";
+import { useCurrentUser } from "@/lib/auth";
 import {
   useCreateOtherExpense,
   useDeleteOtherExpenseImage,
@@ -40,7 +43,15 @@ export function OtherExpenseFormModal({ visible, onClose, existing }: OtherExpen
   const deleteImage = useDeleteOtherExpenseImage(existing?.id ?? "");
   const images = useOtherExpenseImages(existing?.id ?? "");
 
+  // `useUserOptions()` mặc định scope "shop", tức server đã lọc sẵn role.isShop — danh sách này
+  // đúng bằng tập tài khoản quán, không lẫn admin hay kế toán.
+  const { data: shops = [] } = useUserOptions();
+  const { data: currentUser } = useCurrentUser();
+  // Mình có phải quán không: suy từ chính danh sách trên thay vì thêm cờ isShop vào /auth/me.
+  const myShop = shops.find((shop) => shop.id === currentUser?.id);
+
   const [spentAt, setSpentAt] = useState(() => (existing ? new Date(existing.spentAt) : new Date()));
+  const [shopId, setShopId] = useState(existing?.shop?.id ?? "");
   const [content, setContent] = useState(existing?.content ?? "");
   const [unit, setUnit] = useState(existing?.unit ?? "");
   const [quantity, setQuantity] = useState(existing ? String(Number(existing.quantity)) : "1");
@@ -54,6 +65,9 @@ export function OtherExpenseFormModal({ visible, onClose, existing }: OtherExpen
   const remaining = MAX_IMAGES - uploadedCount - pending.length;
 
   const amount = Number(quantity || 0) * Number(unitPrice || 0);
+
+  // Quán chỉ ghi được cho chính mình (server cũng chặn) nên chốt sẵn thay vì bắt họ tự chọn.
+  const effectiveShopId = myShop ? myShop.id : shopId;
 
   async function addPhotos(source: "camera" | "library") {
     if (remaining <= 0) {
@@ -69,6 +83,7 @@ export function OtherExpenseFormModal({ visible, onClose, existing }: OtherExpen
   }
 
   function validate(): string | null {
+    if (!effectiveShopId) return "Chọn quán chi";
     if (!content.trim()) return "Nhập nội dung chi";
     if (!(Number(quantity) > 0)) return "Số lượng phải lớn hơn 0";
     if (Number(unitPrice) < 0 || unitPrice === "") return "Nhập đơn giá";
@@ -85,6 +100,7 @@ export function OtherExpenseFormModal({ visible, onClose, existing }: OtherExpen
 
     const payload = {
       spentAt: toDateOnly(spentAt),
+      shopId: effectiveShopId,
       content: content.trim(),
       unit: unit.trim() || undefined,
       quantity: Number(quantity),
@@ -118,6 +134,14 @@ export function OtherExpenseFormModal({ visible, onClose, existing }: OtherExpen
     >
       <ScrollView contentContainerStyle={styles.form} keyboardShouldPersistTaps="handled">
         <DateTimeField label="Ngày chi" required dateOnly value={spentAt} onChange={setSpentAt} />
+        <Select
+          label="Quán chi"
+          required
+          value={effectiveShopId}
+          onChange={setShopId}
+          disabled={Boolean(myShop)}
+          options={shops.map((shop) => ({ value: shop.id, label: shop.name, sublabel: shop.email }))}
+        />
         <Input label="Nội dung chi" required value={content} onChangeText={setContent} />
         <Input label="Đơn vị" value={unit} onChangeText={setUnit} placeholder="Kg, Thùng, Lần..." />
         <View style={styles.pair}>

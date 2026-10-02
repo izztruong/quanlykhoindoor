@@ -3,6 +3,10 @@ import { z } from "zod";
 export const otherExpenseCreateSchema = z.object({
   // Chỉ có ngày, không có giờ — cột trong DB là DATE (xem chú thích ở model OtherExpense).
   spentAt: z.coerce.date(),
+  // Bắt buộc ở MỌI đường ghi, kể cả nhập Excel: cột trong DB nullable chỉ để chứa dòng ghi trước
+  // khi có trường này. Có hợp lệ hay không thì assertShop ở routes mới quyết (phải là tài khoản
+  // thuộc vai trò "là quán"), đây chỉ chặn bỏ trống.
+  shopId: z.string({ message: "Vui lòng chọn quán chi" }).trim().min(1, "Vui lòng chọn quán chi"),
   content: z.string().trim().min(1, "Nội dung chi không được để trống"),
   unit: z.string().trim().optional(),
   quantity: z.coerce.number().positive("Số lượng phải lớn hơn 0"),

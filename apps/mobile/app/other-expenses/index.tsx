@@ -24,8 +24,8 @@ import { colors, fontSize, radius, spacing } from "@/lib/theme";
 import type { OtherExpense } from "@/types";
 
 export default function OtherExpensesScreen() {
-  const { can, scopeAll } = useCan();
-  const filter = useFilterSheet(() => ({ range: currentMonthRange(), createdById: "" }));
+  const { can } = useCan();
+  const filter = useFilterSheet(() => ({ range: currentMonthRange(), shopId: "" }));
   const { applied, draft } = filter;
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<OtherExpense | "new" | null>(null);
@@ -34,14 +34,15 @@ export default function OtherExpensesScreen() {
   // Ô tìm kiếm nối thẳng vào queryKey, nên không hoãn lại thì mỗi ký tự là một lượt gọi API.
   const debouncedSearch = useDebouncedValue(search);
 
-  const { data: users = [] } = useUserOptions({ enabled: scopeAll });
+  // Mặc định scope "shop" — danh sách chỉ gồm tài khoản quán.
+  const { data: shops = [] } = useUserOptions();
   const remove = useDeleteOtherExpense();
 
   const params = {
     from: applied.range.from,
     to: applied.range.to,
     search: debouncedSearch || undefined,
-    createdById: applied.createdById || undefined,
+    shopId: applied.shopId || undefined,
   };
 
   // Không dùng useInfiniteList được: endpoint này trả thêm totalAmount (tổng của CẢ bộ lọc,
@@ -67,8 +68,8 @@ export default function OtherExpensesScreen() {
   }
 
   const summary = [formatRangeLabel(applied.range)];
-  const creatorName = users.find((u) => u.id === applied.createdById)?.name;
-  if (creatorName) summary.push(creatorName);
+  const shopName = shops.find((s) => s.id === applied.shopId)?.name;
+  if (shopName) summary.push(shopName);
 
   const header = (
     <View style={styles.header}>
@@ -128,6 +129,7 @@ export default function OtherExpensesScreen() {
                 },
                 { label: "Đơn giá", value: formatCurrency(item.unitPrice) },
                 { label: "Thành tiền", value: formatCurrency(item.amount) },
+                { label: "Quán chi", value: item.shop?.name ?? "—" },
                 { label: "Người tạo", value: item.createdBy?.name ?? "—" },
                 ...(item.note ? [{ label: "Ghi chú", value: item.note }] : []),
               ]}
@@ -149,15 +151,15 @@ export default function OtherExpensesScreen() {
 
       <FilterSheet visible={filter.open} onClose={filter.close} onApply={filter.apply} onClear={filter.clear}>
         <DateRangeFilter value={draft.range} onChange={(range) => filter.patchDraft({ range })} label="Ngày chi" />
-        {scopeAll ? (
-          <Select
-            label="Người tạo"
-            value={draft.createdById}
-            onChange={(createdById) => filter.patchDraft({ createdById })}
-            emptyLabel="Tất cả tài khoản"
-            options={users.map((u) => ({ value: u.id, label: u.name, sublabel: u.email }))}
-          />
-        ) : null}
+        {/* Hiện cho mọi người, không chỉ scopeAll: kế toán ghi hộ nhiều quán nên ngay trong phạm
+            vi của mình cũng cần tách ra xem. */}
+        <Select
+          label="Quán chi"
+          value={draft.shopId}
+          onChange={(shopId) => filter.patchDraft({ shopId })}
+          emptyLabel="Tất cả quán"
+          options={shops.map((shop) => ({ value: shop.id, label: shop.name, sublabel: shop.email }))}
+        />
       </FilterSheet>
 
       {editing ? (

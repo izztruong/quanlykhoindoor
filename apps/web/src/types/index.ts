@@ -586,6 +586,8 @@ export interface OtherExpense {
   id: string;
   /** Chỉ có ngày (cột DATE ở server), phần giờ trong chuỗi ISO không mang ý nghĩa. */
   spentAt: string;
+  /** Quán mà khoản chi thuộc về — khác createdBy (người gõ vào). null ở dòng ghi trước khi có trường này. */
+  shop?: { id: string; name: string } | null;
   content: string;
   unit?: string | null;
   quantity: string | number;

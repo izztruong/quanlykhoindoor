@@ -59,7 +59,7 @@ export default function ShiftExpensesPage() {
     createdById: appliedFilter.createdById || undefined,
     paid: appliedFilter.paid || undefined,
   };
-  const { data, isLoading } = useShiftExpenses({ ...queryFilter, page, pageSize });
+  const { data, isLoading, error: listError } = useShiftExpenses({ ...queryFilter, page, pageSize });
   const deleteExpense = useDeleteShiftExpense();
 
   function handleDelete(expense: ShiftExpense) {
@@ -259,6 +259,13 @@ export default function ShiftExpensesPage() {
         </CardBody>
       </Card>
 
+      {/* Lỗi tải danh sách phải nói ra: data undefined thì bảng hiện "Chưa có khoản chi nào" và
+          tổng 0đ, trông y hệt lúc chưa có dữ liệu — DB hỏng mà người dùng tưởng sổ trống. */}
+      {listError && (
+        <p className="text-sm text-red-600">
+          Không tải được danh sách: {listError instanceof ApiError ? listError.message : "lỗi kết nối"}
+        </p>
+      )}
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <Card>
