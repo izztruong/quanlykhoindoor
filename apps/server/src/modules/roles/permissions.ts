@@ -84,6 +84,9 @@ export const PERMISSION_RESOURCES = [
 
   { resource: "USERS", label: "Tài khoản người dùng", group: "Quản trị", actions: CRUD },
   { resource: "ROLES", label: "Vai trò & phân quyền", group: "Quản trị", actions: CRUD },
+  // Token cho Claude trên web đọc dữ liệu qua /mcp. Quản lý token còn đòi DATA.SCOPE_ALL (xem
+  // mcpTokens.routes) vì token đọc được mọi quán.
+  { resource: "MCP_TOKENS", label: "Token MCP (Claude đọc dữ liệu)", group: "Quản trị", actions: CRUD },
   { resource: "REORDER_THRESHOLDS", label: "Định lượng Order nhanh", group: "Quản trị", actions: ["VIEW", "EDIT"] },
   { resource: "SUPPLIER_PRICES", label: "Giá theo Nhà cung cấp", group: "Quản trị", actions: ["VIEW", "EDIT"] },
   { resource: "PURCHASE_SUMMARY", label: "Tổng hợp đặt NCC", group: "Quản trị", actions: ["VIEW"] },

@@ -85,6 +85,7 @@ export const navSections: NavSection[] = [
     items: [
       { label: "Tài khoản người dùng", href: "/admin/users", permission: "USERS.VIEW" },
       { label: "Vai trò & phân quyền", href: "/admin/roles", permission: "ROLES.VIEW" },
+      { label: "Token MCP", href: "/admin/mcp-tokens", permission: "MCP_TOKENS.VIEW" },
       { label: "Định lượng Order nhanh", href: "/admin/reorder-thresholds", permission: "REORDER_THRESHOLDS.VIEW" },
       { label: "Giá theo Nhà cung cấp", href: "/admin/product-supplier-prices", permission: "SUPPLIER_PRICES.VIEW" },
       { label: "Tổng hợp đặt NCC", href: "/admin/purchase-summary", permission: "PURCHASE_SUMMARY.VIEW" },

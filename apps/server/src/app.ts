@@ -16,6 +16,8 @@ import { googleAuthRouter } from "./modules/googleAuth/googleAuth.routes";
 import { inventoryCountsRouter } from "./modules/inventoryCounts/inventoryCounts.routes";
 import { materialTransfersRouter } from "./modules/materialTransfers/materialTransfers.routes";
 import { materialWasteRouter } from "./modules/materialWaste/materialWaste.routes";
+import { mcpRouter } from "./modules/mcp/mcp.routes";
+import { mcpTokensRouter } from "./modules/mcpTokens/mcpTokens.routes";
 import { productGroupsRouter } from "./modules/productGroups/productGroups.routes";
 import { productStockRouter } from "./modules/products/productStock.routes";
 import { productsRouter } from "./modules/products/products.routes";
@@ -62,6 +64,10 @@ app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
 app.use("/api/auth/google", googleAuthRouter);
 app.use("/api/auth", authRouter);
 
+// MCP connector cho Claude trên web: NGOÀI /api nên không qua requireAuth — xác thực bằng McpToken
+// (header Bearer), mỗi token chỉ gọi được các tool được cấp. Xem modules/mcp/mcp.routes.ts.
+app.use("/mcp", mcpRouter);
+
 // Everything below requires an authenticated session.
 app.use("/api", requireAuth);
 
@@ -101,6 +107,7 @@ app.use("/api/inventory-counts", inventoryCountsRouter);
 app.use("/api/reports", reportsRouter);
 app.use("/api/users", usersRouter);
 app.use("/api/roles", rolesRouter);
+app.use("/api/mcp-tokens", mcpTokensRouter);
 // Tự sửa tài khoản của chính mình — chỉ cần đăng nhập.
 app.use("/api/profile", profileRouter);
 // Thông báo của chính mình — chỉ cần đăng nhập, mọi truy vấn lọc cứng theo req.user.id.

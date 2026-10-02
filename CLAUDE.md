@@ -188,6 +188,11 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
   thì đặt đơn thử cũng bắn thông báo sang máy đó.
 - Người nhận thông báo "đơn cần duyệt" phải có **cả** `ORDERS.APPROVE` lẫn `DATA.SCOPE_ALL`: thiếu
   phạm vi thì `assertOwner` trả 404 và thông báo bấm vào không mở được đơn.
+- **Tool MCP (`modules/mcp/tools/`) đọc thẳng bảng của nhiều module** — `SalesOrderItem`,
+  `StockExportItem`, `ShiftExpense`, `ExpenseProposalSpentItem`, `OtherExpense`, `MaterialTransferItem`,
+  `CostCheck.reportSnapshot`. Đổi schema mấy bảng đó thì phải sửa tool tương ứng; claude.ai không báo
+  lỗi gì, chỉ nhận số sai. Dòng đơn hàng không lưu giá: tool ghép giá từ phiếu xuất, giá 0 thì lùi về
+  `Product.costPrice` (`orderLinePrice`) — dữ liệu thật gần như toàn dòng giá 0.
 - **Mọi thứ "giờ nào thuộc ca nào" nằm đúng một file**: `modules/posSales/shiftSlicing.ts`. Viết lại
   phép này ở chỗ khác là để hai bản lệch nhau về ca qua nửa đêm.
 - **Cả hai đường nhập doanh số đều ghi đè theo đúng một độ mịn: ô `(quán, ngày, giờ, món)`** — đó cũng là
@@ -202,6 +207,11 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
 - **Phân quyền theo vai trò** (`Role.permissions` là mảng mã `RESOURCE.ACTION`, danh sách hợp lệ ở `modules/roles/permissions.ts`). `requireAuth` áp cho toàn bộ `/api`, đọc quyền **tươi từ DB mỗi request** — JWT chỉ mang `id` + `tokenVersion`, nên gỡ quyền có hiệu lực ngay. Vai trò `isSystem` (`role_admin`) bỏ qua mọi kiểm tra và không sửa/xoá được.
 - **Thêm trang/nghiệp vụ mới = 3 bước**: khai resource trong `permissions.ts` · gắn `requirePermission("RESOURCE")` cho **mọi** route kể cả GET (action suy từ method, route nghiệp vụ truyền tường minh) · gắn `permission` cho mục trong `nav-config.ts` (layout dùng nó chặn trang). Quên bước 2 là hở API.
 - **Ngoại lệ có chủ đích**: GET danh mục tra cứu (`publicRead` trong `crudFactory`, `product-stock`, `deadlines`, `users/options`) chỉ cần đăng nhập, vì form của quán phải đọc chúng. Bảng giá NCC dùng `requireAnyPermission` cho các form cần giá. `/api/profile` và `/api/notifications` cũng chỉ cần đăng nhập vì mọi truy vấn lọc cứng theo `req.user.id`.
+- **`/mcp` nằm ngoài `/api`, không qua `requireAuth`**: connector của claude.ai xác thực bằng `McpToken`
+  (header Bearer, DB chỉ giữ SHA-256), mỗi token chỉ gọi được tool có tên trong `McpToken.tools`. Token
+  đứng ngoài hệ vai trò và đọc được **mọi quán**, nên quản lý token đòi thêm phạm vi ALL. Thêm tool =
+  một file trong `modules/mcp/tools/` + một dòng ở `tools/index.ts`; trang Token MCP tự hiện ô tick, nhưng
+  token cũ phải tick thêm. Không đổi tên tool đã phát hành (token lưu theo tên). Tool chỉ được đọc.
 - **App mobile mang phiên bằng `Authorization: Bearer`** (không đọc được cookie httpOnly). `requireAuth` nhận cả hai, cookie được ưu tiên; login trả thêm `token` trong body.
 - **Không cấp được quyền mình không có**: sửa vai trò chỉ được thêm/bớt mã chính mình nắm (`sanitizePermissions`), gán vai trò chỉ được vai trò hẹp hơn mình. Không sửa được vai trò đang giữ.
 - **Phạm vi dữ liệu theo quán ép ở server**: mã `DATA.SCOPE_ALL` quyết định thấy mọi quán hay chỉ bản ghi mình tạo — dùng `ownerWhere` (danh sách) + `assertOwner` (chi tiết/sửa/xoá, ngoài phạm vi trả **404**). Mã phạm vi **không** dùng trong `requirePermission`. Check Cost và phiếu điều chuyển **cố ý không** áp phạm vi (người dùng đã quyết định). Ẩn ô lọc trên giao diện chỉ là hiển thị, **không phải lớp bảo vệ**.

@@ -33,4 +33,8 @@ export const env = {
   // Tắt gửi push lên Expo (vẫn lưu thông báo trong app). Local nên để false: điện thoại cài bản thật
   // vẫn giữ token cũ trong DB local nên sẽ nhận nhầm thông báo của dữ liệu thử.
   pushEnabled: process.env.PUSH_ENABLED !== "false",
+  // Địa chỉ công khai của API, để trang Token MCP hiện đúng URL connector cho admin chép sang
+  // claude.ai. Render tự đặt RENDER_EXTERNAL_URL cho mọi web service; local thì lùi về localhost
+  // (claude.ai không gọi được localhost — chỉ để nhìn).
+  publicUrl: process.env.RENDER_EXTERNAL_URL ?? `http://localhost:${Number(process.env.PORT) || 4000}`,
 };

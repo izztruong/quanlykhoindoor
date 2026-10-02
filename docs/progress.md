@@ -31,6 +31,11 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
+### MCP connector cho Claude trên web + trang Token MCP — CHƯA thử trên trình duyệt/claude.ai, CHƯA lên `main`
+`/mcp` chỉ đọc, 9 tool (đơn hàng, 3 sổ chi, Check Cost, điều chuyển); mỗi token chỉ gọi được tool được tick. Đã kiểm
+typecheck, lint web (3 warning), `migrate deploy` DB trắng, curl trên bản copy: số khớp SQL/API web, biên ngày giờ VN, 401/403/405.
+Cần: bấm thử trang Token MCP; lên staging rồi thêm connector trong claude.ai. **Sau deploy phải tick "Token MCP" + "Xem dữ liệu mọi quán".**
+
 ### Bỏ thẻ trạng thái push kỹ thuật ở màn Cài đặt thông báo (mobile) — CHƯA thử trên máy, đã lên `main`
 Bỏ thẻ "Thông báo đang bật trên máy này" (kèm nút Thử đăng ký lại), thẻ Expo Go và thẻ chưa cấu hình push; chỉ còn
 thẻ đỏ khi máy chặn thông báo. Lỗi push soi bằng log server. Đã kiểm typecheck + bundle Android; cần build mobile mới.

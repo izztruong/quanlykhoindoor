@@ -68,6 +68,7 @@ model User {
   pushTokens                PushToken[]
   notificationPreferences   NotificationPreference[]
   posSaleHours              PosSaleHour[]
+  mcpTokens                 McpToken[]                @relation("McpTokenCreatedBy")
 }
 
 enum DeadlineKind {
@@ -1128,4 +1129,28 @@ model PosItemMapping {
   createdAt DateTime @default(now())
 
   @@index([finishedGoodItemId])
+}
+
+/**
+ * Token cho MCP connector (Claude trên web đọc dữ liệu qua /mcp). Mỗi token chỉ dùng được đúng
+ * những tool có tên trong `tools` — tên khớp `MCP_TOOLS` (src/modules/mcp/tools/index.ts). Token
+ * KHÔNG tự có tool mới thêm vào code: phải tick thêm trên trang Token MCP.
+ *
+ * Chỉ lưu SHA-256 của token, bản rõ hiện đúng một lần lúc tạo. Không cần bcrypt: token là 32 byte
+ * ngẫu nhiên chứ không phải mật khẩu người đặt, nên không dò được bằng từ điển — và băm nhanh thì
+ * tra được thẳng bằng @unique ở mỗi request.
+ *
+ * Token đứng NGOÀI hệ vai trò: nắm token là đọc được mọi quán trong các tool được cấp.
+ */
+model McpToken {
+  id          String    @id @default(cuid())
+  name        String
+  tokenHash   String    @unique
+  // Vài ký tự đầu của bản rõ, để nhận ra token nào là token nào trong danh sách.
+  tokenPrefix String
+  tools       String[]  @default([])
+  createdById String?
+  createdBy   User?     @relation("McpTokenCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime  @default(now())
+  lastUsedAt  DateTime?
 }

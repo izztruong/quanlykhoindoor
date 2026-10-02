@@ -31,6 +31,35 @@ export interface Role {
   _count: { users: number };
 }
 
+/** Một tool MCP — danh mục do server khai (apps/server/src/modules/mcp/tools/index.ts). */
+export interface McpToolInfo {
+  name: string;
+  title: string;
+  description: string;
+}
+
+export interface McpToolCatalog {
+  /** URL dán vào custom connector của claude.ai. */
+  endpoint: string;
+  items: McpToolInfo[];
+}
+
+export interface McpToken {
+  id: string;
+  name: string;
+  /** Vài ký tự đầu của token để nhận diện — bản rõ chỉ có lúc vừa tạo. */
+  tokenPrefix: string;
+  tools: string[];
+  createdAt: string;
+  lastUsedAt: string | null;
+  createdBy: { name: string } | null;
+}
+
+/** Response lúc tạo token: kèm bản rõ, hiện đúng một lần. */
+export interface CreatedMcpToken extends McpToken {
+  token: string;
+}
+
 export interface Warehouse {
   id: string;
   code: string;
