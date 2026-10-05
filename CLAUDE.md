@@ -189,7 +189,7 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
 - Người nhận thông báo "đơn cần duyệt" phải có **cả** `ORDERS.APPROVE` lẫn `DATA.SCOPE_ALL`: thiếu
   phạm vi thì `assertOwner` trả 404 và thông báo bấm vào không mở được đơn.
 - **Tool MCP (`modules/mcp/tools/`) đọc thẳng bảng của nhiều module** — `SalesOrderItem`,
-  `StockExportItem`, `ShiftExpense`, `ExpenseProposalSpentItem`, `OtherExpense`, `MaterialTransferItem`,
+  `StockExportItem`, `ShiftExpense`, `ExpenseProposalSpentItem`, `OtherExpense`, `MaterialTransferItem`, `StockCheck`,
   `CostCheck.reportSnapshot`. Đổi schema mấy bảng đó thì phải sửa tool tương ứng; claude.ai không báo
   lỗi gì, chỉ nhận số sai. Dòng đơn hàng không lưu giá: tool ghép giá từ phiếu xuất, giá 0 thì lùi về
   `Product.costPrice` (`orderLinePrice`) — dữ liệu thật gần như toàn dòng giá 0.

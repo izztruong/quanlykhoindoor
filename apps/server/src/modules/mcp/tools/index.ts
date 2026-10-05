@@ -7,6 +7,7 @@ import { listShops } from "./listShops";
 import { orderLines } from "./orderLines";
 import { otherExpenses } from "./otherExpenses";
 import { shiftExpenses } from "./shiftExpenses";
+import { weeklyStockCheckLateness } from "./weeklyStockCheckLateness";
 
 /**
  * Sổ đăng ký tool MCP — nguồn sự thật duy nhất. Thêm tool = tạo file trong thư mục này + thêm một
@@ -26,6 +27,7 @@ export const MCP_TOOLS: McpTool[] = [
   listCostChecks,
   getCostCheck,
   listMaterialTransfers,
+  weeklyStockCheckLateness,
 ];
 
 export const MCP_TOOL_NAMES = MCP_TOOLS.map((tool) => tool.name);
