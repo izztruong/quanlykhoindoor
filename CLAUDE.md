@@ -189,10 +189,11 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
 - Người nhận thông báo "đơn cần duyệt" phải có **cả** `ORDERS.APPROVE` lẫn `DATA.SCOPE_ALL`: thiếu
   phạm vi thì `assertOwner` trả 404 và thông báo bấm vào không mở được đơn.
 - **Tool MCP (`modules/mcp/tools/`) đọc thẳng bảng của nhiều module** — `SalesOrderItem`,
-  `StockExportItem`, `ShiftExpense`, `ExpenseProposalSpentItem`, `OtherExpense`, `MaterialTransferItem`, `StockCheck`,
+  `StockExportItem`, `ShiftExpense`, `ExpenseProposalSpentItem`, `OtherExpense`, `MaterialTransferItem`, `StockCheck` (+ `Item`/`FinishedItem`),
   `CostCheck.reportSnapshot`. Đổi schema mấy bảng đó thì phải sửa tool tương ứng; claude.ai không báo
   lỗi gì, chỉ nhận số sai. Dòng đơn hàng không lưu giá: tool ghép giá từ phiếu xuất, giá 0 thì lùi về
-  `Product.costPrice` (`orderLinePrice`) — dữ liệu thật gần như toàn dòng giá 0.
+  `Product.costPrice` (`orderLinePrice`) — dữ liệu thật gần như toàn dòng giá 0. Thành tiền phiếu kiểm
+  không lưu: `tools/stockChecks.ts` tính lại y như `lineAmount` của `StockCheckDetailClient` — đổi một bên phải đổi bên kia.
 - **Mọi thứ "giờ nào thuộc ca nào" nằm đúng một file**: `modules/posSales/shiftSlicing.ts`. Viết lại
   phép này ở chỗ khác là để hai bản lệch nhau về ca qua nửa đêm.
 - **Cả hai đường nhập doanh số đều ghi đè theo đúng một độ mịn: ô `(quán, ngày, giờ, món)`** — đó cũng là

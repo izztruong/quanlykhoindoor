@@ -31,16 +31,16 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
-### MCP connector cho Claude trên web + trang Token MCP — CHƯA thử trên trình duyệt/claude.ai, CHƯA lên `main`
-`/mcp` chỉ đọc, 10 tool (đơn hàng, 3 sổ chi, Check Cost, điều chuyển, nộp muộn phiếu kiểm tuần); mỗi token chỉ gọi được tool được tick. Đã kiểm
+### MCP connector cho Claude trên web + trang Token MCP — đã lên `main`; connector staging đã nối được trên claude.ai, CHƯA thử kỹ
+`/mcp` chỉ đọc, 12 tool (đơn hàng, 3 sổ chi, Check Cost, điều chuyển, phiếu kiểm kê, nộp muộn phiếu kiểm tuần); mỗi token chỉ gọi được tool được tick. Đã kiểm
 typecheck, lint web (3 warning), `migrate deploy` DB trắng, curl trên bản copy: số khớp SQL/API web, biên ngày giờ VN, 401/403/405.
-Cần: bấm thử trang Token MCP; lên staging rồi thêm connector trong claude.ai. **Sau deploy phải tick "Token MCP" + "Xem dữ liệu mọi quán".**
+Cần: thử trang Token MCP; tạo token + connector riêng cho production. **Phải tick "Token MCP" + "Xem dữ liệu mọi quán" trên production.**
 
 ### Bỏ thẻ trạng thái push kỹ thuật ở màn Cài đặt thông báo (mobile) — CHƯA thử trên máy, đã lên `main`
 Bỏ thẻ "Thông báo đang bật trên máy này" (kèm nút Thử đăng ký lại), thẻ Expo Go và thẻ chưa cấu hình push; chỉ còn
 thẻ đỏ khi máy chặn thông báo. Lỗi push soi bằng log server. Đã kiểm typecheck + bundle Android; cần build mobile mới.
 
-### Dọn sạch lint web (14 → 3) — CHƯA thử trên trình duyệt, CHƯA lên `main`
+### Dọn sạch lint web (14 → 3) — CHƯA thử trên trình duyệt, đã lên `main`
 Hết **0 error**; còn đúng 3 warning `incompatible-library` (React Compiler bỏ qua file dùng TanStack
 Table / react-hook-form) — không sửa được từ phía mình, từ nay mốc đúng là **3**.
 Gỡ 5 `set-state-in-effect`: `setPage(1)` chuyển vào handler lọc (`orders/page`, `StockTransactionList`),
@@ -50,7 +50,7 @@ một lượt gọi API mỗi lần đổi kho).
 Cần thử trên trình duyệt: danh sách đơn + nhập/xuất kho (đổi bộ lọc phải về trang 1), Vai trò và Tài
 khoản (phân trang, xoá dòng cuối trang cuối), Hạn order & kiểm kê (sửa rồi lưu), sửa công thức BOM.
 
-### Trang "Chi ngoài" (server + web + mobile) — CHƯA thử trên trình duyệt/app, CHƯA lên `main`
+### Trang "Chi ngoài" (server + web + mobile) — CHƯA thử trên trình duyệt/app, đã lên `main`
 Sổ chi riêng trong nhóm Tài chính, module `otherExpenses`: ngày chi · **quán chi** · nội dung · đơn vị ·
 SL · đơn giá · thành tiền · ghi chú · người tạo · tối đa 5 ảnh. Lọc khoảng ngày + quán chi + nội dung,
 ô tổng tiền theo bộ lọc, phân trang 20, nhập/xuất Excel (chỉ web). Không có loại chi, không có dấu "đã chi".
@@ -89,7 +89,7 @@ Quyền mới `SHIFT_EXPENSES.PAY` bật/tắt dấu "đã chi"; đã đánh d�
 
 ### Chuẩn bị nộp App Store (iOS) — 1.0.2 đã gửi lên App Store Connect, CHƯA nộp duyệt
 Ẩn nút Google trên iOS (Guideline 4.8), `ITSAppUsesNonExemptEncryption: false`, phát hành dạng Unlisted; Render đã lên gói trả phí.
-Tắt hỗ trợ iPad (`supportsTablet: false`, không có iPad để chụp ảnh) — chỉ trên `dev`; bản build đã gửi còn bật iPad, phải build + submit lại và chọn build mới.
+Tắt hỗ trợ iPad (`supportsTablet: false`, không có iPad để chụp ảnh) — đã lên `main`; bản build đã gửi còn bật iPad, phải build + submit lại và chọn build mới.
 Cần: ảnh iPhone 1284×2778, tài khoản demo có dữ liệu, nộp form Unlisted, thử bản TestFlight trên iPhone.
 
 ### Ảnh chứng từ theo dòng hàng đơn hàng (server + web + mobile) — đã lên `main`, người dùng thử APK preview ổn
@@ -165,7 +165,7 @@ Migration chuyển lần ứng cũ sang bảng mới, tách quyền PAY → Tạ
 `migrate deploy` trên DB trắng và DB có phiếu cũ, 46 ca curl; staging + APK preview người dùng đã thử ổn.
 App production đang cài gọi `/spend` (đã bỏ) và `/advance` không kèm số tiền — hỏng luồng đề xuất chi tới khi có build production mới.
 Đã bỏ Loại phiếu (MKT/Vận hành/CSVC), dữ liệu cũ bị xoá; production chưa dùng đề xuất chi nên đẩy `main` không sao lưu DB.
-Mới (chỉ trên `dev`, người dùng đã thử giao diện ổn): quán lập phiếu thì quán chi khoá cứng là chính họ, ô người duyệt chỉ hiện người có quyền Duyệt. Đã kiểm typecheck ba app, bundle Android, 17 ca curl.
+Mới (đã lên `main`, người dùng đã thử giao diện ổn trên `dev`): quán lập phiếu thì quán chi khoá cứng là chính họ, ô người duyệt chỉ hiện người có quyền Duyệt. Đã kiểm typecheck ba app, bundle Android, 17 ca curl.
 
 ### Cờ "Là quán" trên vai trò — CHƯA kiểm thử trên trình duyệt, đã lên `main`
 Ô chọn/lọc quán chỉ hiện tài khoản thuộc vai trò có tick (admin bị ẩn); lọc Người lập ở đề xuất chi vẫn thấy mọi tài khoản.

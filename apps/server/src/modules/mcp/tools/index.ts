@@ -7,6 +7,7 @@ import { listShops } from "./listShops";
 import { orderLines } from "./orderLines";
 import { otherExpenses } from "./otherExpenses";
 import { shiftExpenses } from "./shiftExpenses";
+import { getStockCheck, listStockChecks } from "./stockChecks";
 import { weeklyStockCheckLateness } from "./weeklyStockCheckLateness";
 
 /**
@@ -27,6 +28,8 @@ export const MCP_TOOLS: McpTool[] = [
   listCostChecks,
   getCostCheck,
   listMaterialTransfers,
+  listStockChecks,
+  getStockCheck,
   weeklyStockCheckLateness,
 ];
 
