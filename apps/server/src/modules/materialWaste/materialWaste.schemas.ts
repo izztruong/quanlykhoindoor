@@ -5,12 +5,15 @@ const materialItemSchema = z.object({
   wholeQuantity: z.coerce.number().nonnegative().optional(),
   looseQuantity: z.coerce.number().nonnegative().optional(),
   note: z.string().optional(),
+  // Chỉ có hiệu lực với người có MATERIAL_WASTE.DEDUCT — route tự bỏ qua với người khác.
+  deductInCostCheck: z.boolean().optional(),
 });
 
 const finishedItemSchema = z.object({
   finishedGoodItemId: z.string().min(1),
   quantity: z.coerce.number().nonnegative(),
   note: z.string().optional(),
+  deductInCostCheck: z.boolean().optional(),
 });
 
 export const materialWasteCreateSchema = z
@@ -28,3 +31,11 @@ export const materialWasteCreateSchema = z
     message: "Mỗi dòng nguyên liệu cần ít nhất 1 trong 2 số lượng (chẵn/lẻ)",
     path: ["items"],
   });
+
+const deductionSchema = z.object({ id: z.string().min(1), deductInCostCheck: z.boolean() });
+
+// Đổi riêng ô tích "trừ trong Check Cost" của từng dòng, không đụng tới số lượng.
+export const materialWasteDeductionsSchema = z.object({
+  items: z.array(deductionSchema).default([]),
+  finishedItems: z.array(deductionSchema).default([]),
+});

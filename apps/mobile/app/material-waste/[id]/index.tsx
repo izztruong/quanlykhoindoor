@@ -1,10 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { StyleSheet, Text, View } from "react-native";
+import { Alert, StyleSheet, Switch, Text, View } from "react-native";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { ErrorState, LoadingState, Screen } from "@/components/ui/Screen";
-import { useMaterialWaste } from "@/hooks/useMaterialWaste";
+import { useMaterialWaste, useUpdateMaterialWasteDeductions, type MaterialWasteDeductionsInput } from "@/hooks/useMaterialWaste";
+import { ApiError } from "@/lib/apiClient";
 import { formatDateVN, formatNumber } from "@/lib/format";
 import { useCan } from "@/lib/permissions";
 import { colors, fontSize, spacing } from "@/lib/theme";
@@ -14,6 +15,23 @@ export default function MaterialWasteDetailScreen() {
   const router = useRouter();
   const { can } = useCan();
   const waste = useMaterialWaste(id ?? "");
+  const updateDeductions = useUpdateMaterialWasteDeductions(id ?? "");
+  const canDeduct = can("MATERIAL_WASTE", "DEDUCT");
+
+  function toggleDeduct(input: MaterialWasteDeductionsInput) {
+    updateDeductions.mutate(input, {
+      onSuccess: (updated) => {
+        if (updated.affectedCostChecks.length > 0) {
+          const codes = updated.affectedCostChecks.map((c) => c.code).join(", ");
+          Alert.alert(
+            "Đã lưu",
+            `Phiếu này đã được dùng để tính các phiếu Check Cost sau — số liệu các phiếu đó CHƯA được cập nhật, vui lòng tạo lại nếu cần: ${codes}`,
+          );
+        }
+      },
+      onError: (err) => Alert.alert("Lỗi", err instanceof ApiError ? err.message : "Lưu thất bại"),
+    });
+  }
 
   if (waste.isLoading) {
     return (
@@ -92,6 +110,11 @@ export default function MaterialWasteDetailScreen() {
                   </Text>
                 </View>
                 {item.note ? <Text style={styles.itemNote}>{item.note}</Text> : null}
+                <DeductRow
+                  value={item.deductInCostCheck}
+                  disabled={!canDeduct || updateDeductions.isPending}
+                  onChange={(next) => toggleDeduct({ items: [{ id: item.id, deductInCostCheck: next }], finishedItems: [] })}
+                />
               </View>
             ))
           )}
@@ -117,12 +140,34 @@ export default function MaterialWasteDetailScreen() {
                   Số lượng: <Text style={styles.quantityValue}>{formatNumber(item.quantity)}</Text>
                 </Text>
                 {item.note ? <Text style={styles.itemNote}>{item.note}</Text> : null}
+                <DeductRow
+                  value={item.deductInCostCheck}
+                  disabled={!canDeduct || updateDeductions.isPending}
+                  onChange={(next) => toggleDeduct({ items: [], finishedItems: [{ id: item.id, deductInCostCheck: next }] })}
+                />
               </View>
             ))
           )}
         </Card>
       </Screen>
     </>
+  );
+}
+
+/** Bỏ tích = Check Cost không trừ dòng huỷ này (tính như hàng đã dùng). */
+function DeductRow({ value, disabled, onChange }: { value: boolean; disabled: boolean; onChange: (next: boolean) => void }) {
+  return (
+    <View style={styles.switchRow}>
+      <Text style={[styles.switchLabel, !value && styles.switchLabelOff]}>
+        {value ? "Trừ trong Check Cost" : "Không trừ trong Check Cost"}
+      </Text>
+      <Switch
+        value={value}
+        disabled={disabled}
+        onValueChange={onChange}
+        trackColor={{ true: colors.primary, false: colors.borderStrong }}
+      />
+    </View>
   );
 }
 
@@ -156,4 +201,7 @@ const styles = StyleSheet.create({
   quantity: { fontSize: fontSize.sm, color: colors.textMuted },
   quantityValue: { color: colors.text, fontWeight: "700" },
   itemNote: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
+  switchRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.xs },
+  switchLabel: { fontSize: fontSize.sm, color: colors.textMuted },
+  switchLabelOff: { color: colors.danger, fontWeight: "600" },
 });

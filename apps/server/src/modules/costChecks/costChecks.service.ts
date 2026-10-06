@@ -185,8 +185,10 @@ export async function computeCostCheckReport(costCheckId: string): Promise<{ row
     _sum: { receivedQuantity: true },
   });
 
+  // Chỉ dòng huỷ được tích "trừ trong Check Cost"; dòng bỏ tích coi như hàng đã dùng (vẫn nằm trong actualUsed).
   const wasteItems = await prisma.materialWasteItem.findMany({
     where: {
+      deductInCostCheck: true,
       materialWaste: {
         createdById: costCheck.userId,
         wasteAt: { gte: opening.checkedAt, lte: closing.checkedAt },
@@ -196,6 +198,7 @@ export async function computeCostCheckReport(costCheckId: string): Promise<{ row
 
   const wasteFinishedItems = await prisma.materialWasteFinishedItem.findMany({
     where: {
+      deductInCostCheck: true,
       materialWaste: {
         createdById: costCheck.userId,
         wasteAt: { gte: opening.checkedAt, lte: closing.checkedAt },

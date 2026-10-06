@@ -625,6 +625,9 @@ model MaterialWasteItem {
   wholeQuantity   Decimal?      @db.Decimal(18, 3)
   looseQuantity   Decimal?      @db.Decimal(18, 3)
   note            String?
+  // Bỏ tích = phần huỷ này KHÔNG trừ trong Check Cost, tức tính như hàng đã dùng. Chỉ người có
+  // MATERIAL_WASTE.DEDUCT đổi được; mặc định true để dữ liệu cũ giữ nguyên số liệu Check Cost.
+  deductInCostCheck Boolean     @default(true)
 
   @@index([productId])
 }
@@ -638,6 +641,7 @@ model MaterialWasteFinishedItem {
   finishedGoodItem   FinishedGoodItem @relation(fields: [finishedGoodItemId], references: [id])
   quantity           Decimal          @db.Decimal(18, 3)
   note               String?
+  deductInCostCheck  Boolean          @default(true)
 
   @@unique([materialWasteId, finishedGoodItemId])
 }

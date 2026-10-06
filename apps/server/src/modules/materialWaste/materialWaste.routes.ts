@@ -1,14 +1,25 @@
 import { Router } from "express";
 import { prisma } from "../../config/db";
-import { assertOwner, ownerWhere, requirePermission } from "../../middleware/auth";
+import { assertOwner, can, ownerWhere, requirePermission } from "../../middleware/auth";
 import { generateCode } from "../../utils/codeGenerator";
 import { findCostChecksUsingPeriodRecord } from "../../utils/costCheckImpact";
 import { HttpError } from "../../utils/httpError";
 import { parseDateRange, parsePagination } from "../../utils/pagination";
 import { subtractTareWeight } from "../../utils/tareWeight";
-import { materialWasteCreateSchema } from "./materialWaste.schemas";
+import { materialWasteCreateSchema, materialWasteDeductionsSchema } from "./materialWaste.schemas";
 
 export const materialWasteRouter = Router();
+
+// Ô tích "trừ trong Check Cost" chỉ người có DEDUCT mới quyết được. Người khác: dòng mới luôn tích,
+// dòng đã có giữ nguyên cờ cũ (PUT xoá hết dòng rồi tạo lại nên phải chép cờ theo hàng hoá).
+function resolveDeduct(
+  canDeduct: boolean,
+  requested: boolean | undefined,
+  previous: boolean | undefined,
+): boolean {
+  if (canDeduct) return requested ?? previous ?? true;
+  return previous ?? true;
+}
 
 const detailInclude = {
   createdBy: { select: { id: true, name: true } },
@@ -48,6 +59,7 @@ materialWasteRouter.get("/:id", requirePermission("MATERIAL_WASTE"), async (req,
 materialWasteRouter.post("/", requirePermission("MATERIAL_WASTE"), async (req, res) => {
   const data = materialWasteCreateSchema.parse(req.body);
   const items = await subtractTareWeight(data.items);
+  const canDeduct = can(req.user, "MATERIAL_WASTE", "DEDUCT");
 
   const item = await prisma.$transaction(async (tx) => {
     const created = await tx.materialWaste.create({
@@ -62,6 +74,7 @@ materialWasteRouter.post("/", requirePermission("MATERIAL_WASTE"), async (req, r
           wholeQuantity: it.wholeQuantity,
           looseQuantity: it.looseQuantity,
           note: it.note,
+          deductInCostCheck: resolveDeduct(canDeduct, it.deductInCostCheck, undefined),
         })),
       });
     }
@@ -73,6 +86,7 @@ materialWasteRouter.post("/", requirePermission("MATERIAL_WASTE"), async (req, r
           finishedGoodItemId: it.finishedGoodItemId,
           quantity: it.quantity,
           note: it.note,
+          deductInCostCheck: resolveDeduct(canDeduct, it.deductInCostCheck, undefined),
         })),
       });
     }
@@ -91,9 +105,19 @@ materialWasteRouter.put("/:id", requirePermission("MATERIAL_WASTE"), async (req,
   const data = materialWasteCreateSchema.parse(req.body);
   const items = await subtractTareWeight(data.items);
 
-  const existing = await prisma.materialWaste.findUnique({ where: { id } });
+  const existing = await prisma.materialWaste.findUnique({
+    where: { id },
+    include: {
+      items: { select: { productId: true, deductInCostCheck: true } },
+      finishedItems: { select: { finishedGoodItemId: true, deductInCostCheck: true } },
+    },
+  });
   if (!existing) throw new HttpError(404, "Không tìm thấy phiếu huỷ");
   assertOwner(existing, req.user, "Không tìm thấy phiếu huỷ");
+
+  const canDeduct = can(req.user, "MATERIAL_WASTE", "DEDUCT");
+  const prevItemDeduct = new Map(existing.items.map((it) => [it.productId, it.deductInCostCheck]));
+  const prevFinishedDeduct = new Map(existing.finishedItems.map((it) => [it.finishedGoodItemId, it.deductInCostCheck]));
 
   const affectedCostChecks = await findCostChecksUsingPeriodRecord([existing.createdById], existing.wasteAt);
 
@@ -111,6 +135,7 @@ materialWasteRouter.put("/:id", requirePermission("MATERIAL_WASTE"), async (req,
           wholeQuantity: it.wholeQuantity,
           looseQuantity: it.looseQuantity,
           note: it.note,
+          deductInCostCheck: resolveDeduct(canDeduct, it.deductInCostCheck, prevItemDeduct.get(it.productId)),
         })),
       });
     }
@@ -122,10 +147,52 @@ materialWasteRouter.put("/:id", requirePermission("MATERIAL_WASTE"), async (req,
           finishedGoodItemId: it.finishedGoodItemId,
           quantity: it.quantity,
           note: it.note,
+          deductInCostCheck: resolveDeduct(
+            canDeduct,
+            it.deductInCostCheck,
+            prevFinishedDeduct.get(it.finishedGoodItemId),
+          ),
         })),
       });
     }
 
+    return tx.materialWaste.findUniqueOrThrow({ where: { id }, include: detailInclude });
+  });
+
+  res.json({ ...item, affectedCostChecks });
+});
+
+// Chỉ đổi ô tích "trừ trong Check Cost" — route riêng vì người duyệt (kế toán) thường không có quyền
+// sửa phiếu. Quyền truyền TƯỜNG MINH: suy theo method thì PATCH → EDIT. Id dòng không thuộc phiếu này
+// bị bỏ qua (lọc theo materialWasteId), không cho đổi chéo sang phiếu khác.
+materialWasteRouter.patch("/:id/deductions", requirePermission("MATERIAL_WASTE", "DEDUCT"), async (req, res) => {
+  const id = req.params.id as string;
+  const data = materialWasteDeductionsSchema.parse(req.body);
+
+  const existing = await prisma.materialWaste.findUnique({ where: { id } });
+  if (!existing) throw new HttpError(404, "Không tìm thấy phiếu huỷ");
+  assertOwner(existing, req.user, "Không tìm thấy phiếu huỷ");
+
+  const affectedCostChecks = await findCostChecksUsingPeriodRecord([existing.createdById], existing.wasteAt);
+
+  const item = await prisma.$transaction(async (tx) => {
+    // Gom theo giá trị (tích / bỏ tích) để mỗi bảng tối đa 2 lệnh — Neon chậm, đừng update từng dòng.
+    for (const value of [true, false]) {
+      const itemIds = data.items.filter((it) => it.deductInCostCheck === value).map((it) => it.id);
+      const finishedIds = data.finishedItems.filter((it) => it.deductInCostCheck === value).map((it) => it.id);
+      if (itemIds.length > 0) {
+        await tx.materialWasteItem.updateMany({
+          where: { id: { in: itemIds }, materialWasteId: id },
+          data: { deductInCostCheck: value },
+        });
+      }
+      if (finishedIds.length > 0) {
+        await tx.materialWasteFinishedItem.updateMany({
+          where: { id: { in: finishedIds }, materialWasteId: id },
+          data: { deductInCostCheck: value },
+        });
+      }
+    }
     return tx.materialWaste.findUniqueOrThrow({ where: { id }, include: detailInclude });
   });
 

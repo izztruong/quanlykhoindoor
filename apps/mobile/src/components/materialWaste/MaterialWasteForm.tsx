@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import { Alert, StyleSheet, Switch, Text, View } from "react-native";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
 import { DateTimeField } from "@/components/ui/DateTimeField";
@@ -10,6 +10,7 @@ import { Screen } from "@/components/ui/Screen";
 import { SearchBar } from "@/components/ui/SearchBar";
 import { useFinishedGoodItems, useProducts } from "@/hooks/useCatalog";
 import { useCreateMaterialWaste, useUpdateMaterialWaste } from "@/hooks/useMaterialWaste";
+import { useCan } from "@/lib/permissions";
 import { colors, fontSize, spacing } from "@/lib/theme";
 import type { MaterialWaste, Product, ProductType } from "@/types";
 
@@ -17,15 +18,17 @@ interface MaterialEntry {
   wholeQuantity: string;
   looseQuantity: string;
   note: string;
+  deductInCostCheck: boolean;
 }
 
 interface FinishedEntry {
   quantity: string;
   note: string;
+  deductInCostCheck: boolean;
 }
 
-const EMPTY_MATERIAL: MaterialEntry = { wholeQuantity: "", looseQuantity: "", note: "" };
-const EMPTY_FINISHED: FinishedEntry = { quantity: "", note: "" };
+const EMPTY_MATERIAL: MaterialEntry = { wholeQuantity: "", looseQuantity: "", note: "", deductInCostCheck: true };
+const EMPTY_FINISHED: FinishedEntry = { quantity: "", note: "", deductInCostCheck: true };
 
 const PRODUCT_TYPE_GROUPS: { key: ProductType; label: string }[] = [
   { key: "NVL", label: "Nguyên vật liệu" },
@@ -50,6 +53,7 @@ function toMaterialEntries(waste?: MaterialWaste): Record<string, MaterialEntry>
       wholeQuantity: it.wholeQuantity != null ? String(Number(it.wholeQuantity)) : "",
       looseQuantity: it.looseQuantity != null ? String(Number(it.looseQuantity)) : "",
       note: it.note ?? "",
+      deductInCostCheck: it.deductInCostCheck,
     };
   }
   return entries;
@@ -61,9 +65,25 @@ function toFinishedEntries(waste?: MaterialWaste): Record<string, FinishedEntry>
     entries[it.finishedGoodItemId] = {
       quantity: it.quantity != null ? String(Number(it.quantity)) : "",
       note: it.note ?? "",
+      deductInCostCheck: it.deductInCostCheck,
     };
   }
   return entries;
+}
+
+/** Công tắc "trừ trong Check Cost" của một dòng huỷ; thiếu quyền DEDUCT thì chỉ xem. */
+function DeductSwitch({ value, disabled, onChange }: { value: boolean; disabled: boolean; onChange: (next: boolean) => void }) {
+  return (
+    <View style={styles.switchRow}>
+      <Text style={styles.switchLabel}>Trừ trong Check Cost</Text>
+      <Switch
+        value={value}
+        disabled={disabled}
+        onValueChange={onChange}
+        trackColor={{ true: colors.primary, false: colors.borderStrong }}
+      />
+    </View>
+  );
 }
 
 /**
@@ -73,6 +93,8 @@ function toFinishedEntries(waste?: MaterialWaste): Record<string, FinishedEntry>
 export function MaterialWasteForm({ existing }: { existing?: MaterialWaste }) {
   const isEdit = Boolean(existing);
   const router = useRouter();
+  const { can } = useCan();
+  const canDeduct = can("MATERIAL_WASTE", "DEDUCT");
   const { data: products = [] } = useProducts({ activeOnly: true });
   const { data: finishedGoodItems = [] } = useFinishedGoodItems();
   const createWaste = useCreateMaterialWaste();
@@ -129,6 +151,7 @@ export function MaterialWasteForm({ existing }: { existing?: MaterialWaste }) {
         wholeQuantity: entry.wholeQuantity !== "" ? Number(entry.wholeQuantity) : undefined,
         looseQuantity: entry.looseQuantity !== "" ? Number(entry.looseQuantity) : undefined,
         note: entry.note || undefined,
+        deductInCostCheck: entry.deductInCostCheck,
       }));
     const finishedItems = Object.entries(finishedEntries)
       .filter(([, entry]) => entry.quantity !== "" && !Number.isNaN(Number(entry.quantity)))
@@ -136,6 +159,7 @@ export function MaterialWasteForm({ existing }: { existing?: MaterialWaste }) {
         finishedGoodItemId,
         quantity: Number(entry.quantity),
         note: entry.note || undefined,
+        deductInCostCheck: entry.deductInCostCheck,
       }));
 
     if (items.length === 0 && finishedItems.length === 0) {
@@ -223,6 +247,13 @@ export function MaterialWasteForm({ existing }: { existing?: MaterialWaste }) {
                         keyboardType="numeric"
                       />
                     </View>
+                    {entry.wholeQuantity !== "" || entry.looseQuantity !== "" ? (
+                      <DeductSwitch
+                        value={entry.deductInCostCheck}
+                        disabled={!canDeduct}
+                        onChange={(next) => updateMaterialEntry(product.id, { deductInCostCheck: next })}
+                      />
+                    ) : null}
                   </View>
                 );
               })
@@ -243,22 +274,32 @@ export function MaterialWasteForm({ existing }: { existing?: MaterialWaste }) {
         ) : (
           thanhPhamItems
             .filter((i) => matchesQuery(i.name, i.code, search))
-            .map((item) => (
-              <View key={item.id} style={styles.itemRow}>
-                <Text style={styles.itemName} numberOfLines={2}>
-                  {item.name}
-                </Text>
-                <Text style={styles.itemMeta}>
-                  {item.code} · {item.unit?.name ?? ""}
-                </Text>
-                <Input
-                  label="Số lượng"
-                  value={(finishedEntries[item.id] ?? EMPTY_FINISHED).quantity}
-                  onChangeText={(value) => updateFinishedEntry(item.id, { quantity: value })}
-                  keyboardType="numeric"
-                />
-              </View>
-            ))
+            .map((item) => {
+              const entry = finishedEntries[item.id] ?? EMPTY_FINISHED;
+              return (
+                <View key={item.id} style={styles.itemRow}>
+                  <Text style={styles.itemName} numberOfLines={2}>
+                    {item.name}
+                  </Text>
+                  <Text style={styles.itemMeta}>
+                    {item.code} · {item.unit?.name ?? ""}
+                  </Text>
+                  <Input
+                    label="Số lượng"
+                    value={entry.quantity}
+                    onChangeText={(value) => updateFinishedEntry(item.id, { quantity: value })}
+                    keyboardType="numeric"
+                  />
+                  {entry.quantity !== "" ? (
+                    <DeductSwitch
+                      value={entry.deductInCostCheck}
+                      disabled={!canDeduct}
+                      onChange={(next) => updateFinishedEntry(item.id, { deductInCostCheck: next })}
+                    />
+                  ) : null}
+                </View>
+              );
+            })
         )}
       </GroupSection>
 
@@ -280,5 +321,7 @@ const styles = StyleSheet.create({
   itemMeta: { fontSize: fontSize.xs, color: colors.textFaint },
   inputPair: { flexDirection: "row", gap: spacing.md },
   inputHalf: { flex: 1 },
+  switchRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  switchLabel: { fontSize: fontSize.sm, color: colors.textMuted },
   emptyRow: { padding: spacing.lg, fontSize: fontSize.sm, color: colors.textFaint, textAlign: "center" },
 });

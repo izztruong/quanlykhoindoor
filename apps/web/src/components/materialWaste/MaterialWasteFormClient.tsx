@@ -6,7 +6,9 @@ import { Input } from "@/components/ui/Input";
 import { useFinishedGoodItems, useProducts } from "@/hooks/useCatalog";
 import { useCreateMaterialWaste, useUpdateMaterialWaste } from "@/hooks/useMaterialWaste";
 import { ApiError } from "@/lib/api-client";
+import { useCurrentUser } from "@/lib/auth";
 import { nowForDatetimeLocal, toDatetimeLocal } from "@/lib/dateRange";
+import { can } from "@/lib/permissions";
 import { filterSuggestions } from "@/lib/searchSuggestions";
 import type { FinishedGoodItem, MaterialWaste, Product } from "@/types";
 import { Trash2 } from "lucide-react";
@@ -20,6 +22,7 @@ interface MaterialRow {
   wholeQuantity: string;
   looseQuantity: string;
   note: string;
+  deductInCostCheck: boolean;
 }
 
 interface FinishedRow {
@@ -27,6 +30,7 @@ interface FinishedRow {
   item: FinishedGoodItem;
   quantity: string;
   note: string;
+  deductInCostCheck: boolean;
 }
 
 function toMaterialRows(waste?: MaterialWaste): MaterialRow[] {
@@ -36,6 +40,7 @@ function toMaterialRows(waste?: MaterialWaste): MaterialRow[] {
     wholeQuantity: it.wholeQuantity != null ? String(Number(it.wholeQuantity)) : "",
     looseQuantity: it.looseQuantity != null ? String(Number(it.looseQuantity)) : "",
     note: it.note ?? "",
+    deductInCostCheck: it.deductInCostCheck,
   }));
 }
 
@@ -45,6 +50,7 @@ function toFinishedRows(waste?: MaterialWaste): FinishedRow[] {
     item: it.finishedGoodItem,
     quantity: it.quantity != null ? String(Number(it.quantity)) : "",
     note: it.note ?? "",
+    deductInCostCheck: it.deductInCostCheck,
   }));
 }
 
@@ -56,6 +62,9 @@ interface MaterialWasteFormClientProps {
 export function MaterialWasteFormClient({ existing }: MaterialWasteFormClientProps) {
   const isEdit = Boolean(existing);
   const router = useRouter();
+  const { data: currentUser } = useCurrentUser();
+  // Không có quyền thì vẫn thấy ô tích nhưng không bấm được; server cũng tự bỏ qua giá trị gửi lên.
+  const canDeduct = can(currentUser, "MATERIAL_WASTE", "DEDUCT");
   const { data: products = [] } = useProducts({ activeOnly: true });
   const { data: finishedGoodItems = [] } = useFinishedGoodItems();
   const createWaste = useCreateMaterialWaste();
@@ -80,7 +89,7 @@ export function MaterialWasteFormClient({ existing }: MaterialWasteFormClientPro
 
   function addRow(product: Product) {
     setRows((prev) =>
-      prev.some((r) => r.productId === product.id) ? prev : [...prev, { productId: product.id, product, wholeQuantity: "", looseQuantity: "", note: "" }],
+      prev.some((r) => r.productId === product.id) ? prev : [...prev, { productId: product.id, product, wholeQuantity: "", looseQuantity: "", note: "", deductInCostCheck: true }],
     );
     setSearch("");
   }
@@ -95,7 +104,7 @@ export function MaterialWasteFormClient({ existing }: MaterialWasteFormClientPro
 
   function addFinishedRow(item: FinishedGoodItem) {
     setFinishedRows((prev) =>
-      prev.some((r) => r.finishedGoodItemId === item.id) ? prev : [...prev, { finishedGoodItemId: item.id, item, quantity: "", note: "" }],
+      prev.some((r) => r.finishedGoodItemId === item.id) ? prev : [...prev, { finishedGoodItemId: item.id, item, quantity: "", note: "", deductInCostCheck: true }],
     );
     setFinishedSearch("");
   }
@@ -117,10 +126,16 @@ export function MaterialWasteFormClient({ existing }: MaterialWasteFormClientPro
         wholeQuantity: r.wholeQuantity !== "" ? Number(r.wholeQuantity) : undefined,
         looseQuantity: r.looseQuantity !== "" ? Number(r.looseQuantity) : undefined,
         note: r.note || undefined,
+        deductInCostCheck: r.deductInCostCheck,
       }));
     const finishedItems = finishedRows
       .filter((r) => r.quantity !== "" && !Number.isNaN(Number(r.quantity)))
-      .map((r) => ({ finishedGoodItemId: r.finishedGoodItemId, quantity: Number(r.quantity), note: r.note || undefined }));
+      .map((r) => ({
+        finishedGoodItemId: r.finishedGoodItemId,
+        quantity: Number(r.quantity),
+        note: r.note || undefined,
+        deductInCostCheck: r.deductInCostCheck,
+      }));
 
     if (items.length === 0 && finishedItems.length === 0) {
       setError("Vui lòng thêm ít nhất 1 dòng nguyên liệu hoặc đồ thành phẩm.");
@@ -212,6 +227,9 @@ export function MaterialWasteFormClient({ existing }: MaterialWasteFormClientPro
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="text-left text-xs font-medium uppercase text-slate-500">
+                  <th className="border border-slate-200 px-3 py-2 text-center" title="Bỏ tích = Check Cost không trừ dòng huỷ này">
+                    Trừ CC
+                  </th>
                   <th className="border border-slate-200 px-3 py-2">Nguyên liệu</th>
                   <th className="border border-slate-200 px-3 py-2">Đơn vị</th>
                   <th className="border border-slate-200 px-3 py-2">SL chẵn</th>
@@ -222,7 +240,16 @@ export function MaterialWasteFormClient({ existing }: MaterialWasteFormClientPro
               </thead>
               <tbody>
                 {rows.map((row) => (
-                  <tr key={row.productId}>
+                  <tr key={row.productId} className={row.deductInCostCheck ? undefined : "bg-slate-50 text-slate-400"}>
+                    <td className="border border-slate-200 px-3 py-2 text-center">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4"
+                        checked={row.deductInCostCheck}
+                        disabled={!canDeduct}
+                        onChange={(e) => updateRow(row.productId, { deductInCostCheck: e.target.checked })}
+                      />
+                    </td>
                     <td className="border border-slate-200 px-3 py-2">{row.product.name}</td>
                     <td className="border border-slate-200 px-3 py-2">{row.product.unit?.name}</td>
                     <td className="border border-slate-200 px-3 py-2">
@@ -300,6 +327,9 @@ export function MaterialWasteFormClient({ existing }: MaterialWasteFormClientPro
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="text-left text-xs font-medium uppercase text-slate-500">
+                  <th className="border border-slate-200 px-3 py-2 text-center" title="Bỏ tích = Check Cost không trừ dòng huỷ này">
+                    Trừ CC
+                  </th>
                   <th className="border border-slate-200 px-3 py-2">Đồ thành phẩm</th>
                   <th className="border border-slate-200 px-3 py-2">Đơn vị</th>
                   <th className="border border-slate-200 px-3 py-2">Số lượng</th>
@@ -309,7 +339,16 @@ export function MaterialWasteFormClient({ existing }: MaterialWasteFormClientPro
               </thead>
               <tbody>
                 {finishedRows.map((row) => (
-                  <tr key={row.finishedGoodItemId}>
+                  <tr key={row.finishedGoodItemId} className={row.deductInCostCheck ? undefined : "bg-slate-50 text-slate-400"}>
+                    <td className="border border-slate-200 px-3 py-2 text-center">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4"
+                        checked={row.deductInCostCheck}
+                        disabled={!canDeduct}
+                        onChange={(e) => updateFinishedRow(row.finishedGoodItemId, { deductInCostCheck: e.target.checked })}
+                      />
+                    </td>
                     <td className="border border-slate-200 px-3 py-2">{row.item.name}</td>
                     <td className="border border-slate-200 px-3 py-2">{row.item.unit?.name}</td>
                     <td className="border border-slate-200 px-3 py-2">
@@ -350,6 +389,7 @@ export function MaterialWasteFormClient({ existing }: MaterialWasteFormClientPro
           hoá có vỏ. Người nhập chỉ cần biết quy tắc chung, còn trừ bao nhiêu gam thì server tự
           xử lý (subtractTareWeight), không phải thứ họ cần nhớ lúc đang cân. */}
       <p className="text-sm text-amber-600">Cân cả vỏ</p>
+      <p className="text-sm text-slate-500">Ô “Trừ CC”: dòng bỏ tích sẽ không được trừ trong Check Cost (tính như hàng đã dùng).</p>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 

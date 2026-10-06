@@ -19,6 +19,7 @@ export const PERMISSION_ACTIONS = [
   "ADVANCE",
   "COMPLETE",
   "PAY",
+  "DEDUCT",
 ] as const;
 export type PermissionAction = (typeof PERMISSION_ACTIONS)[number];
 
@@ -32,6 +33,7 @@ export const ACTION_LABELS: Record<PermissionAction, string> = {
   ADVANCE: "Tạm ứng",
   COMPLETE: "Hoàn thành",
   PAY: "Đánh dấu đã chi",
+  DEDUCT: "Chọn dòng trừ Check Cost",
 };
 
 const CRUD: PermissionAction[] = ["VIEW", "ADD", "EDIT", "DELETE"];
@@ -72,7 +74,8 @@ export const PERMISSION_RESOURCES = [
   { resource: "MATERIAL_TRANSFERS", label: "Phiếu điều chuyển", group: "Kho", actions: ["VIEW", "ADD", "EDIT"] },
 
   { resource: "STOCK_CHECKS", label: "Phiếu kiểm kê quán", group: "Kiểm kê quán", actions: ["VIEW", "ADD", "EDIT"] },
-  { resource: "MATERIAL_WASTE", label: "Phiếu huỷ nguyên liệu", group: "Kiểm kê quán", actions: ["VIEW", "ADD", "EDIT"] },
+  // DEDUCT: bỏ tích dòng huỷ để Check Cost không trừ phần đó (tính như hàng đã dùng).
+  { resource: "MATERIAL_WASTE", label: "Phiếu huỷ nguyên liệu", group: "Kiểm kê quán", actions: ["VIEW", "ADD", "EDIT", "DEDUCT"] },
 
   { resource: "PRODUCTS", label: "Hàng hoá", group: "Danh mục", actions: CRUD },
   { resource: "PRODUCT_GROUPS", label: "Nhóm hàng hoá", group: "Danh mục", actions: CRUD },

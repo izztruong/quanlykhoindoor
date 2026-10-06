@@ -172,7 +172,8 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
   `utils/costCheckImpact` để cảnh báo admin tạo lại phiếu Check Cost bị ảnh hưởng.
 - `costChecks` đọc dữ liệu của 5 module khác (`StockCheck`, `MaterialWasteItem`,
   `MaterialTransferItem`, `SalesOrderItem`, `FinishedGoodRecipeItem`) — đổi schema mấy bảng đó thì
-  phải ngó lại Check Cost.
+  phải ngó lại Check Cost. Dòng huỷ chỉ được trừ khi `deductInCostCheck = true` (ô "Trừ CC", quyền
+  `MATERIAL_WASTE.DEDUCT`); đổi ô đó cũng phải gọi `costCheckImpact`.
 - `salesOrders` và `products/productStock.routes.ts` cùng dùng
   `reports.service.getInventoryCountReport()` để kiểm tồn. Đây là **chỗ duy nhất** trong dự án một
   module gọi service của module khác.

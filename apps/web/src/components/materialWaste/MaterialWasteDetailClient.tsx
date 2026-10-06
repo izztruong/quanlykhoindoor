@@ -2,7 +2,8 @@
 
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
-import { useMaterialWaste } from "@/hooks/useMaterialWaste";
+import { useMaterialWaste, useUpdateMaterialWasteDeductions, type MaterialWasteDeductionsInput } from "@/hooks/useMaterialWaste";
+import { ApiError } from "@/lib/api-client";
 import { useCurrentUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { formatDateTime, formatNumber } from "@/lib/format";
@@ -12,6 +13,22 @@ import Link from "next/link";
 export function MaterialWasteDetailClient({ id }: { id: string }) {
   const { data: currentUser } = useCurrentUser();
   const { data: waste, isLoading } = useMaterialWaste(id);
+  const updateDeductions = useUpdateMaterialWasteDeductions(id);
+  const canDeduct = can(currentUser, "MATERIAL_WASTE", "DEDUCT");
+
+  function toggleDeduct(data: MaterialWasteDeductionsInput) {
+    updateDeductions.mutate(data, {
+      onSuccess: (updated) => {
+        if (updated.affectedCostChecks.length > 0) {
+          const codes = updated.affectedCostChecks.map((c) => c.code).join(", ");
+          alert(
+            `Đã lưu. Phiếu này đã được dùng để tính các phiếu Check Cost sau — số liệu các phiếu đó CHƯA được cập nhật, vui lòng tạo lại nếu cần: ${codes}`,
+          );
+        }
+      },
+      onError: (err) => alert(err instanceof ApiError ? err.message : "Lưu thất bại"),
+    });
+  }
 
   if (isLoading || !waste) {
     return <p className="text-slate-400">Đang tải...</p>;
@@ -48,6 +65,9 @@ export function MaterialWasteDetailClient({ id }: { id: string }) {
               <table className="w-full border-collapse text-sm">
                 <thead>
                   <tr className="text-left text-xs font-medium uppercase text-slate-500">
+                    <th className="border border-slate-200 px-3 py-2 text-center" title="Bỏ tích = Check Cost không trừ dòng huỷ này">
+                      Trừ CC
+                    </th>
                     <th className="border border-slate-200 px-5 py-2">Tên NL</th>
                     <th className="border border-slate-200 px-5 py-2">Đơn vị</th>
                     <th className="border border-slate-200 px-5 py-2">SL chẵn</th>
@@ -57,7 +77,16 @@ export function MaterialWasteDetailClient({ id }: { id: string }) {
                 </thead>
                 <tbody>
                   {(waste.items ?? []).map((item) => (
-                    <tr key={item.id}>
+                    <tr key={item.id} className={item.deductInCostCheck ? undefined : "bg-slate-50 text-slate-400"}>
+                      <td className="border border-slate-200 px-3 py-2 text-center">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4"
+                          checked={item.deductInCostCheck}
+                          disabled={!canDeduct || updateDeductions.isPending}
+                          onChange={(e) => toggleDeduct({ items: [{ id: item.id, deductInCostCheck: e.target.checked }], finishedItems: [] })}
+                        />
+                      </td>
                       <td className="border border-slate-200 px-5 py-2">{item.product.name}</td>
                       <td className="border border-slate-200 px-5 py-2">{item.product.unit?.name}</td>
                       <td className="border border-slate-200 px-5 py-2">{item.wholeQuantity != null ? formatNumber(item.wholeQuantity) : "-"}</td>
@@ -71,7 +100,7 @@ export function MaterialWasteDetailClient({ id }: { id: string }) {
                   ))}
                   {(waste.items ?? []).length === 0 && (
                     <tr>
-                      <td className="border border-slate-200 px-5 py-3 text-slate-400" colSpan={5}>
+                      <td className="border border-slate-200 px-5 py-3 text-slate-400" colSpan={6}>
                         Không có dòng nguyên liệu nào.
                       </td>
                     </tr>
@@ -89,6 +118,9 @@ export function MaterialWasteDetailClient({ id }: { id: string }) {
               <table className="w-full border-collapse text-sm">
                 <thead>
                   <tr className="text-left text-xs font-medium uppercase text-slate-500">
+                    <th className="border border-slate-200 px-3 py-2 text-center" title="Bỏ tích = Check Cost không trừ dòng huỷ này">
+                      Trừ CC
+                    </th>
                     <th className="border border-slate-200 px-5 py-2">Tên đồ thành phẩm</th>
                     <th className="border border-slate-200 px-5 py-2">Đơn vị</th>
                     <th className="border border-slate-200 px-5 py-2">Số lượng</th>
@@ -97,7 +129,16 @@ export function MaterialWasteDetailClient({ id }: { id: string }) {
                 </thead>
                 <tbody>
                   {(waste.finishedItems ?? []).map((item) => (
-                    <tr key={item.id}>
+                    <tr key={item.id} className={item.deductInCostCheck ? undefined : "bg-slate-50 text-slate-400"}>
+                      <td className="border border-slate-200 px-3 py-2 text-center">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4"
+                          checked={item.deductInCostCheck}
+                          disabled={!canDeduct || updateDeductions.isPending}
+                          onChange={(e) => toggleDeduct({ items: [], finishedItems: [{ id: item.id, deductInCostCheck: e.target.checked }] })}
+                        />
+                      </td>
                       <td className="border border-slate-200 px-5 py-2">{item.finishedGoodItem.name}</td>
                       <td className="border border-slate-200 px-5 py-2">{item.finishedGoodItem.unit?.name}</td>
                       <td className="border border-slate-200 px-5 py-2">{formatNumber(item.quantity)}</td>
@@ -106,7 +147,7 @@ export function MaterialWasteDetailClient({ id }: { id: string }) {
                   ))}
                   {(waste.finishedItems ?? []).length === 0 && (
                     <tr>
-                      <td className="border border-slate-200 px-5 py-3 text-slate-400" colSpan={4}>
+                      <td className="border border-slate-200 px-5 py-3 text-slate-400" colSpan={5}>
                         Không có dòng đồ thành phẩm nào.
                       </td>
                     </tr>

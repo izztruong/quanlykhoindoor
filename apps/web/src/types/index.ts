@@ -446,6 +446,8 @@ export interface MaterialWasteItemRow {
   wholeQuantity?: string | number | null;
   looseQuantity?: string | number | null;
   note?: string | null;
+  /** false = Check Cost không trừ dòng huỷ này (tính như hàng đã dùng). */
+  deductInCostCheck: boolean;
 }
 
 export interface MaterialWasteFinishedItemRow {
@@ -454,6 +456,7 @@ export interface MaterialWasteFinishedItemRow {
   finishedGoodItem: FinishedGoodItem;
   quantity: string | number;
   note?: string | null;
+  deductInCostCheck: boolean;
 }
 
 export interface MaterialWaste {

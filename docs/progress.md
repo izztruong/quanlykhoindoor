@@ -1,6 +1,6 @@
 # Tiến độ dự án
 
-Cập nhật: 2026-10-01
+Cập nhật: 2026-10-06
 
 Ghi **đúng những gì git không tự trả lời được**. Lý do thiết kế đã nằm trong commit message, đừng
 chép lại vào đây. Mỗi mục "Đang dở" tối đa 3–4 dòng, và dòng quan trọng nhất luôn là: *đã kiểm thử
@@ -30,6 +30,11 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 ---
 
 ## Đang dở
+
+### Phiếu huỷ: ô tích "Trừ CC" từng dòng (server + web + mobile) — CHƯA thử trên trình duyệt/app, CHƯA lên `main`
+Bỏ tích = Check Cost không trừ dòng huỷ đó; tạo phiếu mặc định tích hết; chỉ quyền mới `MATERIAL_WASTE.DEDUCT` đổi được (form + trang chi tiết). Trang chủ vẫn đếm mọi dòng.
+Đã kiểm typecheck 3 app, lint web, bundle Android, `migrate deploy` DB trắng + `kho_db` + `kho_dev_copy`, 8 ca curl + đối chiếu `computeCostCheckReport` trước/sau bỏ tích.
+**Sau khi deploy phải tick "Chọn dòng trừ Check Cost"** cho vai trò duyệt — không tick thì ngoài admin không ai đổi được.
 
 ### MCP connector cho Claude trên web + trang Token MCP — đã lên `main`; connector staging đã nối được trên claude.ai, CHƯA thử kỹ
 `/mcp` chỉ đọc, 12 tool (đơn hàng, 3 sổ chi, Check Cost, điều chuyển, phiếu kiểm kê, nộp muộn phiếu kiểm tuần); mỗi token chỉ gọi được tool được tick. Đã kiểm

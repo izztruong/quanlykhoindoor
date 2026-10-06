@@ -7,12 +7,14 @@ export interface MaterialWasteItemInput {
   wholeQuantity?: number;
   looseQuantity?: number;
   note?: string;
+  deductInCostCheck?: boolean;
 }
 
 export interface MaterialWasteFinishedItemInput {
   finishedGoodItemId: string;
   quantity: number;
   note?: string;
+  deductInCostCheck?: boolean;
 }
 
 export interface MaterialWasteCreateInput {
@@ -50,6 +52,24 @@ export function useUpdateMaterialWaste(id: string) {
   return useMutation({
     mutationFn: (data: MaterialWasteCreateInput) =>
       api.put<MaterialWaste & { affectedCostChecks: AffectedCostCheck[] }>(`/material-waste/${id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["material-waste"] });
+      queryClient.invalidateQueries({ queryKey: ["material-waste", id] });
+    },
+  });
+}
+
+export interface MaterialWasteDeductionsInput {
+  items: { id: string; deductInCostCheck: boolean }[];
+  finishedItems: { id: string; deductInCostCheck: boolean }[];
+}
+
+/** Chỉ đổi ô tích "trừ trong Check Cost" — cần MATERIAL_WASTE.DEDUCT, không cần quyền sửa phiếu. */
+export function useUpdateMaterialWasteDeductions(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: MaterialWasteDeductionsInput) =>
+      api.patch<MaterialWaste & { affectedCostChecks: AffectedCostCheck[] }>(`/material-waste/${id}/deductions`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["material-waste"] });
       queryClient.invalidateQueries({ queryKey: ["material-waste", id] });
