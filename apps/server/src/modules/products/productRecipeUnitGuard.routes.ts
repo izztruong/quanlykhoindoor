@@ -63,22 +63,19 @@ async function assertFactorChangeAllowed(product: { id: string; code: string; na
   );
 }
 
-const productSchema = z.object({
-  code: z.string().min(1),
-  name: z.string().min(1),
-  unitId: z.string().min(1),
-  productGroupId: z.string().min(1),
-  costPrice: z.coerce.number().nonnegative().default(0),
-  note: z.string().optional(),
-  recipeUnitId: z.string().optional(),
-  recipeUnitsPerBaseUnit: z.coerce.number().positive().optional(),
-  type: z.enum(["NVL", "COC_TAKE", "BANH", "DUNG_CU", "KHAC"]).default("NVL"),
-  tareWeight: z.coerce.number().nonnegative().optional(),
-  active: z.boolean().optional().default(true),
+/**
+ * CỐ Ý chỉ khai đúng trường cần đọc, không chép lại schema hàng hoá: zod bỏ qua khoá lạ nên mọi
+ * trường khác đi thẳng xuống `crudFactory` và do schema gốc ở `products.routes.ts` quyết định hợp lệ
+ * hay không. Chép cả schema sang đây thì thêm/sửa một trường bên kia là hai bản lệch nhau, và lớp bọc
+ * này sẽ từ chối payload mà route thật vẫn nhận.
+ */
+const factorOnlySchema = z.object({ recipeUnitsPerBaseUnit: z.coerce.number().positive().optional() });
+const factorOnlyBulkSchema = z.object({
+  items: z.array(z.object({ code: z.string().min(1), recipeUnitsPerBaseUnit: z.coerce.number().positive().optional() })).min(1),
 });
 
 productRecipeUnitGuardRouter.put("/:id", requirePermission("PRODUCTS"), async (req, res, next) => {
-  const data = productSchema.partial().parse(req.body);
+  const data = factorOnlySchema.parse(req.body);
   const existing = await prisma.product.findUnique({
     where: { id: req.params.id },
     select: { id: true, code: true, name: true, recipeUnitsPerBaseUnit: true },
@@ -94,7 +91,7 @@ productRecipeUnitGuardRouter.post(
   requirePermission("PRODUCTS", "ADD"),
   requirePermission("PRODUCTS", "EDIT"),
   async (req, res, next) => {
-    const { items } = z.object({ items: z.array(productSchema).min(1) }).parse(req.body);
+    const { items } = factorOnlyBulkSchema.parse(req.body);
 
     // bulk-import update theo `code` với TRỌN DÒNG, nên mỗi lần nhập Excel là "set" lại hệ số cho cả
     // mấy trăm hàng hoá. Chặn kiểu "payload có mặt trường này → 400" sẽ làm chết đường nhập đang
