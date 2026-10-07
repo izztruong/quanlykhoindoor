@@ -367,6 +367,25 @@ export interface FinishedGoodRecipeItem {
   quantityPerUnit: string | number;
 }
 
+/** Một mốc công thức. `effectiveFrom` là cột @db.Date nên đọc bằng formatDateOnly/toDateInput. */
+export interface FinishedGoodRecipeVersion {
+  id: string;
+  effectiveFrom: string;
+  note?: string | null;
+  createdBy?: { id: string; name: string } | null;
+  createdAt: string;
+  items: FinishedGoodRecipeItem[];
+}
+
+/** Một mốc giá bán. Doanh thu Check Cost dùng mốc có hiệu lực tại từng ngày bán. */
+export interface FinishedGoodPrice {
+  id: string;
+  effectiveFrom: string;
+  sellingPrice: string | number;
+  createdBy?: { id: string; name: string } | null;
+  createdAt: string;
+}
+
 export interface MaterialWasteItemRow {
   id: string;
   productId: string;
@@ -478,6 +497,17 @@ export interface PosCoverage {
   daysWithData: number;
   missingDays: string[];
   skippedPreparedItems: string[];
+}
+
+/** Doanh số POS sẽ dùng cho một kỳ, xem trước khi bấm tạo phiếu Check Cost. */
+export interface CostCheckPosPreview {
+  cellCount: number;
+  totalQuantity: number;
+  coverage: PosCoverage;
+  items: {
+    finishedGoodItem: { id: string; code: string; name: string; category?: FinishedGoodCategory | null; unit?: { name: string } | null } | null;
+    quantity: number;
+  }[];
 }
 
 export interface AffectedCostCheck {

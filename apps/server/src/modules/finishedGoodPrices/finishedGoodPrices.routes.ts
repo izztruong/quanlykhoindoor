@@ -89,7 +89,24 @@ finishedGoodPricesRouter.delete(
     if (!price || price.finishedGoodItemId !== finishedGoodItemId) throw new HttpError(404, "Không tìm thấy mốc giá");
 
     const affectedCostChecks = await findCostChecksUsingEffectiveDate(price.effectiveFrom);
-    await prisma.finishedGoodPrice.delete({ where: { id: priceId } });
+
+    // Xoá xong PHẢI tính lại giá hiện hành: mốc vừa xoá có thể chính là mốc đang áp dụng, để nguyên
+    // thì cột mirror kẹt ở giá của một mốc không còn tồn tại — Check Cost tính một giá, danh mục và
+    // phiếu kiểm kê quán hiện giá khác.
+    await prisma.$transaction(async (tx) => {
+      await tx.finishedGoodPrice.delete({ where: { id: priceId } });
+      const current = await tx.finishedGoodPrice.findFirst({
+        where: { finishedGoodItemId, effectiveFrom: { lte: parseDateOnly(todayDateKey()) } },
+        orderBy: { effectiveFrom: "desc" },
+        select: { sellingPrice: true },
+      });
+      // Không còn mốc nào thuộc quá khứ thì để nguyên giá hiện hành — xoá hết lịch sử không có nghĩa
+      // là món thành miễn phí.
+      if (current) {
+        await tx.finishedGoodItem.update({ where: { id: finishedGoodItemId }, data: { sellingPrice: current.sellingPrice } });
+      }
+    });
+
     res.json({ affectedCostChecks });
   },
 );

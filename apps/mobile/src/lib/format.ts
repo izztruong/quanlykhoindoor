@@ -127,3 +127,25 @@ export function toDateInput(value: string) {
   const d = new Date(value);
   return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
 }
+
+/**
+ * Date do NGƯỜI DÙNG chọn trên lịch -> "YYYY-MM-DD".
+ *
+ * Đọc bằng trường ĐỊA PHƯƠNG, ngược hẳn với `toDateInput`: ô chọn ngày hiển thị lịch theo giờ máy,
+ * nên ngày người dùng nhìn thấy nằm ở `getFullYear/getMonth/getDate`. Đọc bằng `getUTC*` ở múi UTC+7
+ * sẽ lùi mất một ngày với mọi mốc trước 07:00.
+ */
+export function dateKeyFromLocal(d: Date) {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+/** "YYYY-MM-DD" -> Date ở 00:00 GIỜ MÁY, để đổ ngược vào ô chọn ngày mà không lệch ngày. */
+export function dateKeyToLocalDate(key: string) {
+  const [y, m, d] = key.split("-").map(Number);
+  return new Date(y!, (m ?? 1) - 1, d ?? 1);
+}
+
+/** Hôm nay theo lịch giờ máy, dạng "YYYY-MM-DD". */
+export function todayDateKey() {
+  return dateKeyFromLocal(new Date());
+}

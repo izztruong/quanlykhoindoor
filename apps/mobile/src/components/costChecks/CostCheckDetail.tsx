@@ -85,6 +85,15 @@ export function CostCheckDetail({ id }: { id: string }) {
             <Text style={styles.warning}>
               Lúc tạo phiếu, kỳ này thiếu dữ liệu doanh số POS {r.posCoverage.missingDays.length}/{r.posCoverage.expectedDays} ngày.
               Nếu quán có bán những ngày đó thì cột &quot;Theo công thức&quot; và doanh thu của phiếu đang thiếu.
+              Phiếu đã chốt số nên muốn tính lại phải huỷ và tạo phiếu mới.
+            </Text>
+          </CardBody>
+        </Card>}
+        {r.posCoverage && r.posCoverage.skippedPreparedItems.length > 0 && <Card>
+          <CardBody>
+            <Text style={styles.warning}>
+              Đã bỏ qua {r.posCoverage.skippedPreparedItems.length} món đồ pha sẵn có trong doanh số POS của kỳ:{" "}
+              {r.posCoverage.skippedPreparedItems.join(", ")}. Đồ pha sẵn được đếm ở phiếu kiểm kê quán nên không tính vào đây.
             </Text>
           </CardBody>
         </Card>}

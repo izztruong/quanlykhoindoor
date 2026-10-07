@@ -50,7 +50,8 @@ export default function FinishedGoodsScreen() {
             { label: "Đơn vị", value: item.unit?.name ?? "—" },
             { label: "Nhóm", value: item.category ? labels.finishedGoodCategory(item.category) : "—" },
             { label: "Giá bán", value: item.sellingPrice != null ? formatCurrency(item.sellingPrice) : "—" },
-            { label: "Công thức", value: "Chạm để khai báo →" },
+            // Màn công thức có sẵn nút sang Giá bán theo thời gian, nên không cần lối vào thứ hai ở đây.
+            { label: "Công thức & giá", value: "Chạm để khai báo →" },
           ],
         })}
       />

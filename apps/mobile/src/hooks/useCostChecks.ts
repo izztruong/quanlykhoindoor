@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/apiClient";
-import type { CostCheck, CostCheckStatus } from "@/types";
+import type { CostCheck, CostCheckPosPreview, CostCheckStatus } from "@/types";
 
 /**
  * SL món đã bán KHÔNG còn nằm trong payload: server tự lấy từ doanh số POS theo kỳ của phiếu. Doanh
@@ -13,6 +13,20 @@ export interface CostCheckCreateInput {
   note?: string;
   discountTra?: number;
   discountDav?: number;
+}
+
+/**
+ * Doanh số POS sẽ dùng cho kỳ đang chọn. Chạy ngay khi chọn đủ hai phiếu kiểm kê, để thấy trước chứ
+ * không bấm Lưu rồi mới ăn 409.
+ */
+export function useCostCheckPosPreview(params: { userId: string; openingStockCheckId: string; closingStockCheckId: string }) {
+  const ready = Boolean(params.userId && params.openingStockCheckId && params.closingStockCheckId);
+  return useQuery({
+    queryKey: ["cost-checks", "pos-preview", params],
+    queryFn: () => api.get<CostCheckPosPreview>("/cost-checks/pos-preview", params),
+    enabled: ready,
+    retry: false,
+  });
 }
 
 export function useCostCheck(id: string) {

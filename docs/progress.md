@@ -46,10 +46,13 @@ Công thức BOM và giá bán giờ có **mốc hiệu lực** (`FinishedGoodRe
 giữa kỳ là Check Cost tự tính phần trước/sau mốc bằng hai định lượng khác nhau — không cần tách phiếu.
 SL món đã bán **bỏ hẳn gõ tay**, lấy từ `PosSaleHour` theo từng ô giờ; kỳ không có POS thì **409**. Thêm chốt
 chặn đổi `recipeUnitsPerBaseUnit` khi hàng hoá đã có phát sinh (không có đường thoát, phải tạo mã mới).
-Đã kiểm typecheck 3 app, lint web, bundle Android, `migrate deploy` DB trắng + `kho_dev_copy` (434 dòng giữ
-nguyên, 0 dòng mồ côi), 14 ca curl, và script đối chiếu: định mức 2 mốc ra đúng 460, kết quả **giống nhau ở 3
-múi giờ** (UTC/VN/New_York).
-Còn lại: 3/4 quán chưa có POS nên **tạm thời chưa tạo được Check Cost**; mobile không có màn nhập POS.
+Mobile có đủ màn công thức theo mốc, lịch sử giá bán và xem trước POS; **Doanh số POS cố ý chỉ có trên web**
+vì chỉ nhập được từ file Excel.
+Đã kiểm build 3 app (web `npm run build` + lint 0 lỗi), bundle Android, `migrate deploy` trên **DB trắng đúng
+bộ sẽ lên `main`** + `kho_dev_copy` (434 dòng giữ nguyên, 0 mồ côi), ~20 ca curl, hồi quy 3 phiếu cũ khớp
+byte-for-byte với snapshot, và script đối chiếu: đổi công thức giữa kỳ ra **162** (không có lịch sử thì 194),
+tồn đầu kỳ giữ bản cũ / tồn cuối kỳ dùng bản mới, kết quả **giống nhau ở 3 múi giờ** (UTC/VN/New_York).
+Còn lại: 3/4 quán chưa có POS nên **tạm thời chưa tạo được Check Cost**. CHƯA ai bấm thử trên trình duyệt/app.
 
 ### Phiếu huỷ: ô tích "Trừ CC" từng dòng (server + web + mobile) — CHƯA thử trên trình duyệt/app, CHƯA lên `main`
 Bỏ tích = Check Cost không trừ dòng huỷ đó; tạo phiếu mặc định tích hết; chỉ quyền mới `MATERIAL_WASTE.DEDUCT` đổi được (form + trang chi tiết). Trang chủ vẫn đếm mọi dòng.
