@@ -91,10 +91,7 @@ function FormContent() {
     <Card>
       <CardHeader><CardTitle>Doanh số POS trong kỳ</CardTitle></CardHeader>
       <CardBody style={styles.fields}>
-        <Text style={styles.muted}>
-          SL đã bán lấy tự động từ doanh số POS, không nhập tay. Doanh số POS nhập trên web
-          (Quản trị › Doanh số POS) vì chỉ bên đó đọc được file Excel.
-        </Text>
+        <Text style={styles.muted}>SL đã bán lấy tự động từ doanh số POS.</Text>
         {!periodReady ? (
           <Text style={styles.faint}>Chọn quán và 2 phiếu kiểm kê khác nhau để xem doanh số sẽ dùng.</Text>
         ) : preview.isLoading ? (
