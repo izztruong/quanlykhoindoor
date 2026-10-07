@@ -63,10 +63,7 @@ const stockExportTypeLabel: Record<string, string> = {
 };
 
 const salesOrderStatusLabel: Record<string, string> = {
-  DRAFT: "Chưa xác nhận",
-  PENDING_CONFIRM: "Chờ xác nhận",
-  CONFIRMED: "Đã xác nhận",
-  SHORT: "Thiếu",
+  DRAFT: "Chưa xử lý",
   COMPLETED: "Hoàn thành",
   CANCELLED: "Đã huỷ",
 };

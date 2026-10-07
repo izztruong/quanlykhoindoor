@@ -2,7 +2,7 @@ import { prisma } from "../../../config/db";
 import { capRows, dateRangeInput, dateTimeRange, defineTool, EXPENSE_ROW_DOC, formatVnDay, num, ORDER_PRICE_DOC, orderLinePrice, shopIdParam, sumAmounts, type ExpenseRow } from "../shared";
 
 /**
- * Dòng đơn hàng KHÔNG lưu giá. Giá nằm ở phiếu xuất sinh ra lúc admin xác nhận đơn
+ * Dòng đơn hàng KHÔNG lưu giá. Giá nằm ở phiếu xuất ghi lúc admin xử lý đơn
  * (StockExportItem: giá NCC từng dòng, một hàng hoá có thể tách nhiều NCC, SL đã co theo số nhận
  * thật — xem salesOrders.service). Còn ngày "nhận trong kỳ" lại nằm ở SalesOrderItem.receivedAt —
  * cùng mốc Check Cost dùng. Nên ghép hai bên theo (đơn, hàng hoá). Giá phiếu xuất bằng 0 (admin không
@@ -12,7 +12,7 @@ export const orderLines = defineTool({
   name: "order_lines",
   title: "Đơn hàng — dòng hàng đã nhận (có giá)",
   description:
-    "Từng dòng hàng của đơn hàng quán đặt, đã có giá. SL lấy từ phiếu xuất kho sinh lúc xác nhận đơn (đã co theo số nhận thật). " +
+    "Từng dòng hàng của đơn hàng quán đặt, đã có giá. SL lấy từ phiếu xuất kho ghi lúc admin xử lý đơn (khớp SL nhận). " +
     "Ngày = ngày quán thực nhận dòng đó (dòng chưa nhận không có ở đây; đơn đã huỷ bị loại). Quán = người đặt đơn. " +
     "Một hàng hoá lấy từ nhiều NCC thì ra nhiều dòng, mỗi dòng một giá. " +
     `${EXPENSE_ROW_DOC} Thêm: productCode, group (nhóm hàng hoá), supplier, priceSource. ${ORDER_PRICE_DOC} ` +

@@ -2,17 +2,17 @@ import { z } from "zod";
 import { prisma } from "../../../config/db";
 import { capRows, dateRangeInput, dateTimeRange, defineTool, formatVnDateTime, num, ORDER_PRICE_DOC, orderLinePrice, shopIdParam, sumAmounts } from "../shared";
 
-const STATUSES = ["DRAFT", "PENDING_CONFIRM", "CONFIRMED", "SHORT", "COMPLETED", "CANCELLED"] as const;
+const STATUSES = ["DRAFT", "COMPLETED", "CANCELLED"] as const;
 
 export const listSalesOrders = defineTool({
   name: "list_sales_orders",
   title: "Đơn hàng",
   description:
     "Đơn hàng quán đặt, lọc theo NGÀY ĐẶT (orderDate). Mỗi đơn có: items (dòng đặt: SL đặt, SL nhận, lúc nhận, ghi chú) " +
-    "và exportLines (phiếu xuất sinh lúc xác nhận: NCC, SL, đơn giá, thành tiền, priceSource — chưa xác nhận thì rỗng). " +
+    "và exportLines (phiếu xuất ghi lúc admin xử lý đơn: NCC, SL, đơn giá, thành tiền, priceSource — chưa xử lý thì rỗng). " +
     `${ORDER_PRICE_DOC} ` +
-    "Trạng thái: DRAFT = chưa xác nhận, PENDING_CONFIRM = chờ quán xác nhận SL, CONFIRMED = đã xác nhận, " +
-    "SHORT = nhận thiếu, COMPLETED = hoàn thành, CANCELLED = đã huỷ. Thời gian theo giờ VN. " +
+    "Trạng thái: DRAFT = chưa xử lý, COMPLETED = admin đã xử lý (ghi SL + ngày nhận), CANCELLED = đã huỷ. " +
+    "Hàng admin tự thêm lúc xử lý có SL đặt = 0. Thời gian theo giờ VN. " +
     "Muốn tính chi phí theo ngày nhận thì dùng order_lines.",
   input: {
     ...dateRangeInput,

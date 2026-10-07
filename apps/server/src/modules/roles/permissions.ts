@@ -14,7 +14,6 @@ export const PERMISSION_ACTIONS = [
   "ADD",
   "EDIT",
   "DELETE",
-  "RECEIVE",
   "APPROVE",
   "ADVANCE",
   "COMPLETE",
@@ -28,7 +27,6 @@ export const ACTION_LABELS: Record<PermissionAction, string> = {
   ADD: "Thêm",
   EDIT: "Cập nhật",
   DELETE: "Xoá",
-  RECEIVE: "Nhận hàng",
   APPROVE: "Duyệt đơn",
   ADVANCE: "Tạm ứng",
   COMPLETE: "Hoàn thành",
@@ -63,9 +61,9 @@ export const PERMISSION_RESOURCES = [
   // Sổ chi ngoài: chỉ ghi lại giao dịch, không có bước duyệt hay đánh dấu đã chi nên CRUD là đủ.
   { resource: "OTHER_EXPENSES", label: "Chi ngoài", group: "Tài chính", actions: CRUD },
 
-  // ADD = tạo đơn, sửa & huỷ đơn nháp của mình · RECEIVE = nhận hàng, xác nhận SL báo ·
-  // APPROVE = xác nhận đơn (sinh phiếu xuất kho), huỷ đơn ở mọi trạng thái, sửa ngày nhận.
-  { resource: "ORDERS", label: "Đơn hàng", group: "Order", actions: ["VIEW", "ADD", "RECEIVE", "APPROVE"] },
+  // ADD = tạo đơn, sửa & huỷ đơn chưa xử lý của mình · APPROVE = xử lý đơn (NCC, giá, SL + ngày nhận,
+  // ghi phiếu xuất kho), sửa lại đơn đã hoàn thành, huỷ đơn.
+  { resource: "ORDERS", label: "Đơn hàng", group: "Order", actions: ["VIEW", "ADD", "APPROVE"] },
 
   { resource: "STOCK_IMPORTS", label: "Phiếu nhập kho", group: "Kho", actions: ["VIEW", "ADD"] },
   { resource: "STOCK_EXPORTS", label: "Phiếu xuất kho", group: "Kho", actions: ["VIEW", "ADD"] },

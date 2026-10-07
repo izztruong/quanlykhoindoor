@@ -94,7 +94,7 @@ export function DashboardClient() {
             <h2 className="text-lg font-semibold text-slate-800">Quản trị</h2>
 
             {canOrders && (
-              <StatCard title="Đơn hàng chưa xác nhận" href="/orders" isLoading={orders.isLoading}>
+              <StatCard title="Đơn hàng chưa xử lý" href="/orders" isLoading={orders.isLoading}>
                 <div className="mt-2 text-2xl font-semibold text-slate-800">{formatNumber(orders.data ?? 0)} đơn</div>
               </StatCard>
             )}

@@ -16,7 +16,7 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 - **Danh mục** — hàng hoá (có cờ `active`), nhóm, đơn vị, kho, NCC, khách hàng, đồ thành phẩm
 - **Kho** — phiếu nhập, xuất, kiểm kê kho, điều chuyển; giá theo từng NCC
-- **Order** — danh sách, tạo đơn, Order nhanh, luồng 6 trạng thái, ngày nhận theo từng dòng hàng,
+- **Order** — danh sách, tạo đơn, Order nhanh, luồng trạng thái, ngày nhận theo từng dòng hàng,
   Tổng hợp đặt NCC
 - **Kiểm kê quán** — phiếu kiểm (tuần/tháng), phiếu huỷ nguyên liệu, tự trừ vỏ
 - **Check Cost** — báo cáo NVL + tổng hợp tài chính, snapshot chốt cứng, huỷ mềm, công thức BOM,
@@ -53,6 +53,11 @@ bộ sẽ lên `main`** + `kho_dev_copy` (434 dòng giữ nguyên, 0 mồ côi),
 byte-for-byte với snapshot, và script đối chiếu: đổi công thức giữa kỳ ra **162** (không có lịch sử thì 194),
 tồn đầu kỳ giữ bản cũ / tồn cuối kỳ dùng bản mới, kết quả **giống nhau ở 3 múi giờ** (UTC/VN/New_York).
 Còn lại: 3/4 quán chưa có POS nên **tạm thời chưa tạo được Check Cost**. CHƯA ai bấm thử trên trình duyệt/app.
+
+### Đơn hàng: bỏ bước xác nhận, admin tự xử lý nhận hàng (server + web) — CHƯA thử trên trình duyệt, CHƯA lên `main`
+Chỉ còn Chưa xử lý → Hoàn thành/Huỷ; màn "Xử lý đơn" (NCC, giá, SL + ngày nhận, thêm hàng) dùng cả để sửa đơn đã hoàn thành; chi tiết đơn có cột NCC + Giá xuất. Migration chuyển 74 đơn chờ/đã xác nhận/thiếu thành Hoàn thành (SL nhận = SL phiếu xuất).
+Đã kiểm typecheck, lint web, `migrate deploy` DB trắng + `kho_db` + `kho_dev_copy` (đối chiếu SL), 10 ca curl.
+**Mobile chưa sửa**: app đang cài (cả bản build mới từ `dev`) vẫn gọi `/confirm`, `/receiving` đã xoá → hỏng xử lý đơn trên app tới khi làm phần mobile.
 
 ### Phiếu huỷ: ô tích "Trừ CC" từng dòng (server + web + mobile) — CHƯA thử trên trình duyệt/app, CHƯA lên `main`
 Bỏ tích = Check Cost không trừ dòng huỷ đó; tạo phiếu mặc định tích hết; chỉ quyền mới `MATERIAL_WASTE.DEDUCT` đổi được (form + trang chi tiết). Trang chủ vẫn đếm mọi dòng.

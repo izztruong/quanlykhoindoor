@@ -130,8 +130,8 @@ export const EXPENSE_ROW_DOC =
   "totalAmount là tổng thành tiền của TOÀN BỘ dòng khớp bộ lọc (kể cả khi rows bị cắt). Tiền tính bằng đồng.";
 
 /**
- * Giá một dòng hàng của đơn: giá trên phiếu xuất nếu admin có nhập lúc xác nhận đơn, không thì giá
- * vốn hiện tại của hàng hoá — đúng giá Check Cost dùng. Thực tế form xác nhận để trống giá thì lưu
+ * Giá một dòng hàng của đơn: giá trên phiếu xuất nếu admin có nhập lúc xử lý đơn, không thì giá
+ * vốn hiện tại của hàng hoá — đúng giá Check Cost dùng. Thực tế form xử lý đơn để trống giá thì lưu
  * 0, và dữ liệu thật gần như toàn dòng giá 0, nên không có bước lùi này thì cả cột thành tiền bằng 0.
  * `priceSource` cho biết dòng nào lấy giá nào: giá vốn hàng hoá là giá HIỆN TẠI, không phải giá lúc nhận.
  */
@@ -146,5 +146,5 @@ export function orderLinePrice(quantity: number | null, exportPrice: number | nu
 }
 
 export const ORDER_PRICE_DOC =
-  "priceSource: EXPORT = giá NCC admin nhập lúc xác nhận đơn; PRODUCT_COST = admin không nhập giá nên lấy giá vốn " +
+  "priceSource: EXPORT = giá NCC admin nhập lúc xử lý đơn; PRODUCT_COST = admin không nhập giá nên lấy giá vốn " +
   "HIỆN TẠI của hàng hoá (cùng giá Check Cost dùng — đổi giá vốn về sau thì số này đổi theo).";

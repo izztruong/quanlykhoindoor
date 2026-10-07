@@ -18,7 +18,7 @@ import { FileSpreadsheet, Filter } from "lucide-react";
 import { useMemo, useState } from "react";
 
 /** Chỉ những trạng thái mà việc đi đặt NCC còn có ý nghĩa — đơn đã huỷ không nằm trong danh sách. */
-const STATUS_OPTIONS = ["DRAFT", "PENDING_CONFIRM", "CONFIRMED", "SHORT", "COMPLETED"];
+const STATUS_OPTIONS = ["DRAFT", "COMPLETED"];
 
 interface FilterValues {
   from: string;
@@ -36,7 +36,7 @@ function defaultFilter(): FilterValues {
     from: first.toISOString().slice(0, 10),
     to: last.toISOString().slice(0, 10),
     createdById: "",
-    // Đơn chưa xác nhận chính là phần còn phải đi đặt, nên đó là mặc định.
+    // Đơn chưa xử lý chính là phần còn phải đi đặt, nên đó là mặc định.
     statuses: ["DRAFT"],
   };
 }

@@ -20,10 +20,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 const statusTone: Record<string, "gray" | "green" | "red" | "yellow" | "blue"> = {
-  DRAFT: "gray",
-  PENDING_CONFIRM: "yellow",
-  CONFIRMED: "blue",
-  SHORT: "yellow",
+  DRAFT: "yellow",
   COMPLETED: "green",
   CANCELLED: "red",
 };
@@ -121,10 +118,7 @@ export default function OrdersPage() {
             <div className="w-48">
               <Select value={status} onChange={(e) => changeStatus(e.target.value)}>
                 <option value="">Tất cả trạng thái</option>
-                <option value="DRAFT">Chưa xác nhận</option>
-                <option value="PENDING_CONFIRM">Chờ xác nhận</option>
-                <option value="CONFIRMED">Đã xác nhận</option>
-                <option value="SHORT">Thiếu</option>
+                <option value="DRAFT">Chưa xử lý</option>
                 <option value="COMPLETED">Hoàn thành</option>
                 <option value="CANCELLED">Đã huỷ</option>
               </Select>

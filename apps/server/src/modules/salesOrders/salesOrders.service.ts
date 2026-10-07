@@ -7,12 +7,7 @@ import { stampSalesOrderLateness } from "../../utils/deadlines";
 import { HttpError } from "../../utils/httpError";
 import { getInventoryCountReport } from "../reports/reports.service";
 import type { z } from "zod";
-import type {
-  salesOrderConfirmSchema,
-  salesOrderCreateSchema,
-  salesOrderReceivedDatesSchema,
-  salesOrderReceivingSchema,
-} from "./salesOrders.schemas";
+import type { salesOrderCreateSchema, salesOrderProcessSchema } from "./salesOrders.schemas";
 
 export const salesOrderDetailInclude = {
   warehouse: true,
@@ -53,9 +48,7 @@ export const salesOrderListInclude = {
 };
 
 type SalesOrderCreateInput = z.infer<typeof salesOrderCreateSchema>;
-type SalesOrderReceivingInput = z.infer<typeof salesOrderReceivingSchema>;
-type SalesOrderConfirmInput = z.infer<typeof salesOrderConfirmSchema>;
-type SalesOrderReceivedDatesInput = z.infer<typeof salesOrderReceivedDatesSchema>;
+type SalesOrderProcessInput = z.infer<typeof salesOrderProcessSchema>;
 
 /**
  * An order can't ask for more of a product than is currently on hand in its
@@ -115,7 +108,7 @@ export async function replaceSalesOrderItems(orderId: string, data: SalesOrderCr
     const order = await tx.salesOrder.findUnique({ where: { id: orderId } });
     if (!order) throw new HttpError(404, "Không tìm thấy đơn hàng");
     assertOwner(order, actingUser, "Không tìm thấy đơn hàng");
-    if (order.status !== "DRAFT") throw new HttpError(409, "Chỉ có thể sửa đơn hàng ở trạng thái nháp");
+    if (order.status !== "DRAFT") throw new HttpError(409, "Chỉ sửa được đơn hàng chưa xử lý");
 
     await tx.salesOrderItem.deleteMany({ where: { salesOrderId: orderId } });
 
@@ -139,469 +132,204 @@ export async function replaceSalesOrderItems(orderId: string, data: SalesOrderCr
 }
 
 /**
- * ORDERS.ADD may only cancel an order still DRAFT (ownership is checked by the
- * caller). Any other transition needs ORDERS.APPROVE. Setting
- * CONFIRMED is never allowed here at all, for anyone — see
- * confirmSalesOrderWithExport, which is the only path onto that status.
- * Staff complete an order through the dedicated receiving checklist
- * (completeSalesOrderReceiving) instead.
+ * Đổi trạng thái tay chỉ còn huỷ (schema chỉ nhận CANCELLED). Hoàn thành đơn phải qua
+ * processSalesOrder vì nó còn ghi SL nhận và phiếu xuất kho. ORDERS.ADD chỉ huỷ được đơn chưa xử lý
+ * của mình (phạm vi kiểm ở assertOwner); ORDERS.APPROVE huỷ được mọi đơn chưa xử lý.
  */
-function assertStatusTransitionAllowed(order: { status: string }, status: string, actingUser?: AuthUser) {
-  if (status === "CONFIRMED") {
-    throw new HttpError(400, "Xác nhận đơn hàng phải qua bước tạo phiếu xuất kho");
-  }
-  if (can(actingUser, "ORDERS", "APPROVE")) return;
+export async function updateSalesOrderStatus(orderId: string, status: "CANCELLED", actingUser?: AuthUser) {
+  const order = await prisma.salesOrder.findUnique({ where: { id: orderId } });
+  if (!order) throw new HttpError(404, "Không tìm thấy đơn hàng");
+  assertOwner(order, actingUser, "Không tìm thấy đơn hàng");
+  // Đơn đã hoàn thành đã trừ tồn kho qua phiếu xuất — huỷ ở đây sẽ để phiếu xuất mồ côi.
+  if (order.status !== "DRAFT") throw new HttpError(409, "Chỉ huỷ được đơn hàng chưa xử lý");
 
-  const draftCancelAllowed = can(actingUser, "ORDERS", "ADD") && order.status === "DRAFT" && status === "CANCELLED";
-
-  if (!draftCancelAllowed) {
-    throw new HttpError(403, "Bạn không có quyền chuyển đơn hàng sang trạng thái này");
-  }
-}
-
-interface OrderWithItemsForExport {
-  id: string;
-  warehouseId: string;
-  items: {
-    productId: string;
-    quantity: Prisma.Decimal;
-    receivedQuantity?: number | Prisma.Decimal | null;
-    product: { costPrice: Prisma.Decimal };
-  }[];
-}
-
-/**
- * Exports at the actual received quantity where known, falling back to the ordered quantity
- * otherwise. Returns the `data` object rather than calling `.create()` itself so callers can
- * either `await tx.stockExport.create({ data })` inside a cheap interactive transaction, or
- * collect it unawaited into a batched non-interactive `prisma.$transaction([...])` array.
- */
-function buildStockExportCreateData(order: OrderWithItemsForExport, actingUserId?: string): Prisma.StockExportUncheckedCreateInput {
-  return {
-    code: generateCode("PX"),
-    type: "SALE",
-    transactionAt: new Date(),
-    form: "CASH",
-    status: "COMPLETED",
-    warehouseId: order.warehouseId,
-    salesOrderId: order.id,
-    createdById: actingUserId,
-    items: {
-      create: order.items.map((it) => {
-        const qty = it.receivedQuantity != null ? Number(it.receivedQuantity) : Number(it.quantity);
-        return {
-          productId: it.productId,
-          quantity: qty,
-          costPrice: it.product.costPrice,
-          costAmount: qty * Number(it.product.costPrice),
-        };
-      }),
-    },
-  };
-}
-
-/**
- * Once an order is confirmed, its stock export already exists (created in
- * confirmSalesOrderWithExport at the ordered quantities, possibly split
- * across suppliers). When the actual received quantity for a product turns
- * out to differ, scale every export line for that product proportionally so
- * the export's total matches reality while keeping each supplier's relative
- * share intact. Returns a single (unexecuted) bulk-update statement — built
- * from export items the caller already has in hand — covering every changed
- * line in one round trip instead of one UPDATE per line; see
- * completeSalesOrderReceiving for why that matters.
- */
-function buildStockExportReconcileOps(
-  exportItems: { id: string; productId: string; quantity: Prisma.Decimal; costPrice: Prisma.Decimal }[],
-  targets: { productId: string; receivedQuantity: number }[],
-): Prisma.PrismaPromise<unknown>[] {
-  const linesByProduct = new Map<string, typeof exportItems>();
-  for (const line of exportItems) {
-    const list = linesByProduct.get(line.productId) ?? [];
-    list.push(line);
-    linesByProduct.set(line.productId, list);
-  }
-
-  const rows: Prisma.Sql[] = [];
-  for (const target of targets) {
-    const lines = linesByProduct.get(target.productId);
-    if (!lines || lines.length === 0) continue;
-
-    const currentTotal = lines.reduce((sum, l) => sum + Number(l.quantity), 0);
-    if (currentTotal <= 0 || Math.abs(currentTotal - target.receivedQuantity) < 1e-6) continue;
-
-    const scale = target.receivedQuantity / currentTotal;
-    for (const line of lines) {
-      const newQty = Number(line.quantity) * scale;
-      const newCostAmount = newQty * Number(line.costPrice);
-      rows.push(Prisma.sql`(${line.id}::text, ${newQty}::numeric, ${newCostAmount}::numeric)`);
-    }
-  }
-  if (rows.length === 0) return [];
-
-  return [
-    prisma.$executeRaw`
-      UPDATE "StockExportItem" AS t
-      SET "quantity" = v.quantity, "costAmount" = v."costAmount"
-      FROM (VALUES ${Prisma.join(rows)}) AS v(id, quantity, "costAmount")
-      WHERE t.id = v.id
-    `,
-  ];
-}
-
-export async function updateSalesOrderStatus(orderId: string, status: string, actingUser?: AuthUser) {
-  const updated = await prisma.$transaction(async (tx) => {
-    const order = await tx.salesOrder.findUnique({
-      where: { id: orderId },
-      include: { items: { include: { product: true } }, stockExport: true },
-    });
-    if (!order) throw new HttpError(404, "Không tìm thấy đơn hàng");
-    assertOwner(order, actingUser, "Không tìm thấy đơn hàng");
-    if (order.status === "COMPLETED" || order.status === "CANCELLED") {
-      throw new HttpError(409, "Đơn hàng đã đóng, không thể đổi trạng thái");
-    }
-    assertStatusTransitionAllowed(order, status, actingUser);
-
-    if (status === "COMPLETED" && !order.stockExport) {
-      await tx.stockExport.create({ data: buildStockExportCreateData(order, actingUser?.id) });
-    }
-
-    return tx.salesOrder.update({
-      where: { id: orderId },
-      data: { status: status as any },
-      include: salesOrderDetailInclude,
-    });
-  });
+  const updated = await prisma.salesOrder.update({ where: { id: orderId }, data: { status }, include: salesOrderDetailInclude });
   return withItemImageCounts(updated);
 }
 
 /**
- * Staff (or admin) record how much of each line actually arrived, once the
- * order is CONFIRMED (or already SHORT from a prior partial pass) - this can
- * be less than, equal to, or more than what was ordered. If every item ends
- * up with at least its ordered quantity, the order closes out as COMPLETED;
- * otherwise it lands on SHORT and stays editable so the checklist can be
- * finished later. Either way, the linked stock export (created at confirm
- * time) is kept in sync with the actual received quantities.
+ * Admin xử lý đơn — dùng cho cả lần đầu (DRAFT) lẫn sửa lại đơn đã COMPLETED. Mỗi hàng hoá mang
+ * 1..n dòng NCC; SL nhận của hàng = tổng SL các dòng đó, và các dòng NCC thay TOÀN BỘ dòng của
+ * phiếu xuất kho liên kết (chưa có phiếu thì tạo mới). Không xoá dòng hàng: muốn bỏ thì SL = 0, nhờ
+ * vậy ảnh chứng từ gắn theo dòng không mất.
+ *
+ * Đơn đã COMPLETED thì Check Cost đã có thể tính nó vào kỳ — trả về các phiếu Check Cost có kỳ trùm
+ * ngày nhận CŨ hoặc MỚI của những dòng đổi SL/ngày, để admin tạo lại (số Check Cost đã chốt cứng).
  */
-export async function completeSalesOrderReceiving(orderId: string, data: SalesOrderReceivingInput, actingUser?: AuthUser) {
+export async function processSalesOrder(orderId: string, data: SalesOrderProcessInput, actingUser?: AuthUser) {
+  if (!can(actingUser, "ORDERS", "APPROVE")) {
+    throw new HttpError(403, "Chỉ người có quyền xử lý đơn mới được nhập nhận hàng");
+  }
+
   const order = await prisma.salesOrder.findUnique({
     where: { id: orderId },
-    include: { items: { include: { product: true } }, stockExport: { include: { items: true } } },
+    include: { items: { include: { product: true } }, stockExport: true },
   });
   if (!order) throw new HttpError(404, "Không tìm thấy đơn hàng");
-  assertOwner(order, actingUser, "Không tìm thấy đơn hàng");
-  if (order.status !== "CONFIRMED" && order.status !== "SHORT") {
-    throw new HttpError(409, "Chỉ có thể nhận hàng khi đơn đã được xác nhận");
-  }
+  if (order.status === "CANCELLED") throw new HttpError(409, "Đơn hàng đã huỷ, không xử lý được");
 
   const itemById = new Map(order.items.map((it) => [it.id, it]));
-  const updateByItemId = new Map(data.items.map((it) => [it.itemId, it]));
+  const existingProductIds = new Set(order.items.map((it) => it.productId));
+  const seenItemIds = new Set<string>();
+  const newProductIds = new Set<string>();
+  for (const entry of data.items) {
+    if (entry.itemId) {
+      if (!itemById.has(entry.itemId)) throw new HttpError(400, "Dòng hàng hoá không thuộc đơn hàng này");
+      if (seenItemIds.has(entry.itemId)) throw new HttpError(400, "Một hàng hoá bị gửi hai lần");
+      seenItemIds.add(entry.itemId);
+    } else {
+      const productId = entry.productId!;
+      if (existingProductIds.has(productId) || newProductIds.has(productId)) {
+        throw new HttpError(400, "Hàng hoá thêm mới đã có trong đơn");
+      }
+      newProductIds.add(productId);
+    }
+  }
+  // Bắt buộc gửi đủ mọi dòng cũ: thiếu một dòng mà vẫn thay toàn bộ phiếu xuất thì hàng đó mất khỏi
+  // phiếu xuất (tồn kho lệch) trong khi SL nhận cũ vẫn nằm trên đơn.
+  const missing = order.items.find((it) => !seenItemIds.has(it.id));
+  if (missing) throw new HttpError(400, `Thiếu thông tin nhận hàng cho "${missing.product.name}"`);
 
-  // Effective received quantity per line: this submission's value where
-  // touched, otherwise whatever was already saved from an earlier pass.
-  const receivedByItemId = new Map<string, number>();
-  for (const orderItem of order.items) {
-    const update = updateByItemId.get(orderItem.id);
-    const qty = update ? update.receivedQuantity : orderItem.receivedQuantity != null ? Number(orderItem.receivedQuantity) : 0;
-    receivedByItemId.set(orderItem.id, qty);
+  if (newProductIds.size > 0) {
+    const found = await prisma.product.count({ where: { id: { in: [...newProductIds] } } });
+    if (found !== newProductIds.size) throw new HttpError(400, "Có hàng hoá thêm mới không tồn tại");
   }
 
-  for (const update of data.items) {
-    if (!itemById.has(update.itemId)) throw new HttpError(400, "Dòng hàng hoá không thuộc đơn hàng này");
+  const productIdOf = (entry: SalesOrderProcessInput["items"][number]) =>
+    entry.itemId ? itemById.get(entry.itemId)!.productId : entry.productId!;
+
+  const linePairs = data.items.flatMap((entry) =>
+    entry.lines.filter((line) => line.supplierId).map((line) => ({ productId: productIdOf(entry), supplierId: line.supplierId! })),
+  );
+  if (linePairs.length > 0) {
+    const prices = await prisma.productSupplierPrice.findMany({ where: { OR: linePairs } });
+    const pricedPairs = new Set(prices.map((p) => `${p.productId}:${p.supplierId}`));
+    if (linePairs.some((p) => !pricedPairs.has(`${p.productId}:${p.supplierId}`))) {
+      throw new HttpError(400, "Có hàng hoá chưa được thiết lập giá cho nhà cung cấp đã chọn");
+    }
   }
 
-  const allReceived = order.items.every((it) => (receivedByItemId.get(it.id) ?? 0) >= Number(it.quantity));
-  const newStatus = allReceived ? "COMPLETED" : "SHORT";
+  const now = new Date();
+  const rows = data.items.map((entry) => {
+    const existing = entry.itemId ? itemById.get(entry.itemId)! : undefined;
+    return {
+      entry,
+      existing,
+      productId: productIdOf(entry),
+      receivedQuantity: entry.lines.reduce((sum, line) => sum + line.quantity, 0),
+      // Không gửi ngày thì giữ ngày đã lưu, chưa có mới lấy giờ lưu — sửa SL không làm trôi ngày nhận.
+      receivedAt: entry.receivedAt ?? existing?.receivedAt ?? now,
+      note: entry.note?.trim() || null,
+    };
+  });
 
-  // Same fix as confirmSalesOrderWithExport/confirmOrderReportedQuantities, taken one step
-  // further: instead of one UPDATE statement per line (even batched into a single transaction
-  // round trip), fold every line into ONE bulk UPDATE ... FROM (VALUES ...) statement, which
-  // Postgres executes as a single planned operation regardless of line count.
+  const affectedCostChecks: AffectedCostCheck[] = [];
+  if (order.status === "COMPLETED") {
+    const affectedDates: Date[] = [];
+    for (const row of rows) {
+      const prevQty = row.existing?.receivedQuantity != null ? Number(row.existing.receivedQuantity) : 0;
+      const prevAt = row.existing?.receivedAt ?? null;
+      const qtyChanged = Math.abs(prevQty - row.receivedQuantity) > 1e-9;
+      const dateChanged = prevAt?.getTime() !== row.receivedAt.getTime();
+      if (!qtyChanged && !dateChanged) continue;
+      if (prevAt) affectedDates.push(prevAt);
+      affectedDates.push(row.receivedAt);
+    }
+    const seen = new Set<string>();
+    for (const at of affectedDates) {
+      for (const cc of await findCostChecksUsingPeriodRecord([order.createdById], at)) {
+        if (!seen.has(cc.id)) {
+          seen.add(cc.id);
+          affectedCostChecks.push(cc);
+        }
+      }
+    }
+  }
+
+  const exportLines = rows.flatMap((row) =>
+    row.entry.lines.map((line) => ({
+      productId: row.productId,
+      quantity: line.quantity,
+      costPrice: line.costPrice,
+      costAmount: line.quantity * line.costPrice,
+      supplierId: line.supplierId,
+    })),
+  );
+
+  // Gom mọi lệnh ghi vào MỘT transaction không tương tác, dòng cũ gộp thành một UPDATE ... FROM
+  // (VALUES ...) — Neon chậm, update từng dòng sẽ vượt timeout với đơn nhiều hàng.
   const operations: Prisma.PrismaPromise<unknown>[] = [];
-  if (data.items.length > 0) {
-    const submittedAt = new Date();
-    // Chỉ ORDERS.APPROVE được đặt ngày nhận — quán chỉ điền số lượng. Chặn ở server chứ không chỉ ẩn ô
-    // trên giao diện, vì ai cũng gọi thẳng API được.
-    const canSetDate = can(actingUser, "ORDERS", "APPROVE");
-    const rows = data.items.map((update) => {
-      const orderItem = itemById.get(update.itemId)!;
-      const received = update.receivedQuantity >= Number(orderItem.quantity);
-      const receivedAt = canSetDate ? (update.receivedAt ?? null) : null;
-      return Prisma.sql`(${update.itemId}::text, ${update.receivedQuantity}::numeric, ${received}::boolean, ${receivedAt}::timestamp)`;
+
+  const newRows = rows.filter((row) => !row.existing);
+  if (newRows.length > 0) {
+    operations.push(
+      prisma.salesOrderItem.createMany({
+        data: newRows.map((row) => ({
+          salesOrderId: orderId,
+          productId: row.productId,
+          quantity: 0,
+          receivedQuantity: row.receivedQuantity,
+          received: true,
+          receivedAt: row.receivedAt,
+          note: row.note,
+        })),
+      }),
+    );
+  }
+
+  const existingRows = rows.filter((row) => row.existing);
+  if (existingRows.length > 0) {
+    const values = existingRows.map((row) => {
+      const received = row.receivedQuantity >= Number(row.existing!.quantity);
+      return Prisma.sql`(${row.existing!.id}::text, ${row.receivedQuantity}::numeric, ${received}::boolean, ${row.receivedAt}::timestamp, ${row.note}::text)`;
     });
-    // Thứ tự ưu tiên ngày nhận: giá trị admin vừa gửi -> ngày đã lưu sẵn (admin đặt lúc xác nhận
-    // đơn) -> giờ submit. Nếu ghi đè thẳng, quán bấm "Hoàn thành" sẽ xoá mất ngày admin đã đặt.
     operations.push(prisma.$executeRaw`
       UPDATE "SalesOrderItem" AS t
       SET "receivedQuantity" = v."receivedQuantity",
           "received" = v.received,
-          "receivedAt" = COALESCE(v."receivedAt", t."receivedAt", ${submittedAt}::timestamp)
-      FROM (VALUES ${Prisma.join(rows)}) AS v(id, "receivedQuantity", received, "receivedAt")
+          "receivedAt" = v."receivedAt",
+          "note" = v.note
+      FROM (VALUES ${Prisma.join(values)}) AS v(id, "receivedQuantity", received, "receivedAt", note)
       WHERE t.id = v.id
     `);
   }
 
   if (order.stockExport) {
+    const stockExportId = order.stockExport.id;
+    operations.push(prisma.stockExportItem.deleteMany({ where: { stockExportId } }));
+    operations.push(prisma.stockExportItem.createMany({ data: exportLines.map((line) => ({ ...line, stockExportId })) }));
+  } else {
     operations.push(
-      ...buildStockExportReconcileOps(
-        order.stockExport.items,
-        order.items.map((it) => ({ productId: it.productId, receivedQuantity: receivedByItemId.get(it.id)! })),
-      ),
-    );
-  } else if (newStatus === "COMPLETED") {
-    const exportData = buildStockExportCreateData(
-      {
-        id: order.id,
-        warehouseId: order.warehouseId,
-        items: order.items.map((it) => ({
-          productId: it.productId,
-          quantity: it.quantity,
-          receivedQuantity: receivedByItemId.get(it.id)!,
-          product: it.product,
-        })),
-      },
-      actingUser?.id,
-    );
-    operations.push(prisma.stockExport.create({ data: exportData }));
-  }
-
-  operations.push(prisma.salesOrder.update({ where: { id: orderId }, data: { status: newStatus, completedAt: new Date() } }));
-
-  // Default Prisma transaction timeout is 5s — orders with ~100+ lines can take longer than that
-  // to execute sequentially over Neon even batched into one transaction, so raise it generously.
-  await prisma.$transaction(operations, { timeout: 20000 });
-
-  return withItemImageCounts(
-    await prisma.salesOrder.findUniqueOrThrow({ where: { id: orderId }, include: salesOrderDetailInclude }),
-  );
-}
-
-/**
- * Admin fills in a supplier + price per line (what was actually ordered from
- * the NCC) and that creates the linked phiếu xuất kho in one transaction. The
- * order lands on PENDING_CONFIRM rather than CONFIRMED — the reported
- * quantity still needs the ordering nhân viên to acknowledge it (see
- * confirmOrderReportedQuantities) before it becomes the order's official
- * quantity and the order is CONFIRMED. Once this has run, completing the
- * order later never needs to auto-generate a separate export (see the
- * `!order.stockExport` guards above).
- *
- * A dòng đơn hàng may be split across more than one entry (different
- * suppliers for part of the same line) — each entry becomes its own
- * StockExportItem. Entries no longer need to sum to the originally ordered
- * quantity: admin reports whatever was actually obtained from suppliers.
- */
-export async function confirmSalesOrderWithExport(orderId: string, data: SalesOrderConfirmInput, actingUser?: AuthUser) {
-  if (!can(actingUser, "ORDERS", "APPROVE")) {
-    throw new HttpError(403, "Chỉ quản trị viên mới được xác nhận đơn hàng");
-  }
-
-  const order = await prisma.salesOrder.findUnique({ where: { id: orderId }, include: { items: { include: { product: true } } } });
-  if (!order) throw new HttpError(404, "Không tìm thấy đơn hàng");
-  if (order.status !== "DRAFT") throw new HttpError(409, "Chỉ có thể xác nhận đơn hàng ở trạng thái chưa xác nhận");
-
-  const itemById = new Map(order.items.map((it) => [it.id, it]));
-  if (data.items.some((entry) => !itemById.has(entry.itemId))) {
-    throw new HttpError(400, "Dòng hàng hoá không thuộc đơn hàng này");
-  }
-
-  const entriesByItemId = new Map<string, typeof data.items>();
-  for (const entry of data.items) {
-    const list = entriesByItemId.get(entry.itemId) ?? [];
-    list.push(entry);
-    entriesByItemId.set(entry.itemId, list);
-  }
-
-  for (const orderItem of order.items) {
-    const entries = entriesByItemId.get(orderItem.id);
-    if (!entries || entries.length === 0) {
-      throw new HttpError(400, `Thiếu thông tin phân bổ nhà cung cấp cho "${orderItem.product.name}"`);
-    }
-  }
-
-  const linePairs = data.items
-    .filter((it) => it.supplierId)
-    .map((it) => ({ productId: itemById.get(it.itemId)!.productId, supplierId: it.supplierId! }));
-  if (linePairs.length > 0) {
-    const prices = await prisma.productSupplierPrice.findMany({ where: { OR: linePairs } });
-    const pricedPairs = new Set(prices.map((p) => `${p.productId}:${p.supplierId}`));
-    const missing = linePairs.filter((p) => !pricedPairs.has(`${p.productId}:${p.supplierId}`));
-    if (missing.length > 0) {
-      throw new HttpError(400, "Có hàng hoá chưa được thiết lập giá cho nhà cung cấp đã chọn");
-    }
-  }
-
-  // Same fix as reorder-thresholds/product-supplier-prices: an interactive transaction awaiting
-  // one note-update round trip per hàng hoá blew past Prisma's 5s timeout over Neon's higher
-  // per-request latency on orders with many lines. Batch every write into one non-interactive
-  // transaction (single round trip) instead.
-  const operations: Prisma.PrismaPromise<unknown>[] = [
-    prisma.stockExport.create({
-      data: {
-        code: generateCode("PX"),
-        type: "SALE",
-        transactionAt: new Date(),
-        form: "CASH",
-        status: "COMPLETED",
-        warehouseId: order.warehouseId,
-        salesOrderId: order.id,
-        createdById: actingUser?.id,
-        items: {
-          create: data.items.map((entry) => {
-            const orderItem = itemById.get(entry.itemId)!;
-            return {
-              productId: orderItem.productId,
-              quantity: entry.quantity,
-              costPrice: entry.costPrice,
-              costAmount: entry.quantity * entry.costPrice,
-              supplierId: entry.supplierId,
-            };
-          }),
+      prisma.stockExport.create({
+        data: {
+          code: generateCode("PX"),
+          type: "SALE",
+          transactionAt: now,
+          form: "CASH",
+          status: "COMPLETED",
+          warehouseId: order.warehouseId,
+          salesOrderId: order.id,
+          createdById: actingUser?.id,
+          items: { create: exportLines },
         },
-      },
+      }),
+    );
+  }
+
+  operations.push(
+    prisma.salesOrder.update({
+      where: { id: orderId },
+      data: { status: "COMPLETED", completedAt: order.completedAt ?? now },
     }),
-  ];
-
-  // Ghi chú và ngày nhận dự kiến đều theo từng hàng hoá (itemId), không theo từng dòng NCC tách
-  // nhỏ — lấy dòng đầu tiên có giá trị trong số các dòng cùng itemId. Gộp cả 2 cột vào 1 câu
-  // UPDATE bulk duy nhất; COALESCE để dòng chỉ có note không bị xoá mất ngày và ngược lại.
-  const itemRows: Prisma.Sql[] = [];
-  for (const [itemId, entries] of entriesByItemId) {
-    const note = entries.find((entry) => entry.note?.trim())?.note?.trim() ?? null;
-    const receivedAt = entries.find((entry) => entry.receivedAt)?.receivedAt ?? null;
-    if (note || receivedAt) itemRows.push(Prisma.sql`(${itemId}::text, ${note}::text, ${receivedAt}::timestamp)`);
-  }
-  if (itemRows.length > 0) {
-    operations.push(prisma.$executeRaw`
-      UPDATE "SalesOrderItem" AS t
-      SET "note" = COALESCE(v.note, t.note),
-          "receivedAt" = COALESCE(v."receivedAt", t."receivedAt")
-      FROM (VALUES ${Prisma.join(itemRows)}) AS v(id, note, "receivedAt")
-      WHERE t.id = v.id
-    `);
-  }
-
-  operations.push(prisma.salesOrder.update({ where: { id: orderId }, data: { status: "PENDING_CONFIRM" } }));
-
-  // Default Prisma transaction timeout is 5s — orders with ~100+ lines can take longer than that
-  // to execute sequentially over Neon even batched into one transaction, so raise it generously.
-  await prisma.$transaction(operations, { timeout: 20000 });
-
-  return withItemImageCounts(
-    await prisma.salesOrder.findUniqueOrThrow({ where: { id: orderId }, include: salesOrderDetailInclude }),
   );
-}
 
-/**
- * The nhân viên who placed the order reviews the quantity admin actually
- * obtained from suppliers (reported via confirmSalesOrderWithExport, summed
- * per product across the export's lines) and acknowledges it. That reported
- * quantity replaces each line's originally-ordered quantity outright, then
- * the order moves to CONFIRMED so it can proceed through the existing
- * receiving checklist (completeSalesOrderReceiving) unchanged.
- */
-export async function confirmOrderReportedQuantities(orderId: string, actingUser?: AuthUser) {
-  const order = await prisma.salesOrder.findUnique({
-    where: { id: orderId },
-    include: { items: true, stockExport: { include: { items: true } } },
-  });
-  if (!order) throw new HttpError(404, "Không tìm thấy đơn hàng");
-  assertOwner(order, actingUser, "Không tìm thấy đơn hàng");
-  if (order.status !== "PENDING_CONFIRM") {
-    throw new HttpError(409, "Đơn hàng không ở trạng thái chờ xác nhận");
-  }
-
-  const reportedByProductId = new Map<string, number>();
-  for (const line of order.stockExport?.items ?? []) {
-    reportedByProductId.set(line.productId, (reportedByProductId.get(line.productId) ?? 0) + Number(line.quantity));
-  }
-
-  // Most items usually end up reported at exactly their ordered quantity, so skip the no-op
-  // updates (same value already stored) first — often drastically cutting the row count for the
-  // common case. What's left is folded into ONE bulk UPDATE ... FROM (VALUES ...) statement
-  // instead of one UPDATE per line, so the whole batch is a single planned operation regardless
-  // of how many lines actually changed — this replaces the previous fix of merely batching one
-  // UPDATE-per-line into a single transaction round trip, which still blew past Prisma's 5s
-  // timeout over Neon's higher per-request latency on orders with many changed lines.
-  const changedItems = order.items.filter((item) => (reportedByProductId.get(item.productId) ?? 0) !== Number(item.quantity));
-
-  const operations: Prisma.PrismaPromise<unknown>[] = [];
-  if (changedItems.length > 0) {
-    const rows = changedItems.map((item) => Prisma.sql`(${item.id}::text, ${reportedByProductId.get(item.productId) ?? 0}::numeric)`);
-    operations.push(prisma.$executeRaw`
-      UPDATE "SalesOrderItem" AS t
-      SET "quantity" = v.quantity
-      FROM (VALUES ${Prisma.join(rows)}) AS v(id, quantity)
-      WHERE t.id = v.id
-    `);
-  }
-  operations.push(prisma.salesOrder.update({ where: { id: orderId }, data: { status: "CONFIRMED" } }));
-
-  // Default Prisma transaction timeout is 5s — orders with ~100+ lines can take longer than that
-  // to execute sequentially over Neon even batched into one transaction, so raise it generously.
   await prisma.$transaction(operations, { timeout: 20000 });
-
-  return withItemImageCounts(
-    await prisma.salesOrder.findUniqueOrThrow({ where: { id: orderId }, include: salesOrderDetailInclude }),
-  );
-}
-
-/**
- * Admin sửa riêng ngày nhận của từng dòng, ở BẤT KỲ trạng thái nào sau khi đơn đã xác nhận.
- * Tách khỏi completeSalesOrderReceiving có chủ đích: nút "Hoàn thành" còn ghi số lượng, tính lại
- * trạng thái đơn và tạo/đối soát phiếu xuất kho, nên nếu gộp vào thì admin chỉ muốn sửa ngày sẽ
- * vô tình hoàn thành luôn đơn — và ngày sai sẽ bị khoá cứng khi đơn đã COMPLETED.
- *
- * Check Cost lọc kỳ theo chính ngày này, nên trả về danh sách phiếu Check Cost bị ảnh hưởng:
- * phiếu nào có kỳ trùm ngày CŨ (đang tính nhầm dòng này vào) hoặc ngày MỚI (lẽ ra phải tính vào).
- * Số của các phiếu đó đã chốt cứng nên không tự đổi — admin cần tự tạo lại nếu muốn số đúng.
- */
-export async function updateSalesOrderReceivedDates(orderId: string, data: SalesOrderReceivedDatesInput, actingUser?: AuthUser) {
-  if (!can(actingUser, "ORDERS", "APPROVE")) {
-    throw new HttpError(403, "Chỉ quản trị viên mới được sửa ngày nhận");
-  }
-
-  const order = await prisma.salesOrder.findUnique({ where: { id: orderId }, include: { items: true } });
-  if (!order) throw new HttpError(404, "Không tìm thấy đơn hàng");
-  if (order.status === "DRAFT" || order.status === "PENDING_CONFIRM") {
-    throw new HttpError(409, "Chỉ sửa được ngày nhận sau khi đơn đã xác nhận");
-  }
-
-  const itemById = new Map(order.items.map((it) => [it.id, it]));
-  for (const update of data.items) {
-    if (!itemById.has(update.itemId)) throw new HttpError(400, "Dòng hàng hoá không thuộc đơn hàng này");
-  }
-
-  // Gom cả mốc cũ lẫn mốc mới của những dòng thực sự đổi ngày, để tìm đủ phiếu Check Cost bị
-  // ảnh hưởng ở cả 2 phía (dòng rời khỏi kỳ cũ và rơi vào kỳ mới).
-  const affectedDates: Date[] = [];
-  for (const update of data.items) {
-    const existing = itemById.get(update.itemId)!;
-    if (existing.receivedAt?.getTime() === update.receivedAt.getTime()) continue;
-    if (existing.receivedAt) affectedDates.push(existing.receivedAt);
-    affectedDates.push(update.receivedAt);
-  }
-
-  const affectedCostChecks: AffectedCostCheck[] = [];
-  const seen = new Set<string>();
-  for (const at of affectedDates) {
-    for (const cc of await findCostChecksUsingPeriodRecord([order.createdById], at)) {
-      if (!seen.has(cc.id)) {
-        seen.add(cc.id);
-        affectedCostChecks.push(cc);
-      }
-    }
-  }
-
-  const rows = data.items.map((update) => Prisma.sql`(${update.itemId}::text, ${update.receivedAt}::timestamp)`);
-  await prisma.$executeRaw`
-    UPDATE "SalesOrderItem" AS t
-    SET "receivedAt" = v."receivedAt"
-    FROM (VALUES ${Prisma.join(rows)}) AS v(id, "receivedAt")
-    WHERE t.id = v.id
-  `;
 
   const updated = await prisma.salesOrder.findUniqueOrThrow({ where: { id: orderId }, include: salesOrderDetailInclude });
-  return { ...withItemImageCounts(updated), affectedCostChecks };
+  return {
+    order: withItemImageCounts(updated),
+    affectedCostChecks,
+    // Chỉ lần đầu hoàn thành mới báo quán — sửa lại về sau không bắn thông báo nữa.
+    firstCompletion: order.status === "DRAFT",
+  };
 }

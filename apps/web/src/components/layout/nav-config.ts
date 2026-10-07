@@ -112,7 +112,7 @@ const extraPageRules: { pattern: RegExp; permission: string }[] = [
   { pattern: /^\/stock-checks\/[^/]+\/edit(\/|$)/, permission: "STOCK_CHECKS.EDIT" },
   { pattern: /^\/material-waste\/new(\/|$)/, permission: "MATERIAL_WASTE.ADD" },
   { pattern: /^\/material-waste\/[^/]+\/edit(\/|$)/, permission: "MATERIAL_WASTE.EDIT" },
-  { pattern: /^\/orders\/[^/]+\/confirm(\/|$)/, permission: "ORDERS.APPROVE" },
+  { pattern: /^\/orders\/[^/]+\/process(\/|$)/, permission: "ORDERS.APPROVE" },
   { pattern: /^\/expense-proposals\/new(\/|$)/, permission: "EXPENSE_PROPOSALS.ADD" },
   { pattern: /^\/expense-proposals\/[^/]+\/edit(\/|$)/, permission: "EXPENSE_PROPOSALS.EDIT" },
 ];

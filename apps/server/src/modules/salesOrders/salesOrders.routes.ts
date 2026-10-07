@@ -9,22 +9,17 @@ import { orderNotifications } from "../notifications/notifications.service";
 import {
   MAX_IMAGES_PER_ORDER_ITEM,
   MAX_IMAGE_BYTES,
-  salesOrderConfirmSchema,
   salesOrderCreateSchema,
   salesOrderItemImageUploadSchema,
-  salesOrderReceivedDatesSchema,
-  salesOrderReceivingSchema,
+  salesOrderProcessSchema,
   salesOrderStatusSchema,
 } from "./salesOrders.schemas";
 import {
-  completeSalesOrderReceiving,
-  confirmOrderReportedQuantities,
-  confirmSalesOrderWithExport,
   createSalesOrder,
+  processSalesOrder,
   replaceSalesOrderItems,
   salesOrderDetailInclude,
   salesOrderListInclude,
-  updateSalesOrderReceivedDates,
   updateSalesOrderStatus,
   withItemImageCounts,
 } from "./salesOrders.service";
@@ -86,40 +81,22 @@ salesOrdersRouter.put("/:id", requirePermission("ORDERS", "ADD"), async (req, re
   res.json(item);
 });
 
-// ADD huỷ được đơn nháp của mình, APPROVE chuyển được mọi trạng thái — phân biệt trong service.
+// Chỉ còn huỷ đơn chưa xử lý: ADD huỷ đơn của mình, APPROVE huỷ mọi đơn (phạm vi kiểm trong service).
 salesOrdersRouter.patch("/:id/status", requireAnyPermission("ORDERS.ADD", "ORDERS.APPROVE"), async (req, res) => {
   const { status } = salesOrderStatusSchema.parse(req.body);
   const item = await updateSalesOrderStatus(req.params.id, status, req.user);
-  // Đơn đã huỷ không đổi trạng thái được nữa (409 trong service), nên không có chuyện báo huỷ hai lần.
-  if (req.user && item.status === "CANCELLED") orderNotifications.cancelled(item, req.user);
+  // Đơn đã huỷ không huỷ lại được (409 trong service), nên không có chuyện báo huỷ hai lần.
+  if (req.user) orderNotifications.cancelled(item, req.user);
   res.json(item);
 });
 
-salesOrdersRouter.patch("/:id/receiving", requirePermission("ORDERS", "RECEIVE"), async (req, res) => {
-  const data = salesOrderReceivingSchema.parse(req.body);
-  const item = await completeSalesOrderReceiving(req.params.id, data, req.user);
-  if (req.user && item.status === "SHORT") orderNotifications.short(item, req.user);
-  res.json(item);
-});
-
-salesOrdersRouter.patch("/:id/confirm", requirePermission("ORDERS", "APPROVE"), async (req, res) => {
-  const data = salesOrderConfirmSchema.parse(req.body);
-  const item = await confirmSalesOrderWithExport(req.params.id, data, req.user);
-  if (req.user) orderNotifications.confirmed(item, req.user);
-  res.json(item);
-});
-
-salesOrdersRouter.patch("/:id/confirm-quantities", requirePermission("ORDERS", "RECEIVE"), async (req, res) => {
-  const item = await confirmOrderReportedQuantities(req.params.id, req.user);
-  res.json(item);
-});
-
-// Tách riêng khỏi /receiving: chỉ ghi ngày nhận, không đụng số lượng/trạng thái/phiếu xuất kho.
-// Cần ORDERS.APPROVE; kiểm tra trạng thái đơn nằm trong service.
-salesOrdersRouter.patch("/:id/received-dates", requirePermission("ORDERS", "APPROVE"), async (req, res) => {
-  const data = salesOrderReceivedDatesSchema.parse(req.body);
-  const item = await updateSalesOrderReceivedDates(req.params.id, data, req.user);
-  res.json(item);
+// Admin xử lý đơn (lần đầu hoặc sửa lại sau khi hoàn thành): NCC, giá, SL + ngày nhận, thêm hàng hoá.
+salesOrdersRouter.put("/:id/process", requirePermission("ORDERS", "APPROVE"), async (req, res) => {
+  const data = salesOrderProcessSchema.parse(req.body);
+  const { order, affectedCostChecks, firstCompletion } = await processSalesOrder(req.params.id, data, req.user);
+  // Gửi sau khi đã ghi xong, không await. Chỉ lần đầu hoàn thành — sửa lại không báo quán nữa.
+  if (req.user && firstCompletion) orderNotifications.completed(order, req.user);
+  res.json({ ...order, affectedCostChecks });
 });
 
 // ---- Ảnh chứng từ theo từng dòng hàng — cùng khuôn với ảnh khoản chi (shiftExpenses.routes.ts) ----

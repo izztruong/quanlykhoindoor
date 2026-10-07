@@ -38,20 +38,14 @@ export const NOTIFICATION_CATALOG: Record<NotificationType, CatalogEntry> = {
   ORDER_CREATED: {
     group: "Đơn hàng",
     label: "Đơn hàng mới",
-    description: "Khi quán tạo đơn hàng hoặc Order nhanh cần bạn duyệt",
+    description: "Khi quán tạo đơn hàng hoặc Order nhanh cần bạn xử lý",
     appliesTo: ({ user }) => isOrderApprover(user),
   },
-  ORDER_CONFIRMED: {
+  ORDER_COMPLETED: {
     group: "Đơn hàng",
-    label: "Đơn đã được xác nhận",
-    description: "Khi đơn của bạn được xác nhận và chờ bạn xác nhận lại số lượng",
+    label: "Đơn đã được xử lý",
+    description: "Khi đơn của bạn được xử lý xong (đã ghi số lượng và ngày nhận)",
     appliesTo: ({ user }) => can(user, "ORDERS", "ADD"),
-  },
-  ORDER_SHORT: {
-    group: "Đơn hàng",
-    label: "Nhận hàng bị thiếu",
-    description: "Khi quán nhận hàng ít hơn số đã đặt",
-    appliesTo: ({ user }) => isOrderApprover(user),
   },
   ORDER_CANCELLED: {
     group: "Đơn hàng",
@@ -192,30 +186,20 @@ export const orderNotifications = {
       type: "ORDER_CREATED",
       recipientIds: orderApproverIds,
       actorId: actor.id,
-      title: "Đơn hàng mới cần duyệt",
+      title: "Đơn hàng mới cần xử lý",
       body: `${actor.name} vừa tạo đơn ${order.code}.`,
       href: `/orders/${order.id}`,
     });
   },
 
-  confirmed(order: OrderRef, actor: AuthUser) {
+  /** Chỉ gọi ở lần đầu admin xử lý xong đơn — sửa lại về sau không báo nữa. */
+  completed(order: OrderRef, actor: AuthUser) {
     notifyInBackground({
-      type: "ORDER_CONFIRMED",
+      type: "ORDER_COMPLETED",
       recipientIds: [order.createdById],
       actorId: actor.id,
-      title: "Đơn hàng đã được xác nhận",
-      body: `Đơn ${order.code} đã được xác nhận. Vui lòng kiểm tra và xác nhận lại số lượng.`,
-      href: `/orders/${order.id}`,
-    });
-  },
-
-  short(order: OrderRef, actor: AuthUser) {
-    notifyInBackground({
-      type: "ORDER_SHORT",
-      recipientIds: orderApproverIds,
-      actorId: actor.id,
-      title: "Đơn hàng nhận thiếu",
-      body: `${actor.name} nhận thiếu hàng ở đơn ${order.code}.`,
+      title: "Đơn hàng đã được xử lý",
+      body: `Đơn ${order.code} đã được xử lý. Mở đơn để xem số lượng và ngày nhận.`,
       href: `/orders/${order.id}`,
     });
   },

@@ -177,10 +177,12 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
 - `salesOrders` và `products/productStock.routes.ts` cùng dùng
   `reports.service.getInventoryCountReport()` để kiểm tồn. Đây là **chỗ duy nhất** trong dự án một
   module gọi service của module khác.
-- Xác nhận đơn hàng **tự sinh phiếu xuất kho**, nên sửa `salesOrders` là đụng tới tồn kho.
+- Đơn hàng chỉ còn DRAFT (chưa xử lý) → COMPLETED / CANCELLED. Admin xử lý đơn (`PUT /:id/process`) ghi SL +
+  ngày nhận và **thay toàn bộ dòng phiếu xuất kho**, kể cả khi sửa lại đơn đã hoàn thành — nên sửa `salesOrders` là
+  đụng tới tồn kho và Check Cost (`receivedAt`).
 - SL lẻ ở `stockChecks`, `materialWaste`, `materialTransfers` luôn đi qua `utils/tareWeight`.
 - `utils/deadlines` được gọi lúc tạo đơn (`salesOrders`) và lúc tạo/sửa phiếu (`stockChecks`).
-- **Thông báo đẩy** gắn ở route của `salesOrders` (tạo, xác nhận, nhận thiếu, huỷ) và
+- **Thông báo đẩy** gắn ở route của `salesOrders` (tạo, xử lý xong lần đầu, huỷ) và
   `expenseProposals` (tạo, duyệt/từ chối, tạm ứng/tạm ứng thêm, gửi và duyệt bổ sung hạng mục, hoàn thành)
   qua `modules/notifications`. Sửa các luồng
   đó phải giữ lời gọi, và luôn gọi **sau** khi ghi DB/commit, **không await** — xem chú thích
