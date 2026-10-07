@@ -22,6 +22,8 @@ export interface PosOrderLogRow {
   quantity: number;
   logType: string;
   actionType: string;
+  /** Mã đơn — cần để trừ lượt "Bỏ món" vào đúng lượt "Thêm món" của cùng đơn. */
+  orderCode: string;
 }
 
 /** Một tổ hợp (Loại log, Loại thao tác) có trong file, kèm số dòng — để người dùng chọn loại nào là đã bán. */
@@ -60,6 +62,7 @@ const COLUMN_ALIASES = {
   quantity: ["so luong", "sl"],
   logType: ["loai log"],
   actionType: ["loai thao tac"],
+  orderCode: ["ma don", "ma hoa don", "so hoa don"],
 } as const;
 
 type ColumnKey = keyof typeof COLUMN_ALIASES;
@@ -149,7 +152,8 @@ export function parsePosOrderLog(sheet: ExcelJS.Worksheet): PosOrderLogParseResu
 
     const logType = cellText(row, columns.logType);
     const actionType = cellText(row, columns.actionType);
-    rows.push({ soldOn: soldAt.soldOn, hour: soldAt.hour, posName, quantity, logType, actionType });
+    const orderCode = cellText(row, columns.orderCode);
+    rows.push({ soldOn: soldAt.soldOn, hour: soldAt.hour, posName, quantity, logType, actionType, orderCode });
 
     const key = `${logType}|${actionType}`;
     const group = groupByKey.get(key);
@@ -168,6 +172,76 @@ export function parsePosOrderLog(sheet: ExcelJS.Worksheet): PosOrderLogParseResu
 /** Khoá định danh một tổ hợp (Loại log, Loại thao tác), dùng cho ô tích trên giao diện. */
 export function actionGroupKey(group: { logType: string; actionType: string }): string {
   return `${group.logType}|${group.actionType}`;
+}
+
+/** Một ô doanh số đã gộp, đúng hình dạng payload gửi lên server. */
+export interface PosSaleCell {
+  soldOn: string;
+  hour: number;
+  posName: string;
+  quantity: number;
+}
+
+export interface AggregateResult {
+  cells: PosSaleCell[];
+  /** Lượt bỏ món không tìm được lượt thêm tương ứng trong file — đơn mở từ trước khoảng xuất file. */
+  unmatched: { posName: string; soldOn: string; hour: number; quantity: number }[];
+}
+
+/**
+ * Gộp các dòng đã tích thành ô `(ngày, giờ, món)`.
+ *
+ * **Trừ theo (Mã đơn, Món) TRƯỚC, rồi mới xếp vào giờ.** Nếu gộp thẳng theo giờ thì một món thêm lúc
+ * 08h và bỏ lúc 12h sẽ thành ô 08h `+1` và ô 12h `−1`: ô âm bị loại, còn ô dương vẫn được ghi, tức ly
+ * đó vẫn tính là đã bán dù khách đã bỏ. File thật của Xuân La có đúng 3 ca như vậy trên 25 lượt bỏ món.
+ *
+ * Lượt bỏ được trừ vào lượt thêm **mới nhất trở về trước** — bỏ thứ vừa thêm là tình huống thường gặp,
+ * và nó giữ cho các lượt thêm cũ hơn nằm đúng giờ của chúng.
+ *
+ * Đơn không có Mã đơn thì lùi về gộp theo NGÀY của món đó: vẫn trừ được trong cùng ngày, chỉ mất khả
+ * năng phân biệt hai đơn khác nhau trong ngày.
+ */
+export function aggregateSoldCells(rows: PosOrderLogRow[], pickedKeys: Set<string>): AggregateResult {
+  const byOrderItem = new Map<string, PosOrderLogRow[]>();
+  for (const row of rows) {
+    if (!pickedKeys.has(actionGroupKey(row))) continue;
+    const key = `${row.orderCode || `#${row.soldOn}`}|${row.posName}`;
+    const list = byOrderItem.get(key);
+    if (list) list.push(row);
+    else byOrderItem.set(key, [row]);
+  }
+
+  const byCell = new Map<string, PosSaleCell>();
+  const unmatched: AggregateResult["unmatched"] = [];
+
+  for (const list of byOrderItem.values()) {
+    const adds = list
+      .filter((r) => r.quantity > 0)
+      .map((r) => ({ ...r }))
+      .sort((a, b) => a.soldOn.localeCompare(b.soldOn) || a.hour - b.hour);
+    let toRemove = list.filter((r) => r.quantity < 0).reduce((sum, r) => sum - r.quantity, 0);
+
+    // Trừ từ lượt thêm MỚI NHẤT lùi dần về trước.
+    for (let i = adds.length - 1; i >= 0 && toRemove > 0; i--) {
+      const take = Math.min(adds[i]!.quantity, toRemove);
+      adds[i]!.quantity -= take;
+      toRemove -= take;
+    }
+    if (toRemove > 0) {
+      const last = list.filter((r) => r.quantity < 0).at(-1)!;
+      unmatched.push({ posName: last.posName, soldOn: last.soldOn, hour: last.hour, quantity: -toRemove });
+    }
+
+    for (const add of adds) {
+      if (add.quantity <= 0) continue;
+      const key = `${add.soldOn}|${add.hour}|${add.posName}`;
+      const cell = byCell.get(key);
+      if (cell) cell.quantity += add.quantity;
+      else byCell.set(key, { soldOn: add.soldOn, hour: add.hour, posName: add.posName, quantity: add.quantity });
+    }
+  }
+
+  return { cells: [...byCell.values()], unmatched };
 }
 
 /**

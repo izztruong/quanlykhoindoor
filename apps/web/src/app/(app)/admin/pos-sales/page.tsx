@@ -20,6 +20,7 @@ import { ApiError } from "@/lib/api-client";
 import { sanitizeExcelRow } from "@/lib/excelExport";
 import {
   actionGroupKey,
+  aggregateSoldCells,
   isDefaultSoldGroup,
   parsePosOrderLog,
   type PosOrderLogParseResult,
@@ -226,42 +227,29 @@ export default function PosSalesPage() {
     }
   }
 
-  /** Gộp các dòng đã tích về mức ô (ngày, giờ, món) rồi gửi đi — cùng payload với đường nhập file mẫu. */
+  /** Gộp các dòng đã tích rồi gửi đi — cùng payload với đường nhập file mẫu. Phép gộp ở `lib/posOrderLog`. */
   function runPosLogImport() {
     if (!posLog) return;
-    const byCell = new Map<string, PosSaleRowInput>();
-    for (const row of posLog.rows) {
-      if (!posLogPicked.has(actionGroupKey(row))) continue;
-      const key = `${row.soldOn}|${row.hour}|${row.posName}`;
-      const current = byCell.get(key);
-      if (current) current.quantity += row.quantity;
-      else byCell.set(key, { soldOn: row.soldOn, hour: row.hour, posName: row.posName, quantity: row.quantity });
-    }
+    const { cells, unmatched } = aggregateSoldCells(posLog.rows, posLogPicked);
 
-    // Ô gộp lại ra 0 (thêm rồi bỏ ngay trong cùng giờ) là không bán được gì — bỏ đi là đúng. Ra số ÂM
-    // thì nghĩa là món được thêm ở ngoài khoảng thời gian của file rồi bị bỏ trong file; báo ra chứ
-    // không im lặng, vì nó cho biết khoảng xuất file đang cắt ngang đơn.
-    const all = [...byCell.values()];
-    const rows = all.filter((r) => r.quantity > 0);
-    const negative = all.filter((r) => r.quantity < 0);
-    const zero = all.length - rows.length - negative.length;
-
-    const notes: string[] = [];
-    if (zero > 0) notes.push(`${zero} ô có tổng bằng 0 (thêm rồi bỏ trong cùng giờ) nên không nhập.`);
-    if (negative.length > 0) {
-      notes.push(
-        `${negative.length} ô có tổng ÂM nên không nhập — món bị bỏ trong file nhưng được thêm từ trước khoảng thời gian xuất file: ` +
-          negative.map((r) => `${r.posName} ${r.soldOn} ${String(r.hour).padStart(2, "0")}h`).join(", "),
-      );
-    }
+    // Chỉ còn đúng một loại bất thường đáng báo: lượt bỏ món không tìm được lượt thêm nào trong file,
+    // tức đơn đã mở từ trước khoảng thời gian xuất file. Chuyện "thêm giờ này, bỏ giờ sau" đã được
+    // phép trừ theo Mã đơn xử lý đúng, không còn sinh ô âm nữa.
+    const notes =
+      unmatched.length > 0
+        ? [
+            `${unmatched.length} lượt bỏ món không tìm được lượt thêm tương ứng trong file nên bị bỏ qua — đơn mở từ trước khoảng thời gian xuất file: ` +
+              unmatched.map((r) => `${r.posName} ${r.soldOn} ${String(r.hour).padStart(2, "0")}h`).join(", "),
+          ]
+        : [];
     setParseErrors(notes);
 
-    if (rows.length === 0) {
+    if (cells.length === 0) {
       setParseErrors([...notes, "Không còn ô nào để nhập. Kiểm tra lại các loại thao tác đã tích."]);
       return;
     }
-    setParsedRows(rows);
-    runImport(rows);
+    setParsedRows(cells);
+    runImport(cells);
   }
 
   const posLogPickedQuantity = (posLog?.groups ?? [])

@@ -35,9 +35,11 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 Nút "Nhập từ file POS" cạnh nút cũ: đọc thẳng file POS xuất ra, không cần sửa cột. Cột tìm theo **tên
 tiêu đề** (format của bên thứ ba), Ngày/Giờ là hai cột riêng. File là **nhật ký thao tác** nên modal liệt
 kê mọi (Loại log, Loại thao tác) kèm số dòng để tích loại nào là đã bán; mặc định tích Thêm món + Bỏ món
-vì **SL mang dấu** (bỏ món là số âm). Ô gộp ra 0/âm thì không gửi và báo ra.
-Đã kiểm typecheck + lint web, và chạy parser trên file thật của Xuân La 07/10: 50 dòng, 0 lỗi, 41 ô,
-ra **52** (= 53 − 1) đúng như tính tay.
+vì **SL mang dấu**. Phép trừ làm theo **(Mã đơn, Món)** rồi mới xếp vào giờ — gộp thẳng theo giờ thì món
+thêm 08h bỏ 12h sẽ giữ ô 08h và vứt ô âm 12h, tức vẫn tính là đã bán.
+Đã kiểm typecheck + lint web, và chạy trên 2 file thật của Xuân La: file 1 ngày (50 dòng) ra 52; file
+4.294 dòng ra **4459 = 4489 − 30**, khớp tính tay (cách gộp theo giờ ra 4462, dư 3). File dài cũng lộ ra
+3 loại thao tác in (In lại hoá đơn / phiếu yêu cầu / tạm tính, SL dương) — mặc định không tích, đúng.
 
 ### Lịch sử công thức + Check Cost lấy doanh số từ POS (server + web + mobile) — CHƯA thử trên trình duyệt/app, CHƯA lên `main`
 Công thức BOM và giá bán giờ có **mốc hiệu lực** (`FinishedGoodRecipeVersion`, `FinishedGoodPrice`), nên đổi
