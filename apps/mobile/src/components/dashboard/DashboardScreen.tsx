@@ -105,7 +105,7 @@ export function DashboardScreen() {
         ) : null}
 
         {canOrders ? (
-          <StatCard title="Đơn hàng chưa xác nhận" href="/orders" isLoading={orders.isLoading}>
+          <StatCard title="Đơn hàng chưa xử lý" href="/orders" isLoading={orders.isLoading}>
             <Text style={styles.bigValue}>{formatNumber(orders.data ?? 0)} đơn</Text>
           </StatCard>
         ) : null}

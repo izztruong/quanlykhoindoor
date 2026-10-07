@@ -54,10 +54,10 @@ byte-for-byte với snapshot, và script đối chiếu: đổi công thức gi�
 tồn đầu kỳ giữ bản cũ / tồn cuối kỳ dùng bản mới, kết quả **giống nhau ở 3 múi giờ** (UTC/VN/New_York).
 Còn lại: 3/4 quán chưa có POS nên **tạm thời chưa tạo được Check Cost**. CHƯA ai bấm thử trên trình duyệt/app.
 
-### Đơn hàng: bỏ bước xác nhận, admin tự xử lý nhận hàng (server + web) — CHƯA thử trên trình duyệt, CHƯA lên `main`
+### Đơn hàng: bỏ bước xác nhận, admin tự xử lý nhận hàng (server + web + mobile) — CHƯA thử trên trình duyệt/app, CHƯA lên `main`
 Chỉ còn Chưa xử lý → Hoàn thành/Huỷ; màn "Xử lý đơn" (NCC, giá, SL + ngày nhận, thêm hàng) dùng cả để sửa đơn đã hoàn thành; chi tiết đơn có cột NCC + Giá xuất. Migration chuyển 74 đơn chờ/đã xác nhận/thiếu thành Hoàn thành (SL nhận = SL phiếu xuất).
 Đã kiểm typecheck, lint web, `migrate deploy` DB trắng + `kho_db` + `kho_dev_copy` (đối chiếu SL), 10 ca curl.
-**Mobile chưa sửa**: app đang cài (cả bản build mới từ `dev`) vẫn gọi `/confirm`, `/receiving` đã xoá → hỏng xử lý đơn trên app tới khi làm phần mobile.
+Mobile: màn Xử lý đơn + chi tiết chỉ đọc có NCC/giá; đã kiểm typecheck + bundle Android, chưa thử trên máy. **App production đang cài** vẫn gọi `/confirm`, `/receiving` đã xoá → cần build mới cùng lúc deploy.
 
 ### Phiếu huỷ: ô tích "Trừ CC" từng dòng (server + web + mobile) — CHƯA thử trên trình duyệt/app, CHƯA lên `main`
 Bỏ tích = Check Cost không trừ dòng huỷ đó; tạo phiếu mặc định tích hết; chỉ quyền mới `MATERIAL_WASTE.DEDUCT` đổi được (form + trang chi tiết). Trang chủ vẫn đếm mọi dòng.

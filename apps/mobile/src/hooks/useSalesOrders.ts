@@ -65,7 +65,7 @@ export function useCreateSalesOrder() {
 export function useUpdateSalesOrderStatus(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (status: SalesOrderStatus) => api.patch<SalesOrder>(`/sales-orders/${id}/status`, { status }),
+    mutationFn: (status: Extract<SalesOrderStatus, "CANCELLED">) => api.patch<SalesOrder>(`/sales-orders/${id}/status`, { status }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sales-orders"] });
       queryClient.invalidateQueries({ queryKey: ["sales-orders", id] });
@@ -73,67 +73,28 @@ export function useUpdateSalesOrderStatus(id: string) {
   });
 }
 
-export interface SalesOrderReceivingItemInput {
-  itemId: string;
-  receivedQuantity: number;
-  /** Thời điểm dòng này thực nhận (ISO). Check Cost lọc kỳ theo mốc này. */
-  receivedAt?: string;
-}
-
-export function useCompleteSalesOrderReceiving(id: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (items: SalesOrderReceivingItemInput[]) => api.patch<SalesOrder>(`/sales-orders/${id}/receiving`, { items }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["sales-orders"] });
-      queryClient.invalidateQueries({ queryKey: ["sales-orders", id] });
-    },
-  });
-}
-
-export function useConfirmOrderReportedQuantities(id: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: () => api.patch<SalesOrder>(`/sales-orders/${id}/confirm-quantities`, {}),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["sales-orders"] });
-      queryClient.invalidateQueries({ queryKey: ["sales-orders", id] });
-    },
-  });
-}
-
-export interface SalesOrderConfirmItemInput {
-  itemId: string;
+export interface SalesOrderProcessLineInput {
   supplierId?: string;
   costPrice: number;
   quantity: number;
-  note?: string;
-  /** Ngày nhận dự kiến admin đặt ngay lúc xác nhận đơn (ISO). */
+}
+
+/** Một hàng hoá: itemId = hàng quán đã đặt, productId = hàng admin thêm mới (đúng một trong hai). */
+export interface SalesOrderProcessItemInput {
+  itemId?: string;
+  productId?: string;
+  /** ISO. Bỏ trống thì server giữ ngày đã lưu, chưa có thì lấy giờ lưu. */
   receivedAt?: string;
+  note?: string;
+  lines: SalesOrderProcessLineInput[];
 }
 
-export interface SalesOrderReceivedDateInput {
-  itemId: string;
-  receivedAt: string;
-}
-
-/** Admin sửa riêng ngày nhận — không đụng số lượng, trạng thái đơn hay phiếu xuất kho. */
-export function useUpdateSalesOrderReceivedDates(id: string) {
+/** Admin xử lý đơn (lần đầu hoặc sửa lại): ghi SL + ngày nhận, thay toàn bộ dòng phiếu xuất kho. */
+export function useProcessSalesOrder(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (items: SalesOrderReceivedDateInput[]) =>
-      api.patch<SalesOrder & { affectedCostChecks: AffectedCostCheck[] }>(`/sales-orders/${id}/received-dates`, { items }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["sales-orders"] });
-      queryClient.invalidateQueries({ queryKey: ["sales-orders", id] });
-    },
-  });
-}
-
-export function useConfirmSalesOrderWithExport(id: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (items: SalesOrderConfirmItemInput[]) => api.patch<SalesOrder>(`/sales-orders/${id}/confirm`, { items }),
+    mutationFn: (items: SalesOrderProcessItemInput[]) =>
+      api.put<SalesOrder & { affectedCostChecks: AffectedCostCheck[] }>(`/sales-orders/${id}/process`, { items }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sales-orders"] });
       queryClient.invalidateQueries({ queryKey: ["sales-orders", id] });

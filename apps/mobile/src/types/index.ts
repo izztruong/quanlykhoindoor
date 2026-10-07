@@ -12,7 +12,7 @@ export interface AuthUser {
   scope: "ALL" | "SELF";
 }
 
-export type PermissionAction = "VIEW" | "ADD" | "EDIT" | "DELETE" | "RECEIVE" | "APPROVE" | "ADVANCE" | "COMPLETE";
+export type PermissionAction = "VIEW" | "ADD" | "EDIT" | "DELETE" | "APPROVE" | "ADVANCE" | "COMPLETE";
 
 export interface PermissionCatalog {
   resources: { resource: string; label: string; group: string; actions: PermissionAction[] }[];
@@ -149,7 +149,7 @@ export interface StockTransaction extends StockHeader {
   items: StockItem[];
 }
 
-export type SalesOrderStatus = "DRAFT" | "PENDING_CONFIRM" | "CONFIRMED" | "SHORT" | "COMPLETED" | "CANCELLED";
+export type SalesOrderStatus = "DRAFT" | "COMPLETED" | "CANCELLED";
 
 export interface SalesOrderItem {
   id: string;
@@ -728,8 +728,7 @@ export interface ExpenseProposal {
 
 export type NotificationType =
   | "ORDER_CREATED"
-  | "ORDER_CONFIRMED"
-  | "ORDER_SHORT"
+  | "ORDER_COMPLETED"
   | "ORDER_CANCELLED"
   | "EXPENSE_PROPOSAL_CREATED"
   | "EXPENSE_PROPOSAL_DECIDED"

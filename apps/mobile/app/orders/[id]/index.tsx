@@ -7,22 +7,18 @@ import { OrderItemImagesModal } from "@/components/orders/OrderItemImagesModal";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
-import { DateTimeField } from "@/components/ui/DateTimeField";
-import { Input } from "@/components/ui/Input";
 import { ErrorState, LoadingState, Screen } from "@/components/ui/Screen";
-import {
-  useCompleteSalesOrderReceiving,
-  useConfirmOrderReportedQuantities,
-  useSalesOrder,
-  useUpdateSalesOrderReceivedDates,
-  useUpdateSalesOrderStatus,
-} from "@/hooks/useSalesOrders";
-import { formatDateVN, formatNumber, labels } from "@/lib/format";
+import { useSalesOrder, useUpdateSalesOrderStatus } from "@/hooks/useSalesOrders";
+import { formatCurrency, formatDateVN, formatNumber, labels } from "@/lib/format";
 import { useCan } from "@/lib/permissions";
 import { SALES_ORDER_STATUS_TONE } from "@/lib/salesOrder";
 import { colors, fontSize, spacing } from "@/lib/theme";
 import type { SalesOrderItem } from "@/types";
 
+/**
+ * Chi tiết đơn chỉ đọc. Nhập NCC / giá / SL + ngày nhận nằm ở màn "Xử lý đơn" (orders/[id]/process) —
+ * dùng cho cả lần đầu lẫn sửa lại sau khi hoàn thành.
+ */
 export default function OrderDetailScreen() {
   const { id: rawId } = useLocalSearchParams<{ id: string }>();
   const id = rawId ?? "";
@@ -31,14 +27,6 @@ export default function OrderDetailScreen() {
 
   const { data: order, isLoading, isRefetching, refetch } = useSalesOrder(id);
   const updateStatus = useUpdateSalesOrderStatus(id);
-  const completeReceiving = useCompleteSalesOrderReceiving(id);
-  const confirmQuantities = useConfirmOrderReportedQuantities(id);
-  const updateReceivedDates = useUpdateSalesOrderReceivedDates(id);
-
-  /** Chỉ giữ dòng người dùng thực sự chạm tới; dòng chưa chạm rơi về giá trị đã lưu hoặc SL đặt. */
-  const [overrides, setOverrides] = useState<Record<string, string>>({});
-  const [dateOverrides, setDateOverrides] = useState<Record<string, Date>>({});
-  const [bulkReceivedAt, setBulkReceivedAt] = useState(() => new Date());
   // Giữ id chứ không giữ cả dòng: imageCount phải lấy từ dữ liệu đơn mới nhất sau mỗi lần tải/xoá ảnh.
   const [imagesItemId, setImagesItemId] = useState<string | null>(null);
 
@@ -61,86 +49,14 @@ export default function OrderDetailScreen() {
   }
 
   const canApprove = can("ORDERS", "APPROVE");
-  const canReceiveOrders = can("ORDERS", "RECEIVE");
-  const canReceive = canReceiveOrders && (order.status === "CONFIRMED" || order.status === "SHORT");
-  // Chỉ ORDERS.APPROVE được đặt ngày nhận; quán chỉ điền số lượng. Sửa được ở mọi trạng thái sau khi
-  // đơn đã xác nhận (kể cả Hoàn thành), nếu không thì ngày sai sẽ bị khoá cứng.
-  const canEditDates =
-    canApprove && (order.status === "CONFIRMED" || order.status === "SHORT" || order.status === "COMPLETED");
-  // Chứng từ chỉ đính khi đơn đã hoàn thành (server cũng chặn).
-  const showImages = order.status === "COMPLETED";
+  const isCompleted = order.status === "COMPLETED";
+  // Server chỉ cho huỷ đơn chưa xử lý: APPROVE huỷ mọi đơn, ADD huỷ đơn của mình.
+  const canCancel = order.status === "DRAFT" && (canApprove || can("ORDERS", "ADD"));
   const imagesItem = imagesItemId ? order.items.find((item) => item.id === imagesItemId) : undefined;
 
-  /** ORDERS.APPROVE huỷ được ở mọi trạng thái còn mở; ORDERS.ADD chỉ huỷ được khi đơn chưa xác nhận. */
-  const canCancel = canApprove
-    ? ["DRAFT", "PENDING_CONFIRM", "CONFIRMED", "SHORT"].includes(order.status)
-    : can("ORDERS", "ADD") && order.status === "DRAFT";
-
-  function receivedQuantityFor(item: SalesOrderItem): string {
-    const override = overrides[item.id];
-    if (override !== undefined) return override;
-    if (item.receivedQuantity != null) return String(item.receivedQuantity);
-    return String(item.quantity);
-  }
-
-  /**
-   * Dòng đã nhận từ đợt trước GIỮ NGUYÊN ngày cũ — nếu lấy mặc định hôm nay thì mỗi lần mở lại đơn
-   * thiếu để nhận bổ sung, toàn bộ ngày sẽ nhảy sang hôm nay và Check Cost tính sai kỳ.
-   */
-  function receivedAtFor(item: SalesOrderItem): Date {
-    const override = dateOverrides[item.id];
-    if (override !== undefined) return override;
-    if (item.receivedAt) return new Date(item.receivedAt);
-    return bulkReceivedAt;
-  }
-
-  /** Tổng số lượng dòng phiếu xuất kho cho hàng hoá này — số admin báo lấy được từ NCC. */
-  function reportedQuantityFor(item: SalesOrderItem): number {
-    return (order?.stockExport?.items ?? [])
-      .filter((line) => line.productId === item.productId)
-      .reduce((sum, line) => sum + Number(line.quantity), 0);
-  }
-
-  function fillAllWithOrdered() {
-    const next: Record<string, string> = {};
-    for (const item of order!.items) next[item.id] = String(item.quantity);
-    setOverrides(next);
-  }
-
-  function applyBulkDateToAll() {
-    const next: Record<string, Date> = {};
-    for (const item of order!.items) next[item.id] = bulkReceivedAt;
-    setDateOverrides(next);
-  }
-
-  function handleSaveDates() {
-    const items = order!.items.map((item) => ({ itemId: item.id, receivedAt: receivedAtFor(item).toISOString() }));
-    updateReceivedDates.mutate(items, {
-      onSuccess: (updated) => {
-        setDateOverrides({});
-        if (updated.affectedCostChecks.length > 0) {
-          const codes = updated.affectedCostChecks.map((c) => c.code).join(", ");
-          Alert.alert(
-            "Đã lưu ngày nhận",
-            `Các phiếu Check Cost sau có kỳ trùm ngày cũ hoặc ngày mới — số liệu của chúng CHƯA được cập nhật, vui lòng tạo lại nếu cần: ${codes}`,
-          );
-        }
-      },
-    });
-  }
-
-  function handleComplete() {
-    const items = order!.items.map((item) => ({
-      itemId: item.id,
-      receivedQuantity: Number(receivedQuantityFor(item)) || 0,
-      receivedAt: receivedAtFor(item).toISOString(),
-    }));
-    completeReceiving.mutate(items, {
-      onSuccess: () => {
-        setOverrides({});
-        setDateOverrides({});
-      },
-    });
+  /** Các dòng phiếu xuất của hàng hoá này — mỗi dòng một NCC (một hàng có thể tách nhiều NCC). */
+  function exportLinesFor(item: SalesOrderItem) {
+    return (order?.stockExport?.items ?? []).filter((line) => line.productId === item.productId);
   }
 
   function handleCancel() {
@@ -149,8 +65,6 @@ export default function OrderDetailScreen() {
       { text: "Huỷ đơn", style: "destructive", onPress: () => updateStatus.mutate("CANCELLED") },
     ]);
   }
-
-  const showReported = order.status === "PENDING_CONFIRM";
 
   return (
     <>
@@ -169,39 +83,17 @@ export default function OrderDetailScreen() {
             <InfoRow label="Ngày đặt" value={formatDateVN(order.orderDate)} />
             <InfoRow label="Người đặt" value={order.createdBy?.name ?? "—"} />
             <InfoRow label="Hạn nộp" value={order.dueAt ? formatDateVN(order.dueAt) : "Chưa tính hạn"} />
+            <InfoRow label="Phiếu xuất kho" value={order.stockExport?.code ?? "Chưa xuất kho"} />
             {order.note ? <InfoRow label="Ghi chú" value={order.note} /> : null}
           </CardBody>
         </Card>
 
-        {canApprove && order.status === "DRAFT" ? (
-          <Button title="Xác nhận đơn" fullWidth onPress={() => router.push(`/orders/${order.id}/confirm`)} />
-        ) : null}
-
-        {canReceiveOrders && order.status === "PENDING_CONFIRM" ? (
+        {canApprove && order.status !== "CANCELLED" ? (
           <Button
-            title="Xác nhận số lượng báo"
+            title={isCompleted ? "Sửa nhận hàng" : "Xử lý đơn"}
             fullWidth
-            loading={confirmQuantities.isPending}
-            onPress={() => confirmQuantities.mutate()}
+            onPress={() => router.push(`/orders/${order.id}/process`)}
           />
-        ) : null}
-
-        {canEditDates ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>Ngày nhận</CardTitle>
-            </CardHeader>
-            <CardBody style={styles.bulkBody}>
-              <DateTimeField label="Ngày nhận mặc định" value={bulkReceivedAt} onChange={setBulkReceivedAt} />
-              <Button title="Áp cho tất cả dòng" variant="secondary" size="sm" onPress={applyBulkDateToAll} />
-              <Button
-                title="Lưu ngày nhận"
-                size="sm"
-                loading={updateReceivedDates.isPending}
-                onPress={handleSaveDates}
-              />
-            </CardBody>
-          </Card>
         ) : null}
 
         <Card>
@@ -209,64 +101,61 @@ export default function OrderDetailScreen() {
             <CardTitle>Hàng hoá</CardTitle>
             <Text style={styles.count}>{order.items.length} dòng</Text>
           </CardHeader>
-          {order.items.map((item) => (
-            <View key={item.id} style={styles.itemRow}>
-              <Text style={styles.itemName}>{item.product?.name ?? "—"}</Text>
-              <Text style={styles.itemMeta}>
-                {item.product?.code} · {item.product?.unit?.name ?? ""}
-              </Text>
-              <InfoRow label="SL đặt" value={formatNumber(item.quantity)} />
-              {showReported ? <InfoRow label="SL báo" value={formatNumber(reportedQuantityFor(item))} /> : null}
-              {!canReceive && item.receivedQuantity != null ? (
-                <InfoRow label="SL thực nhận" value={formatNumber(item.receivedQuantity)} />
-              ) : null}
-              {!canEditDates && item.receivedAt ? (
-                <InfoRow label="Ngày nhận" value={formatDateVN(item.receivedAt)} />
-              ) : null}
+          {order.items.map((item) => {
+            const ordered = Number(item.quantity);
+            const received = item.receivedQuantity != null ? Number(item.receivedQuantity) : null;
+            // Hàng admin tự thêm lúc xử lý có SL đặt = 0 — không tô màu so với số đặt.
+            const receivedStyle =
+              received == null || ordered <= 0
+                ? null
+                : received < ordered
+                  ? styles.short
+                  : received > ordered
+                    ? styles.over
+                    : null;
+            const lines = exportLinesFor(item);
+            return (
+              <View key={item.id} style={styles.itemRow}>
+                <Text style={styles.itemName}>{item.product?.name ?? "—"}</Text>
+                <Text style={styles.itemMeta}>
+                  {item.product?.code} · {item.product?.unit?.name ?? ""}
+                </Text>
+                <InfoRow label="SL đặt" value={ordered > 0 ? formatNumber(ordered) : "— (thêm mới)"} />
+                {isCompleted ? (
+                  <>
+                    <InfoRow
+                      label="SL nhận"
+                      value={received != null ? formatNumber(received) : "—"}
+                      valueStyle={receivedStyle}
+                    />
+                    {lines.map((line) => (
+                      <InfoRow
+                        key={line.id}
+                        label={line.supplier?.name ?? "Không chọn NCC"}
+                        value={`${formatNumber(line.quantity)} × ${formatCurrency(line.costPrice)}`}
+                      />
+                    ))}
+                    {item.receivedAt ? <InfoRow label="Ngày nhận" value={formatDateVN(item.receivedAt)} /> : null}
+                  </>
+                ) : null}
 
-              {canReceive ? (
-                <Input
-                  label="SL thực nhận"
-                  value={receivedQuantityFor(item)}
-                  onChangeText={(value) => setOverrides((prev) => ({ ...prev, [item.id]: value }))}
-                  keyboardType="numeric"
-                  containerStyle={styles.itemInput}
-                />
-              ) : null}
+                {isCompleted && (canApprove || item.imageCount > 0) ? (
+                  <View style={styles.itemAction}>
+                    <Button
+                      title={`Chứng từ (${item.imageCount})`}
+                      variant="secondary"
+                      size="sm"
+                      icon={<Ionicons name="camera-outline" size={16} color={colors.text} />}
+                      onPress={() => setImagesItemId(item.id)}
+                    />
+                  </View>
+                ) : null}
 
-              {canEditDates ? (
-                <View style={styles.itemInput}>
-                  <DateTimeField
-                    label="Ngày nhận dòng này"
-                    value={receivedAtFor(item)}
-                    onChange={(date) => setDateOverrides((prev) => ({ ...prev, [item.id]: date }))}
-                  />
-                </View>
-              ) : null}
-
-              {showImages && (canApprove || item.imageCount > 0) ? (
-                <View style={styles.itemInput}>
-                  <Button
-                    title={`Chứng từ (${item.imageCount})`}
-                    variant="secondary"
-                    size="sm"
-                    icon={<Ionicons name="camera-outline" size={16} color={colors.text} />}
-                    onPress={() => setImagesItemId(item.id)}
-                  />
-                </View>
-              ) : null}
-
-              {item.note ? <Text style={styles.itemNote}>{item.note}</Text> : null}
-            </View>
-          ))}
+                {item.note ? <Text style={styles.itemNote}>{item.note}</Text> : null}
+              </View>
+            );
+          })}
         </Card>
-
-        {canReceive ? (
-          <>
-            <Button title="Điền SL theo đã đặt" variant="secondary" fullWidth onPress={fillAllWithOrdered} />
-            <Button title="Hoàn thành nhận hàng" fullWidth loading={completeReceiving.isPending} onPress={handleComplete} />
-          </>
-        ) : null}
 
         {canCancel ? (
           <Button title="Huỷ đơn" variant="danger" fullWidth loading={updateStatus.isPending} onPress={handleCancel} />
@@ -277,7 +166,7 @@ export default function OrderDetailScreen() {
         <OrderItemImagesModal
           orderId={order.id}
           item={imagesItem}
-          canManage={canApprove && showImages}
+          canManage={canApprove && isCompleted}
           onClose={() => setImagesItemId(null)}
         />
       ) : null}
@@ -285,11 +174,11 @@ export default function OrderDetailScreen() {
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+function InfoRow({ label, value, valueStyle }: { label: string; value: string; valueStyle?: object | null }) {
   return (
     <View style={styles.infoRow}>
       <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={styles.infoValue}>{value}</Text>
+      <Text style={[styles.infoValue, valueStyle]}>{value}</Text>
     </View>
   );
 }
@@ -302,8 +191,9 @@ const styles = StyleSheet.create({
   infoRow: { flexDirection: "row", justifyContent: "space-between", gap: spacing.lg },
   infoLabel: { fontSize: fontSize.sm, color: colors.textMuted },
   infoValue: { flex: 1, textAlign: "right", fontSize: fontSize.sm, color: colors.text, fontWeight: "600" },
+  short: { color: colors.danger },
+  over: { color: colors.success },
   count: { fontSize: fontSize.sm, color: colors.textMuted },
-  bulkBody: { gap: spacing.md, paddingTop: spacing.xs },
   itemRow: {
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
@@ -313,6 +203,6 @@ const styles = StyleSheet.create({
   },
   itemName: { fontSize: fontSize.md, fontWeight: "600", color: colors.text },
   itemMeta: { fontSize: fontSize.xs, color: colors.textFaint, marginBottom: spacing.xs },
-  itemInput: { marginTop: spacing.sm },
+  itemAction: { marginTop: spacing.sm },
   itemNote: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
 });

@@ -17,8 +17,7 @@ type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
 
 const TYPE_ICON: Record<NotificationType, IoniconName> = {
   ORDER_CREATED: "cart",
-  ORDER_CONFIRMED: "checkmark-done",
-  ORDER_SHORT: "alert-circle",
+  ORDER_COMPLETED: "checkmark-done",
   ORDER_CANCELLED: "close-circle",
   EXPENSE_PROPOSAL_CREATED: "document-text",
   EXPENSE_PROPOSAL_DECIDED: "shield-checkmark",
