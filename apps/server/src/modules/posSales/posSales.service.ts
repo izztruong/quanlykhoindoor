@@ -1,15 +1,33 @@
 import { prisma } from "../../config/db";
 import { HttpError } from "../../utils/httpError";
+import { parseDateOnly } from "../../utils/vnTime";
 import { normalizePosName } from "../posItemMappings/posItemMappings.service";
 import type { PosSaleRow } from "./posSales.schemas";
 
+/** Định nghĩa gốc ở `utils/vnTime.ts` (Check Cost cũng cần); re-export để call-site trong module khỏi đổi. */
+export { parseDateOnly };
+
 /**
- * Chuỗi "YYYY-MM-DD" → Date đúng ngày đó. Ép về giữa trưa UTC thay vì 00:00: cột là `@db.Date` nên
- * phần giờ bị bỏ, nhưng đi qua 00:00 UTC thì bất kỳ phép đổi múi giờ lẫn vào đâu đó cũng có thể lùi
- * sang ngày hôm trước. Giữa trưa thì lệch ±7 tiếng vẫn nằm trong cùng một ngày.
+ * Chặn ở SERVER, không chỉ ẩn trên giao diện: POS chỉ bán món (TRA/DAV), còn THANH_PHAM là đồ pha sẵn
+ * đếm ở phiếu kiểm kê quán. Dữ liệu thật đã có 12 dòng Check Cost ghi nhầm đồ thành phẩm thành món đã
+ * bán, vì hai tên chỉ khác nhau chữ hoa ("Thạch matcha" vs "Thạch Matcha").
+ *
+ * Phải gọi ở CẢ HAI đường nhập. Trước đây chỉ đường gõ tay có chốt này, nên 211 ô đồ pha sẵn đã lọt
+ * vào DB qua đường Excel — và từ khi Check Cost lấy doanh số từ POS thì mỗi ô như vậy vừa sinh doanh
+ * thu ảo vừa bị tính hai lần (nó đã nằm trong tồn đầu/cuối kỳ của phiếu kiểm kê).
  */
-export function parseDateOnly(soldOn: string): Date {
-  return new Date(`${soldOn}T12:00:00.000Z`);
+async function assertNoPreparedItems(finishedGoodItemIds: string[]): Promise<void> {
+  if (finishedGoodItemIds.length === 0) return;
+  const prepared = await prisma.finishedGoodItem.findMany({
+    where: { id: { in: [...new Set(finishedGoodItemIds)] }, category: "THANH_PHAM" },
+    select: { code: true, name: true },
+  });
+  if (prepared.length === 0) return;
+  const names = prepared.map((p) => `${p.name} (${p.code})`).join(", ");
+  throw new HttpError(
+    400,
+    `Không nhập doanh số cho đồ thành phẩm: ${names}. POS chỉ bán món, đồ pha sẵn thì đếm ở phiếu kiểm kê`,
+  );
 }
 
 export interface ImportResult {
@@ -70,6 +88,7 @@ export async function importPosSales(userId: string, rows: PosSaleRow[]): Promis
   }
 
   const cells = [...byCell.values()];
+  await assertNoPreparedItems(cells.map((c) => c.finishedGoodItemId));
   const days = [...new Set(cells.map((c) => c.soldOn))];
 
   /**
@@ -188,22 +207,7 @@ export async function saveManualRows(
     );
   }
 
-  // Chặn ở SERVER, không chỉ ẩn trên giao diện: POS chỉ bán món (TRA/DAV), còn THANH_PHAM là đồ pha sẵn
-  // đếm ở phiếu kiểm kê quán. Dữ liệu thật đã có 12 dòng Check Cost ghi nhầm đồ thành phẩm thành món đã
-  // bán, vì hai tên chỉ khác nhau chữ hoa ("Thạch matcha" vs "Thạch Matcha").
-  if (upserts.length > 0) {
-    const prepared = await prisma.finishedGoodItem.findMany({
-      where: { id: { in: [...new Set(upserts.map((r) => r.finishedGoodItemId))] }, category: "THANH_PHAM" },
-      select: { code: true, name: true },
-    });
-    if (prepared.length > 0) {
-      const names = prepared.map((p) => `${p.name} (${p.code})`).join(", ");
-      throw new HttpError(
-        400,
-        `Không nhập doanh số cho đồ thành phẩm: ${names}. POS chỉ bán món, đồ pha sẵn thì đếm ở phiếu kiểm kê`,
-      );
-    }
-  }
+  await assertNoPreparedItems(upserts.map((r) => r.finishedGoodItemId));
 
   const toWhere = (row: ManualRowKey) => ({
     soldOn: parseDateOnly(row.soldOn),

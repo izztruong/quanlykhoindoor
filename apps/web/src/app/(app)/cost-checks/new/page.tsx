@@ -3,34 +3,29 @@
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
-import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
-import { useFinishedGoodItems } from "@/hooks/useCatalog";
-import { useCreateCostCheck } from "@/hooks/useCostChecks";
+import { useCostCheckPosPreview, useCreateCostCheck } from "@/hooks/useCostChecks";
 import { useStockChecks } from "@/hooks/useStockChecks";
 import { useUserOptions } from "@/hooks/useUsers";
 import { ApiError } from "@/lib/api-client";
-import { formatDateTime } from "@/lib/format";
-import type { FinishedGoodItem } from "@/types";
-import { sanitizeExcelRow } from "@/lib/excelExport";
-import ExcelJS from "exceljs";
-import { ChevronDown, Download, Trash2 } from "lucide-react";
+import { formatDateOnly } from "@/lib/dateRange";
+import { formatDateTime, formatNumber } from "@/lib/format";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
-interface SoldRow {
-  finishedGoodItemId: string;
-  item: FinishedGoodItem;
-  quantitySold: string;
-}
-
-const TEMPLATE_HEADER = ["Tên đồ thành phẩm/món*", "SL đã bán"];
-
+/**
+ * SL đồ thành phẩm/món đã bán KHÔNG còn gõ tay: server lấy từ doanh số POS theo đúng kỳ của phiếu
+ * (từng ô giờ), nên con số dùng để tính định mức và doanh thu là cùng một nguồn với màn Doanh số POS.
+ * Người lập phiếu chỉ còn khai khuyến mãi.
+ *
+ * Panel "Doanh số POS trong kỳ" gọi `/cost-checks/pos-preview` ngay khi chọn đủ hai phiếu kiểm kê, để
+ * thấy trước số sẽ dùng — kỳ không có dữ liệu POS thì server từ chối tạo phiếu, thấy sớm đỡ điền xong
+ * mới bị chặn.
+ */
 export default function NewCostCheckPage() {
   const router = useRouter();
   const { data: users = [] } = useUserOptions();
-  const { data: finishedGoodItems = [] } = useFinishedGoodItems();
   const createCostCheck = useCreateCostCheck();
 
   const [userId, setUserId] = useState("");
@@ -47,40 +42,19 @@ export default function NewCostCheckPage() {
   const [note, setNote] = useState("");
   const [discountTra, setDiscountTra] = useState("");
   const [discountDav, setDiscountDav] = useState("");
-  const [rows, setRows] = useState<SoldRow[]>([]);
-  const [search, setSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const [importOpen, setImportOpen] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<{ updated: number; added: number; errors: string[] } | null>(null);
+  const periodReady = Boolean(userId && openingStockCheckId && closingStockCheckId && openingStockCheckId !== closingStockCheckId);
+  const preview = useCostCheckPosPreview({
+    userId: periodReady ? userId : "",
+    openingStockCheckId: periodReady ? openingStockCheckId : "",
+    closingStockCheckId: periodReady ? closingStockCheckId : "",
+  });
 
-  const rowIds = useMemo(() => new Set(rows.map((r) => r.finishedGoodItemId)), [rows]);
-  const suggestions = useMemo(() => {
-    if (!search.trim()) return [];
-    const q = search.trim().toLowerCase();
-    return finishedGoodItems
-      .filter((f) => !rowIds.has(f.id) && (f.code.toLowerCase().includes(q) || f.name.toLowerCase().includes(q)))
-      .slice(0, 8);
-  }, [search, finishedGoodItems, rowIds]);
-
-  function handleUserChange(value: string) {
-    setUserId(value);
+  function handleUserChange(nextUserId: string) {
+    setUserId(nextUserId);
     setOpeningStockCheckId("");
     setClosingStockCheckId("");
-  }
-
-  function addRow(item: FinishedGoodItem) {
-    setRows((prev) => (prev.some((r) => r.finishedGoodItemId === item.id) ? prev : [...prev, { finishedGoodItemId: item.id, item, quantitySold: "" }]));
-    setSearch("");
-  }
-
-  function updateRow(finishedGoodItemId: string, quantitySold: string) {
-    setRows((prev) => prev.map((r) => (r.finishedGoodItemId === finishedGoodItemId ? { ...r, quantitySold } : r)));
-  }
-
-  function removeRow(finishedGoodItemId: string) {
-    setRows((prev) => prev.filter((r) => r.finishedGoodItemId !== finishedGoodItemId));
   }
 
   function handleSubmit() {
@@ -97,13 +71,6 @@ export default function NewCostCheckPage() {
       setError("Phiếu đầu kỳ và cuối kỳ phải khác nhau.");
       return;
     }
-    const soldItems = rows
-      .filter((r) => r.quantitySold !== "" && Number(r.quantitySold) >= 0)
-      .map((r) => ({ finishedGoodItemId: r.finishedGoodItemId, quantitySold: Number(r.quantitySold) }));
-    if (soldItems.length === 0) {
-      setError("Vui lòng nhập ít nhất 1 dòng SL đã bán.");
-      return;
-    }
 
     createCostCheck.mutate(
       {
@@ -113,7 +80,6 @@ export default function NewCostCheckPage() {
         note: note || undefined,
         discountTra: discountTra === "" ? undefined : Number(discountTra),
         discountDav: discountDav === "" ? undefined : Number(discountDav),
-        soldItems,
       },
       {
         onSuccess: (created) => router.push(`/cost-checks/${created.id}`),
@@ -122,86 +88,8 @@ export default function NewCostCheckPage() {
     );
   }
 
-  async function downloadWorkbook(workbook: ExcelJS.Workbook, filename: string) {
-    const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-  }
-
-  async function downloadTemplate() {
-    const workbook = new ExcelJS.Workbook();
-    const sheet = workbook.addWorksheet("SL da ban");
-    sheet.columns = TEMPLATE_HEADER.map((header) => ({ header, width: 26 }));
-    sheet.getRow(1).font = { bold: true };
-    sheet.addRow(sanitizeExcelRow([finishedGoodItems[0]?.name ?? "Tên món mẫu", 10]));
-    await downloadWorkbook(workbook, "mau-sl-da-ban.xlsx");
-  }
-
-  async function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-
-    setImporting(true);
-    setImportResult(null);
-    try {
-      const buffer = await file.arrayBuffer();
-      const workbook = new ExcelJS.Workbook();
-      await workbook.xlsx.load(buffer);
-      const sheet = workbook.worksheets[0];
-      if (!sheet) {
-        setImportResult({ updated: 0, added: 0, errors: ["Không đọc được sheet nào trong file."] });
-        return;
-      }
-
-      const byName = new Map(finishedGoodItems.map((f) => [f.name.trim().toLowerCase(), f]));
-      const errors: string[] = [];
-      let updated = 0;
-      let added = 0;
-      const next = [...rows];
-      const indexById = new Map(next.map((r, index) => [r.finishedGoodItemId, index]));
-
-      sheet.eachRow((row, rowNumber) => {
-        if (rowNumber === 1) return;
-        const name = String(row.getCell(1).value ?? "").trim();
-        if (!name) return;
-        const qtyRaw = row.getCell(2).value;
-        const item = byName.get(name.toLowerCase());
-        if (!item) {
-          errors.push(`Dòng ${rowNumber}: không tìm thấy "${name}"`);
-          return;
-        }
-        if (qtyRaw !== null && qtyRaw !== undefined && qtyRaw !== "" && Number.isNaN(Number(qtyRaw))) {
-          errors.push(`Dòng ${rowNumber}: SL đã bán không hợp lệ`);
-          return;
-        }
-        const quantitySold = qtyRaw === null || qtyRaw === undefined || qtyRaw === "" ? "" : String(Number(qtyRaw));
-        const existingIndex = indexById.get(item.id);
-        if (existingIndex !== undefined) {
-          next[existingIndex] = { ...next[existingIndex], quantitySold };
-          updated++;
-        } else {
-          next.push({ finishedGoodItemId: item.id, item, quantitySold });
-          indexById.set(item.id, next.length - 1);
-          added++;
-        }
-      });
-
-      setRows(next);
-      setImportResult({ updated, added, errors });
-    } catch {
-      setImportResult({ updated: 0, added: 0, errors: ["Đọc file thất bại. Vui lòng kiểm tra định dạng file."] });
-    } finally {
-      setImporting(false);
-    }
-  }
+  const coverage = preview.data?.coverage;
+  const previewError = preview.error instanceof ApiError ? preview.error.message : null;
 
   return (
     <div className="flex flex-col gap-4">
@@ -211,7 +99,11 @@ export default function NewCostCheckPage() {
         </Link>
         <h1 className="mt-2 text-xl font-semibold text-slate-800">Tạo phiếu Check Cost</h1>
         <p className="text-sm text-slate-500">
-          Chọn quán và 2 phiếu kiểm kê quán (đầu kỳ/cuối kỳ) đã có, rồi nhập số lượng đồ thành phẩm/món đã bán trong kỳ đó.
+          Chọn quán và 2 phiếu kiểm kê quán (đầu kỳ/cuối kỳ) đã có. SL món đã bán được lấy tự động từ{" "}
+          <Link href="/admin/pos-sales" className="text-indigo-600 hover:underline">
+            doanh số POS
+          </Link>{" "}
+          của kỳ đó, chỉ còn khuyến mãi là nhập tay.
         </p>
       </div>
 
@@ -284,80 +176,85 @@ export default function NewCostCheckPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>SL đồ thành phẩm/món đã bán trong kỳ</CardTitle>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={() => {
-              setImportResult(null);
-              setImportOpen(true);
-            }}
-          >
-            Nhập từ Excel
-            <ChevronDown size={14} />
-          </Button>
+          <CardTitle>Doanh số POS trong kỳ</CardTitle>
         </CardHeader>
         <CardBody className="flex flex-col gap-3">
-          <div className="relative w-72">
-            <Input placeholder="Nhập mã/tên và chọn" value={search} onChange={(e) => setSearch(e.target.value)} />
-            {suggestions.length > 0 && (
-              <div className="absolute z-10 mt-1 w-full rounded-lg border border-slate-200 bg-white shadow-lg">
-                {suggestions.map((f) => (
-                  <button
-                    key={f.id}
-                    type="button"
-                    onClick={() => addRow(f)}
-                    className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-slate-50"
-                  >
-                    <span className="text-slate-700">{f.name}</span>
-                    <span className="text-xs text-slate-400">{f.code}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {rows.length === 0 ? (
-            <p className="text-sm text-slate-400">Chưa có dòng nào</p>
+          {!periodReady ? (
+            <p className="text-sm text-slate-400">Chọn quán và 2 phiếu kiểm kê khác nhau để xem doanh số sẽ dùng.</p>
+          ) : preview.isLoading ? (
+            <p className="text-sm text-slate-400">Đang tải doanh số...</p>
+          ) : previewError ? (
+            <p className="text-sm text-red-600">{previewError}</p>
+          ) : !preview.data || preview.data.cellCount === 0 ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              Kỳ này <strong>chưa có dữ liệu doanh số POS nào</strong> nên không tạo được phiếu. Vào{" "}
+              <Link href="/admin/pos-sales" className="underline">
+                Quản trị › Doanh số POS
+              </Link>{" "}
+              để nhập, rồi quay lại. Nếu đã nhập mà vẫn báo thiếu thì kiểm tra{" "}
+              <Link href="/admin/pos-item-mapping" className="underline">
+                Ánh xạ món POS
+              </Link>{" "}
+              — còn một tên chưa ánh xạ thì cả file không ghi dòng nào.
+            </div>
           ) : (
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="text-left text-xs font-medium uppercase text-slate-500">
-                  <th className="border border-slate-200 px-3 py-2">Đồ thành phẩm/món</th>
-                  <th className="border border-slate-200 px-3 py-2">Đơn vị</th>
-                  <th className="border border-slate-200 px-3 py-2">SL đã bán</th>
-                  <th className="border border-slate-200 px-3 py-2" />
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr key={row.finishedGoodItemId}>
-                    <td className="border border-slate-200 px-3 py-2">{row.item.name}</td>
-                    <td className="border border-slate-200 px-3 py-2">{row.item.unit?.name}</td>
-                    <td className="border border-slate-200 px-3 py-2">
-                      <Input
-                        type="number"
-                        step="0.001"
-                        min="0"
-                        className="h-8 w-28"
-                        value={row.quantitySold}
-                        onChange={(e) => updateRow(row.finishedGoodItemId, e.target.value)}
-                      />
-                    </td>
-                    <td className="border border-slate-200 px-3 py-2">
-                      <button
-                        type="button"
-                        onClick={() => removeRow(row.finishedGoodItemId)}
-                        className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <>
+              <div className="flex flex-wrap gap-6 text-sm">
+                <div>
+                  <p className="text-xs uppercase text-slate-500">Tổng SL đã bán</p>
+                  <p className="text-lg font-semibold text-slate-800">{formatNumber(preview.data.totalQuantity)}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase text-slate-500">Số món</p>
+                  <p className="text-lg font-semibold text-slate-800">{formatNumber(preview.data.items.length)}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase text-slate-500">Ngày có dữ liệu</p>
+                  <p className="text-lg font-semibold text-slate-800">
+                    {coverage?.daysWithData}/{coverage?.expectedDays}
+                  </p>
+                </div>
+              </div>
+
+              {coverage && coverage.missingDays.length > 0 && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  Kỳ này thiếu dữ liệu POS {coverage.missingDays.length}/{coverage.expectedDays} ngày:{" "}
+                  {coverage.missingDays.map(formatDateOnly).join(", ")}. Nếu quán <strong>có bán</strong> những ngày đó thì
+                  cột &quot;Theo công thức&quot; và doanh thu của phiếu sẽ bị thiếu — nên nhập bù trước khi tạo phiếu.
+                </div>
+              )}
+
+              {coverage && coverage.skippedPreparedItems.length > 0 && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  Đã bỏ qua {coverage.skippedPreparedItems.length} món đồ pha sẵn có trong doanh số POS:{" "}
+                  {coverage.skippedPreparedItems.join(", ")}. Đồ pha sẵn được đếm ở phiếu kiểm kê quán, tính thêm vào đây là
+                  tính hai lần — nên sửa lại ánh xạ món POS.
+                </div>
+              )}
+
+              <div className="max-h-72 overflow-auto rounded-lg border border-slate-200">
+                <table className="w-full border-collapse text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                    <tr>
+                      <th className="sticky top-0 z-10 border border-slate-200 bg-slate-50 px-3 py-2 text-left">Món</th>
+                      <th className="sticky top-0 z-10 border border-slate-200 bg-slate-50 px-3 py-2 text-left">Đơn vị</th>
+                      <th className="sticky top-0 z-10 border border-slate-200 bg-slate-50 px-3 py-2 text-right">SL đã bán</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {preview.data.items.map((row, index) => (
+                      <tr key={row.finishedGoodItem?.id ?? index}>
+                        <td className="border border-slate-200 px-3 py-2">{row.finishedGoodItem?.name ?? "—"}</td>
+                        <td className="border border-slate-200 px-3 py-2 text-slate-500">
+                          {row.finishedGoodItem?.unit?.name ?? "—"}
+                        </td>
+                        <td className="border border-slate-200 px-3 py-2 text-right">{formatNumber(row.quantity)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </CardBody>
       </Card>
@@ -365,49 +262,10 @@ export default function NewCostCheckPage() {
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <div className="flex justify-end gap-2">
-        <Button onClick={handleSubmit} disabled={createCostCheck.isPending}>
+        <Button onClick={handleSubmit} disabled={createCostCheck.isPending || !preview.data || preview.data.cellCount === 0}>
           {createCostCheck.isPending ? "Đang lưu..." : "Lưu phiếu Check Cost"}
         </Button>
       </div>
-
-      {importOpen && (
-        <Modal title="Nhập SL đã bán từ Excel" onClose={() => setImportOpen(false)}>
-          <div className="flex flex-col gap-3">
-            <p className="text-sm text-slate-600">
-              File theo đúng cột trong file mẫu: Tên đồ thành phẩm/món, SL đã bán. Dữ liệu đã có trong bảng sẽ được cập nhật;
-              chưa có sẽ tự động thêm vào.
-            </p>
-            <Button type="button" variant="secondary" size="sm" className="self-start" onClick={downloadTemplate}>
-              <Download size={14} />
-              Tải file mẫu
-            </Button>
-            <input type="file" accept=".xlsx" onChange={handleImportFile} disabled={importing} />
-            {importing && <p className="text-sm text-slate-400">Đang xử lý...</p>}
-            {importResult && (
-              <div className="flex flex-col gap-2 rounded-lg border border-slate-200 p-3 text-sm">
-                <p className="font-medium text-slate-700">
-                  Đã cập nhật {importResult.updated}, thêm mới {importResult.added} dòng.
-                </p>
-                {importResult.errors.length > 0 && (
-                  <div>
-                    <p className="font-medium text-red-600">Bỏ qua {importResult.errors.length} dòng lỗi:</p>
-                    <ul className="mt-1 list-disc pl-5 text-red-600">
-                      {importResult.errors.map((message, index) => (
-                        <li key={index}>{message}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            )}
-            <div className="mt-2 flex justify-end">
-              <Button type="button" variant="secondary" onClick={() => setImportOpen(false)}>
-                Đóng
-              </Button>
-            </div>
-          </div>
-        </Modal>
-      )}
     </div>
   );
 }

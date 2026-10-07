@@ -46,9 +46,13 @@ export interface CostCheckDraft {
   note: string;
   discountTra: string;
   discountDav: string;
-  rows: { finishedGoodItemId: string; quantitySold: string }[];
 }
 
+/**
+ * KHÔNG gửi `soldItems`: SL món đã bán giờ do server lấy từ doanh số POS theo kỳ của phiếu. Gửi
+ * trường đó lên là server trả 400 — cố ý, để bản app cũ hỏng to tiếng chứ không âm thầm tạo phiếu
+ * mang số khác số người dùng vừa gõ.
+ */
 export function buildCostCheckInput(draft: CostCheckDraft): CostCheckCreateInput {
   if (!draft.userId) throw new Error("Vui lòng chọn quán.");
   if (!draft.openingStockCheckId || !draft.closingStockCheckId) {
@@ -57,11 +61,6 @@ export function buildCostCheckInput(draft: CostCheckDraft): CostCheckCreateInput
   if (draft.openingStockCheckId === draft.closingStockCheckId) {
     throw new Error("Phiếu đầu kỳ và cuối kỳ phải khác nhau.");
   }
-  const soldItems = draft.rows.filter((r) => r.quantitySold.trim() !== "").map((r) => ({
-    finishedGoodItemId: r.finishedGoodItemId,
-    quantitySold: parseNonnegative(r.quantitySold, "SL đã bán"),
-  }));
-  if (!soldItems.length) throw new Error("Vui lòng nhập ít nhất 1 dòng SL đã bán.");
   return {
     userId: draft.userId,
     openingStockCheckId: draft.openingStockCheckId,
@@ -69,7 +68,6 @@ export function buildCostCheckInput(draft: CostCheckDraft): CostCheckCreateInput
     note: draft.note.trim() || undefined,
     discountTra: draft.discountTra.trim() ? parseNonnegative(draft.discountTra, "Khuyến mãi Trà") : undefined,
     discountDav: draft.discountDav.trim() ? parseNonnegative(draft.discountDav, "Khuyến mãi ĐAV") : undefined,
-    soldItems,
   };
 }
 

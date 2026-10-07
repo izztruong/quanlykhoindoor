@@ -11,6 +11,7 @@ import { dashboardRouter } from "./modules/dashboard/dashboard.routes";
 import { deadlinesRouter } from "./modules/deadlines/deadlines.routes";
 import { expenseProposalsRouter } from "./modules/expenseProposals/expenseProposals.routes";
 import { finishedGoodItemsRouter } from "./modules/finishedGoodItems/finishedGoodItems.routes";
+import { finishedGoodItemPriceSyncRouter, finishedGoodPricesRouter } from "./modules/finishedGoodPrices/finishedGoodPrices.routes";
 import { finishedGoodRecipesRouter } from "./modules/finishedGoodRecipes/finishedGoodRecipes.routes";
 import { googleAuthRouter } from "./modules/googleAuth/googleAuth.routes";
 import { inventoryCountsRouter } from "./modules/inventoryCounts/inventoryCounts.routes";
@@ -20,6 +21,7 @@ import { mcpRouter } from "./modules/mcp/mcp.routes";
 import { mcpTokensRouter } from "./modules/mcpTokens/mcpTokens.routes";
 import { productGroupsRouter } from "./modules/productGroups/productGroups.routes";
 import { productStockRouter } from "./modules/products/productStock.routes";
+import { productRecipeUnitGuardRouter } from "./modules/products/productRecipeUnitGuard.routes";
 import { productsRouter } from "./modules/products/products.routes";
 import { posItemMappingsRouter } from "./modules/posItemMappings/posItemMappings.routes";
 import { posSalesRouter } from "./modules/posSales/posSales.routes";
@@ -77,8 +79,14 @@ app.use("/api", requireAuth);
 // phẩm, tồn kho, hạn nộp) chỉ cần đăng nhập, vì form tạo đơn/phiếu của quán phải đọc chúng.
 app.use("/api/warehouses", warehousesRouter);
 app.use("/api/customers", customersRouter);
+// Guard phải đứng TRƯỚC: nó chặn đổi hệ số quy đổi của hàng hoá đã có phát sinh rồi mới cho
+// crudFactory ghi. Xem productRecipeUnitGuard.routes.ts.
+app.use("/api/products", productRecipeUnitGuardRouter);
 app.use("/api/products", productsRouter);
 app.use("/api/product-stock", productStockRouter);
+// PriceSync phải đứng TRƯỚC: nó tiếp quản PUT /:id và POST /bulk-import để ghi mốc giá và cột giá
+// hiện hành trong cùng một transaction. Các route còn lại rơi xuống crudFactory bên dưới.
+app.use("/api/finished-good-items", finishedGoodItemPriceSyncRouter);
 app.use("/api/finished-good-items", finishedGoodItemsRouter);
 app.use("/api/reorder-thresholds", reorderThresholdsRouter);
 app.use("/api/deadlines", deadlinesRouter);
@@ -101,6 +109,7 @@ app.use("/api/stock-imports", stockImportsRouter);
 app.use("/api/stock-exports", stockExportsRouter);
 app.use("/api/product-supplier-prices", productSupplierPricesRouter);
 app.use("/api/finished-good-recipes", finishedGoodRecipesRouter);
+app.use("/api/finished-good-prices", finishedGoodPricesRouter);
 app.use("/api/cost-checks", costChecksRouter);
 app.use("/api/material-transfers", materialTransfersRouter);
 app.use("/api/inventory-counts", inventoryCountsRouter);

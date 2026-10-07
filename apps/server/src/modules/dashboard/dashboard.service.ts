@@ -1,13 +1,13 @@
 import { prisma } from "../../config/db";
 import { Prisma } from "../../generated/prisma/client";
 import { VN_OFFSET_MS } from "../../utils/deadlines";
+import { RecipeHistory } from "../../utils/recipeVersions";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WASTE_WINDOW_DAYS = 7;
 
 /**
- * Đơn "Chưa xác nhận" (DRAFT) — đơn quán vừa đặt, đang chờ admin xác nhận. Không tính
- * PENDING_CONFIRM: đó là đơn admin đã xác nhận xong, đang chờ quán nhận hàng.
+ * Đơn "Chưa xử lý" (DRAFT) — đơn quán vừa gửi, admin chưa ghi nhận hàng.
  */
 export function countUnconfirmedOrders(createdById: string | undefined) {
   return prisma.salesOrder.count({ where: { status: "DRAFT", createdById } });
@@ -20,9 +20,17 @@ function costPerRecipeUnit(product: { costPrice: unknown; recipeUnitsPerBaseUnit
 }
 
 /**
- * Huỷ hàng trong 7 ngày qua. Phiếu huỷ không lưu giá nên tiền tính theo giá vốn HIỆN TẠI của hàng
- * hoá — đổi giá vốn thì số này đổi theo (người dùng đã chấp nhận). Quy đổi SL giống Check Cost:
- * SL chẵn × hệ số + SL lẻ (đã là đơn vị công thức), đồ thành phẩm đi qua công thức.
+ * Huỷ hàng trong 7 ngày qua.
+ *
+ * Hệ LAI, cố ý: SL theo công thức **tại thời điểm huỷ** × giá vốn **hiện tại** của hàng hoá.
+ * - Công thức neo theo `wasteAt`: đây là cửa sổ trượt 7 ngày, nếu dùng công thức hiện hành thì sửa
+ *   công thức hôm nay sẽ định giá lại phiếu huỷ 6 ngày trước — người dùng thấy số nhảy mà không ai
+ *   huỷ thêm gì cũng không ai sửa phiếu huỷ. Món bị bỏ bớt nguyên liệu thì phiếu cũ mất phần tiền đó,
+ *   món bị xoá sạch công thức thì về 0 đ.
+ * - Giá vốn vẫn là giá hiện tại: phiếu huỷ không lưu giá, và `Product.costPrice` chưa có lịch sử
+ *   (quyết định cũ còn hiệu lực).
+ *
+ * Quy đổi SL giống Check Cost: SL chẵn × hệ số + SL lẻ (đã là đơn vị công thức).
  */
 export async function getWasteSummary(createdById: string | undefined, now = new Date()) {
   const where: Prisma.MaterialWasteWhereInput = {
@@ -42,9 +50,7 @@ export async function getWasteSummary(createdById: string | undefined, now = new
       select: {
         finishedGoodItemId: true,
         quantity: true,
-        finishedGoodItem: {
-          select: { recipeItems: { select: { quantityPerUnit: true, product: { select: productSelect } } } },
-        },
+        materialWaste: { select: { wasteAt: true } },
       },
     }),
   ]);
@@ -55,12 +61,27 @@ export async function getWasteSummary(createdById: string | undefined, now = new
     const recipeQty = Number(item.wholeQuantity ?? 0) * factor + Number(item.looseQuantity ?? 0);
     value += recipeQty * costPerRecipeUnit(item.product);
   }
-  for (const item of finishedItems) {
-    const unitCost = item.finishedGoodItem.recipeItems.reduce(
-      (sum, recipe) => sum + Number(recipe.quantityPerUnit) * costPerRecipeUnit(recipe.product),
-      0,
-    );
-    value += Number(item.quantity) * unitCost;
+
+  if (finishedItems.length > 0) {
+    const recipes = await RecipeHistory.load(finishedItems.map((it) => it.finishedGoodItemId));
+    const productIds = new Set<string>();
+    for (const item of finishedItems) {
+      for (const line of recipes.linesAt(item.finishedGoodItemId, item.materialWaste.wasteAt.getTime())) {
+        productIds.add(line.productId);
+      }
+    }
+    const products = await prisma.product.findMany({ where: { id: { in: [...productIds] } }, select: { id: true, ...productSelect } });
+    const productById = new Map(products.map((p) => [p.id, p]));
+
+    for (const item of finishedItems) {
+      const unitCost = recipes
+        .linesAt(item.finishedGoodItemId, item.materialWaste.wasteAt.getTime())
+        .reduce((sum, line) => {
+          const product = productById.get(line.productId);
+          return product ? sum + line.quantityPerUnit * costPerRecipeUnit(product) : sum;
+        }, 0);
+      value += Number(item.quantity) * unitCost;
+    }
   }
 
   const itemCount =

@@ -31,6 +31,16 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
+### Lịch sử công thức + Check Cost lấy doanh số từ POS (server + web + mobile) — CHƯA thử trên trình duyệt/app, CHƯA lên `main`
+Công thức BOM và giá bán giờ có **mốc hiệu lực** (`FinishedGoodRecipeVersion`, `FinishedGoodPrice`), nên đổi
+giữa kỳ là Check Cost tự tính phần trước/sau mốc bằng hai định lượng khác nhau — không cần tách phiếu.
+SL món đã bán **bỏ hẳn gõ tay**, lấy từ `PosSaleHour` theo từng ô giờ; kỳ không có POS thì **409**. Thêm chốt
+chặn đổi `recipeUnitsPerBaseUnit` khi hàng hoá đã có phát sinh (không có đường thoát, phải tạo mã mới).
+Đã kiểm typecheck 3 app, lint web, bundle Android, `migrate deploy` DB trắng + `kho_dev_copy` (434 dòng giữ
+nguyên, 0 dòng mồ côi), 14 ca curl, và script đối chiếu: định mức 2 mốc ra đúng 460, kết quả **giống nhau ở 3
+múi giờ** (UTC/VN/New_York).
+Còn lại: 3/4 quán chưa có POS nên **tạm thời chưa tạo được Check Cost**; mobile không có màn nhập POS.
+
 ### Phiếu huỷ: ô tích "Trừ CC" từng dòng (server + web + mobile) — CHƯA thử trên trình duyệt/app, CHƯA lên `main`
 Bỏ tích = Check Cost không trừ dòng huỷ đó; tạo phiếu mặc định tích hết; chỉ quyền mới `MATERIAL_WASTE.DEDUCT` đổi được (form + trang chi tiết). Trang chủ vẫn đếm mọi dòng.
 Đã kiểm typecheck 3 app, lint web, bundle Android, `migrate deploy` DB trắng + `kho_db` + `kho_dev_copy`, 8 ca curl + đối chiếu `computeCostCheckReport` trước/sau bỏ tích.

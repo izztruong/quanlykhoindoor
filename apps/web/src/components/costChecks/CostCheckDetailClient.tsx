@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { useCostCheck, useUpdateCostCheckStatus } from "@/hooks/useCostChecks";
 import { ApiError } from "@/lib/api-client";
+import { formatDateOnly } from "@/lib/dateRange";
 import { sanitizeExcelRow } from "@/lib/excelExport";
 import { formatCurrency, formatDateTime, formatNumber, formatPercent, formatSignedPercent, labels } from "@/lib/format";
 import type { CostCheck, CostCheckFinancialSummary, CostCheckReportRow, ProductType } from "@/types";
@@ -300,9 +301,26 @@ export function CostCheckDetailClient({ id }: { id: string }) {
         </Card>
       )}
 
+      {costCheck.posCoverage && costCheck.posCoverage.missingDays.length > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Lúc tạo phiếu, kỳ này thiếu dữ liệu doanh số POS {costCheck.posCoverage.missingDays.length}/
+          {costCheck.posCoverage.expectedDays} ngày: {costCheck.posCoverage.missingDays.map(formatDateOnly).join(", ")}. Nếu
+          quán <strong>có bán</strong> những ngày đó thì cột &quot;Theo công thức&quot; và doanh thu của phiếu này đang
+          thiếu — phiếu đã chốt số nên muốn tính lại phải huỷ và tạo phiếu mới.
+        </div>
+      )}
+      {costCheck.posCoverage && costCheck.posCoverage.skippedPreparedItems.length > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Đã bỏ qua {costCheck.posCoverage.skippedPreparedItems.length} món đồ pha sẵn có trong doanh số POS của kỳ:{" "}
+          {costCheck.posCoverage.skippedPreparedItems.join(", ")}. Đồ pha sẵn được đếm ở phiếu kiểm kê quán nên không tính
+          vào đây.
+        </div>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>SL đồ thành phẩm/món đã bán trong kỳ</CardTitle>
+          <span className="text-xs text-slate-400">Lấy tự động từ doanh số POS của kỳ</span>
         </CardHeader>
         <CardBody className="max-h-[420px] overflow-auto p-0">
           <table className="w-full border-collapse text-sm">

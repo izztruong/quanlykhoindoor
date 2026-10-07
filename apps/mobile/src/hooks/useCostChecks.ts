@@ -2,6 +2,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/apiClient";
 import type { CostCheck, CostCheckStatus } from "@/types";
 
+/**
+ * SL món đã bán KHÔNG còn nằm trong payload: server tự lấy từ doanh số POS theo kỳ của phiếu. Doanh
+ * số POS chỉ nhập được trên web — mobile không có màn nào cho việc đó.
+ */
 export interface CostCheckCreateInput {
   userId: string;
   openingStockCheckId: string;
@@ -9,7 +13,6 @@ export interface CostCheckCreateInput {
   note?: string;
   discountTra?: number;
   discountDav?: number;
-  soldItems: { finishedGoodItemId: string; quantitySold: number }[];
 }
 
 export function useCostCheck(id: string) {

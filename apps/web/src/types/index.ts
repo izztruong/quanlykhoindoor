@@ -12,7 +12,7 @@ export interface AuthUser {
   scope: "ALL" | "SELF";
 }
 
-export type PermissionAction = "VIEW" | "ADD" | "EDIT" | "DELETE" | "RECEIVE" | "APPROVE" | "ADVANCE" | "COMPLETE";
+export type PermissionAction = "VIEW" | "ADD" | "EDIT" | "DELETE" | "APPROVE" | "ADVANCE" | "COMPLETE";
 
 export interface PermissionCatalog {
   resources: { resource: string; label: string; group: string; actions: PermissionAction[] }[];
@@ -221,7 +221,7 @@ export interface StockTransaction extends StockHeader {
   items: StockItem[];
 }
 
-export type SalesOrderStatus = "DRAFT" | "PENDING_CONFIRM" | "CONFIRMED" | "SHORT" | "COMPLETED" | "CANCELLED";
+export type SalesOrderStatus = "DRAFT" | "COMPLETED" | "CANCELLED";
 
 export interface SalesOrderItem {
   id: string;
@@ -439,6 +439,25 @@ export interface FinishedGoodRecipeItem {
   quantityPerUnit: string | number;
 }
 
+/** Một mốc công thức. `effectiveFrom` là ngày (server trả "YYYY-MM-DD" hoặc ISO của cột @db.Date). */
+export interface FinishedGoodRecipeVersion {
+  id: string;
+  effectiveFrom: string;
+  note?: string | null;
+  createdBy?: { id: string; name: string } | null;
+  createdAt: string;
+  items: FinishedGoodRecipeItem[];
+}
+
+/** Một mốc giá bán. Doanh thu Check Cost dùng mốc có hiệu lực tại từng ngày bán. */
+export interface FinishedGoodPrice {
+  id: string;
+  effectiveFrom: string;
+  sellingPrice: string | number;
+  createdBy?: { id: string; name: string } | null;
+  createdAt: string;
+}
+
 export interface MaterialWasteItemRow {
   id: string;
   productId: string;
@@ -540,6 +559,27 @@ export interface CostCheck {
   soldItems?: CostCheckSoldItemRow[];
   report?: CostCheckReportRow[];
   financialSummary?: CostCheckFinancialSummary;
+  /** null với phiếu chốt trước khi có cảnh báo phủ dữ liệu POS. */
+  posCoverage?: PosCoverage | null;
+}
+
+/** Mức phủ dữ liệu POS của một kỳ — chốt vào phiếu lúc tạo, không tính lại. */
+export interface PosCoverage {
+  expectedDays: number;
+  daysWithData: number;
+  missingDays: string[];
+  skippedPreparedItems: string[];
+}
+
+/** Doanh số POS sẽ dùng cho một kỳ, xem trước khi bấm tạo phiếu Check Cost. */
+export interface CostCheckPosPreview {
+  cellCount: number;
+  totalQuantity: number;
+  coverage: PosCoverage;
+  items: {
+    finishedGoodItem: { id: string; code: string; name: string; category?: FinishedGoodCategory | null; unit?: { name: string } | null } | null;
+    quantity: number;
+  }[];
 }
 
 export interface AffectedCostCheck {

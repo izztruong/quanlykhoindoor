@@ -80,9 +80,18 @@ export function CostCheckDetail({ id }: { id: string }) {
             </View>)}
           </CardBody>
         </Card>}
+        {r.posCoverage && r.posCoverage.missingDays.length > 0 && <Card>
+          <CardBody>
+            <Text style={styles.warning}>
+              Lúc tạo phiếu, kỳ này thiếu dữ liệu doanh số POS {r.posCoverage.missingDays.length}/{r.posCoverage.expectedDays} ngày.
+              Nếu quán có bán những ngày đó thì cột &quot;Theo công thức&quot; và doanh thu của phiếu đang thiếu.
+            </Text>
+          </CardBody>
+        </Card>}
         <Card>
           <CardHeader><CardTitle>Món đã bán trong kỳ</CardTitle></CardHeader>
           <CardBody style={styles.fields}>
+            <Text style={styles.muted}>Lấy tự động từ doanh số POS của kỳ.</Text>
             {(r.soldItems ?? []).map((item) => <InfoRow key={item.id} label={item.finishedGoodItem.name}
               value={`${formatNumber(item.quantitySold)} ${item.finishedGoodItem.unit?.name ?? ""}`} />)}
             {!r.soldItems?.length && <Text style={styles.muted}>Không có món đã bán.</Text>}
@@ -134,6 +143,7 @@ const styles = StyleSheet.create({
   fields: { gap: spacing.md },
   name: { fontSize: fontSize.md, fontWeight: "600", color: colors.text },
   muted: { fontSize: fontSize.sm, color: colors.textMuted },
+  warning: { fontSize: fontSize.sm, color: colors.warning },
   costRow: { gap: spacing.sm, paddingVertical: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
   group: { padding: spacing.md, gap: spacing.md },
   groupName: { fontSize: fontSize.md, fontWeight: "700", color: colors.textMuted },

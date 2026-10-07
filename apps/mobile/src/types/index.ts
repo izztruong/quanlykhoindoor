@@ -468,6 +468,16 @@ export interface CostCheck {
   soldItems?: CostCheckSoldItemRow[];
   report?: CostCheckReportRow[];
   financialSummary?: CostCheckFinancialSummary;
+  /** null với phiếu chốt trước khi có cảnh báo phủ dữ liệu POS. */
+  posCoverage?: PosCoverage | null;
+}
+
+/** Mức phủ dữ liệu POS của một kỳ — chốt vào phiếu lúc tạo, không tính lại. Phải giống bản web. */
+export interface PosCoverage {
+  expectedDays: number;
+  daysWithData: number;
+  missingDays: string[];
+  skippedPreparedItems: string[];
 }
 
 export interface AffectedCostCheck {

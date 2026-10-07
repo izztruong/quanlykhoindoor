@@ -1,4 +1,5 @@
 import type { ShiftCode, ShiftDefinition } from "../../generated/prisma/client";
+import { bucketMidpointMinutes, shiftDateKey, toDateKey } from "../../utils/vnTime";
 
 /**
  * Cắt doanh số theo ca từ dữ liệu lưu ở mức GIỜ.
@@ -10,12 +11,11 @@ import type { ShiftCode, ShiftDefinition } from "../../generated/prisma/client";
  * dùng ở đây: ô giờ `h` thuộc ca nào chứa **giữa ô** (h:30). Ca bắt đầu 06:30 thì ô 6 giờ (chứa đơn
  * từ 06:00 đến 06:59) KHÔNG thuộc ca đó, vì 06:30 chính là mốc mở. Muốn chính xác tới phút thì phải
  * lưu doanh số ở mức phút hoặc mức từng đơn — đổi lại dữ liệu phình lên nhiều lần.
+ *
+ * Quy ước giữa-ô-giờ (`bucketMidpointMinutes`) và cách đọc cột `@db.Date` (`toDateKey`,
+ * `shiftDateKey`) nằm ở `utils/vnTime.ts`: cắt kỳ Check Cost cũng cần đúng hai thứ đó, và chúng
+ * không phải luật chia ca nên không thuộc file này. Luật chia ca — hàm nào dưới đây — vẫn chỉ ở đây.
  */
-
-/** Phút trong ngày của giữa ô giờ `hour`. */
-function bucketMidpointMinutes(hour: number): number {
-  return hour * 60 + 30;
-}
 
 function toMinutes(h: number, m: number): number {
   return h * 60 + m;
@@ -53,18 +53,6 @@ export interface ShiftCell {
   shift: ShiftCode;
   finishedGoodItemId: string;
   quantity: number;
-}
-
-function toDateKey(date: Date): string {
-  // Cột là @db.Date nên phần giờ luôn là 00:00 UTC — đọc bằng getUTC* để không bị múi giờ của máy
-  // chạy server đẩy sang ngày hôm trước (Render chạy giờ UTC, máy dev thì UTC+7).
-  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
-}
-
-function shiftDateKey(dateKey: string, offsetDays: number): string {
-  const d = new Date(`${dateKey}T12:00:00.000Z`);
-  d.setUTCDate(d.getUTCDate() + offsetDays);
-  return toDateKey(d);
 }
 
 /**

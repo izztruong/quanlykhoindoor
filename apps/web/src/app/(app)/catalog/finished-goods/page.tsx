@@ -24,6 +24,15 @@ const columns: ColumnDef<FinishedGoodItem>[] = [
       </Link>
     ),
   },
+  {
+    header: "Giá theo thời gian",
+    id: "prices",
+    cell: ({ row }) => (
+      <Link href={`/catalog/finished-goods/${row.original.id}/prices`} className="text-sm text-indigo-600 hover:underline">
+        Lịch sử giá bán
+      </Link>
+    ),
+  },
 ];
 
 export default function FinishedGoodItemsPage() {

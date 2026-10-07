@@ -3,10 +3,125 @@ import type { Prisma, ProductType } from "../../generated/prisma/client";
 import type { AuthUser } from "../../middleware/auth";
 import { generateCode } from "../../utils/codeGenerator";
 import { HttpError } from "../../utils/httpError";
+import { PriceHistory } from "../../utils/priceHistory";
+import { RecipeHistory } from "../../utils/recipeVersions";
+import { parseDateOnly, shiftDateKey, toDateKey, vnDateKeyOf, vnDayStartMs, vnHourCellMs } from "../../utils/vnTime";
 import type { z } from "zod";
 import type { costCheckCreateSchema } from "./costChecks.schemas";
 
 type CostCheckCreateInput = z.infer<typeof costCheckCreateSchema>;
+
+/** Một ô doanh số POS đã được xác định là thuộc kỳ của phiếu. */
+export interface PosCell {
+  soldOn: Date;
+  hour: number;
+  finishedGoodItemId: string;
+  quantity: number;
+}
+
+/**
+ * Mức phủ dữ liệu POS của kỳ — đóng dấu vào `reportSnapshot` để cảnh báo còn lại vĩnh viễn trên phiếu
+ * chứ không nhảy một lần lúc tạo rồi mất.
+ */
+export interface PosCoverage {
+  /** Số ngày lịch VN của kỳ, tính cả hai đầu. */
+  expectedDays: number;
+  daysWithData: number;
+  /** Ngày không có ô doanh số nào — có thể là quán nghỉ, có thể là chưa ai nhập. Chỉ người dùng biết. */
+  missingDays: string[];
+  /** Tên món `THANH_PHAM` bị bỏ khỏi phép tính (đồ pha sẵn không có doanh thu, đã đếm ở phiếu kiểm kê). */
+  skippedPreparedItems: string[];
+}
+
+export interface PosPeriodSales {
+  cells: PosCell[];
+  /** Tổng SL đã bán theo món, dùng ghi `CostCheckSoldItem` (bảng hiển thị). */
+  byItem: Map<string, number>;
+  coverage: PosCoverage;
+}
+
+/**
+ * Doanh số POS thuộc kỳ `[opening.checkedAt, closing.checkedAt)` của một quán.
+ *
+ * **Chỗ DUY NHẤT cắt kỳ.** `createCostCheck`, `computeCostCheckReport` và route xem trước đều đi qua
+ * đây — hai bản cắt kỳ lệch nhau sẽ làm phiếu hiện một số mà báo cáo chốt một số khác.
+ *
+ * Biên **trái đóng, phải mở**: phiếu kiểm cuối kỳ N chính là phiếu kiểm đầu kỳ N+1, đóng cả hai đầu
+ * thì một ô giờ trùng khít `checkedAt` bị tính vào CẢ HAI phiếu.
+ *
+ * **Sai số đã biết, đừng tưởng là chính xác tới phút:** doanh số gom theo giờ nên mốc kỳ bị làm tròn
+ * về ô giờ theo quy ước giữa-ô (`vnHourCellMs` → h:30), tối đa lệch một ô giờ mỗi đầu kỳ. Kiểm đầu kỳ
+ * 08:20 thì ô giờ 8 (mốc 08:30) vào kỳ, kéo theo cả phần bán 08:00–08:20 trước lúc đếm tồn. Thực tế
+ * quán đếm kho trước giờ mở hoặc sau giờ đóng nên ô biên thường rỗng.
+ */
+export async function loadPosSalesForPeriod(
+  userId: string,
+  opening: { checkedAt: Date },
+  closing: { checkedAt: Date },
+): Promise<PosPeriodSales> {
+  const fromMs = opening.checkedAt.getTime();
+  const toMs = closing.checkedAt.getTime();
+  const fromDayKey = vnDateKeyOf(opening.checkedAt);
+  const toDayKey = vnDateKeyOf(closing.checkedAt);
+
+  // Lấy RỘNG ±1 ngày lịch rồi lọc lại trong JS (cùng mẫu với GET /pos-sales/by-shift): một ngày lịch
+  // VN trải trên hai ngày UTC, truy vấn đúng biên sẽ thiếu ô đầu/cuối mà KHÔNG báo gì.
+  const rows = await prisma.posSaleHour.findMany({
+    where: {
+      userId,
+      soldOn: { gte: parseDateOnly(shiftDateKey(fromDayKey, -1)), lte: parseDateOnly(shiftDateKey(toDayKey, 1)) },
+    },
+    select: {
+      soldOn: true,
+      hour: true,
+      quantity: true,
+      finishedGoodItemId: true,
+      finishedGoodItem: { select: { name: true, category: true } },
+    },
+  });
+
+  const cells: PosCell[] = [];
+  const skipped = new Set<string>();
+  for (const row of rows) {
+    const at = vnHourCellMs(row.soldOn, row.hour);
+    if (at < fromMs || at >= toMs) continue;
+
+    // Đồ pha sẵn không bao giờ là "món đã bán": nó được đếm ở phiếu kiểm kê quán và đã nằm trong tồn
+    // đầu/cuối kỳ, nên tính thêm vào đây là tính hai lần — cộng doanh thu ảo. Đường nhập Excel từng
+    // thiếu chốt chặn này nên dữ liệu thật đã có ô như vậy; lọc ở đây để phiếu không bị sai.
+    if (row.finishedGoodItem.category === "THANH_PHAM") {
+      skipped.add(row.finishedGoodItem.name);
+      continue;
+    }
+    cells.push({
+      soldOn: row.soldOn,
+      hour: row.hour,
+      finishedGoodItemId: row.finishedGoodItemId,
+      quantity: Number(row.quantity),
+    });
+  }
+
+  const byItem = new Map<string, number>();
+  const daysWithData = new Set<string>();
+  for (const cell of cells) {
+    byItem.set(cell.finishedGoodItemId, (byItem.get(cell.finishedGoodItemId) ?? 0) + cell.quantity);
+    daysWithData.add(toDateKey(cell.soldOn));
+  }
+
+  const expectedDayKeys: string[] = [];
+  for (let key = fromDayKey; key <= toDayKey; key = shiftDateKey(key, 1)) expectedDayKeys.push(key);
+
+  return {
+    cells,
+    byItem,
+    coverage: {
+      expectedDays: expectedDayKeys.length,
+      daysWithData: daysWithData.size,
+      missingDays: expectedDayKeys.filter((key) => !daysWithData.has(key)),
+      skippedPreparedItems: [...skipped].sort((a, b) => a.localeCompare(b)),
+    },
+  };
+}
 
 export const costCheckListInclude = {
   user: { select: { id: true, name: true } },
@@ -33,6 +148,19 @@ export async function createCostCheck(data: CostCheckCreateInput, actingUser?: A
     throw new HttpError(400, "Phiếu kiểm kê đầu kỳ phải có thời gian trước phiếu cuối kỳ");
   }
 
+  // Đọc POS MỘT LẦN rồi dùng cho cả bảng CostCheckSoldItem lẫn báo cáo. Nếu mỗi bên tự đọc, một lượt
+  // nhập doanh số chen vào giữa sẽ làm bảng chốt lệch với báo cáo chốt — và cả hai đều vĩnh viễn.
+  const sales = await loadPosSalesForPeriod(data.userId, opening, closing);
+  if (sales.cells.length === 0) {
+    const shop = await prisma.user.findUnique({ where: { id: data.userId }, select: { name: true } });
+    throw new HttpError(
+      409,
+      `Quán ${shop?.name ?? ""} chưa có dữ liệu doanh số POS nào trong kỳ ${formatVnDateTime(opening.checkedAt)} – ${formatVnDateTime(closing.checkedAt)}. ` +
+        `Vào Quản trị › Doanh số POS để nhập (file POS hoặc gõ tay theo ca), rồi tạo lại phiếu. ` +
+        `Nếu đã nhập mà vẫn báo thiếu: kiểm tra Quản trị › Ánh xạ món POS — còn một tên chưa ánh xạ thì cả file không ghi dòng nào.`,
+    );
+  }
+
   const created = await prisma.$transaction(async (tx) => {
     const costCheck = await tx.costCheck.create({
       data: {
@@ -48,10 +176,10 @@ export async function createCostCheck(data: CostCheckCreateInput, actingUser?: A
     });
 
     await tx.costCheckSoldItem.createMany({
-      data: data.soldItems.map((it) => ({
+      data: [...sales.byItem].map(([finishedGoodItemId, quantitySold]) => ({
         costCheckId: costCheck.id,
-        finishedGoodItemId: it.finishedGoodItemId,
-        quantitySold: it.quantitySold,
+        finishedGoodItemId,
+        quantitySold,
       })),
     });
 
@@ -62,14 +190,21 @@ export async function createCostCheck(data: CostCheckCreateInput, actingUser?: A
   // commit (computeCostCheckReport đọc lại qua prisma thường, không thấy được dữ
   // liệu chưa commit trong tx). Sửa giá vốn/giá bán/công thức sau này sẽ không làm
   // đổi số liệu của phiếu đã tạo.
-  const { rows, summary } = await computeCostCheckReport(created.id);
+  const { rows, summary } = await computeCostCheckReport(created.id, sales);
   const { reportSnapshot: _reportSnapshot, ...withSnapshot } = await prisma.costCheck.update({
     where: { id: created.id },
-    data: { reportSnapshot: { rows, summary } as unknown as Prisma.InputJsonValue },
+    data: { reportSnapshot: { rows, summary, posCoverage: sales.coverage } as unknown as Prisma.InputJsonValue },
     include: costCheckDetailInclude,
   });
 
-  return { ...withSnapshot, report: rows, financialSummary: summary };
+  return { ...withSnapshot, report: rows, financialSummary: summary, posCoverage: sales.coverage };
+}
+
+/** "dd/MM/yyyy HH:mm" theo giờ VN — chỉ dùng cho thông báo lỗi gửi người dùng. */
+function formatVnDateTime(instant: Date): string {
+  const shifted = new Date(instant.getTime() + 7 * 60 * 60 * 1000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(shifted.getUTCDate())}/${pad(shifted.getUTCMonth() + 1)}/${shifted.getUTCFullYear()} ${pad(shifted.getUTCHours())}:${pad(shifted.getUTCMinutes())}`;
 }
 
 /** Thứ tự hiển thị Loại hàng hoá, khớp enum ProductType trong schema và productTypeLabel bên web. */
@@ -159,8 +294,19 @@ function safeDiv(a: number, b: number): number {
  * tồn cuối kỳ, trong đó tồn đầu/cuối kỳ đã cộng cả phần "đang nằm" ở đồ thành
  * phẩm/món tồn kho, quy đổi qua công thức) với lượng đáng lẽ phải dùng theo
  * công thức (từ SL đồ thành phẩm/món đã bán).
+ *
+ * Công thức và giá bán được tra theo PHIÊN BẢN CÓ HIỆU LỰC tại từng mốc, không phải bản hiện hành:
+ * quán đổi công thức giữa kỳ thì phần trước và phần sau mốc đổi phải tính bằng hai định mức khác nhau.
+ * Mỗi con số có mốc riêng — tồn đầu kỳ theo `opening.checkedAt`, tồn cuối kỳ theo `closing.checkedAt`,
+ * hàng huỷ theo `wasteAt` của từng phiếu, định mức theo NGÀY BÁN của từng ô giờ POS.
+ *
+ * `sales` truyền vào từ `createCostCheck` để bảng `CostCheckSoldItem` và báo cáo cùng đọc một lượt POS;
+ * không truyền thì tự nạp (đường tính lại phiếu cũ chưa có snapshot).
  */
-export async function computeCostCheckReport(costCheckId: string): Promise<{ rows: MaterialRow[]; summary: FinancialSummary }> {
+export async function computeCostCheckReport(
+  costCheckId: string,
+  sales?: PosPeriodSales,
+): Promise<{ rows: MaterialRow[]; summary: FinancialSummary }> {
   const costCheck = await prisma.costCheck.findUnique({
     where: { id: costCheckId },
     include: {
@@ -204,6 +350,9 @@ export async function computeCostCheckReport(costCheckId: string): Promise<{ row
         wasteAt: { gte: opening.checkedAt, lte: closing.checkedAt },
       },
     },
+    // Phải LẤY RA wasteAt, không chỉ lọc theo nó: đồ pha sẵn bị huỷ được quy về nguyên liệu bằng công
+    // thức CÓ HIỆU LỰC LÚC HUỶ, nên cần mốc của từng phiếu.
+    include: { materialWaste: { select: { wasteAt: true } } },
   });
 
   const transferInItems = await prisma.materialTransferItem.findMany({
@@ -224,18 +373,18 @@ export async function computeCostCheckReport(costCheckId: string): Promise<{ row
     },
   });
 
+  const posSales = sales ?? (await loadPosSalesForPeriod(costCheck.userId, opening, closing));
+
   const finishedGoodItemIds = new Set<string>([
     ...opening.finishedItems.map((it) => it.finishedGoodItemId),
     ...closing.finishedItems.map((it) => it.finishedGoodItemId),
     ...wasteFinishedItems.map((it) => it.finishedGoodItemId),
-    ...costCheck.soldItems.map((it) => it.finishedGoodItemId),
+    ...posSales.byItem.keys(),
   ]);
 
-  const recipeItems = await prisma.finishedGoodRecipeItem.findMany({
-    where: { finishedGoodItemId: { in: [...finishedGoodItemIds] } },
-  });
-  // key: `${finishedGoodItemId}:${productId}`
-  const recipeByKey = new Map(recipeItems.map((r) => [`${r.finishedGoodItemId}:${r.productId}`, Number(r.quantityPerUnit)]));
+  const recipes = await RecipeHistory.load(finishedGoodItemIds);
+  const openingAtMs = opening.checkedAt.getTime();
+  const closingAtMs = closing.checkedAt.getTime();
 
   const productIds = new Set<string>([
     ...opening.items.map((it) => it.productId),
@@ -244,7 +393,10 @@ export async function computeCostCheckReport(costCheckId: string): Promise<{ row
     ...wasteItems.map((it) => it.productId),
     ...transferInItems.map((it) => it.productId),
     ...transferOutItems.map((it) => it.productId),
-    ...recipeItems.map((r) => r.productId),
+    // Mọi nguyên liệu của những phiên bản công thức có hiệu lực ở đâu đó TRONG KỲ — không phải chỉ
+    // phiên bản cuối kỳ (sẽ mất dòng nguyên liệu bị bỏ giữa kỳ dù đã dùng thật), cũng không phải mọi
+    // phiên bản từng tồn tại (sẽ sống lại nguyên liệu bỏ từ năm ngoái).
+    ...recipes.productIdsInWindow(openingAtMs, closingAtMs),
   ]);
 
   const products = await prisma.product.findMany({
@@ -286,24 +438,29 @@ export async function computeCostCheckReport(costCheckId: string): Promise<{ row
     const openingRaw = openingItem ? toRecipeUnit(factor, openingItem.wholeQuantity, openingItem.looseQuantity) : 0;
     const closingRaw = closingItem ? toRecipeUnit(factor, closingItem.wholeQuantity, closingItem.looseQuantity) : 0;
 
-    const openingFg = opening.finishedItems.reduce((sum, it) => {
-      const perUnit = recipeByKey.get(`${it.finishedGoodItemId}:${productId}`);
-      return perUnit ? sum + Number(it.quantity) * perUnit : sum;
-    }, 0);
-    const closingFg = closing.finishedItems.reduce((sum, it) => {
-      const perUnit = recipeByKey.get(`${it.finishedGoodItemId}:${productId}`);
-      return perUnit ? sum + Number(it.quantity) * perUnit : sum;
-    }, 0);
+    // Tồn đầu/cuối kỳ quy về nguyên liệu bằng công thức CÓ HIỆU LỰC ĐÚNG LÚC ĐẾM, không phải công
+    // thức hiện hành: đồ pha sẵn đếm ngày 1 mà quy đổi bằng định lượng ngày 15 là sai cả cột Tồn đầu kỳ.
+    const openingFg = opening.finishedItems.reduce(
+      (sum, it) => sum + Number(it.quantity) * recipes.quantityAt(it.finishedGoodItemId, productId, openingAtMs),
+      0,
+    );
+    const closingFg = closing.finishedItems.reduce(
+      (sum, it) => sum + Number(it.quantity) * recipes.quantityAt(it.finishedGoodItemId, productId, closingAtMs),
+      0,
+    );
 
     const receivedRaw = (receivedByProduct.get(productId) ?? 0) * factor;
     const wastedRaw = (wasteByProduct.get(productId) ?? []).reduce(
       (sum, it) => sum + toRecipeUnit(factor, it.wholeQuantity, it.looseQuantity),
       0,
     );
-    const wastedFg = wasteFinishedItems.reduce((sum, it) => {
-      const perUnit = recipeByKey.get(`${it.finishedGoodItemId}:${productId}`);
-      return perUnit ? sum + Number(it.quantity) * perUnit : sum;
-    }, 0);
+    const wastedFg = wasteFinishedItems.reduce(
+      (sum, it) =>
+        sum +
+        Number(it.quantity) *
+          recipes.quantityAt(it.finishedGoodItemId, productId, it.materialWaste.wasteAt.getTime()),
+      0,
+    );
     const wasted = wastedRaw + wastedFg;
 
     const transferInRaw = (transferInByProduct.get(productId) ?? []).reduce(
@@ -315,10 +472,16 @@ export async function computeCostCheckReport(costCheckId: string): Promise<{ row
       0,
     );
 
-    const theoretical = costCheck.soldItems.reduce((sum, it) => {
-      const perUnit = recipeByKey.get(`${it.finishedGoodItemId}:${productId}`);
-      return perUnit ? sum + Number(it.quantitySold) * perUnit : sum;
-    }, 0);
+    // Định mức tính theo TỪNG Ô GIỜ POS với công thức có hiệu lực đúng ngày bán đó — nhờ vậy đổi
+    // công thức giữa kỳ không cần tách phiếu: phần bán trước mốc đổi dùng định lượng cũ, phần sau
+    // dùng định lượng mới, trong cùng một phiếu.
+    const theoretical = posSales.cells.reduce(
+      (sum, cell) =>
+        sum +
+        cell.quantity *
+          recipes.quantityOnDay(cell.finishedGoodItemId, productId, toDateKey(cell.soldOn), vnDayStartMs(cell.soldOn)),
+      0,
+    );
 
     const received = receivedRaw + transferInRaw;
     const openingQty = openingRaw + openingFg;
@@ -372,13 +535,19 @@ export async function computeCostCheckReport(costCheckId: string): Promise<{ row
     }
   }
 
+  // Doanh thu tính trên TỪNG Ô GIỜ POS × giá bán có hiệu lực ngày đó, không phải trên
+  // `costCheck.soldItems` × giá hiện hành: đổi giá bán giữa kỳ thì phần trước và phần sau mốc đổi phải
+  // tính bằng hai giá khác nhau. `CostCheckSoldItem` từ đây chỉ còn là bảng HIỂN THỊ (tổng theo món),
+  // không còn là đầu vào — sửa tay bảng đó không làm đổi báo cáo.
+  const prices = await PriceHistory.load(posSales.byItem.keys());
   let revenueTra = 0;
   let revenueDav = 0;
-  for (const soldItem of costCheck.soldItems) {
-    const fg = soldItem.finishedGoodItem;
-    const value = Number(soldItem.quantitySold) * Number(fg.sellingPrice ?? 0);
-    if (fg.category === "TRA") revenueTra += value;
-    else if (fg.category === "DAV") revenueDav += value;
+  for (const cell of posSales.cells) {
+    const category = prices.category(cell.finishedGoodItemId);
+    if (category !== "TRA" && category !== "DAV") continue; // món chưa khai loại thì không vào doanh thu nào
+    const value = cell.quantity * prices.priceOnDay(cell.finishedGoodItemId, toDateKey(cell.soldOn), vnDayStartMs(cell.soldOn));
+    if (category === "TRA") revenueTra += value;
+    else revenueDav += value;
   }
 
   const discountTra = Number(costCheck.discountTra ?? 0);

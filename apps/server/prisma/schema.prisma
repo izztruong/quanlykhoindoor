@@ -67,6 +67,8 @@ model User {
   notifications             Notification[]
   pushTokens                PushToken[]
   notificationPreferences   NotificationPreference[]
+  recipeVersionsCreated     FinishedGoodRecipeVersion[]
+  finishedGoodPricesCreated FinishedGoodPrice[]
   posSaleHours              PosSaleHour[]
   mcpTokens                 McpToken[]                @relation("McpTokenCreatedBy")
 }
@@ -161,23 +163,77 @@ model FinishedGoodItem {
   stockCheckFinishedItems    StockCheckFinishedItem[]
   materialWasteFinishedItems MaterialWasteFinishedItem[]
   // Công thức: nguyên liệu + định lượng cần để làm ra 1 đơn vị đồ thành phẩm/món này — dùng cho tính Check Cost.
-  recipeItems                FinishedGoodRecipeItem[]
+  recipeVersions             FinishedGoodRecipeVersion[]
+  prices                     FinishedGoodPrice[]
   costCheckSoldItems         CostCheckSoldItem[]
   posSaleHours               PosSaleHour[]
   posItemMappings            PosItemMapping[]
 }
 
-// Công thức (BOM): 1 đơn vị của 1 đồ thành phẩm/món cần bao nhiêu nguyên liệu — định lượng luôn tính theo
-// Product.recipeUnit (vd Gram), không theo đơn vị chính của nguyên liệu (vd Hộp).
-model FinishedGoodRecipeItem {
+/**
+ * Phiên bản công thức (BOM) theo ngày hiệu lực. Quán đổi công thức giữa kỳ thì Check Cost phải tính
+ * theo công thức CÓ HIỆU LỰC tại từng mốc, không phải công thức hiện hành — xem utils/recipeVersions.ts.
+ *
+ * Chọn bảng header (một version mang trọn bộ dòng) thay vì đặt effectiveFrom lên từng dòng: bỏ bớt một
+ * nguyên liệu khi đó không cần dòng mộ (tombstone quantityPerUnit = 0), và đường ghi vốn đã là "thay cả
+ * bộ" nên map 1-1 sang "tạo version mới với trọn bộ dòng".
+ */
+model FinishedGoodRecipeVersion {
   id                 String           @id @default(cuid())
   finishedGoodItemId String
   finishedGoodItem   FinishedGoodItem @relation(fields: [finishedGoodItemId], references: [id], onDelete: Cascade)
-  productId          String
-  product            Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
-  quantityPerUnit    Decimal          @db.Decimal(18, 4)
+  /// @db.Date chứ không DateTime: người dùng chỉ chọn NGÀY nên lưu thêm giờ là lưu thông tin bịa ra, và
+  /// @@unique dưới đây mới ép được "một version mỗi ngày" (trên DateTime thì hai lần lưu cùng ngày khác
+  /// giờ sẽ lọt qua, sinh version rác). Cột DATE cũng không thể bị client làm bẩn bằng mốc lệch múi giờ.
+  effectiveFrom      DateTime         @db.Date
+  note               String?
+  createdById        String?
+  createdBy          User?            @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt          DateTime         @default(now())
 
-  @@unique([finishedGoodItemId, productId])
+  items FinishedGoodRecipeItem[]
+
+  @@unique([finishedGoodItemId, effectiveFrom])
+}
+
+// Công thức (BOM): 1 đơn vị của 1 đồ thành phẩm/món cần bao nhiêu nguyên liệu — định lượng luôn tính theo
+// Product.recipeUnit (vd Gram), không theo đơn vị chính của nguyên liệu (vd Hộp).
+// Dòng thuộc một PHIÊN BẢN, không thuộc thẳng đồ thành phẩm (xem FinishedGoodRecipeVersion).
+model FinishedGoodRecipeItem {
+  id              String                    @id @default(cuid())
+  versionId       String
+  version         FinishedGoodRecipeVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  productId       String
+  // Restrict chứ không Cascade: đây là bảng LỊCH SỬ. Cascade chỉ có tác dụng với hàng hoá "chỉ nằm
+  // trong công thức, chưa phát sinh gì" (các bảng phát sinh đều đã Restrict sẵn) — và chính trong ca đó
+  // nó xoá im lặng dòng công thức, làm rỗng version lịch sử. Ngừng dùng hàng hoá thì đặt active = false.
+  product         Product                   @relation(fields: [productId], references: [id], onDelete: Restrict)
+  quantityPerUnit Decimal                   @db.Decimal(18, 4)
+
+  @@unique([versionId, productId])
+}
+
+/**
+ * Lịch sử giá bán của đồ thành phẩm/món. Doanh thu Check Cost = SL bán từng ô giờ POS × giá CÓ HIỆU LỰC
+ * tại mốc đó, nên đổi giá bán giữa kỳ không còn làm lệch doanh thu cả kỳ — và doanh thu là mẫu số của
+ * mọi tỷ lệ % trong Check Cost.
+ *
+ * `FinishedGoodItem.sellingPrice` được GIỮ LẠI làm bản sao giá hiện hành: nó còn là giá mặc định của
+ * phiếu kiểm kê quán. Mọi đường ghi giá phải cập nhật cả hai trong cùng transaction — xem
+ * modules/finishedGoodPrices.
+ */
+model FinishedGoodPrice {
+  id                 String           @id @default(cuid())
+  finishedGoodItemId String
+  finishedGoodItem   FinishedGoodItem @relation(fields: [finishedGoodItemId], references: [id], onDelete: Cascade)
+  /// Cùng lý do @db.Date như FinishedGoodRecipeVersion.effectiveFrom.
+  effectiveFrom      DateTime         @db.Date
+  sellingPrice       Decimal          @db.Decimal(18, 2)
+  createdById        String?
+  createdBy          User?            @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt          DateTime         @default(now())
+
+  @@unique([finishedGoodItemId, effectiveFrom])
 }
 
 // Loại hàng hoá — 5 giá trị cố định trong code, dùng để gộp chi phí cho Check Cost
@@ -407,11 +463,10 @@ model StockExportItem {
   @@index([productId])
 }
 
+// DRAFT = quán đã gửi, admin chưa xử lý. Admin xử lý (NCC, giá, SL nhận, ngày nhận) là COMPLETED,
+// sau đó vẫn sửa lại được. Không còn bước quán xác nhận SL hay tự nhận hàng.
 enum SalesOrderStatus {
   DRAFT
-  PENDING_CONFIRM
-  CONFIRMED
-  SHORT
   COMPLETED
   CANCELLED
 }
@@ -427,8 +482,7 @@ model SalesOrder {
   createdById String?
   createdBy   User?            @relation(fields: [createdById], references: [id])
   createdAt   DateTime         @default(now())
-  // Lúc completeSalesOrderReceiving chạy xong gần nhất (dù ra SHORT hay COMPLETED) — dùng để lọc
-  // "nhận trong kỳ" theo mốc thời gian thực tế nhận hàng, thay vì orderDate (lúc đặt).
+  // Lần đầu admin xử lý xong đơn (processSalesOrder) — sửa lại về sau không đổi mốc này.
   completedAt DateTime?
 
   // Hạn đặt hàng của chính ngày tạo đơn, chốt ngay lúc tạo. Đo theo createdAt chứ không theo
@@ -449,8 +503,7 @@ model SalesOrderItem {
   productId        String
   product          Product    @relation(fields: [productId], references: [id])
   quantity         Decimal    @db.Decimal(18, 3)
-  // Receiving checklist: staff ticks each line once received in full; a
-  // partially received line can log how much actually arrived instead.
+  // received = receivedQuantity >= quantity. Hàng admin tự thêm lúc xử lý có quantity = 0 (quán không đặt).
   received         Boolean    @default(false)
   receivedQuantity Decimal?   @db.Decimal(18, 3)
   // Thời điểm CHÍNH DÒNG NÀY thực nhận — Check Cost lọc "nhận trong kỳ" theo mốc này thay vì
@@ -458,8 +511,7 @@ model SalesOrderItem {
   // Là DateTime chứ không phải ngày trần: mốc kỳ (StockCheck.checkedAt) có cả giờ, ngày trần
   // 00:00 sẽ khiến hàng nhận cùng ngày với phiếu kiểm đầu kỳ bị rơi ra ngoài kỳ.
   receivedAt       DateTime?
-  // Lý do admin đổi số lượng lúc xác nhận đơn — hiển thị lại cho nhân viên xem khi đơn ở
-  // trạng thái chờ xác nhận (PENDING_CONFIRM).
+  // Ghi chú admin ghi lúc xử lý đơn (vd lý do nhận ít hơn số đặt).
   note             String?
 
   images SalesOrderItemImage[]
@@ -987,8 +1039,7 @@ model ExpenseProposalImage {
  */
 enum NotificationType {
   ORDER_CREATED
-  ORDER_CONFIRMED
-  ORDER_SHORT
+  ORDER_COMPLETED
   ORDER_CANCELLED
   EXPENSE_PROPOSAL_CREATED
   EXPENSE_PROPOSAL_DECIDED
