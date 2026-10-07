@@ -31,6 +31,14 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
+### Nhập doanh số thẳng từ file nhật ký order của POS (web) — CHƯA thử trên trình duyệt, CHƯA lên `main`
+Nút "Nhập từ file POS" cạnh nút cũ: đọc thẳng file POS xuất ra, không cần sửa cột. Cột tìm theo **tên
+tiêu đề** (format của bên thứ ba), Ngày/Giờ là hai cột riêng. File là **nhật ký thao tác** nên modal liệt
+kê mọi (Loại log, Loại thao tác) kèm số dòng để tích loại nào là đã bán; mặc định tích Thêm món + Bỏ món
+vì **SL mang dấu** (bỏ món là số âm). Ô gộp ra 0/âm thì không gửi và báo ra.
+Đã kiểm typecheck + lint web, và chạy parser trên file thật của Xuân La 07/10: 50 dòng, 0 lỗi, 41 ô,
+ra **52** (= 53 − 1) đúng như tính tay.
+
 ### Lịch sử công thức + Check Cost lấy doanh số từ POS (server + web + mobile) — CHƯA thử trên trình duyệt/app, CHƯA lên `main`
 Công thức BOM và giá bán giờ có **mốc hiệu lực** (`FinishedGoodRecipeVersion`, `FinishedGoodPrice`), nên đổi
 giữa kỳ là Check Cost tự tính phần trước/sau mốc bằng hai định lượng khác nhau — không cần tách phiếu.

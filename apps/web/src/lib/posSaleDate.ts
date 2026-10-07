@@ -28,6 +28,69 @@ function wallClock(year: number, month: number, day: number, hour: number): Wall
  * `dd-mm-yyyy hh:mm`, `yyyy-mm-dd hh:mm`. Trả `null` khi thiếu giờ hoặc không đọc được — dòng đó bị
  * liệt kê ra chứ không đoán.
  */
+/** Phần NGÀY của một ô Excel, theo đúng quy ước đọc đã giải thích ở `parseSoldAt`. */
+function parseDatePart(raw: unknown): { year: number; month: number; day: number } | null {
+  if (raw && typeof raw === "object" && !(raw instanceof Date) && "result" in raw) {
+    return parseDatePart((raw as { result: unknown }).result);
+  }
+  if (raw instanceof Date) {
+    if (Number.isNaN(raw.getTime())) return null;
+    return { year: raw.getUTCFullYear(), month: raw.getUTCMonth() + 1, day: raw.getUTCDate() };
+  }
+  if (typeof raw === "number") {
+    // Ô chỉ có giờ (vd 10:39) là một phân số < 1 — đó không phải ngày, đừng đọc thành 30/12/1899.
+    if (raw < 1) return null;
+    const date = new Date(Date.UTC(1899, 11, 30) + Math.round(raw * 86_400_000));
+    if (Number.isNaN(date.getTime())) return null;
+    return { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1, day: date.getUTCDate() };
+  }
+  if (typeof raw === "string") {
+    const text = raw.trim();
+    const dmy = text.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+    if (dmy) return { year: Number(dmy[3]), month: Number(dmy[2]), day: Number(dmy[1]) };
+    const ymd = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (ymd) return { year: Number(ymd[1]), month: Number(ymd[2]), day: Number(ymd[3]) };
+  }
+  return null;
+}
+
+/** Phần GIỜ (0–23) của một ô Excel: chuỗi "HH:mm", ô giờ thật, hoặc phân số ngày. */
+function parseHourPart(raw: unknown): number | null {
+  if (raw && typeof raw === "object" && !(raw instanceof Date) && "result" in raw) {
+    return parseHourPart((raw as { result: unknown }).result);
+  }
+  if (raw instanceof Date) {
+    if (Number.isNaN(raw.getTime())) return null;
+    return raw.getUTCHours();
+  }
+  if (typeof raw === "number") {
+    // Excel lưu giờ là phân số của một ngày: 10:39 ≈ 0,4438. Phần nguyên (nếu có) là ngày, bỏ đi.
+    const fraction = raw - Math.floor(raw);
+    const hour = Math.floor(fraction * 24 + 1e-9);
+    return hour >= 0 && hour <= 23 ? hour : null;
+  }
+  if (typeof raw === "string") {
+    const match = raw.trim().match(/^(\d{1,2}):(\d{2})/);
+    if (!match) return null;
+    const hour = Number(match[1]);
+    return hour >= 0 && hour <= 23 ? hour : null;
+  }
+  return null;
+}
+
+/**
+ * Ghép hai ô NGÀY và GIỜ riêng biệt thành giờ treo tường.
+ *
+ * File nhật ký order của POS tách ngày (`07/10/2026`) và giờ (`10:39`) thành hai cột, nên không dùng
+ * thẳng `parseSoldAt` được. Mọi quy ước đọc ô Excel vẫn y hệt — xem chú thích của `parseSoldAt`.
+ */
+export function combineDateAndHour(dateRaw: unknown, timeRaw: unknown): WallClock | null {
+  const date = parseDatePart(dateRaw);
+  const hour = parseHourPart(timeRaw);
+  if (!date || hour === null) return null;
+  return wallClock(date.year, date.month, date.day, hour);
+}
+
 export function parseSoldAt(raw: unknown): WallClock | null {
   // Ô công thức: ExcelJS trả { formula, result } — lấy kết quả rồi đọc lại.
   if (raw && typeof raw === "object" && !(raw instanceof Date) && "result" in raw) {

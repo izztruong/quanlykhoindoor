@@ -18,6 +18,12 @@ import {
 import { useUserOptions } from "@/hooks/useUsers";
 import { ApiError } from "@/lib/api-client";
 import { sanitizeExcelRow } from "@/lib/excelExport";
+import {
+  actionGroupKey,
+  isDefaultSoldGroup,
+  parsePosOrderLog,
+  type PosOrderLogParseResult,
+} from "@/lib/posOrderLog";
 import { parseSoldAt } from "@/lib/posSaleDate";
 import { formatNumber } from "@/lib/format";
 import ExcelJS from "exceljs";
@@ -51,6 +57,12 @@ export default function PosSalesPage() {
   const [error, setError] = useState<string | null>(null);
   // Giữ lại các ô đã đọc từ file để nhập LẠI ngay sau khi ánh xạ xong, khỏi bắt chọn lại file.
   const [parsedRows, setParsedRows] = useState<PosSaleRowInput[] | null>(null);
+
+  // Đường nhập thứ hai: file nhật ký order do POS xuất thẳng ra, không theo file mẫu của phần mềm này.
+  // Phải chọn loại thao tác nào tính là đã bán trước khi nhập, nên tách state riêng.
+  const [posLogOpen, setPosLogOpen] = useState(false);
+  const [posLog, setPosLog] = useState<PosOrderLogParseResult | null>(null);
+  const [posLogPicked, setPosLogPicked] = useState<Set<string>>(new Set());
 
   async function downloadTemplate() {
     const workbook = new ExcelJS.Workbook();
@@ -176,6 +188,86 @@ export default function PosSalesPage() {
     }
   }
 
+  /**
+   * Đọc file nhật ký order của POS. Chỉ PHÂN TÍCH, chưa nhập: người dùng còn phải soát danh sách loại
+   * thao tác và tích loại nào tính là đã bán — file là nhật ký thao tác nên cộng mù là tính luôn cả
+   * món khách đã huỷ.
+   */
+  async function handlePosLogFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!userId) {
+      setParseErrors(["Vui lòng chọn quán trước khi nhập."]);
+      return;
+    }
+
+    setImporting(true);
+    setParseErrors([]);
+    setResult(null);
+    setError(null);
+    setPosLog(null);
+    try {
+      const buffer = await file.arrayBuffer();
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(buffer);
+      const sheet = workbook.worksheets[0];
+      if (!sheet) {
+        setParseErrors(["Không đọc được sheet nào trong file."]);
+        return;
+      }
+      const parsed = parsePosOrderLog(sheet);
+      setPosLog(parsed);
+      setPosLogPicked(new Set(parsed.groups.filter(isDefaultSoldGroup).map(actionGroupKey)));
+    } catch {
+      setParseErrors(["Đọc file thất bại. Vui lòng kiểm tra định dạng file."]);
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  /** Gộp các dòng đã tích về mức ô (ngày, giờ, món) rồi gửi đi — cùng payload với đường nhập file mẫu. */
+  function runPosLogImport() {
+    if (!posLog) return;
+    const byCell = new Map<string, PosSaleRowInput>();
+    for (const row of posLog.rows) {
+      if (!posLogPicked.has(actionGroupKey(row))) continue;
+      const key = `${row.soldOn}|${row.hour}|${row.posName}`;
+      const current = byCell.get(key);
+      if (current) current.quantity += row.quantity;
+      else byCell.set(key, { soldOn: row.soldOn, hour: row.hour, posName: row.posName, quantity: row.quantity });
+    }
+
+    // Ô gộp lại ra 0 (thêm rồi bỏ ngay trong cùng giờ) là không bán được gì — bỏ đi là đúng. Ra số ÂM
+    // thì nghĩa là món được thêm ở ngoài khoảng thời gian của file rồi bị bỏ trong file; báo ra chứ
+    // không im lặng, vì nó cho biết khoảng xuất file đang cắt ngang đơn.
+    const all = [...byCell.values()];
+    const rows = all.filter((r) => r.quantity > 0);
+    const negative = all.filter((r) => r.quantity < 0);
+    const zero = all.length - rows.length - negative.length;
+
+    const notes: string[] = [];
+    if (zero > 0) notes.push(`${zero} ô có tổng bằng 0 (thêm rồi bỏ trong cùng giờ) nên không nhập.`);
+    if (negative.length > 0) {
+      notes.push(
+        `${negative.length} ô có tổng ÂM nên không nhập — món bị bỏ trong file nhưng được thêm từ trước khoảng thời gian xuất file: ` +
+          negative.map((r) => `${r.posName} ${r.soldOn} ${String(r.hour).padStart(2, "0")}h`).join(", "),
+      );
+    }
+    setParseErrors(notes);
+
+    if (rows.length === 0) {
+      setParseErrors([...notes, "Không còn ô nào để nhập. Kiểm tra lại các loại thao tác đã tích."]);
+      return;
+    }
+    setParsedRows(rows);
+    runImport(rows);
+  }
+
+  const posLogPickedQuantity = (posLog?.groups ?? [])
+    .filter((g) => posLogPicked.has(actionGroupKey(g)))
+    .reduce((sum, g) => sum + g.quantity, 0);
+
   const items = data?.items ?? [];
 
   return (
@@ -222,6 +314,21 @@ export default function PosSalesPage() {
             >
               <Upload size={14} />
               Nhập từ Excel
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setResult(null);
+                setParseErrors([]);
+                setError(null);
+                setPosLog(null);
+                setPosLogPicked(new Set());
+                setPosLogOpen(true);
+              }}
+            >
+              <Upload size={14} />
+              Nhập từ file POS
             </Button>
           </div>
         </CardBody>
@@ -359,6 +466,158 @@ export default function PosSalesPage() {
             <div className="mt-2 flex justify-end">
               <Button type="button" variant="secondary" onClick={() => setImportOpen(false)}>
                 Đóng
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {posLogOpen && (
+        <Modal title="Nhập từ file POS (nhật ký order)" onClose={() => setPosLogOpen(false)}>
+          <div className="flex flex-col gap-3">
+            <p className="text-sm text-slate-600">
+              Chọn thẳng file <strong>Nhật ký order</strong> do POS xuất ra, không cần sửa cột. Cột được tìm theo{" "}
+              <strong>tên tiêu đề</strong> (Ngày, Giờ, Tên món, Số lượng) nên POS đổi thứ tự cột vẫn đọc được. Dữ liệu nhập
+              cho quán{" "}
+              <strong>{users.find((u) => u.id === userId)?.name ?? "— chưa chọn —"}</strong>; file không được dùng để đoán
+              quán, chọn sai là ghi sai quán.
+            </p>
+            <input type="file" accept=".xlsx" onChange={handlePosLogFile} disabled={importing || importSales.isPending} />
+            {(importing || importSales.isPending) && <p className="text-sm text-slate-400">Đang xử lý...</p>}
+
+            {posLog && posLog.title && <p className="text-xs text-slate-500">Tiêu đề file: {posLog.title}</p>}
+
+            {posLog && posLog.groups.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <p className="text-sm font-medium text-slate-700">Loại thao tác nào tính là đã bán?</p>
+                <p className="text-xs text-slate-500">
+                  File là nhật ký thao tác trên đơn, không phải danh sách món đã bán. Mặc định chỉ tích{" "}
+                  <strong>Thêm món</strong> — soát lại danh sách dưới đây, nếu POS ghi món khách huỷ bằng một loại khác thì
+                  đừng tích loại đó.
+                </p>
+                <table className="w-full border-collapse text-sm">
+                  <thead>
+                    <tr>
+                      <th className={headClass} />
+                      <th className={headClass}>Loại log</th>
+                      <th className={headClass}>Loại thao tác</th>
+                      <th className={`${headClass} text-right`}>Số dòng</th>
+                      <th className={`${headClass} text-right`}>Tổng SL</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {posLog.groups.map((group) => {
+                      const key = actionGroupKey(group);
+                      return (
+                        <tr key={key}>
+                          <td className={cellClass}>
+                            <input
+                              type="checkbox"
+                              checked={posLogPicked.has(key)}
+                              onChange={(e) =>
+                                setPosLogPicked((prev) => {
+                                  const next = new Set(prev);
+                                  if (e.target.checked) next.add(key);
+                                  else next.delete(key);
+                                  return next;
+                                })
+                              }
+                            />
+                          </td>
+                          <td className={cellClass}>{group.logType || "—"}</td>
+                          <td className={cellClass}>{group.actionType || "—"}</td>
+                          <td className={`${cellClass} text-right`}>{formatNumber(group.rowCount)}</td>
+                          <td className={`${cellClass} text-right`}>{formatNumber(group.quantity)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <p className="text-sm text-slate-600">
+                  Sẽ nhập <strong>{formatNumber(posLogPickedQuantity)}</strong> đơn vị từ {formatNumber(posLog.rows.length)}{" "}
+                  dòng đọc được. Số lượng mang dấu, nên thao tác bỏ món tự trừ ra.
+                </p>
+                {posLog.groups.some((g) => !posLogPicked.has(actionGroupKey(g))) && (
+                  <p className="text-xs text-amber-700">
+                    Đang bỏ qua{" "}
+                    {posLog.groups
+                      .filter((g) => !posLogPicked.has(actionGroupKey(g)))
+                      .map((g) => `"${g.actionType || "—"}" (${formatNumber(g.rowCount)} dòng)`)
+                      .join(", ")}
+                    . Nếu loại đó cũng làm đổi số món trên đơn thì phải tích, không thì số sẽ lệch.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {posLog && posLog.errors.length > 0 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                <p className="font-medium">Bỏ qua {posLog.errors.length} dòng không đọc được:</p>
+                <ul className="mt-1 max-h-32 list-disc overflow-auto pl-5 text-xs">
+                  {posLog.errors.slice(0, 50).map((message, index) => (
+                    <li key={index}>{message}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {parseErrors.length > 0 && (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                <ul className="list-disc pl-5">
+                  {parseErrors.map((message, index) => (
+                    <li key={index}>{message}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {error && <p className="text-sm text-red-600">{error}</p>}
+
+            {result && result.unmappedNames.length === 0 && (
+              <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+                <p>
+                  Đã ghi {result.written} ô dữ liệu cho {result.daysReplaced} ngày.
+                </p>
+                {result.ignoredNames.length > 0 && (
+                  <p className="mt-1 text-xs">
+                    Bỏ qua {result.ignoredNames.length} tên đã khai không phải món: {result.ignoredNames.join(", ")}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {result && result.unmappedNames.length > 0 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                <p className="font-medium">
+                  Còn {result.unmappedNames.length} tên món chưa ánh xạ nên CHƯA ghi dòng nào — khai ánh xạ rồi nhập lại.
+                </p>
+                <div className="mt-2">
+                  <PosMappingEditor
+                    posNames={result.unmappedNames}
+                    suggestions={suggest.data ?? []}
+                    suggesting={suggest.isPending}
+                    saveLabel="Lưu ánh xạ và nhập lại"
+                    onSaved={() => {
+                      setResult(null);
+                      if (parsedRows) runImport(parsedRows);
+                    }}
+                  />
+                </div>
+                <Link href="/admin/pos-item-mapping" className="mt-2 inline-block text-xs underline">
+                  Hoặc mở trang Ánh xạ món POS
+                </Link>
+              </div>
+            )}
+
+            <div className="mt-2 flex justify-end gap-2">
+              <Button type="button" variant="secondary" onClick={() => setPosLogOpen(false)}>
+                Đóng
+              </Button>
+              <Button
+                type="button"
+                disabled={!posLog || posLogPicked.size === 0 || importing || importSales.isPending}
+                onClick={runPosLogImport}
+              >
+                Nhập {posLogPickedQuantity > 0 ? `${formatNumber(posLogPickedQuantity)} đơn vị` : ""}
               </Button>
             </div>
           </div>
