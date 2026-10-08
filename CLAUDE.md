@@ -67,7 +67,7 @@ npm run typecheck
 npx expo export --platform android   # bundle thử — bắt lỗi import mà typecheck bỏ sót
 ```
 
-### App mobile — ba cái bẫy
+### App mobile — bốn cái bẫy
 
 - **Thông báo đẩy không chạy trong Expo Go trên Android** (từ SDK 53). Phải dựng development build
   (`eas build --profile development`); code tự bỏ qua đăng ký push khi chạy trong Expo Go. Từ SDK 57
@@ -76,6 +76,15 @@ npx expo export --platform android   # bundle thử — bắt lỗi import mà t
 - **`expo start` chạy lâu sẽ sinh sai `.expo/types/router.d.ts`**: thêm màn mới trong lúc nó đang chạy
   thì typecheck báo route không tồn tại, thậm chí nhận nhầm file trong `src/` thành route. Không phải
   lỗi code — khởi động lại `expo start`, hoặc `npx expo customize tsconfig.json` để sinh lại.
+- **Google Sign-In: mỗi SHA-1 cần một OAuth client Android riêng** trong project `indoor`
+  (`114883841138`, cùng project với Web Client ID ở `eas.json`), tên gói `com.indoor.quanlykho`. Một
+  client chỉ chứa được một SHA-1 và chúng cộng dồn, nên **CH Play, khoá tải lên và từng keystore EAS
+  là từng client khác nhau** — CH Play ký lại app bằng khoá riêng của Google (Play Console → *App
+  integrity*), khác hẳn keystore EAS. Thiếu client khớp thì Play services trả `DEVELOPER_ERROR`
+  (**mã 10**) ngay trên máy, chưa gọi tới server, nên đừng đi dò `GOOGLE_CLIENT_ID` của Render. Sửa
+  xong không phải build lại, chỉ buộc dừng app rồi mở lại. `google-services.json` thuộc project
+  Firebase khác (`327851061860`) là **bình thường**: app truyền thẳng Web Client ID khi
+  `GoogleSignin.configure`, không đọc client trong file đó.
 - Kiểu, hook, `lib` chép từ web **không tự đồng bộ**: đổi payload API bên web thì phải sửa cả bên
   mobile (đã lỡ một lần với trường `category` của phiếu đề xuất chi).
 

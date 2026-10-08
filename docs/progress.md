@@ -23,6 +23,7 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
   gộp báo cáo theo loại rồi nhóm hàng hoá
 - **Kiểm toán** — 5 báo cáo chỉ đọc
 - **Đánh dấu nộp muộn** — chấm xanh/đỏ/xám trên đơn hàng và phiếu kiểm, cấu hình hạn ở Quản trị
+- **Đăng nhập Google** — web và mobile (bản CH Play đã đăng nhập được); đổi email ở Thông tin tài khoản
 - **Sidebar** thu gọn theo nhóm
 - **Nền tảng** — JWT cookie có `tokenVersion`, phân quyền ADMIN/STAFF, giới hạn theo chủ sở hữu ép
   ở server, phân trang 20 dòng, chống chèn công thức Excel, rate limit đăng nhập
@@ -172,11 +173,6 @@ Thêm tuỳ chọn cho email/mật khẩu và Google: lưu mã phiên bằng Sec
 ### Đăng nhập lại mobile kẹt ở màn đăng nhập — đã lên `main`, CHƯA thử trên điện thoại
 Đã tái hiện và sửa mất kết nối theo dõi query xác thực sau đăng xuất/đổi mật khẩu; bỏ toast thành công sớm, chặn `/auth/me` cũ ghi đè phiên mới.
 Typecheck mobile và 7 ca mô phỏng với QueryObserver/MutationObserver thật đã qua. Cần thử đăng xuất → đăng nhập email/Google → Trang chủ trên APK mới.
-
-### Google Sign-In trên mobile — đã thử trên điện thoại, đang lỗi ở bước Google; đã lên `main`
-Web Client ID trong mobile/build/server khớp nhau. Android client đã tạo; chưa xác minh cùng project và SHA-1 bản đang cài.
-Đã bổ sung hiển thị mã lỗi native để chẩn đoán; cần tải lại Metro và thử lại để lấy mã cụ thể. Firebase push dùng project khác OAuth Web (chưa kết luận là nguyên nhân).
-Chưa đăng nhập thành công; hướng dẫn chạy/build và kiểm thử: `apps/mobile/README.md`.
 
 ### Thông báo đẩy (đơn hàng + đề xuất chi) — `priority: "high"` và `PUSH_ENABLED` đã lên `main`
 7 loại, mỗi người tự tắt/bật; đã kiểm người nhận từng loại, tắt loại, token đổi chủ, push lỗi không làm hỏng request.
