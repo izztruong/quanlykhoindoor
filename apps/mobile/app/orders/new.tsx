@@ -1,15 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Screen } from "@/components/ui/Screen";
 import { Select } from "@/components/ui/Select";
-import { useProductStock, useProducts, useWarehouses } from "@/hooks/useCatalog";
+import { useProducts, useWarehouses } from "@/hooks/useCatalog";
 import { useCreateSalesOrder } from "@/hooks/useSalesOrders";
-import { formatNumber } from "@/lib/format";
 import { colors, fontSize, spacing } from "@/lib/theme";
 
 interface Row {
@@ -26,9 +25,6 @@ export default function NewOrderScreen() {
   const [warehouseId, setWarehouseId] = useState("");
   const [note, setNote] = useState("");
   const [rows, setRows] = useState<Row[]>([{ productId: "", quantity: "" }]);
-
-  const { data: stock = [] } = useProductStock(warehouseId);
-  const stockByProduct = useMemo(() => new Map(stock.map((s) => [s.productId, Number(s.quantity)])), [stock]);
 
   const chosen = new Set(rows.map((r) => r.productId).filter(Boolean));
   const productOptions = products.map((p) => ({ value: p.id, label: p.name, sublabel: p.code }));
@@ -51,8 +47,10 @@ export default function NewOrderScreen() {
       return;
     }
 
+    // Đặt vượt tồn là hợp lệ (giống trang tạo đơn bên web): tồn kho chỉ hiện để tham khảo dưới ô
+    // số lượng, quán vẫn gọi được nhiều hơn. Thiếu cờ này thì server chặn, lệch hẳn với web.
     createOrder.mutate(
-      { warehouseId, note: note || undefined, items },
+      { warehouseId, note: note || undefined, items, skipStockCheck: true },
       { onSuccess: (created) => router.replace(`/orders/${created.id}`) },
     );
   }
@@ -75,7 +73,6 @@ export default function NewOrderScreen() {
         </Card>
 
         {rows.map((row, index) => {
-          const available = row.productId ? stockByProduct.get(row.productId) : undefined;
           const product = products.find((p) => p.id === row.productId);
           return (
             <Card key={index}>
@@ -105,11 +102,6 @@ export default function NewOrderScreen() {
                   value={row.quantity}
                   onChangeText={(value) => update(index, { quantity: value })}
                   keyboardType="numeric"
-                  hint={
-                    warehouseId && row.productId
-                      ? `Tồn kho hiện tại: ${available != null ? formatNumber(available) : 0}`
-                      : undefined
-                  }
                 />
               </CardBody>
             </Card>

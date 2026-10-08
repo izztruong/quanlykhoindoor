@@ -1,6 +1,6 @@
 # Tiến độ dự án
 
-Cập nhật: 2026-10-06
+Cập nhật: 2026-10-08
 
 Ghi **đúng những gì git không tự trả lời được**. Lý do thiết kế đã nằm trong commit message, đừng
 chép lại vào đây. Mỗi mục "Đang dở" tối đa 3–4 dòng, và dòng quan trọng nhất luôn là: *đã kiểm thử
@@ -31,6 +31,11 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 ---
 
 ## Đang dở
+
+### Mobile tạo đơn: bỏ chặn vượt tồn, bỏ dòng tồn kho — lên `main`, CHƯA build app 1.0.4
+Màn tạo đơn mobile sót `skipStockCheck: true` nên vẫn bị server chặn, lệch với web (web bỏ chặn từ 13/07).
+Bỏ luôn dòng "Tồn kho hiện tại" dưới ô số lượng, nên màn này không gọi `/product-stock` nữa. Đã kiểm typecheck mobile.
+Version app tăng 1.0.3 → 1.0.4; cần build mới (không có OTA) rồi thử trên máy.
 
 ### Nhập doanh số thẳng từ file nhật ký order của POS (web) — CHƯA thử trên trình duyệt, CHƯA lên `main`
 Nút "Nhập từ file POS" cạnh nút cũ: đọc thẳng file POS xuất ra, không cần sửa cột. Cột tìm theo **tên
