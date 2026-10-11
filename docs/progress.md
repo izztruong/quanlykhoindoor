@@ -12,219 +12,41 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đã xong
 
-Đang chạy trên `main`. Chi tiết chức năng xem `nav-config.ts` và `apps/server/src/modules/`.
+Đang chạy trên `main`, đã bấm thử trên trình duyệt và đã tick quyền trên production. Chi tiết chức
+năng xem `nav-config.ts` và `apps/server/src/modules/`.
 
 - **Danh mục** — hàng hoá (có cờ `active`), nhóm, đơn vị, kho, NCC, khách hàng, đồ thành phẩm
 - **Kho** — phiếu nhập, xuất, kiểm kê kho, điều chuyển; giá theo từng NCC
-- **Order** — danh sách, tạo đơn, Order nhanh, luồng trạng thái, ngày nhận theo từng dòng hàng,
-  Tổng hợp đặt NCC
-- **Kiểm kê quán** — phiếu kiểm (tuần/tháng), phiếu huỷ nguyên liệu, tự trừ vỏ
-- **Check Cost** — báo cáo NVL + tổng hợp tài chính, snapshot chốt cứng, huỷ mềm, công thức BOM,
-  gộp báo cáo theo loại rồi nhóm hàng hoá
+- **Order** — danh sách, tạo đơn (cho đặt vượt tồn), Order nhanh, Tổng hợp đặt NCC; luồng Chưa xử lý
+  → Hoàn thành/Huỷ với màn "Xử lý đơn" (NCC, giá, SL + ngày nhận từng dòng); ảnh chứng từ theo dòng hàng
+- **Kiểm kê quán** — phiếu kiểm (tuần/tháng), phiếu huỷ nguyên liệu (ô tích "Trừ CC" từng dòng), tự trừ vỏ
+- **Check Cost** — báo cáo NVL + tổng hợp tài chính, snapshot chốt cứng, huỷ mềm, công thức BOM và giá
+  bán theo mốc hiệu lực, SL món đã bán lấy từ POS, cột "% chênh lệch thực", gộp báo cáo theo loại
+- **Doanh số POS** — nhập Excel, gõ tay từng dòng, nhập thẳng từ file nhật ký order của POS; Ánh xạ
+  món POS; Khung giờ ca
+- **Tài chính** — Đề xuất chi (tạm ứng nhiều lần, duyệt bổ sung hạng mục, hoàn thành + chứng từ),
+  Chi chốt ca (Loại chi, ảnh R2, cột Đã chi + Ngày lập phiếu), Chi ngoài
 - **Kiểm toán** — 5 báo cáo chỉ đọc
 - **Đánh dấu nộp muộn** — chấm xanh/đỏ/xám trên đơn hàng và phiếu kiểm, cấu hình hạn ở Quản trị
-- **Đăng nhập Google** — web và mobile (bản CH Play đã đăng nhập được); đổi email ở Thông tin tài khoản
-- **Sidebar** thu gọn theo nhóm
-- **Nền tảng** — JWT cookie có `tokenVersion`, phân quyền ADMIN/STAFF, giới hạn theo chủ sở hữu ép
-  ở server, phân trang 20 dòng, chống chèn công thức Excel, rate limit đăng nhập
+- **Trang chủ** — đơn chưa xử lý, huỷ hàng 7 ngày, chi phí NVL tháng + biểu đồ tỷ lệ theo năm, lọc theo quán
+- **MCP** — `/mcp` chỉ đọc 12 tool + trang Token MCP; connector claude.ai đã nối được trên production
+- **App mobile** — 4 tab, màn hình chờ khởi động, thông báo đẩy 7 loại, Check Cost, công thức theo mốc,
+  ghi nhớ đăng nhập, icon mới, tên gói `com.indoor.quanlykho`, nhãn LOCAL/STAGING
+- **iOS** — ẩn nút Google (Guideline 4.8), tắt iPad, phát hành dạng Unlisted; đã nộp App Store Connect
+- **Nền tảng** — JWT cookie có `tokenVersion`, vai trò tuỳ biến + cờ "Là quán", phạm vi dữ liệu theo
+  quán ép ở server, đăng nhập Google (web + mobile) + đổi email, rate limit đăng nhập theo IP thật,
+  phân trang 20 dòng, chống chèn công thức Excel, trang `/privacy-policy`, nhánh `dev` + chặn build
+  sai môi trường
 
 ---
 
 ## Đang dở
 
-### Mobile tạo đơn: bỏ chặn vượt tồn, bỏ dòng tồn kho — lên `main`, CHƯA build app 1.0.4
-Màn tạo đơn mobile sót `skipStockCheck: true` nên vẫn bị server chặn, lệch với web (web bỏ chặn từ 13/07).
-Bỏ luôn dòng "Tồn kho hiện tại" dưới ô số lượng, nên màn này không gọi `/product-stock` nữa. Đã kiểm typecheck mobile.
-Version app tăng 1.0.3 → 1.0.4; cần build mới (không có OTA) rồi thử trên máy.
-
-### Nhập doanh số thẳng từ file nhật ký order của POS (web) — CHƯA thử trên trình duyệt, CHƯA lên `main`
-Nút "Nhập từ file POS" cạnh nút cũ: đọc thẳng file POS xuất ra, không cần sửa cột. Cột tìm theo **tên
-tiêu đề** (format của bên thứ ba), Ngày/Giờ là hai cột riêng. File là **nhật ký thao tác** nên modal liệt
-kê mọi (Loại log, Loại thao tác) kèm số dòng để tích loại nào là đã bán; mặc định tích Thêm món + Bỏ món
-vì **SL mang dấu**. Phép trừ làm theo **(Mã đơn, Món)** rồi mới xếp vào giờ — gộp thẳng theo giờ thì món
-thêm 08h bỏ 12h sẽ giữ ô 08h và vứt ô âm 12h, tức vẫn tính là đã bán.
-Đã kiểm typecheck + lint web, và chạy trên 2 file thật của Xuân La: file 1 ngày (50 dòng) ra 52; file
-4.294 dòng ra **4459 = 4489 − 30**, khớp tính tay (cách gộp theo giờ ra 4462, dư 3). File dài cũng lộ ra
-3 loại thao tác in (In lại hoá đơn / phiếu yêu cầu / tạm tính, SL dương) — mặc định không tích, đúng.
-
-### Lịch sử công thức + Check Cost lấy doanh số từ POS (server + web + mobile) — CHƯA thử trên trình duyệt/app, CHƯA lên `main`
-Công thức BOM và giá bán giờ có **mốc hiệu lực** (`FinishedGoodRecipeVersion`, `FinishedGoodPrice`), nên đổi
-giữa kỳ là Check Cost tự tính phần trước/sau mốc bằng hai định lượng khác nhau — không cần tách phiếu.
-SL món đã bán **bỏ hẳn gõ tay**, lấy từ `PosSaleHour` theo từng ô giờ; kỳ không có POS thì **409**. Thêm chốt
-chặn đổi `recipeUnitsPerBaseUnit` khi hàng hoá đã có phát sinh (không có đường thoát, phải tạo mã mới).
-Mobile có đủ màn công thức theo mốc, lịch sử giá bán và xem trước POS; **Doanh số POS cố ý chỉ có trên web**
-vì chỉ nhập được từ file Excel.
-Đã kiểm build 3 app (web `npm run build` + lint 0 lỗi), bundle Android, `migrate deploy` trên **DB trắng đúng
-bộ sẽ lên `main`** + `kho_dev_copy` (434 dòng giữ nguyên, 0 mồ côi), ~20 ca curl, hồi quy 3 phiếu cũ khớp
-byte-for-byte với snapshot, và script đối chiếu: đổi công thức giữa kỳ ra **162** (không có lịch sử thì 194),
-tồn đầu kỳ giữ bản cũ / tồn cuối kỳ dùng bản mới, kết quả **giống nhau ở 3 múi giờ** (UTC/VN/New_York).
-Còn lại: 3/4 quán chưa có POS nên **tạm thời chưa tạo được Check Cost**. CHƯA ai bấm thử trên trình duyệt/app.
-
-### Đơn hàng: bỏ bước xác nhận, admin tự xử lý nhận hàng (server + web + mobile) — CHƯA thử trên trình duyệt/app, CHƯA lên `main`
-Chỉ còn Chưa xử lý → Hoàn thành/Huỷ; màn "Xử lý đơn" (NCC, giá, SL + ngày nhận, thêm hàng) dùng cả để sửa đơn đã hoàn thành; chi tiết đơn có cột NCC + Giá xuất. Migration chuyển 74 đơn chờ/đã xác nhận/thiếu thành Hoàn thành (SL nhận = SL phiếu xuất).
-Đã kiểm typecheck, lint web, `migrate deploy` DB trắng + `kho_db` + `kho_dev_copy` (đối chiếu SL), 10 ca curl.
-Mobile: màn Xử lý đơn + chi tiết chỉ đọc có NCC/giá; đã kiểm typecheck + bundle Android, chưa thử trên máy. **App production đang cài** vẫn gọi `/confirm`, `/receiving` đã xoá → cần build mới cùng lúc deploy.
-
-### Phiếu huỷ: ô tích "Trừ CC" từng dòng (server + web + mobile) — CHƯA thử trên trình duyệt/app, CHƯA lên `main`
-Bỏ tích = Check Cost không trừ dòng huỷ đó; tạo phiếu mặc định tích hết; chỉ quyền mới `MATERIAL_WASTE.DEDUCT` đổi được (form + trang chi tiết). Trang chủ vẫn đếm mọi dòng.
-Đã kiểm typecheck 3 app, lint web, bundle Android, `migrate deploy` DB trắng + `kho_db` + `kho_dev_copy`, 8 ca curl + đối chiếu `computeCostCheckReport` trước/sau bỏ tích.
-**Sau khi deploy phải tick "Chọn dòng trừ Check Cost"** cho vai trò duyệt — không tick thì ngoài admin không ai đổi được.
-
-### MCP connector cho Claude trên web + trang Token MCP — đã lên `main`; connector staging đã nối được trên claude.ai, CHƯA thử kỹ
-`/mcp` chỉ đọc, 12 tool (đơn hàng, 3 sổ chi, Check Cost, điều chuyển, phiếu kiểm kê, nộp muộn phiếu kiểm tuần); mỗi token chỉ gọi được tool được tick. Đã kiểm
-typecheck, lint web (3 warning), `migrate deploy` DB trắng, curl trên bản copy: số khớp SQL/API web, biên ngày giờ VN, 401/403/405.
-Connector production báo "Couldn't connect" dù token đúng (gọi tay bằng PowerShell chạy) — đang dò bằng log `[MCP] Từ chối` trên Render.
-Cần: thử trang Token MCP. **Phải tick "Token MCP" + "Xem dữ liệu mọi quán" trên production.**
-
-### Bỏ thẻ trạng thái push kỹ thuật ở màn Cài đặt thông báo (mobile) — CHƯA thử trên máy, đã lên `main`
-Bỏ thẻ "Thông báo đang bật trên máy này" (kèm nút Thử đăng ký lại), thẻ Expo Go và thẻ chưa cấu hình push; chỉ còn
-thẻ đỏ khi máy chặn thông báo. Lỗi push soi bằng log server. Đã kiểm typecheck + bundle Android; cần build mobile mới.
-
-### Dọn sạch lint web (14 → 3) — CHƯA thử trên trình duyệt, đã lên `main`
-Hết **0 error**; còn đúng 3 warning `incompatible-library` (React Compiler bỏ qua file dùng TanStack
-Table / react-hook-form) — không sửa được từ phía mình, từ nay mốc đúng là **3**.
-Gỡ 5 `set-state-in-effect`: `setPage(1)` chuyển vào handler lọc (`orders/page`, `StockTransactionList`),
-`useClientPagination` kẹp trang lúc đọc, `deadlines` và `FinishedGoodRecipeClient` suy từ dữ liệu
-server thay vì chép vào state. Gỡ code chết `useProductStock`/`stockByProductId` ở `orders/new` (bớt
-một lượt gọi API mỗi lần đổi kho).
-Cần thử trên trình duyệt: danh sách đơn + nhập/xuất kho (đổi bộ lọc phải về trang 1), Vai trò và Tài
-khoản (phân trang, xoá dòng cuối trang cuối), Hạn order & kiểm kê (sửa rồi lưu), sửa công thức BOM.
-
-### Trang "Chi ngoài" (server + web + mobile) — CHƯA thử trên trình duyệt/app, đã lên `main`
-Sổ chi riêng trong nhóm Tài chính, module `otherExpenses`: ngày chi · **quán chi** · nội dung · đơn vị ·
-SL · đơn giá · thành tiền · ghi chú · người tạo · tối đa 5 ảnh. Lọc khoảng ngày + quán chi + nội dung,
-ô tổng tiền theo bộ lọc, phân trang 20, nhập/xuất Excel (chỉ web). Không có loại chi, không có dấu "đã chi".
-Quán chi bắt buộc ở mọi đường ghi (`assertShops`), tài khoản quán chỉ ghi được cho chính mình; **phạm vi
-dữ liệu vẫn theo người tạo** như `expenseProposals`, nên kế toán ghi hộ thì quán không thấy dòng đó.
-Trang giờ hiện lỗi tải danh sách thay vì im lặng hiện bảng rỗng (làm cả cho Chi chốt ca) — trước đó DB
-thiếu bảng mà trang trông như sổ trống.
-Đã kiểm typecheck 3 app, lint web, bundle Android, build web, `migrate deploy` trên DB trắng + 2 bản copy,
-86 ca script API và 64 ca Excel (gồm hồi quy Chi chốt ca sau khi tách parser sang `lib/excelParse.ts`).
-**Sau khi deploy phải tick quyền "Chi ngoài"** — không tick thì ngoài admin không ai thấy menu.
-Còn 1 dòng cũ ở `kho_db` có `shopId = NULL` (dòng thử tay), hiển thị `—`.
-
-### Check Cost: cột "% chênh lệch thực" trừ đi 100% (web + mobile) — đã lên `main`, CHƯA thử trên trình duyệt/app
-Cột này trước hiện tỷ lệ (khớp định mức = 100%), giờ hiện mức chênh: khớp = `0,0%`, vượt = `+50,0%`,
-hụt = `-20,0%`; mẫu số 0 vẫn để `-`. Nhãn bên mobile đổi cho khớp web. Excel dùng `numFmt` ba vế nên
-file xuất ra cũng có dấu +.
-Đã kiểm typecheck 2 app, bundle Android, lint web (vẫn đúng 14 lỗi **từ trước**), và đối chiếu công
-thức cũ/mới trên 130+ dòng của một phiếu thật.
-
-### Nhập doanh số POS: file Excel + gõ tay từng dòng — CHƯA thử trên trình duyệt, đã lên `main`
-Ba trang mới ở Quản trị: **Doanh số POS** (nhập Excel + gõ tay từng dòng trên cùng một trang), **Ánh xạ
-món POS**, **Khung giờ ca**. Gõ tay theo dòng *ngày · món · giờ · SL* nên mịn đúng bằng nhập Excel; danh
-sách có lọc **từ ngày → đến ngày + theo quán**, mặc định hôm nay, **phân trang 20**, sửa/xoá từng dòng.
-Chặn ở server không cho nhập doanh số cho đồ thành phẩm (`THANH_PHAM`).
-Đã kiểm typecheck 2 app, lint web (vẫn đúng 14 lỗi **từ trước**, không thêm), `migrate deploy` trên DB dev
-+ bản copy + **DB trắng** (migration chèn 3 ca, chạy lại không nhân đôi), và 22 ca script: lọc khoảng ngày,
-ghi lại là sửa chứ không cộng dồn, xoá đúng một dòng, đổi giờ một dòng, chặn trùng khoá, chặn đồ thành
-phẩm, phân trang 25 dòng, và **hồi quy: nhập Excel không xoá dòng gõ tay ở giờ khác cùng ca**.
-**Sau khi deploy phải tick 3 quyền**: "Doanh số POS", "Ánh xạ món POS", "Khung giờ ca".
-Còn lại: chưa nhập dữ liệu thật (đây là rào chặn cứng của cả phần dự báo); mobile chưa làm.
-
-### Chi chốt ca: cột "Đã chi" + cột Ngày lập phiếu — CHƯA thử trên trình duyệt/app, đã lên `main`
-Quyền mới `SHIFT_EXPENSES.PAY` bật/tắt dấu "đã chi"; đã đánh dấu thì quán hết sửa/xoá/đổi ảnh (409). Cột "Ngày" đổi thành "Ngày chi", thêm "Ngày lập phiếu" (từ `createdAt`), lọc theo trạng thái chi. Excel chỉ thêm cột cuối, file mẫu giữ nguyên.
-Đã kiểm typecheck 3 app, bundle Android, curl (quán có ADD+DELETE vẫn 403 ở `/pay`, 409 sửa/xoá/ảnh khi đã chi, lọc paid, gỡ dấu rồi sửa lại được, có PAY thiếu `DATA.SCOPE_ALL` → 404).
-**Sau khi deploy phải tick "Đánh dấu đã chi" + "Xem & thao tác dữ liệu của mọi quán" cho vai trò kế toán** — không tick thì ngoài admin không ai thấy nút.
-
-### Chuẩn bị nộp App Store (iOS) — 1.0.2 đã gửi lên App Store Connect, CHƯA nộp duyệt
-Ẩn nút Google trên iOS (Guideline 4.8), `ITSAppUsesNonExemptEncryption: false`, phát hành dạng Unlisted; Render đã lên gói trả phí.
-Tắt hỗ trợ iPad (`supportsTablet: false`, không có iPad để chụp ảnh) — đã lên `main`; bản build đã gửi còn bật iPad, phải build + submit lại và chọn build mới.
-Cần: ảnh iPhone 1284×2778, tài khoản demo có dữ liệu, nộp form Unlisted, thử bản TestFlight trên iPhone.
-
-### Ảnh chứng từ theo dòng hàng đơn hàng (server + web + mobile) — đã lên `main`, người dùng thử APK preview ổn
-Chỉ đính/xoá khi đơn COMPLETED, cần `ORDERS.APPROVE`; xem cần `ORDERS.VIEW`. Tối đa 5 ảnh/dòng, R2 như khoản chi.
-Đã kiểm typecheck, lint, curl với R2 thật (409 ngoài COMPLETED, vượt 5 ảnh, sai định dạng, quá nặng, dòng của đơn khác 404, thiếu quyền 403, xoá dọn cả file).
-Mobile: nút "Chứng từ" mỗi dòng → tấm chụp/chọn ảnh tải lên ngay; cần build production mới. Migration chỉ tạo bảng.
-
-### Icon app mới (hộp + dấu tick) — đã lên `main`, CHƯA build production
-`icon.png` và adaptive icon Android (foreground/nền gradient/monochrome) sinh từ ảnh mới; `icon-inventory-512.png` giữ cho trang CH Play.
-Đã xem ảnh ghép mặt nạ tròn, typecheck và bundle Android. Đi cùng build production đầu tiên với tên gói mới.
-
-### Chính sách quyền riêng tư — đã lên `main`, trang Vercel đã chạy (HTTP 200)
-Trang công khai `/privacy-policy`, liên kết ở đăng nhập web/mobile và tab Khác; EAS đặt URL `https://quanlykhoindoor.vercel.app/privacy-policy`.
-Trương Thái / truongthaici1@gmail.com xác nhận xử lý xoá trong 30 ngày từ yêu cầu hợp lệ qua email; không thêm cơ chế tự động xoá. Xem `docs/privacy-policy.md`.
-Typecheck web/mobile, lint phần sửa, build web, bundle Android và HTTP không đăng nhập đã qua; chưa thử giao diện trình duyệt/điện thoại. Cần build mobile mới.
-
-### Đổi tên gói Android thành `com.indoor.quanlykho` — đã lên `main`, CHƯA build lần nào
-Firebase đã thêm app mới (`google-services.json` chứa cả tên cũ lẫn mới). Build đầu tiên EAS sẽ tạo keystore mới.
-Cần: OAuth client Android mới cho tên gói này + SHA-1 keystore mới (và SHA-1 của Play khi lên CH Play). APK tên cũ đã cài là app riêng, nên gỡ.
-
-### Nhánh `dev` + chống build nhầm môi trường — đã lên `main`, chưa build APK mới
-Profile `preview` → staging, `production` → production (ghi cứng trong `eas.json`); `build:preview`/`build:production` chặn sai nhánh/còn file chưa commit.
-Nhãn LOCAL/STAGING ở màn đăng nhập + đầu trang. Đã kiểm typecheck, bundle Android, script chặn nhánh và hàm suy nhãn; CHƯA thấy nhãn trên máy, chưa build APK mới.
-Nút Google trên preview cần `GOOGLE_CLIENT_ID` ở Render staging (chưa xác minh).
-
-### Màn hình chờ khởi động mobile — đã lên `main`, CHƯA thử trên điện thoại
-Che toàn bộ giao diện khi kiểm phiên và tải số liệu Trang chủ theo quyền, bộ lọc quán, số thông báo; dùng chung cache, giữ đích mở từ push/liên kết.
-Mất mạng giữ màn chờ có Thử lại, kết nối chậm hiện nút sau 20 giây; không coi lỗi mạng là đăng xuất. Sau khi vào app, tải nền/đổi bộ lọc không bật màn chờ lại.
-Typecheck, bundle Android và mô phỏng QueryObserver đã qua (ít quyền, dữ liệu rỗng, tải chậm/lỗi, thử lại, đăng nhập lại, phản hồi cũ). Cần thử mở app/đăng nhập/push và Render đang ngủ trên máy thật.
-
-### Thông báo mobile mất thẻ vừa bấm khi quay lại — đã lên `main`, CHƯA thử bản sửa trên máy
-Chỉ lần đầu mở thông báo chưa đọc bị mất thẻ; kéo tải lại không hết, thoát/mở màn thì có. Tắt clipping không khắc phục, đã bỏ thay đổi đó.
-Bản sửa mới tạo lại riêng nội dung thẻ khi trạng thái đã đọc đổi, giữ viền cùng độ rộng và key ô danh sách theo id. Cần thử lần đầu đọc → duyệt → quay lại, đọc tất cả và thông báo ở trang sau; chưa xác nhận hết lỗi trên máy.
-Typecheck mobile và bundle Android đã qua; chưa build APK mới.
-
-### App mobile `apps/mobile` — đã lên `main`
-Người dùng đã thử APK preview. Đợt mới: Check Cost, sửa đăng xuất, tên đầu trang, ô chuông; CHƯA thử trên điện thoại.
-Đã kiểm typecheck mobile/server; Check Cost đã kiểm bundle Android và script. Cần thử tạo/huỷ/bỏ huỷ, phân quyền, đối chiếu web trên APK mới (`apps/mobile/README.md`).
-Gỡ push tiếp tục sau mốc chờ 3 giây; mô phỏng phản hồi muộn thành công/lỗi/401 giữ đúng phiên mới đã qua. Chưa thử với Render đang ngủ trên điện thoại.
-Danh sách Check Cost bỏ `reportSnapshot` khỏi payload (server, đã lên `main`).
-
-### Ghi nhớ đăng nhập mobile — đã lên `main`, CHƯA thử trên điện thoại
-Thêm tuỳ chọn cho email/mật khẩu và Google: lưu mã phiên bằng SecureStore hoặc chỉ giữ trong lần chạy hiện tại; giữ lựa chọn sau đăng xuất, không lưu mật khẩu.
-Đã kiểm typecheck mobile, bundle Android và mô phỏng bật/tắt, khởi động lại, phiên cũ, đăng xuất, lỗi lưu trữ, phản hồi đọc về muộn. Cần thử đóng/mở app và phiên hết hạn trên APK mới.
-
-### Đăng nhập lại mobile kẹt ở màn đăng nhập — đã lên `main`, CHƯA thử trên điện thoại
-Đã tái hiện và sửa mất kết nối theo dõi query xác thực sau đăng xuất/đổi mật khẩu; bỏ toast thành công sớm, chặn `/auth/me` cũ ghi đè phiên mới.
-Typecheck mobile và 7 ca mô phỏng với QueryObserver/MutationObserver thật đã qua. Cần thử đăng xuất → đăng nhập email/Google → Trang chủ trên APK mới.
-
-### Thông báo đẩy (đơn hàng + đề xuất chi) — `priority: "high"` và `PUSH_ENABLED` đã lên `main`
-7 loại, mỗi người tự tắt/bật; đã kiểm người nhận từng loại, tắt loại, token đổi chủ, push lỗi không làm hỏng request.
-`PUSH_ENABLED="false"` ở local (đã xoá token cũ trong DB local): trước đó đặt đơn local vẫn bắn thông báo sang APK production.
-Xiaomi/Oppo/Realme/Vivo cần bật Tự khởi động + pin Không giới hạn. Đã nhận khi mở app, chưa nhận sau vuốt đóng; cần thử staging khi màn hình sáng/tắt và bấm mở đúng đơn. Không cần build lại APK.
-
-### Đăng nhập bằng Google + tự đổi email — CHƯA kiểm thử trên trình duyệt, đã lên `main`
-Chỉ vào được tài khoản có sẵn trùng email Gmail; đổi email ở Thông tin tài khoản (cần mật khẩu). Đã kiểm typecheck, lint,
-curl (token rác 401, sai mật khẩu 401, trùng email khác hoa thường 409, đổi xong đăng nhập bằng email mới). Cần: bấm nút Google
-thật (Gmail có/không có tài khoản); đặt `GOOGLE_CLIENT_ID` trên Render, `NEXT_PUBLIC_GOOGLE_CLIENT_ID` trên Vercel rồi redeploy, thêm domain vào Authorized JavaScript origins.
-
-### Rate limit đăng nhập tách theo IP thật (`trust proxy`) — đã lên `main`, CHƯA thử trên staging
-Trước đây mọi request đứng sau proxy chung một bộ đếm: một quán sai 10 lần khoá cả chuỗi. Đã kiểm
-bằng curl ở local: hai IP có bộ đếm riêng, đổi IP giả ở đầu `X-Forwarded-For` không lách được.
-Cần thử trên staging: từ một máy gọi đăng nhập sai qua cả link Vercel lẫn thẳng `onrender.com` —
-lượt còn lại phải trừ nối tiếp nhau (tức Render nhận đúng IP thật chứ không phải IP proxy trung gian).
-
-### Đề xuất chi: tạm ứng nhiều lần, duyệt bổ sung, hoàn thành + chứng từ — đã lên `main`, người dùng thử APK preview ổn
-Migration chuyển lần ứng cũ sang bảng mới, tách quyền PAY → Tạm ứng + Hoàn thành. Đã kiểm typecheck ba app, lint web, bundle Android,
-`migrate deploy` trên DB trắng và DB có phiếu cũ, 46 ca curl; staging + APK preview người dùng đã thử ổn.
-App production đang cài gọi `/spend` (đã bỏ) và `/advance` không kèm số tiền — hỏng luồng đề xuất chi tới khi có build production mới.
-Đã bỏ Loại phiếu (MKT/Vận hành/CSVC), dữ liệu cũ bị xoá; production chưa dùng đề xuất chi nên đẩy `main` không sao lưu DB.
-Mới (đã lên `main`, người dùng đã thử giao diện ổn trên `dev`): quán lập phiếu thì quán chi khoá cứng là chính họ, ô người duyệt chỉ hiện người có quyền Duyệt. Đã kiểm typecheck ba app, bundle Android, 17 ca curl.
-
-### Cờ "Là quán" trên vai trò — CHƯA kiểm thử trên trình duyệt, đã lên `main`
-Ô chọn/lọc quán chỉ hiện tài khoản thuộc vai trò có tick (admin bị ẩn); lọc Người lập ở đề xuất chi vẫn thấy mọi tài khoản.
-Đã kiểm typecheck, lint, `migrate deploy` trên db trắng, curl. Cần thử: tick/bỏ tick ở form vai trò, ô chọn quán ở đơn hàng, điều chuyển, Check Cost.
-
-### Trang chủ — CHƯA kiểm thử trên trình duyệt, đã lên `main`
-Ô đơn chưa xác nhận, huỷ hàng 7 ngày, chi phí NVL tháng + biểu đồ tỷ lệ theo năm (từ Check Cost), lọc
-theo quán. Đã kiểm typecheck, lint, curl (khớp số với danh sách đơn và chi tiết Check Cost, tiền huỷ
-tính tay, 403 khi thiếu quyền, phạm vi SELF). Cần thử trên trình duyệt: đổi quán/năm, tooltip, màn hẹp,
-nền trời có mây trông ổn chưa.
-
-### Phân quyền theo vai trò — CHƯA kiểm thử trên trình duyệt, đã lên `main`
-Thay ADMIN/STAFF bằng vai trò tuỳ biến; migration `20260915030600_roles_and_permissions` chuyển
-tài khoản cũ sang `Quản trị viên`/`Quán`. Đã kiểm typecheck, `migrate deploy` trên db trắng, curl
-(chặn route, phạm vi quán, thu hồi tức thì, chống leo quyền). Trình duyệt mới mở sơ trang Vai trò; cần
-thử kỹ: menu tick quyền, sửa tài khoản, menu/nút của tài khoản Quán y như cũ, vai trò hẹp chỉ thấy đúng trang.
-
-### Chi chốt ca: Loại chi + ảnh chứng từ — đã kiểm thử trên trình duyệt, đã lên `main`
-Sổ chi đã lên `main` từ trước; hai phần thêm sau thì chưa: Loại chi (NVL/Khác) và ảnh chứng từ (tối
-đa 5 ảnh, nén ở trình duyệt, lưu trên Cloudflare R2 với URL ký hạn 1 giờ). Đã kiểm typecheck, lint,
-curl, trọn vòng R2 thật (chặn URL không chữ ký, quá 5 ảnh / sai định dạng / quá nặng, khác quán
-404, xoá ảnh và xoá khoản chi đều dọn sạch file) và **đã bấm thử trên trình duyệt, chạy tốt**.
-Trước khi deploy **phải đặt 4 biến `R2_*` trên Render cả hai service** — chưa đặt thì phần ảnh tự
-tắt (phần còn lại vẫn chạy). Lưu ý file Excel mẫu 6 cột cũ không nhập được nữa.
+### Build app mobile mới — code đã lên `main`
+Mobile không có OTA nên các đợt sửa gần đây (tạo đơn vượt tồn ở **1.0.4**, màn Xử lý đơn, ô "Trừ CC",
+công thức theo mốc, bỏ thẻ trạng thái push) chỉ có hiệu lực sau khi build lại.
+**App production đang cài vẫn gọi `/confirm` và `/spend` đã xoá** → luồng đơn hàng và đề xuất chi hỏng
+tới khi có build mới. Build bằng `npm run build:production` trong `apps/mobile` (script chặn sai nhánh).
 
 ---
 
@@ -237,6 +59,10 @@ cân nhắc thêm:
 1. **Chu kỳ poll** — bật `refetchInterval` và `refetchOnWindowFocus` (đang tắt tường minh trong
    `lib/query-client.tsx`). Poll giữ Render không ngủ: tốt cho quán, nhưng ăn quota 750 giờ/tháng.
 2. **Dấu hiệu "đơn mới"** — số liệu tự đổi mà không ai nhìn thì cũng vô ích.
+
+### Doanh số POS cho 3 quán còn lại
+Chỉ Xuân La đã có dữ liệu POS. Check Cost giờ lấy SL bán từ `PosSaleHour` nên kỳ không có POS trả
+**409** — 3 quán kia phải nhập dữ liệu mới tạo được phiếu. Mobile cố ý không có trang nhập doanh số.
 
 ---
 

@@ -21,7 +21,6 @@ import { mcpRouter } from "./modules/mcp/mcp.routes";
 import { mcpTokensRouter } from "./modules/mcpTokens/mcpTokens.routes";
 import { productGroupsRouter } from "./modules/productGroups/productGroups.routes";
 import { productStockRouter } from "./modules/products/productStock.routes";
-import { productRecipeUnitGuardRouter } from "./modules/products/productRecipeUnitGuard.routes";
 import { productsRouter } from "./modules/products/products.routes";
 import { posItemMappingsRouter } from "./modules/posItemMappings/posItemMappings.routes";
 import { posSalesRouter } from "./modules/posSales/posSales.routes";
@@ -79,9 +78,6 @@ app.use("/api", requireAuth);
 // phẩm, tồn kho, hạn nộp) chỉ cần đăng nhập, vì form tạo đơn/phiếu của quán phải đọc chúng.
 app.use("/api/warehouses", warehousesRouter);
 app.use("/api/customers", customersRouter);
-// Guard phải đứng TRƯỚC: nó chặn đổi hệ số quy đổi của hàng hoá đã có phát sinh rồi mới cho
-// crudFactory ghi. Xem productRecipeUnitGuard.routes.ts.
-app.use("/api/products", productRecipeUnitGuardRouter);
 app.use("/api/products", productsRouter);
 app.use("/api/product-stock", productStockRouter);
 // PriceSync phải đứng TRƯỚC: nó tiếp quản PUT /:id và POST /bulk-import để ghi mốc giá và cột giá
