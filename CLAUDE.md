@@ -177,21 +177,28 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
 Đọc mục này trước khi sửa một chức năng — đây là những ràng buộc grep không tự chỉ ra, vì chúng là
 **quy tắc phải tuân theo**, không phải lời gọi có sẵn trong code.
 
-- Sửa hoặc xoá phiếu ở `stockChecks` | `materialWaste` | `materialTransfers` → **phải gọi**
-  `utils/costCheckImpact` để cảnh báo admin tạo lại phiếu Check Cost bị ảnh hưởng.
+- Sửa hoặc xoá phiếu ở `stockChecks` | `materialWaste` | `materialTransfers` | `stockImports` →
+  **phải gọi** `utils/costCheckImpact` để cảnh báo admin tạo lại phiếu Check Cost bị ảnh hưởng.
 - `costChecks` đọc dữ liệu của 5 module khác (`StockCheck`, `MaterialWasteItem`,
-  `MaterialTransferItem`, `SalesOrderItem`, `FinishedGoodRecipeItem`) — đổi schema mấy bảng đó thì
+  `MaterialTransferItem`, `StockImportItem`, `FinishedGoodRecipeItem`) — đổi schema mấy bảng đó thì
   phải ngó lại Check Cost. Dòng huỷ chỉ được trừ khi `deductInCostCheck = true` (ô "Trừ CC", quyền
   `MATERIAL_WASTE.DEDUCT`); đổi ô đó cũng phải gọi `costCheckImpact`.
-- `salesOrders` và `products/productStock.routes.ts` cùng dùng
-  `reports.service.getInventoryCountReport()` để kiểm tồn. Đây là **chỗ duy nhất** trong dự án một
-  module gọi service của module khác.
-- Đơn hàng chỉ còn DRAFT (chưa xử lý) → COMPLETED / CANCELLED. Admin xử lý đơn (`PUT /:id/process`) ghi SL +
-  ngày nhận và **thay toàn bộ dòng phiếu xuất kho**, kể cả khi sửa lại đơn đã hoàn thành — nên sửa `salesOrders` là
-  đụng tới tồn kho và Check Cost (`receivedAt`).
+- **Cột "Nhận trong kỳ" của Check Cost = phiếu nhập kho của kho quán**, nối qua
+  `Warehouse.shopUserId` (một quán một kho). Mốc kỳ là `StockImport.transactionAt`, có **cả giờ** —
+  ô web phải là `datetime-local`, ngày trần 00:00 làm hàng nhập cùng ngày với phiếu kiểm đầu kỳ rơi
+  ra ngoài kỳ. Quán chưa có kho thì `createCostCheck` trả 409 thay vì cho ra cột bằng 0.
+- `products/productStock.routes.ts` dùng `reports.service.getInventoryCountReport()` để lấy tồn. Đây
+  là **chỗ duy nhất** trong dự án một module gọi service của module khác. (`salesOrders` từng gọi nó
+  để chặn đặt vượt tồn; chốt đó đã bỏ vì web luôn gửi `skipStockCheck`.)
+- **Đơn hàng chỉ là ĐỀ XUẤT của quán**: DRAFT (đã đặt) → CANCELLED, không có "hoàn thành", không lưu
+  giá, không nói gì về hàng đã về. Admin chỉ tích ô **"Đã xử lý"** (`PATCH /:id/processed`, cột
+  `processedAt`) để biết đơn nào đã làm — ô này **cố ý không dính gì tới tồn kho hay Check Cost**.
+  Gắn nghiệp vụ vào nó là dựng lại bước "xử lý đơn" cũ dưới một cái tên khác.
+  Dấu "đã báo quán một lần" là `processedById`, nên **bỏ tích cố ý KHÔNG xoá cột đó** — xoá thì bỏ
+  tích rồi tick lại là bắn thông báo lần hai.
 - SL lẻ ở `stockChecks`, `materialWaste`, `materialTransfers` luôn đi qua `utils/tareWeight`.
 - `utils/deadlines` được gọi lúc tạo đơn (`salesOrders`) và lúc tạo/sửa phiếu (`stockChecks`).
-- **Thông báo đẩy** gắn ở route của `salesOrders` (tạo, xử lý xong lần đầu, huỷ) và
+- **Thông báo đẩy** gắn ở route của `salesOrders` (tạo, tick "Đã xử lý" lần đầu, huỷ) và
   `expenseProposals` (tạo, duyệt/từ chối, tạm ứng/tạm ứng thêm, gửi và duyệt bổ sung hạng mục, hoàn thành)
   qua `modules/notifications`. Sửa các luồng
   đó phải giữ lời gọi, và luôn gọi **sau** khi ghi DB/commit, **không await** — xem chú thích
@@ -200,11 +207,11 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
   thì đặt đơn thử cũng bắn thông báo sang máy đó.
 - Người nhận thông báo "đơn cần duyệt" phải có **cả** `ORDERS.APPROVE` lẫn `DATA.SCOPE_ALL`: thiếu
   phạm vi thì `assertOwner` trả 404 và thông báo bấm vào không mở được đơn.
-- **Tool MCP (`modules/mcp/tools/`) đọc thẳng bảng của nhiều module** — `SalesOrderItem`,
-  `StockExportItem`, `ShiftExpense`, `ExpenseProposalSpentItem`, `OtherExpense`, `MaterialTransferItem`, `StockCheck` (+ `Item`/`FinishedItem`),
+- **Tool MCP (`modules/mcp/tools/`) đọc thẳng bảng của nhiều module** — `SalesOrder`,
+  `StockImportItem`, `ShiftExpense`, `ExpenseProposalSpentItem`, `OtherExpense`, `MaterialTransferItem`, `StockCheck` (+ `Item`/`FinishedItem`),
   `CostCheck.reportSnapshot`. Đổi schema mấy bảng đó thì phải sửa tool tương ứng; claude.ai không báo
-  lỗi gì, chỉ nhận số sai. Dòng đơn hàng không lưu giá: tool ghép giá từ phiếu xuất, giá 0 thì lùi về
-  `Product.costPrice` (`orderLinePrice`) — dữ liệu thật gần như toàn dòng giá 0. Thành tiền phiếu kiểm
+  lỗi gì, chỉ nhận số sai. **Không đổi tên tool đã phát hành** (token lưu theo tên): `order_lines` giờ
+  đọc phiếu nhập kho chứ không còn đọc đơn hàng, chỉ phần mô tả đổi. Thành tiền phiếu kiểm
   không lưu: `tools/stockChecks.ts` tính lại y như `lineAmount` của `StockCheckDetailClient` — đổi một bên phải đổi bên kia.
 - **Mọi thứ "giờ nào thuộc ca nào" nằm đúng một file**: `modules/posSales/shiftSlicing.ts`. Viết lại
   phép này ở chỗ khác là để hai bản lệch nhau về ca qua nửa đêm.

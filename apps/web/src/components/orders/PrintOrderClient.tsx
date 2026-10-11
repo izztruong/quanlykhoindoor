@@ -51,12 +51,10 @@ export function PrintOrderClient({ id }: { id: string }) {
         <div>
           Tài khoản: <span className="font-bold">{order.createdBy?.name ?? "-"}</span>
         </div>
-        <div>Kho xuất: {order.warehouse.code} - {order.warehouse.name}</div>
         <div>Email: {order.createdBy?.email ?? "-"}</div>
-        <div>Đ/C kho xuất: {order.warehouse.address || "-"}</div>
-        <div>T/G xuất: {order.stockExport ? formatDateVN(order.stockExport.transactionAt) : "-"}</div>
-        <div>Tham chiếu: -</div>
-        <div>Ghi chú: {order.note || "-"}</div>
+        <div>Đã xử lý: {order.processedAt ? formatDateVN(order.processedAt) : "Chưa"}</div>
+        <div>Người xử lý: {order.processedBy?.name ?? "-"}</div>
+        <div className="col-span-2">Ghi chú: {order.note || "-"}</div>
       </div>
 
       <table className="mt-4 w-full border-collapse border border-black text-xs">

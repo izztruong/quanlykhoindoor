@@ -224,60 +224,47 @@ export interface StockTransaction extends StockHeader {
   items: StockItem[];
 }
 
-export type SalesOrderStatus = "DRAFT" | "COMPLETED" | "CANCELLED";
+/** Đơn hàng chỉ còn là đề xuất: đặt rồi huỷ. Dấu "đã xử lý" nằm ở `processedAt`, không phải trạng thái. */
+export type SalesOrderStatus = "DRAFT" | "CANCELLED";
 
 export interface SalesOrderItem {
   id: string;
   productId: string;
   product: Product;
   quantity: string | number;
-  received: boolean;
-  receivedQuantity?: string | number | null;
-  receivedAt?: string | null;
-  note?: string | null;
-  /** Số ảnh chứng từ đã đính (chỉ đính được khi đơn COMPLETED). URL ảnh tải riêng khi mở. */
-  imageCount: number;
-}
-
-export interface SalesOrderItemImage {
-  id: string;
-  url: string;
-  contentType: string;
-  size: number;
 }
 
 export interface SalesOrder {
   id: string;
   code: string;
-  warehouseId: string;
-  warehouse: Warehouse;
   orderDate: string;
   status: SalesOrderStatus;
   note?: string | null;
   createdAt: string;
   createdBy?: { id: string; name: string; email: string } | null;
+  /** Lúc admin tích "Đã xử lý"; null = chưa xử lý. Không ảnh hưởng tồn kho hay Check Cost. */
+  processedAt?: string | null;
+  processedBy?: { id: string; name: string } | null;
   items: SalesOrderItem[];
-  stockExport?: StockTransaction | null;
   /** null = tạo trước khi có chức năng chấm hạn, hoặc chưa cấu hình lịch — hiện chấm xám. */
   dueAt?: string | null;
   isLate?: boolean;
 }
 
 /**
- * Một dòng trong bảng danh sách đơn hàng — CỐ TÌNH nhẹ hơn `SalesOrder`: không có `items` lẫn
- * `stockExport`, đổi lại có sẵn `totalQuantity` do server cộng trước. Tách kiểu riêng thay vì
- * nới lỏng `SalesOrder` để các trang chi tiết vẫn chắc chắn có đủ dữ liệu chúng cần.
+ * Một dòng trong bảng danh sách đơn hàng — CỐ TÌNH nhẹ hơn `SalesOrder`: không có `items`, đổi lại
+ * có sẵn `totalQuantity` do server cộng trước. Tách kiểu riêng thay vì nới lỏng `SalesOrder` để các
+ * trang chi tiết vẫn chắc chắn có đủ dữ liệu chúng cần.
  */
 export interface SalesOrderListRow {
   id: string;
   code: string;
-  warehouseId: string;
-  warehouse: Warehouse;
   orderDate: string;
   status: SalesOrderStatus;
   note?: string | null;
   createdAt: string;
   createdBy?: { id: string; name: string; email: string } | null;
+  processedAt?: string | null;
   dueAt?: string | null;
   isLate?: boolean;
   totalQuantity: number;

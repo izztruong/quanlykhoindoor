@@ -44,7 +44,7 @@ export const NOTIFICATION_CATALOG: Record<NotificationType, CatalogEntry> = {
   ORDER_COMPLETED: {
     group: "Đơn hàng",
     label: "Đơn đã được xử lý",
-    description: "Khi đơn của bạn được xử lý xong (đã ghi số lượng và ngày nhận)",
+    description: "Khi đơn của bạn được admin đánh dấu đã xử lý",
     appliesTo: ({ user }) => can(user, "ORDERS", "ADD"),
   },
   ORDER_CANCELLED: {
@@ -192,14 +192,14 @@ export const orderNotifications = {
     });
   },
 
-  /** Chỉ gọi ở lần đầu admin xử lý xong đơn — sửa lại về sau không báo nữa. */
+  /** Chỉ gọi ở lần ĐẦU đơn được tick "Đã xử lý" — bỏ tích rồi tick lại không báo nữa. */
   completed(order: OrderRef, actor: AuthUser) {
     notifyInBackground({
       type: "ORDER_COMPLETED",
       recipientIds: [order.createdById],
       actorId: actor.id,
       title: "Đơn hàng đã được xử lý",
-      body: `Đơn ${order.code} đã được xử lý. Mở đơn để xem số lượng và ngày nhận.`,
+      body: `Đơn ${order.code} đã được đánh dấu là đã xử lý.`,
       href: `/orders/${order.id}`,
     });
   },

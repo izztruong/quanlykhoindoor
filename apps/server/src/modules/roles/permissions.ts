@@ -61,8 +61,8 @@ export const PERMISSION_RESOURCES = [
   // Sổ chi ngoài: chỉ ghi lại giao dịch, không có bước duyệt hay đánh dấu đã chi nên CRUD là đủ.
   { resource: "OTHER_EXPENSES", label: "Chi ngoài", group: "Tài chính", actions: CRUD },
 
-  // ADD = tạo đơn, sửa & huỷ đơn chưa xử lý của mình · APPROVE = xử lý đơn (NCC, giá, SL + ngày nhận,
-  // ghi phiếu xuất kho), sửa lại đơn đã hoàn thành, huỷ đơn.
+  // Đơn hàng chỉ là ĐỀ XUẤT của quán; hàng thực nhận ghi ở phiếu nhập kho (STOCK_IMPORTS).
+  // ADD = tạo đơn, sửa & huỷ đơn của mình · APPROVE = tích "Đã xử lý", huỷ đơn của mọi quán.
   { resource: "ORDERS", label: "Đơn hàng", group: "Order", actions: ["VIEW", "ADD", "APPROVE"] },
 
   { resource: "STOCK_IMPORTS", label: "Phiếu nhập kho", group: "Kho", actions: ["VIEW", "ADD"] },

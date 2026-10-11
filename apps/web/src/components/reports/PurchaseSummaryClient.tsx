@@ -17,8 +17,11 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { FileSpreadsheet, Filter } from "lucide-react";
 import { useMemo, useState } from "react";
 
-/** Chỉ những trạng thái mà việc đi đặt NCC còn có ý nghĩa — đơn đã huỷ không nằm trong danh sách. */
-const STATUS_OPTIONS = ["DRAFT", "COMPLETED"];
+/**
+ * Đơn hàng chỉ còn "đã đặt" (DRAFT) và "đã huỷ". Mặc định chỉ gộp đơn đã đặt — đó là phần còn phải
+ * đi đặt NCC; vẫn cho tick CANCELLED để đối chiếu lại.
+ */
+const STATUS_OPTIONS = ["DRAFT", "CANCELLED"];
 
 interface FilterValues {
   from: string;

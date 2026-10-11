@@ -45,6 +45,7 @@ model User {
 
   inventoryCounts           InventoryCount[]
   salesOrders               SalesOrder[]
+  salesOrdersProcessed      SalesOrder[]              @relation("SalesOrderProcessedBy")
   reorderThresholds         ProductReorderThreshold[]
   stockChecks               StockCheck[]
   materialWastes            MaterialWaste[]
@@ -125,7 +126,6 @@ model Warehouse {
 
   stockImports    StockImport[]
   stockExports    StockExport[]
-  salesOrders     SalesOrder[]
   inventoryCounts InventoryCount[]
 }
 
@@ -478,23 +478,29 @@ model StockExportItem {
 // sau đó vẫn sửa lại được. Không còn bước quán xác nhận SL hay tự nhận hàng.
 enum SalesOrderStatus {
   DRAFT
-  COMPLETED
   CANCELLED
 }
 
 model SalesOrder {
   id          String           @id @default(cuid())
   code        String           @unique
-  warehouseId String
-  warehouse   Warehouse        @relation(fields: [warehouseId], references: [id])
   orderDate   DateTime         @default(now())
   status      SalesOrderStatus @default(DRAFT)
   note        String?
   createdById String?
   createdBy   User?            @relation(fields: [createdById], references: [id])
   createdAt   DateTime         @default(now())
-  // Lần đầu admin xử lý xong đơn (processSalesOrder) — sửa lại về sau không đổi mốc này.
-  completedAt DateTime?
+
+  // Ô tích "Đã xử lý": admin đánh dấu đơn nào đã làm. Mốc ghi lần tick đầu, bỏ tích về null.
+  //
+  // CỐ Ý không dính gì tới Check Cost: đơn hàng chỉ là đề xuất, còn hàng thực nhận ghi ở phiếu nhập
+  // kho. Để ô này ảnh hưởng số liệu là dựng lại bước xử lý đơn dưới một cái tên khác.
+  //
+  // Đây là cột `completedAt` cũ được đổi tên — nó vốn mang đúng nghĩa "admin đã xử lý xong đơn này",
+  // nên đổi tên giữ được mốc của các đơn cũ thay vì xoá cột rồi thêm cột trống.
+  processedAt   DateTime?
+  processedById String?
+  processedBy   User?     @relation("SalesOrderProcessedBy", fields: [processedById], references: [id])
 
   // Hạn đặt hàng của chính ngày tạo đơn, chốt ngay lúc tạo. Đo theo createdAt chứ không theo
   // orderDate: orderDate do người đặt tự chọn nên lùi ngày là thoát, createdAt thì không sửa được.
@@ -504,47 +510,20 @@ model SalesOrder {
   items       SalesOrderItem[]
   stockExport StockExport?
 
-  @@index([createdById, completedAt])
+  @@index([createdById, processedAt])
 }
 
+// Dòng đề xuất của quán: chỉ còn SL đặt. Mọi thứ về "nhận bao nhiêu, nhận lúc nào, chứng từ đâu" đã
+// chuyển sang phiếu nhập kho của quán (StockImport) — xem comment ở SalesOrder.processedAt.
 model SalesOrderItem {
-  id               String     @id @default(cuid())
-  salesOrderId     String
-  salesOrder       SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
-  productId        String
-  product          Product    @relation(fields: [productId], references: [id])
-  quantity         Decimal    @db.Decimal(18, 3)
-  // received = receivedQuantity >= quantity. Hàng admin tự thêm lúc xử lý có quantity = 0 (quán không đặt).
-  received         Boolean    @default(false)
-  receivedQuantity Decimal?   @db.Decimal(18, 3)
-  // Thời điểm CHÍNH DÒNG NÀY thực nhận — Check Cost lọc "nhận trong kỳ" theo mốc này thay vì
-  // SalesOrder.completedAt, để đơn nhận rải rác nhiều ngày rơi vào đúng kỳ của từng dòng.
-  // Là DateTime chứ không phải ngày trần: mốc kỳ (StockCheck.checkedAt) có cả giờ, ngày trần
-  // 00:00 sẽ khiến hàng nhận cùng ngày với phiếu kiểm đầu kỳ bị rơi ra ngoài kỳ.
-  receivedAt       DateTime?
-  // Ghi chú admin ghi lúc xử lý đơn (vd lý do nhận ít hơn số đặt).
-  note             String?
-
-  images SalesOrderItemImage[]
+  id           String     @id @default(cuid())
+  salesOrderId String
+  salesOrder   SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product    @relation(fields: [productId], references: [id])
+  quantity     Decimal    @db.Decimal(18, 3)
 
   @@index([productId])
-  @@index([receivedAt])
-}
-
-// Ảnh chứng từ (hoá đơn) của một dòng hàng, chỉ đính được khi đơn đã COMPLETED. Cùng khuôn với
-// ShiftExpenseImage: chỉ lưu KHOÁ object trong R2, không lưu URL. Cascade chỉ xoá dòng DB, không xoá
-// file trên R2 — chỗ nào xoá cũng phải gọi deleteImages (utils/objectStorage).
-model SalesOrderItemImage {
-  id               String         @id @default(cuid())
-  salesOrderItemId String
-  salesOrderItem   SalesOrderItem @relation(fields: [salesOrderItemId], references: [id], onDelete: Cascade)
-  objectKey        String         @unique
-  contentType      String
-  size             Int
-  sortOrder        Int            @default(0)
-  createdAt        DateTime       @default(now())
-
-  @@index([salesOrderItemId])
 }
 
 enum InventoryCountStatus {

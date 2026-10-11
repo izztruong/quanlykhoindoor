@@ -4,8 +4,6 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
-import { Select } from "@/components/ui/Select";
-import { useWarehouses } from "@/hooks/useCatalog";
 import { useReorderThresholds } from "@/hooks/useReorderThresholds";
 import { useCreateSalesOrder } from "@/hooks/useSalesOrders";
 import { ApiError } from "@/lib/api-client";
@@ -19,10 +17,8 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 
 export default function QuickOrderPage() {
   const router = useRouter();
-  const { data: warehouses = [] } = useWarehouses();
   const { data: thresholds = [] } = useReorderThresholds();
   const createOrder = useCreateSalesOrder();
-  const [warehouseId, setWarehouseId] = useState("");
   const [stockInputs, setStockInputs] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
 
@@ -77,16 +73,12 @@ export default function QuickOrderPage() {
 
   function onSubmit() {
     setError(null);
-    if (!warehouseId) {
-      setError("Vui lòng chọn kho hàng");
-      return;
-    }
     if (orderItems.length === 0) {
       setError("Chưa có hàng hoá nào cần đặt thêm");
       return;
     }
     createOrder.mutate(
-      { warehouseId, items: orderItems, skipStockCheck: true },
+      { items: orderItems },
       {
         onSuccess: (order) => router.replace(`/orders/${order.id}`),
         onError: (err) => setError(err instanceof ApiError ? err.message : "Tạo đơn hàng thất bại"),
@@ -190,22 +182,6 @@ export default function QuickOrderPage() {
           Nhập tồn hiện tại, hệ thống tự tính số lượng cần đặt theo định lượng tối thiểu / tối đa đã thiết lập cho bạn.
         </p>
       </div>
-
-      <Card>
-        <CardBody className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-slate-600">Kho xuất</label>
-            <Select value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)}>
-              <option value="">Chọn kho hàng</option>
-              {warehouses.map((w) => (
-                <option key={w.id} value={w.id}>
-                  {w.name}
-                </option>
-              ))}
-            </Select>
-          </div>
-        </CardBody>
-      </Card>
 
       <Card>
         <CardHeader>

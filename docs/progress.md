@@ -42,6 +42,19 @@ năng xem `nav-config.ts` và `apps/server/src/modules/`.
 
 ## Đang dở
 
+### Bỏ bước xử lý đơn, đơn hàng chỉ còn đề xuất + ô tích "Đã xử lý" (C3) — CHƯA thử trên trình duyệt, CHƯA lên `staging`
+Xoá `PUT /:id/process`, màn Xử lý đơn, ảnh chứng từ theo dòng đơn, 4 cột SL nhận, `SalesOrder.warehouseId`
+(kéo theo ô "Kho xuất" ở form đặt đơn và trang in). Trạng thái đơn còn DRAFT (nhãn "Đã đặt") / CANCELLED.
+`completedAt` **đổi tên** thành `processedAt` chứ không xoá → 185 đơn cũ giữ nguyên mốc, tick sẵn sau migration.
+MCP `order_lines` viết lại đọc phiếu nhập kho (tên tool giữ nguyên vì token lưu theo tên); `list_sales_orders`
+bỏ `exportLines`/SL nhận, thêm lọc `processed`.
+Một lỗi tự tìm ra khi thử: bỏ tích rồi tick lại **bắn thông báo lần hai** vì `firstTick` so `processedAt`
+(cột vừa bị xoá). Dấu "đã báo" chuyển sang `processedById`, nên bỏ tích cố ý không xoá cột đó.
+Đã kiểm: `migrate deploy` DB trắng + `kho_dev_copy` (185 đơn tick sẵn, enum còn 2 giá trị, bảng ảnh đã xoá),
+typecheck + lint web (0 lỗi/3 cảnh báo), và curl: route cũ 404, payload hết `stockExport`, tick/bỏ tích 5 lượt
+ra **đúng 1 thông báo**, đơn đã huỷ 409, thiếu APPROVE 403, có APPROVE mà thiếu phạm vi 404, lọc
+processed 18/185. MCP đối chiếu SQL khớp (41 dòng / 14.209.560 đ).
+
 ### Check Cost lấy hàng về trong kỳ từ phiếu nhập kho (C2) — CHƯA thử trên trình duyệt, CHƯA lên `staging`
 Cột "Nhận trong kỳ" đổi nguồn: `SalesOrderItem.receivedQuantity` → `StockImportItem` của kho quán. Migration
 chuyển 935 dòng SL nhận cũ thành **176 phiếu nhập** (chỉ đơn của tài khoản "Là quán", giữ đúng hành vi nguồn cũ).

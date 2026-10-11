@@ -5,7 +5,7 @@ import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
-import { useProducts, useWarehouses } from "@/hooks/useCatalog";
+import { useProducts } from "@/hooks/useCatalog";
 import { useCreateSalesOrder } from "@/hooks/useSalesOrders";
 import { ApiError } from "@/lib/api-client";
 import { useCurrentUser } from "@/lib/auth";
@@ -19,7 +19,6 @@ import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 
 const formSchema = z.object({
-  warehouseId: z.string().min(1, "Chọn kho hàng"),
   note: z.string().optional(),
   items: z
     .array(
@@ -36,7 +35,6 @@ type FormValues = z.infer<typeof formSchema>;
 export default function NewOrderPage() {
   const router = useRouter();
   const { data: currentUser } = useCurrentUser();
-  const { data: warehouses = [] } = useWarehouses();
   const { data: products = [] } = useProducts({ activeOnly: true });
   const createOrder = useCreateSalesOrder();
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +48,6 @@ export default function NewOrderPage() {
   } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      warehouseId: "",
       note: "",
       items: [{ productId: "", quantity: 1 }],
     },
@@ -161,7 +158,7 @@ export default function NewOrderPage() {
   function onSubmit(values: FormValues) {
     setError(null);
     createOrder.mutate(
-      { ...values, skipStockCheck: true },
+      values,
       {
         onSuccess: (order) => router.replace(`/orders/${order.id}`),
         onError: (err) => setError(err instanceof ApiError ? err.message : "Tạo đơn hàng thất bại"),
@@ -184,19 +181,6 @@ export default function NewOrderPage() {
               <div className="flex h-10 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-600">
                 {currentUser?.name ?? "-"}
               </div>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-slate-600">Kho xuất</label>
-              <Select {...register("warehouseId")}>
-                <option value="">Chọn kho hàng</option>
-                {warehouses.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name}
-                  </option>
-                ))}
-              </Select>
-              {errors.warehouseId && <p className="text-xs text-red-600">{errors.warehouseId.message}</p>}
             </div>
 
             <div className="flex flex-col gap-1 md:col-span-2">

@@ -129,22 +129,3 @@ export const EXPENSE_ROW_DOC =
   "Mỗi dòng: date (YYYY-MM-DD giờ VN), name, unit, quantity, unitPrice, amount, source, docCode, note, shop. " +
   "totalAmount là tổng thành tiền của TOÀN BỘ dòng khớp bộ lọc (kể cả khi rows bị cắt). Tiền tính bằng đồng.";
 
-/**
- * Giá một dòng hàng của đơn: giá trên phiếu xuất nếu admin có nhập lúc xử lý đơn, không thì giá
- * vốn hiện tại của hàng hoá — đúng giá Check Cost dùng. Thực tế form xử lý đơn để trống giá thì lưu
- * 0, và dữ liệu thật gần như toàn dòng giá 0, nên không có bước lùi này thì cả cột thành tiền bằng 0.
- * `priceSource` cho biết dòng nào lấy giá nào: giá vốn hàng hoá là giá HIỆN TẠI, không phải giá lúc nhận.
- */
-export function orderLinePrice(quantity: number | null, exportPrice: number | null, productCostPrice: number | null) {
-  const fromExport = exportPrice != null && exportPrice > 0;
-  const unitPrice = fromExport ? exportPrice : productCostPrice ?? 0;
-  return {
-    unitPrice,
-    amount: Math.round((quantity ?? 0) * unitPrice),
-    priceSource: fromExport ? ("EXPORT" as const) : ("PRODUCT_COST" as const),
-  };
-}
-
-export const ORDER_PRICE_DOC =
-  "priceSource: EXPORT = giá NCC admin nhập lúc xử lý đơn; PRODUCT_COST = admin không nhập giá nên lấy giá vốn " +
-  "HIỆN TẠI của hàng hoá (cùng giá Check Cost dùng — đổi giá vốn về sau thì số này đổi theo).";

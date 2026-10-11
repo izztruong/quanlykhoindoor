@@ -38,10 +38,10 @@ reportsRouter.get("/import-detail", requirePermission("AUDIT_REPORTS"), async (r
   res.json({ items, total, page: filter.page, pageSize: filter.pageSize });
 });
 
-const SALES_ORDER_STATUSES: SalesOrderStatus[] = ["DRAFT", "COMPLETED", "CANCELLED"];
+const SALES_ORDER_STATUSES: SalesOrderStatus[] = ["DRAFT", "CANCELLED"];
 
-// Mặc định chỉ gộp đơn DRAFT: đó là các đơn quán vừa gửi mà admin chưa xử lý, tức đúng phần
-// còn phải đi đặt. Vẫn cho chọn trạng thái khác để đối chiếu lại những kỳ đã đặt xong.
+// Mặc định chỉ gộp đơn DRAFT (đã đặt, chưa huỷ) — tức đúng phần còn phải đi đặt. Vẫn cho chọn
+// CANCELLED để đối chiếu lại.
 reportsRouter.get("/purchase-summary", requirePermission("PURCHASE_SUMMARY"), async (req, res) => {
   const { from, to } = parseDateRange(req);
   const { skip, take, page, pageSize } = parsePagination(req, 20);
