@@ -65,7 +65,11 @@ export const PERMISSION_RESOURCES = [
   // ADD = tạo đơn, sửa & huỷ đơn của mình · APPROVE = tích "Đã xử lý", huỷ đơn của mọi quán.
   { resource: "ORDERS", label: "Đơn hàng", group: "Order", actions: ["VIEW", "ADD", "APPROVE"] },
 
-  { resource: "STOCK_IMPORTS", label: "Phiếu nhập kho", group: "Kho", actions: ["VIEW", "ADD"] },
+  // Đường ghi chính thức cho "hàng về quán" và là nguồn cột "Nhận trong kỳ" của Check Cost, nên
+  // cần đủ EDIT/DELETE: gõ sai mà không sửa được thì phải gõ phiếu bù trừ số âm, rối hơn nhiều.
+  // Quán chỉ thấy/sửa phiếu của KHO MÌNH (lọc theo warehouse.shopUserId, không theo người tạo) —
+  // vì vậy vai trò quán KHÔNG cần DATA.SCOPE_ALL.
+  { resource: "STOCK_IMPORTS", label: "Phiếu nhập kho", group: "Kho", actions: CRUD },
   { resource: "STOCK_EXPORTS", label: "Phiếu xuất kho", group: "Kho", actions: ["VIEW", "ADD"] },
   { resource: "INVENTORY_COUNTS", label: "Phiếu kiểm kê kho", group: "Kho", actions: ["VIEW", "ADD", "EDIT"] },
   { resource: "COST_CHECKS", label: "Phiếu Check Cost", group: "Kho", actions: ["VIEW", "ADD", "EDIT"] },

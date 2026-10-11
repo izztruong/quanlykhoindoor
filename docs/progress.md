@@ -42,6 +42,21 @@ năng xem `nav-config.ts` và `apps/server/src/modules/`.
 
 ## Đang dở
 
+### Phiếu nhập kho thành đường ghi chính: sửa/xoá + ảnh chứng từ + phạm vi theo kho (C4) — CHƯA thử trên trình duyệt, CHƯA lên `staging`
+Thêm `STOCK_IMPORTS.EDIT/DELETE`, 3 route ảnh (tối đa 5 ảnh/phiếu, prefix R2 `stock-imports/`), trang chi tiết
++ trang sửa bên web (**web trước đây không có trang chi tiết phiếu nhập**). Form: NCC bắt buộc, bỏ ô Khách hàng,
+bỏ ô Trạng thái (luôn COMPLETED — phiếu nháp sẽ không vào Check Cost mà chẳng có dấu hiệu gì), thêm ghi chú
+từng dòng. `StockImportType` còn PURCHASE/OTHER: bỏ TRANSFER_IN vì Check Cost đã cộng điều chuyển ở cột riêng.
+**Phạm vi lọc theo `warehouse.shopUserId`, không theo người tạo** — nhờ vậy admin gõ hộ thì quán vẫn thấy
+phiếu của kho mình (vết đang có ở Chi ngoài), và vai trò quán không cần `DATA.SCOPE_ALL`.
+Đã kiểm: `migrate deploy` trên **DB trắng tạo lại từ đầu** (cả 5 migration chạy đúng thứ tự tên như production)
++ `kho_dev_copy`; typecheck 2 app; 12 ca schema (6 ảnh, sai định dạng, thiếu NCC, SL 0, `status` bị loại khỏi
+payload); và curl: 4 động từ, đổi kho 400, sửa mốc qua kỳ khác vẫn cảnh báo phiếu **kỳ cũ**, quán gõ vào kho
+quán khác 404, quán thấy đúng phiếu kho mình **kể cả phiếu admin gõ hộ**, xoá kho đang thuộc quán 409.
+Chưa kiểm được: vòng ảnh R2 thật (`dev:copy` cố ý làm rỗng biến R2 để không xoá file production) — đường 503
+đã kiểm. Lint web tạm **4 cảnh báo** thay vì 3: cảnh báo thứ 4 là `incompatible-library` của react-hook-form
+trong form mới, sẽ về 3 khi C5b xoá form phiếu xuất.
+
 ### Bỏ bước xử lý đơn, đơn hàng chỉ còn đề xuất + ô tích "Đã xử lý" (C3) — CHƯA thử trên trình duyệt, CHƯA lên `staging`
 Xoá `PUT /:id/process`, màn Xử lý đơn, ảnh chứng từ theo dòng đơn, 4 cột SL nhận, `SalesOrder.warehouseId`
 (kéo theo ô "Kho xuất" ở form đặt đơn và trang in). Trạng thái đơn còn DRAFT (nhãn "Đã đặt") / CANCELLED.

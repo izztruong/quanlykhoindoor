@@ -191,7 +191,8 @@ export interface Customer {
 
 export type TransactionForm = "CASH" | "BANK_TRANSFER" | "DEBT" | "OTHER";
 export type TransactionStatus = "DRAFT" | "COMPLETED" | "CANCELLED";
-export type StockImportType = "PURCHASE" | "CUSTOMER_RETURN" | "TRANSFER_IN" | "OTHER";
+/** Bỏ CUSTOMER_RETURN (phiếu nhập không còn khách hàng) và TRANSFER_IN (đã có Phiếu điều chuyển). */
+export type StockImportType = "PURCHASE" | "OTHER";
 export type StockExportType = "SALE" | "SUPPLIER_RETURN" | "TRANSFER_OUT" | "DAMAGE" | "OTHER";
 
 export interface StockHeader {
@@ -222,6 +223,37 @@ export interface StockItem {
 
 export interface StockTransaction extends StockHeader {
   items: StockItem[];
+}
+
+/**
+ * Phiếu nhập kho — đường ghi chính thức cho "hàng về quán", nguồn cột "Nhận trong kỳ" của Check Cost.
+ * Khác `StockTransaction` (phiếu xuất) ở chỗ: không có khách hàng, không có NCC theo dòng, có ảnh
+ * chứng từ theo phiếu, và kho luôn kèm quán sở hữu.
+ */
+export interface StockImport {
+  id: string;
+  code: string;
+  type: StockImportType;
+  /** Có cả giờ — đây là mốc kỳ Check Cost dùng. */
+  transactionAt: string;
+  form: TransactionForm;
+  status: TransactionStatus;
+  note?: string | null;
+  warehouse: Warehouse;
+  supplier?: Supplier | null;
+  createdBy?: { id: string; name: string } | null;
+  createdAt: string;
+  updatedAt: string;
+  items: StockItem[];
+  /** Số ảnh chứng từ đã đính. URL ảnh tải riêng khi mở (URL ký hạn 1 giờ). */
+  imageCount: number;
+}
+
+export interface StockImportImage {
+  id: string;
+  url: string;
+  contentType: string;
+  size: number;
 }
 
 /** Đơn hàng chỉ còn là đề xuất: đặt rồi huỷ. Dấu "đã xử lý" nằm ở `processedAt`, không phải trạng thái. */

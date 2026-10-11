@@ -103,6 +103,7 @@ export const navSections: NavSection[] = [
  */
 const extraPageRules: { pattern: RegExp; permission: string }[] = [
   { pattern: /^\/stock\/imports\/new(\/|$)/, permission: "STOCK_IMPORTS.ADD" },
+  { pattern: /^\/stock\/imports\/[^/]+\/edit(\/|$)/, permission: "STOCK_IMPORTS.EDIT" },
   { pattern: /^\/stock\/exports\/new(\/|$)/, permission: "STOCK_EXPORTS.ADD" },
   { pattern: /^\/stock\/inventory-counts\/new(\/|$)/, permission: "INVENTORY_COUNTS.ADD" },
   { pattern: /^\/cost-checks\/new(\/|$)/, permission: "COST_CHECKS.ADD" },

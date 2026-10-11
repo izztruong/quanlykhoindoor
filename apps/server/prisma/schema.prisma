@@ -46,6 +46,7 @@ model User {
   inventoryCounts           InventoryCount[]
   salesOrders               SalesOrder[]
   salesOrdersProcessed      SalesOrder[]              @relation("SalesOrderProcessedBy")
+  stockImports              StockImport[]             @relation("StockImportCreatedBy")
   reorderThresholds         ProductReorderThreshold[]
   stockChecks               StockCheck[]
   materialWastes            MaterialWaste[]
@@ -363,7 +364,6 @@ model Customer {
   phone   String?
   address String?
 
-  stockImports StockImport[]
   stockExports StockExport[]
 }
 
@@ -373,10 +373,11 @@ enum StockTransactionStatus {
   CANCELLED
 }
 
+// Bỏ CUSTOMER_RETURN (phiếu nhập không còn trường khách hàng) và TRANSFER_IN: hàng chuyển giữa các
+// quán đã có module Phiếu điều chuyển, mà Check Cost cộng cột đó RIÊNG — để lại là một lần chuyển
+// được tính vào cả hai cột.
 enum StockImportType {
   PURCHASE
-  CUSTOMER_RETURN
-  TRANSFER_IN
   OTHER
 }
 
@@ -395,26 +396,52 @@ enum TransactionForm {
   OTHER
 }
 
+// Đường ghi chính thức cho "hàng về quán". Check Cost lấy cột "Nhận trong kỳ" từ đây, lọc theo
+// `warehouse.shopUserId` = quán của phiếu và `transactionAt` trong kỳ (chỉ phiếu COMPLETED).
+//
+// Vì vậy sửa/xoá phiếu nhập **phải gọi** `utils/costCheckImpact` để cảnh báo tạo lại phiếu Check Cost
+// bị ảnh hưởng — cùng luật với phiếu kiểm kê, huỷ và điều chuyển.
 model StockImport {
   id            String                 @id @default(cuid())
   code          String                 @unique
   type          StockImportType        @default(PURCHASE)
+  // Có CẢ GIỜ và là mốc kỳ của Check Cost. Ngày trần 00:00 sẽ khiến hàng nhập cùng ngày với phiếu
+  // kiểm đầu kỳ rơi ra ngoài kỳ — ô bên web phải là `datetime-local`.
   transactionAt DateTime
   form          TransactionForm        @default(CASH)
   status        StockTransactionStatus @default(COMPLETED)
   note          String?
   warehouseId   String
   warehouse     Warehouse              @relation(fields: [warehouseId], references: [id])
+  // Mỗi phiếu một NCC (một chuyến giao) — zod bắt buộc khi tạo mới. Vẫn nullable trong DB vì phiếu
+  // sinh từ SL nhận của đơn hàng cũ không biết NCC nào.
   supplierId    String?
   supplier      Supplier?              @relation(fields: [supplierId], references: [id])
-  customerId    String?
-  customer      Customer?              @relation(fields: [customerId], references: [id])
   createdById   String?
+  createdBy     User?                  @relation("StockImportCreatedBy", fields: [createdById], references: [id])
   createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
 
-  items StockImportItem[]
+  items  StockImportItem[]
+  images StockImportImage[]
 
   @@index([warehouseId, transactionAt])
+}
+
+// Ảnh chứng từ (hoá đơn NCC) của một phiếu nhập — theo PHIẾU, không theo dòng. Cùng khuôn với
+// OtherExpenseImage: chỉ lưu KHOÁ object trong R2, không lưu URL. Cascade chỉ xoá dòng DB, không xoá
+// file trên R2 — chỗ nào xoá cũng phải gọi deleteImages (utils/objectStorage).
+model StockImportImage {
+  id            String      @id @default(cuid())
+  stockImportId String
+  stockImport   StockImport @relation(fields: [stockImportId], references: [id], onDelete: Cascade)
+  objectKey     String      @unique
+  contentType   String
+  size          Int
+  sortOrder     Int         @default(0)
+  createdAt     DateTime    @default(now())
+
+  @@index([stockImportId])
 }
 
 model StockImportItem {
