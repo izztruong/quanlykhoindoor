@@ -42,6 +42,23 @@ interface CrudOptions {
   filterFields?: string[];
   /** Which of filterFields are actual Boolean columns — their "true"/"false" query string is coerced accordingly. */
   booleanFilterFields?: string[];
+  /**
+   * Kiểm tra nghiệp vụ trước khi POST/PUT, sau khi zod đã parse. Ném `HttpError` để trả lỗi tiếng
+   * Việt. Dành cho ràng buộc mà zod không thấy được vì phải tra DB — vd kho chỉ gán được cho tài
+   * khoản thuộc vai trò "Là quán", và một quán chỉ được một kho.
+   *
+   * Không có hook này thì ràng buộc `@unique` của Prisma lọt ra ngoài dưới dạng P2002 và người dùng
+   * nhận một câu lỗi Prisma thô.
+   *
+   * `id` chỉ có ở PUT, dùng để bỏ qua chính bản ghi đang sửa khi kiểm trùng.
+   */
+  beforeWrite?: (data: any, ctx: { id?: string }) => Promise<void> | void;
+  /**
+   * Kiểm tra trước khi DELETE. Dành cho bản ghi mà khoá ngoại KHÔNG chặn được: FK Restrict chỉ nổ
+   * khi đã có bản ghi con, nên một kho của quán *chưa phát sinh phiếu nào* vẫn xoá được và quán đó
+   * mất nguồn số liệu mà không ai biết.
+   */
+  beforeDelete?: (id: string) => Promise<void> | void;
 }
 
 /**
@@ -87,17 +104,20 @@ export function createCrudRouter(delegate: Delegate, options: CrudOptions): Rout
 
   router.post("/", ...writeGuard, async (req, res) => {
     const data = options.createSchema.parse(req.body);
+    await options.beforeWrite?.(data, {});
     const item = await delegate.create({ data, include: options.include });
     res.status(201).json(item);
   });
 
   router.put("/:id", ...writeGuard, async (req, res) => {
     const data = options.updateSchema.parse(req.body);
+    await options.beforeWrite?.(data, { id: req.params.id });
     const item = await delegate.update({ where: { id: req.params.id }, data, include: options.include });
     res.json(item);
   });
 
   router.delete("/:id", ...writeGuard, async (req, res) => {
+    await options.beforeDelete?.(req.params.id);
     await delegate.delete({ where: { id: req.params.id } });
     res.status(204).send();
   });

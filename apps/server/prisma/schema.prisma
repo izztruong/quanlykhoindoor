@@ -71,6 +71,7 @@ model User {
   finishedGoodPricesCreated FinishedGoodPrice[]
   posSaleHours              PosSaleHour[]
   mcpTokens                 McpToken[]                @relation("McpTokenCreatedBy")
+  shopWarehouse             Warehouse?                @relation("WarehouseShop")
 }
 
 enum DeadlineKind {
@@ -111,6 +112,16 @@ model Warehouse {
   name      String
   address   String?
   createdAt DateTime @default(now())
+
+  // Quán sở hữu kho này. Đây là thứ nối hai trục định danh địa điểm của dự án: phiếu nhập/xuất và
+  // kiểm kê kho neo theo `warehouseId`, còn phiếu kiểm quán, huỷ, điều chuyển, POS và Check Cost
+  // neo theo tài khoản quán (`createdById`/`userId`). Check Cost lấy cột "Nhận trong kỳ" từ phiếu
+  // nhập của kho có `shopUserId` = quán của phiếu, nên quán nào cũng phải có kho.
+  //
+  // Nullable để kho không thuộc quán nào vẫn tạo được (kho tổng); `@unique` chặn một quán hai kho —
+  // có hai kho thì Check Cost phải cộng cả hai và sẽ có ngày quên một cái.
+  shopUserId String? @unique
+  shopUser   User?   @relation("WarehouseShop", fields: [shopUserId], references: [id], onDelete: SetNull)
 
   stockImports    StockImport[]
   stockExports    StockExport[]

@@ -42,6 +42,15 @@ năng xem `nav-config.ts` và `apps/server/src/modules/`.
 
 ## Đang dở
 
+### Kho riêng cho từng quán (C1 của đợt chuyển Check Cost sang phiếu nhập) — CHƯA thử trên trình duyệt, CHƯA lên `staging`
+`Warehouse.shopUserId @unique` + ô "Quán" ở Danh mục › Kho hàng; migration tạo 4 kho `KHOQ01..04` cho 4 quán.
+Chặn: gán kho cho tài khoản không phải quán (400), một quán hai kho (409), xoá kho đang thuộc quán (409).
+Sửa kèm một vết sẵn có: lỗi `ON DELETE RESTRICT` của Postgres là mã **23001** và nằm ở `err.cause.code`,
+nên **mọi** phép xoá bị khoá ngoại chặn trong app đang trả 500 thay vì 409 — đã map lại ở `middleware/error.ts`.
+Đã kiểm typecheck 2 app, lint web (0 lỗi/3 cảnh báo), `migrate deploy` trên **DB trắng** + `kho_db` + `kho_dev_copy`,
+chạy lại migration không sinh kho trùng, và 8 ca curl (gồm: sửa tên kho không được âm thầm gỡ quán).
+Còn lại C2–C6: đổi nguồn Check Cost, ô tích "Đã xử lý", sửa/xoá + ảnh phiếu nhập, dọn kho cũ.
+
 ### Build app mobile mới — code đã lên `main`
 Mobile không có OTA nên các đợt sửa gần đây (tạo đơn vượt tồn ở **1.0.4**, màn Xử lý đơn, ô "Trừ CC",
 công thức theo mốc, bỏ thẻ trạng thái push) chỉ có hiệu lực sau khi build lại.

@@ -17,8 +17,19 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
     return;
   }
 
-  if (err && typeof err === "object" && "code" in err && typeof (err as { code: unknown }).code === "string") {
-    const prismaErr = err as { code: string; meta?: { target?: string[] } };
+  // Mã lỗi có thể nằm ở chính error (Prisma bọc được) HOẶC ở `cause` (driver adapter trả lỗi
+  // Postgres thô, lúc đó error ngoài là PrismaClientUnknownRequestError KHÔNG có `code`). Không đọc
+  // cả hai chỗ thì mọi lỗi ràng buộc đi qua nhánh dưới và người dùng nhận 500 "Lỗi hệ thống".
+  const errorCode = (() => {
+    if (!err || typeof err !== "object") return undefined;
+    const outer = (err as { code?: unknown }).code;
+    if (typeof outer === "string") return outer;
+    const cause = (err as { cause?: { code?: unknown } }).cause;
+    return typeof cause?.code === "string" ? cause.code : undefined;
+  })();
+
+  if (errorCode) {
+    const prismaErr = { code: errorCode, meta: (err as { meta?: { target?: string[] } }).meta };
     if (prismaErr.code === "P2002") {
       res.status(409).json({ message: `Dữ liệu đã tồn tại (trùng ${prismaErr.meta?.target?.join(", ") ?? "giá trị duy nhất"})` });
       return;
@@ -29,7 +40,9 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
     }
     // P2003 là mã Prisma bọc lại; 23503 là mã gốc Postgres cho cùng lỗi vi phạm khoá ngoại — xuất
     // hiện trực tiếp khi driver adapter (@prisma/adapter-pg) đôi lúc không bọc lại được.
-    if (prismaErr.code === "P2003" || prismaErr.code === "23503") {
+    // 23001 = restrict_violation: Postgres dùng mã RIÊNG này khi bị `ON DELETE RESTRICT` chặn, khác
+    // 23503. Thiếu nó thì xoá một danh mục đang được tham chiếu trả 500 thay vì 409.
+    if (prismaErr.code === "P2003" || prismaErr.code === "23503" || prismaErr.code === "23001") {
       res.status(409).json({ message: "Không thể thực hiện vì dữ liệu đang được tham chiếu" });
       return;
     }

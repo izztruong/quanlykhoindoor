@@ -21,6 +21,14 @@ export interface CatalogFieldConfig {
   type?: "text" | "number" | "select" | "textarea" | "checkbox";
   required?: boolean;
   options?: { value: string; label: string }[];
+  /**
+   * Ô để trống thì gửi `null` thay vì bỏ hẳn khoá khỏi payload — cần cho ô select không bắt buộc mà
+   * người dùng phải GỠ được giá trị (vd bỏ gán quán khỏi kho). Bỏ khoá đi thì Prisma coi như "không
+   * sửa trường này" và giá trị cũ ở lại mãi.
+   *
+   * Chỉ bật cho trường mà API nhận null; trường bắt buộc (vd nhóm hàng hoá) để nguyên.
+   */
+  clearable?: boolean;
 }
 
 export interface CatalogFilterConfig {
@@ -60,6 +68,8 @@ function buildPayload(fields: CatalogFieldConfig[], values: Record<string, strin
       payload[field.name] = raw === "" ? (field.required ? 0 : undefined) : Number(raw);
     } else if (field.type === "checkbox") {
       payload[field.name] = raw === "true";
+    } else if (field.clearable) {
+      payload[field.name] = raw || null;
     } else {
       payload[field.name] = raw || undefined;
     }

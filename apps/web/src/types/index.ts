@@ -65,6 +65,9 @@ export interface Warehouse {
   code: string;
   name: string;
   address?: string | null;
+  /** Quán sở hữu kho. Check Cost lấy cột "Nhận trong kỳ" từ phiếu nhập của kho có quán. */
+  shopUserId?: string | null;
+  shopUser?: { id: string; name: string } | null;
 }
 
 export interface ProductGroup {
