@@ -43,7 +43,6 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  inventoryCounts           InventoryCount[]
   salesOrders               SalesOrder[]
   salesOrdersProcessed      SalesOrder[]              @relation("SalesOrderProcessedBy")
   stockImports              StockImport[]             @relation("StockImportCreatedBy")
@@ -126,8 +125,6 @@ model Warehouse {
   shopUser   User?   @relation("WarehouseShop", fields: [shopUserId], references: [id], onDelete: SetNull)
 
   stockImports    StockImport[]
-  stockExports    StockExport[]
-  inventoryCounts InventoryCount[]
 }
 
 model ProductGroup {
@@ -288,8 +285,6 @@ model Product {
   tareWeight Decimal? @db.Decimal(18, 4)
 
   stockImportItems      StockImportItem[]
-  stockExportItems      StockExportItem[]
-  inventoryCountItems   InventoryCountItem[]
   salesOrderItems       SalesOrderItem[]
   reorderThresholds     ProductReorderThreshold[]
   stockCheckItems       StockCheckItem[]
@@ -351,20 +346,8 @@ model Supplier {
   address String?
 
   stockImports          StockImport[]
-  stockExports          StockExport[]
   productPrices         ProductSupplierPrice[]
-  stockExportItems      StockExportItem[]
   materialTransferItems MaterialTransferItem[]
-}
-
-model Customer {
-  id      String  @id @default(cuid())
-  code    String  @unique
-  name    String
-  phone   String?
-  address String?
-
-  stockExports StockExport[]
 }
 
 enum StockTransactionStatus {
@@ -378,14 +361,6 @@ enum StockTransactionStatus {
 // được tính vào cả hai cột.
 enum StockImportType {
   PURCHASE
-  OTHER
-}
-
-enum StockExportType {
-  SALE
-  SUPPLIER_RETURN
-  TRANSFER_OUT
-  DAMAGE
   OTHER
 }
 
@@ -458,49 +433,6 @@ model StockImportItem {
   @@index([productId])
 }
 
-model StockExport {
-  id            String                 @id @default(cuid())
-  code          String                 @unique
-  type          StockExportType        @default(SALE)
-  transactionAt DateTime
-  form          TransactionForm        @default(CASH)
-  status        StockTransactionStatus @default(COMPLETED)
-  note          String?
-  warehouseId   String
-  warehouse     Warehouse              @relation(fields: [warehouseId], references: [id])
-  supplierId    String?
-  supplier      Supplier?              @relation(fields: [supplierId], references: [id])
-  customerId    String?
-  customer      Customer?              @relation(fields: [customerId], references: [id])
-  salesOrderId  String?                @unique
-  salesOrder    SalesOrder?            @relation(fields: [salesOrderId], references: [id])
-  createdById   String?
-  createdAt     DateTime               @default(now())
-
-  items StockExportItem[]
-
-  @@index([warehouseId, transactionAt])
-}
-
-model StockExportItem {
-  id            String      @id @default(cuid())
-  stockExportId String
-  stockExport   StockExport @relation(fields: [stockExportId], references: [id], onDelete: Cascade)
-  productId     String
-  product       Product     @relation(fields: [productId], references: [id])
-  quantity      Decimal     @db.Decimal(18, 3)
-  costPrice     Decimal     @db.Decimal(18, 2)
-  costAmount    Decimal     @db.Decimal(18, 2)
-  note          String?
-  // Which supplier this line's cost price came from — picked per line since
-  // a single export can cover products normally sourced from different
-  // suppliers, unlike an import which is one delivery from one supplier.
-  supplierId    String?
-  supplier      Supplier?   @relation(fields: [supplierId], references: [id])
-
-  @@index([productId])
-}
-
 // DRAFT = quán đã gửi, admin chưa xử lý. Admin xử lý (NCC, giá, SL nhận, ngày nhận) là COMPLETED,
 // sau đó vẫn sửa lại được. Không còn bước quán xác nhận SL hay tự nhận hàng.
 enum SalesOrderStatus {
@@ -535,7 +467,6 @@ model SalesOrder {
   isLate Boolean   @default(false)
 
   items       SalesOrderItem[]
-  stockExport StockExport?
 
   @@index([createdById, processedAt])
 }
@@ -550,42 +481,6 @@ model SalesOrderItem {
   product      Product    @relation(fields: [productId], references: [id])
   quantity     Decimal    @db.Decimal(18, 3)
 
-  @@index([productId])
-}
-
-enum InventoryCountStatus {
-  DRAFT
-  COMPLETED
-  CANCELLED
-}
-
-model InventoryCount {
-  id          String               @id @default(cuid())
-  code        String               @unique
-  warehouseId String
-  warehouse   Warehouse            @relation(fields: [warehouseId], references: [id])
-  countDate   DateTime
-  status      InventoryCountStatus @default(DRAFT)
-  note        String?
-  createdById String?
-  createdBy   User?                @relation(fields: [createdById], references: [id])
-  createdAt   DateTime             @default(now())
-
-  items InventoryCountItem[]
-
-  @@index([warehouseId, countDate])
-}
-
-model InventoryCountItem {
-  id               String         @id @default(cuid())
-  inventoryCountId String
-  inventoryCount   InventoryCount @relation(fields: [inventoryCountId], references: [id], onDelete: Cascade)
-  productId        String
-  product          Product        @relation(fields: [productId], references: [id])
-  actualQuantity   Decimal        @db.Decimal(18, 3)
-  note             String?
-
-  @@unique([inventoryCountId, productId])
   @@index([productId])
 }
 

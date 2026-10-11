@@ -1,9 +1,7 @@
 import { z } from "zod";
 
 export const transactionFormEnum = z.enum(["CASH", "BANK_TRANSFER", "DEBT", "OTHER"]);
-export const transactionStatusEnum = z.enum(["DRAFT", "COMPLETED", "CANCELLED"]);
 export const stockImportTypeEnum = z.enum(["PURCHASE", "OTHER"]);
-export const stockExportTypeEnum = z.enum(["SALE", "SUPPLIER_RETURN", "TRANSFER_OUT", "DAMAGE", "OTHER"]);
 
 export const stockItemSchema = z.object({
   productId: z.string().min(1),
@@ -11,23 +9,6 @@ export const stockItemSchema = z.object({
   costPrice: z.coerce.number().nonnegative(),
   note: z.string().optional(),
 });
-
-// Export lines each pick their own supplier (a single export can cover
-// products normally sourced from different suppliers), unlike an import
-// which is one delivery from the one supplier picked on the header.
-export const stockExportItemSchema = stockItemSchema.extend({
-  supplierId: z.string().min(1).optional(),
-});
-
-const baseHeaderSchema = {
-  transactionAt: z.coerce.date(),
-  form: transactionFormEnum.default("CASH"),
-  status: transactionStatusEnum.default("COMPLETED"),
-  note: z.string().optional(),
-  warehouseId: z.string().min(1),
-  supplierId: z.string().min(1).optional(),
-  customerId: z.string().min(1).optional(),
-};
 
 /**
  * Phiếu nhập kho là đường ghi chính thức cho "hàng về quán" (Check Cost đọc từ đây), nên khác phiếu
@@ -48,14 +29,7 @@ export const stockImportCreateSchema = z.object({
   items: z.array(stockItemSchema).min(1, "Cần ít nhất 1 hàng hoá"),
 });
 
-export const stockExportCreateSchema = z.object({
-  type: stockExportTypeEnum.default("SALE"),
-  ...baseHeaderSchema,
-  items: z.array(stockExportItemSchema).min(1, "Cần ít nhất 1 hàng hoá"),
-});
-
 export type StockImportInput = z.infer<typeof stockImportCreateSchema>;
-export type StockExportInput = z.infer<typeof stockExportCreateSchema>;
 
 /** Tối đa 5 ảnh chứng từ mỗi phiếu nhập — cùng mức với khoản chi và phiếu đề xuất chi. */
 export const MAX_IMAGES_PER_IMPORT = 5;

@@ -37,7 +37,6 @@ export const ACTION_LABELS: Record<PermissionAction, string> = {
 const CRUD: PermissionAction[] = ["VIEW", "ADD", "EDIT", "DELETE"];
 
 export const PERMISSION_RESOURCES = [
-  { resource: "AUDIT_REPORTS", label: "Báo cáo kiểm toán", group: "Kiểm toán", actions: ["VIEW"] },
 
   // EDIT/DELETE sửa/xoá phiếu còn Chờ duyệt; EDIT còn dùng để gửi bảng hạng mục dự kiến mới đi duyệt
   // bổ sung · APPROVE = duyệt/từ chối (chỉ khi là người duyệt của phiếu, hoặc vai trò hệ thống) ·
@@ -70,8 +69,6 @@ export const PERMISSION_RESOURCES = [
   // Quán chỉ thấy/sửa phiếu của KHO MÌNH (lọc theo warehouse.shopUserId, không theo người tạo) —
   // vì vậy vai trò quán KHÔNG cần DATA.SCOPE_ALL.
   { resource: "STOCK_IMPORTS", label: "Phiếu nhập kho", group: "Kho", actions: CRUD },
-  { resource: "STOCK_EXPORTS", label: "Phiếu xuất kho", group: "Kho", actions: ["VIEW", "ADD"] },
-  { resource: "INVENTORY_COUNTS", label: "Phiếu kiểm kê kho", group: "Kho", actions: ["VIEW", "ADD", "EDIT"] },
   { resource: "COST_CHECKS", label: "Phiếu Check Cost", group: "Kho", actions: ["VIEW", "ADD", "EDIT"] },
   { resource: "MATERIAL_TRANSFERS", label: "Phiếu điều chuyển", group: "Kho", actions: ["VIEW", "ADD", "EDIT"] },
 
@@ -84,7 +81,6 @@ export const PERMISSION_RESOURCES = [
   { resource: "UNITS", label: "Đơn vị tính", group: "Danh mục", actions: CRUD },
   { resource: "WAREHOUSES", label: "Kho hàng", group: "Danh mục", actions: CRUD },
   { resource: "SUPPLIERS", label: "Nhà cung cấp", group: "Danh mục", actions: CRUD },
-  { resource: "CUSTOMERS", label: "Khách hàng", group: "Danh mục", actions: CRUD },
   { resource: "FINISHED_GOODS", label: "Đồ thành phẩm & công thức", group: "Danh mục", actions: CRUD },
 
   { resource: "USERS", label: "Tài khoản người dùng", group: "Quản trị", actions: CRUD },

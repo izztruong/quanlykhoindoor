@@ -6,7 +6,6 @@ import { requireAuth } from "./middleware/auth";
 import { errorHandler, notFoundHandler } from "./middleware/error";
 import { authRouter } from "./modules/auth/auth.routes";
 import { costChecksRouter } from "./modules/costChecks/costChecks.routes";
-import { customersRouter } from "./modules/customers/customers.routes";
 import { dashboardRouter } from "./modules/dashboard/dashboard.routes";
 import { deadlinesRouter } from "./modules/deadlines/deadlines.routes";
 import { expenseProposalsRouter } from "./modules/expenseProposals/expenseProposals.routes";
@@ -14,13 +13,11 @@ import { finishedGoodItemsRouter } from "./modules/finishedGoodItems/finishedGoo
 import { finishedGoodItemPriceSyncRouter, finishedGoodPricesRouter } from "./modules/finishedGoodPrices/finishedGoodPrices.routes";
 import { finishedGoodRecipesRouter } from "./modules/finishedGoodRecipes/finishedGoodRecipes.routes";
 import { googleAuthRouter } from "./modules/googleAuth/googleAuth.routes";
-import { inventoryCountsRouter } from "./modules/inventoryCounts/inventoryCounts.routes";
 import { materialTransfersRouter } from "./modules/materialTransfers/materialTransfers.routes";
 import { materialWasteRouter } from "./modules/materialWaste/materialWaste.routes";
 import { mcpRouter } from "./modules/mcp/mcp.routes";
 import { mcpTokensRouter } from "./modules/mcpTokens/mcpTokens.routes";
 import { productGroupsRouter } from "./modules/productGroups/productGroups.routes";
-import { productStockRouter } from "./modules/products/productStock.routes";
 import { productsRouter } from "./modules/products/products.routes";
 import { posItemMappingsRouter } from "./modules/posItemMappings/posItemMappings.routes";
 import { posSalesRouter } from "./modules/posSales/posSales.routes";
@@ -30,13 +27,12 @@ import { notificationsRouter } from "./modules/notifications/notifications.route
 import { profileRouter } from "./modules/profile/profile.routes";
 import { otherExpensesRouter } from "./modules/otherExpenses/otherExpenses.routes";
 import { reorderThresholdsRouter } from "./modules/reorderThresholds/reorderThresholds.routes";
-import { reportsRouter } from "./modules/reports/reports.routes";
+import { purchaseSummaryRouter } from "./modules/purchaseSummary/purchaseSummary.routes";
 import { rolesRouter } from "./modules/roles/roles.routes";
 import { salesOrdersRouter } from "./modules/salesOrders/salesOrders.routes";
 import { shiftExpensesRouter } from "./modules/shiftExpenses/shiftExpenses.routes";
 import { stockChecksRouter } from "./modules/stockChecks/stockChecks.routes";
-import { stockExportsRouter } from "./modules/stock/stockExports.routes";
-import { stockImportsRouter } from "./modules/stock/stockImports.routes";
+import { stockImportsRouter } from "./modules/stockImports/stockImports.routes";
 import { suppliersRouter } from "./modules/suppliers/suppliers.routes";
 import { unitsRouter } from "./modules/units/units.routes";
 import { usersRouter } from "./modules/users/users.routes";
@@ -77,9 +73,7 @@ app.use("/api", requireAuth);
 // Ngoại lệ có chủ đích: GET danh mục tra cứu (kho, hàng hoá, khách hàng, đơn vị, nhóm, NCC, đồ thành
 // phẩm, tồn kho, hạn nộp) chỉ cần đăng nhập, vì form tạo đơn/phiếu của quán phải đọc chúng.
 app.use("/api/warehouses", warehousesRouter);
-app.use("/api/customers", customersRouter);
 app.use("/api/products", productsRouter);
-app.use("/api/product-stock", productStockRouter);
 // PriceSync phải đứng TRƯỚC: nó tiếp quản PUT /:id và POST /bulk-import để ghi mốc giá và cột giá
 // hiện hành trong cùng một transaction. Các route còn lại rơi xuống crudFactory bên dưới.
 app.use("/api/finished-good-items", finishedGoodItemPriceSyncRouter);
@@ -102,14 +96,13 @@ app.use("/api/other-expenses", otherExpensesRouter);
 app.use("/api/dashboard", dashboardRouter);
 
 app.use("/api/stock-imports", stockImportsRouter);
-app.use("/api/stock-exports", stockExportsRouter);
 app.use("/api/product-supplier-prices", productSupplierPricesRouter);
 app.use("/api/finished-good-recipes", finishedGoodRecipesRouter);
 app.use("/api/finished-good-prices", finishedGoodPricesRouter);
 app.use("/api/cost-checks", costChecksRouter);
 app.use("/api/material-transfers", materialTransfersRouter);
-app.use("/api/inventory-counts", inventoryCountsRouter);
-app.use("/api/reports", reportsRouter);
+// Đường cũ giữ nguyên để web không phải sửa — nhóm báo cáo Kiểm toán đã bỏ, chỉ còn Tổng hợp đặt NCC.
+app.use("/api/reports/purchase-summary", purchaseSummaryRouter);
 app.use("/api/users", usersRouter);
 app.use("/api/roles", rolesRouter);
 app.use("/api/mcp-tokens", mcpTokensRouter);

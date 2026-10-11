@@ -2,7 +2,7 @@
 
 import { Card } from "@/components/ui/Card";
 import { Select } from "@/components/ui/Select";
-import { useCostSummary, useUnconfirmedOrders, useWasteSummary } from "@/hooks/useDashboard";
+import { useCostSummary, useRecentStockImports, useWasteSummary } from "@/hooks/useDashboard";
 import { useUserOptions } from "@/hooks/useUsers";
 import { formatCurrency, formatNumber, formatPercent } from "@/lib/format";
 import { useCan } from "@/lib/permissions";
@@ -51,15 +51,15 @@ export function DashboardClient() {
   // áp phạm vi nên phải truyền id của mình để không cộng lẫn số của quán khác.
   const userId = scopeAll ? selectedUserId : (user?.id ?? "");
 
-  const canOrders = can("ORDERS");
+  const canImports = can("STOCK_IMPORTS");
   const canWaste = can("MATERIAL_WASTE");
   const canCost = can("COST_CHECKS");
 
-  const orders = useUnconfirmedOrders(userId, canOrders);
+  const imports = useRecentStockImports(userId, canImports);
   const waste = useWasteSummary(userId, canWaste);
   const cost = useCostSummary(userId, year, canCost && !!user);
 
-  const nothingToShow = !canOrders && !canWaste && !canCost;
+  const nothingToShow = !canImports && !canWaste && !canCost;
 
   return (
     // Bù lại padding p-6 của <main> để nền trời tràn sát mép vùng nội dung, rồi đặt padding lại bên trong.
@@ -93,9 +93,9 @@ export function DashboardClient() {
           <>
             <h2 className="text-lg font-semibold text-slate-800">Quản trị</h2>
 
-            {canOrders && (
-              <StatCard title="Đơn hàng chưa xử lý" href="/orders" isLoading={orders.isLoading}>
-                <div className="mt-2 text-2xl font-semibold text-slate-800">{formatNumber(orders.data ?? 0)} đơn</div>
+            {canImports && (
+              <StatCard title="Phiếu nhập kho 7 ngày" href="/stock/imports" isLoading={imports.isLoading}>
+                <div className="mt-2 text-2xl font-semibold text-slate-800">{formatNumber(imports.data ?? 0)} phiếu</div>
               </StatCard>
             )}
 

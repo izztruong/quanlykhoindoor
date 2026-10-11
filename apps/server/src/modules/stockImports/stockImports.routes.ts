@@ -12,7 +12,7 @@ import {
   MAX_IMAGE_BYTES,
   stockImportCreateSchema,
   stockImportImageUploadSchema,
-} from "./stockTransaction.schemas";
+} from "./stockImports.schemas";
 
 export const stockImportsRouter = Router();
 

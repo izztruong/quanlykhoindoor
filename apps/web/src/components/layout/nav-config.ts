@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Boxes, ClipboardCheck, ClipboardList, ShieldCheck, ShoppingCart, Wallet, Warehouse } from "lucide-react";
+import { Boxes, ClipboardList, ShieldCheck, ShoppingCart, Wallet, Warehouse } from "lucide-react";
 
 export interface NavItem {
   label: string;
@@ -18,17 +18,6 @@ export interface NavSection {
 }
 
 export const navSections: NavSection[] = [
-  {
-    label: "Kiểm toán",
-    icon: ClipboardCheck,
-    items: [
-      { label: "Kiểm kê", href: "/audit/inventory-count", permission: "AUDIT_REPORTS.VIEW" },
-      { label: "Chi tiết xuất", href: "/audit/export-detail", permission: "AUDIT_REPORTS.VIEW" },
-      { label: "Tổng hợp xuất", href: "/audit/export-summary", permission: "AUDIT_REPORTS.VIEW" },
-      { label: "Chi tiết nhập", href: "/audit/import-detail", permission: "AUDIT_REPORTS.VIEW" },
-      { label: "Tổng hợp nhập", href: "/audit/import-summary", permission: "AUDIT_REPORTS.VIEW" },
-    ],
-  },
   {
     label: "Tài chính",
     icon: Wallet,
@@ -52,8 +41,6 @@ export const navSections: NavSection[] = [
     icon: Warehouse,
     items: [
       { label: "Phiếu nhập kho", href: "/stock/imports", permission: "STOCK_IMPORTS.VIEW" },
-      { label: "Phiếu xuất kho", href: "/stock/exports", permission: "STOCK_EXPORTS.VIEW" },
-      { label: "Phiếu kiểm kê", href: "/stock/inventory-counts", permission: "INVENTORY_COUNTS.VIEW" },
       { label: "Phiếu Check Cost", href: "/cost-checks", permission: "COST_CHECKS.VIEW" },
       { label: "Phiếu điều chuyển", href: "/material-transfers", permission: "MATERIAL_TRANSFERS.VIEW" },
     ],
@@ -75,7 +62,6 @@ export const navSections: NavSection[] = [
       { label: "Đơn vị tính", href: "/catalog/units", permission: "UNITS.VIEW" },
       { label: "Kho hàng", href: "/catalog/warehouses", permission: "WAREHOUSES.VIEW" },
       { label: "Nhà cung cấp", href: "/catalog/suppliers", permission: "SUPPLIERS.VIEW" },
-      { label: "Khách hàng", href: "/catalog/customers", permission: "CUSTOMERS.VIEW" },
       { label: "Đồ thành phẩm", href: "/catalog/finished-goods", permission: "FINISHED_GOODS.VIEW" },
     ],
   },
@@ -104,8 +90,6 @@ export const navSections: NavSection[] = [
 const extraPageRules: { pattern: RegExp; permission: string }[] = [
   { pattern: /^\/stock\/imports\/new(\/|$)/, permission: "STOCK_IMPORTS.ADD" },
   { pattern: /^\/stock\/imports\/[^/]+\/edit(\/|$)/, permission: "STOCK_IMPORTS.EDIT" },
-  { pattern: /^\/stock\/exports\/new(\/|$)/, permission: "STOCK_EXPORTS.ADD" },
-  { pattern: /^\/stock\/inventory-counts\/new(\/|$)/, permission: "INVENTORY_COUNTS.ADD" },
   { pattern: /^\/cost-checks\/new(\/|$)/, permission: "COST_CHECKS.ADD" },
   { pattern: /^\/material-transfers\/new(\/|$)/, permission: "MATERIAL_TRANSFERS.ADD" },
   { pattern: /^\/material-transfers\/[^/]+\/edit(\/|$)/, permission: "MATERIAL_TRANSFERS.EDIT" },

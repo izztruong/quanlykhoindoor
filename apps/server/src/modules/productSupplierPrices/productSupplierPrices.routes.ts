@@ -14,16 +14,17 @@ const priceInclude = {
 
 // GET /?supplierId=X returns just that supplier's price list (for the price-list
 // admin page, and for the stock-import product picker). No supplierId returns
-// every price row (for the stock-export line-level "which suppliers sell this
-// product" lookup). Bảng giá là dữ liệu nhạy cảm nên không mở cho mọi tài khoản như danh mục tra
-// cứu — chỉ trang bảng giá và những form thật sự cần giá (phiếu nhập/xuất, điều chuyển, xác nhận đơn).
+// every price row. Bảng giá là dữ liệu nhạy cảm nên không mở cho mọi tài khoản như danh mục tra
+// cứu — chỉ trang bảng giá và những form thật sự cần giá (phiếu nhập, điều chuyển).
+//
+// `STOCK_IMPORTS.EDIT` cũng phải có mặt: form sửa phiếu nhập cần giá y như form tạo, mà vai trò chỉ
+// có Cập nhật (không có Thêm) vẫn phải mở được form đó.
 const readPricesGuard = requireAnyPermission(
   "SUPPLIER_PRICES.VIEW",
   "STOCK_IMPORTS.ADD",
-  "STOCK_EXPORTS.ADD",
+  "STOCK_IMPORTS.EDIT",
   "MATERIAL_TRANSFERS.ADD",
   "MATERIAL_TRANSFERS.EDIT",
-  "ORDERS.APPROVE",
 );
 
 productSupplierPricesRouter.get("/", readPricesGuard, async (req, res) => {

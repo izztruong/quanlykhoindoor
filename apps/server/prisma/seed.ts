@@ -53,11 +53,6 @@ async function main() {
     update: {},
     create: { code: "NCC001", name: "Công ty TNHH Cà phê Việt", phone: "0900000000" },
   });
-  const customer = await prisma.customer.upsert({
-    where: { code: "KH001" },
-    update: {},
-    create: { code: "KH001", name: "Khách lẻ", phone: "0911111111" },
-  });
 
   const productDefs = [
     { code: "5Y4VAAAK5JAT", name: "Labon mãng cầu", unit: "CHAI", group: "SIRONMUT", cost: 85000 },
@@ -165,36 +160,6 @@ async function main() {
     },
   });
 
-  await prisma.stockExport.upsert({
-    where: { code: "PX-JUNE-SEED" },
-    update: {},
-    create: {
-      code: "PX-JUNE-SEED",
-      type: "SALE",
-      transactionAt: new Date("2026-06-15T10:00:00Z"),
-      form: "CASH",
-      status: "COMPLETED",
-      warehouseId: warehouse.id,
-      customerId: customer.id,
-      note: "Xuất bán (seed)",
-      items: {
-        create: [
-          {
-            productId: findProduct("CF0003").id,
-            quantity: 5,
-            costPrice: findProduct("CF0003").costPrice,
-            costAmount: 5 * Number(findProduct("CF0003").costPrice),
-          },
-          {
-            productId: findProduct("BO0001").id,
-            quantity: 8,
-            costPrice: findProduct("BO0001").costPrice,
-            costAmount: 8 * Number(findProduct("BO0001").costPrice),
-          },
-        ],
-      },
-    },
-  });
 
   console.log("Seed hoàn tất. Đăng nhập với admin@quanly.local / admin123");
 }

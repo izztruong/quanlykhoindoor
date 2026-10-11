@@ -1,4 +1,5 @@
 import { prisma } from "../../config/db";
+import type { AuthUser } from "../../middleware/auth";
 import { Prisma } from "../../generated/prisma/client";
 import { VN_OFFSET_MS } from "../../utils/deadlines";
 import { RecipeHistory } from "../../utils/recipeVersions";
@@ -7,10 +8,25 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const WASTE_WINDOW_DAYS = 7;
 
 /**
- * Đơn "Chưa xử lý" (DRAFT) — đơn quán vừa gửi, admin chưa ghi nhận hàng.
+ * Phiếu nhập kho trong 7 ngày qua — cửa sổ trượt, cùng khuôn với ô "huỷ hàng 7 ngày" bên dưới.
+ *
+ * Thay ô "Đơn chưa xử lý" cũ: đơn hàng giờ chỉ là đề xuất và không còn trạng thái "hoàn thành", nên
+ * đếm đơn chưa huỷ sẽ tăng mãi mà không nói lên điều gì. Phiếu nhập mới là chỉ số thật — nó cũng
+ * chính là nguồn số liệu của Check Cost.
+ *
+ * Phạm vi theo CHỦ KHO chứ không theo người tạo, giống `stockImports` (admin gõ hộ thì quán vẫn phải
+ * thấy), nên không dùng được `ownerWhere` — phải nhận cả `scope`.
  */
-export function countUnconfirmedOrders(createdById: string | undefined) {
-  return prisma.salesOrder.count({ where: { status: "DRAFT", createdById } });
+export function countRecentStockImports(user: AuthUser | undefined, requestedUserId?: string) {
+  const now = new Date();
+  const shopUserId = user?.scope === "ALL" ? requestedUserId || undefined : user?.id ?? "__none__";
+  return prisma.stockImport.count({
+    where: {
+      status: "COMPLETED",
+      transactionAt: { gte: new Date(now.getTime() - WASTE_WINDOW_DAYS * DAY_MS), lte: now },
+      warehouse: shopUserId ? { shopUserId } : undefined,
+    },
+  });
 }
 
 /** Giá vốn của 1 đơn vị công thức (vd gam): costPrice tính theo đơn vị chính, chia hệ số quy đổi. */

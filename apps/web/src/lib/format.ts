@@ -54,13 +54,7 @@ const stockImportTypeLabel: Record<string, string> = {
   OTHER: "Khác",
 };
 
-const stockExportTypeLabel: Record<string, string> = {
-  SALE: "Xuất bán",
-  SUPPLIER_RETURN: "Trả nhà cung cấp",
-  TRANSFER_OUT: "Chuyển kho đi",
-  DAMAGE: "Xuất huỷ",
-  OTHER: "Khác",
-};
+;
 
 // Đơn hàng là đề xuất của quán: chỉ đặt hoặc huỷ. Dấu "đã xử lý" là một cột riêng (processedAt),
 // không phải một trạng thái — xem SalesOrder trong schema.prisma.
@@ -69,11 +63,7 @@ const salesOrderStatusLabel: Record<string, string> = {
   CANCELLED: "Đã huỷ",
 };
 
-const inventoryCountStatusLabel: Record<string, string> = {
-  DRAFT: "Chưa kiểm",
-  COMPLETED: "Đã kiểm",
-  CANCELLED: "Đã huỷ",
-};
+;
 
 const productTypeLabel: Record<string, string> = {
   NVL: "Nguyên vật liệu",
@@ -98,9 +88,7 @@ export const labels = {
   transactionForm: (v: string) => transactionFormLabel[v] ?? v,
   transactionStatus: (v: string) => transactionStatusLabel[v] ?? v,
   stockImportType: (v: string) => stockImportTypeLabel[v] ?? v,
-  stockExportType: (v: string) => stockExportTypeLabel[v] ?? v,
   salesOrderStatus: (v: string) => salesOrderStatusLabel[v] ?? v,
-  inventoryCountStatus: (v: string) => inventoryCountStatusLabel[v] ?? v,
   productType: (v: string) => productTypeLabel[v] ?? v,
   finishedGoodCategory: (v: string) => finishedGoodCategoryLabel[v] ?? v,
   shiftExpenseType: (v: string) => shiftExpenseTypeLabel[v] ?? v,

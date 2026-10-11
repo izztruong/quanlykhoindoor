@@ -164,8 +164,8 @@ trùng lặp và file sẽ phình (đã từng lên 4.400 token, hơn cả CLAUD
 
 | | | | |
 |---|---|---|---|
-| `PN` nhập kho | `PX` xuất kho | `DH` đơn hàng | `KT` kiểm kê quán |
-| `KK` kiểm kê kho | `PH` huỷ nguyên liệu | `DC` điều chuyển | `CC` Check Cost |
+| `PN` nhập kho | `DH` đơn hàng | `KT` kiểm kê quán | `PH` huỷ nguyên liệu |
+| `DC` điều chuyển | `CC` Check Cost | | |
 | `DX` đề xuất chi | | | |
 
 ## Quyết định thiết kế đã chốt
@@ -187,9 +187,9 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
   `Warehouse.shopUserId` (một quán một kho). Mốc kỳ là `StockImport.transactionAt`, có **cả giờ** —
   ô web phải là `datetime-local`, ngày trần 00:00 làm hàng nhập cùng ngày với phiếu kiểm đầu kỳ rơi
   ra ngoài kỳ. Quán chưa có kho thì `createCostCheck` trả 409 thay vì cho ra cột bằng 0.
-- `products/productStock.routes.ts` dùng `reports.service.getInventoryCountReport()` để lấy tồn. Đây
-  là **chỗ duy nhất** trong dự án một module gọi service của module khác. (`salesOrders` từng gọi nó
-  để chặn đặt vượt tồn; chốt đó đã bỏ vì web luôn gửi `skipStockCheck`.)
+- **Không còn module nào gọi service của module khác.** Trước đây `salesOrders` và `productStock`
+  cùng gọi `reports.service.getInventoryCountReport()` để kiểm tồn; cả ba đã bị xoá cùng nhóm báo
+  cáo Kiểm toán — tồn kho sổ sách vô nghĩa khi không ai nhập/xuất kho tổng.
 - **Đơn hàng chỉ là ĐỀ XUẤT của quán**: DRAFT (đã đặt) → CANCELLED, không có "hoàn thành", không lưu
   giá, không nói gì về hàng đã về. Admin chỉ tích ô **"Đã xử lý"** (`PATCH /:id/processed`, cột
   `processedAt`) để biết đơn nào đã làm — ô này **cố ý không dính gì tới tồn kho hay Check Cost**.
@@ -226,7 +226,7 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
 - **`proxy.ts` cố ý chỉ pass-through.** Chặn truy cập thật nằm ở `app/(app)/layout.tsx`, qua hook `useCurrentUser()` (`lib/auth.ts` → `/api/auth/me`) — middleware không đọc được cookie khác domain nên sẽ đá mọi request về `/login`. Lý do ghi sẵn trong file.
 - **Phân quyền theo vai trò** (`Role.permissions` là mảng mã `RESOURCE.ACTION`, danh sách hợp lệ ở `modules/roles/permissions.ts`). `requireAuth` áp cho toàn bộ `/api`, đọc quyền **tươi từ DB mỗi request** — JWT chỉ mang `id` + `tokenVersion`, nên gỡ quyền có hiệu lực ngay. Vai trò `isSystem` (`role_admin`) bỏ qua mọi kiểm tra và không sửa/xoá được.
 - **Thêm trang/nghiệp vụ mới = 3 bước**: khai resource trong `permissions.ts` · gắn `requirePermission("RESOURCE")` cho **mọi** route kể cả GET (action suy từ method, route nghiệp vụ truyền tường minh) · gắn `permission` cho mục trong `nav-config.ts` (layout dùng nó chặn trang). Quên bước 2 là hở API.
-- **Ngoại lệ có chủ đích**: GET danh mục tra cứu (`publicRead` trong `crudFactory`, `product-stock`, `deadlines`, `users/options`) chỉ cần đăng nhập, vì form của quán phải đọc chúng. Bảng giá NCC dùng `requireAnyPermission` cho các form cần giá. `/api/profile` và `/api/notifications` cũng chỉ cần đăng nhập vì mọi truy vấn lọc cứng theo `req.user.id`.
+- **Ngoại lệ có chủ đích**: GET danh mục tra cứu (`publicRead` trong `crudFactory`, `deadlines`, `users/options`) chỉ cần đăng nhập, vì form của quán phải đọc chúng. Bảng giá NCC dùng `requireAnyPermission` cho các form cần giá. `/api/profile` và `/api/notifications` cũng chỉ cần đăng nhập vì mọi truy vấn lọc cứng theo `req.user.id`.
 - **`/mcp` nằm ngoài `/api`, không qua `requireAuth`**: connector của claude.ai xác thực bằng `McpToken`
   (header Bearer, DB chỉ giữ SHA-256), mỗi token chỉ gọi được tool có tên trong `McpToken.tools`. Token
   đứng ngoài hệ vai trò và đọc được **mọi quán**, nên quản lý token đòi thêm phạm vi ALL. Thêm tool =

@@ -5,10 +5,11 @@ import type { DashboardCostSummary, DashboardWasteSummary } from "@/types";
 // Mỗi ô trang chủ gọi một endpoint riêng, `enabled` theo quyền của người xem để không bắn request
 // chắc chắn 403. userId trống = tất cả quán (server tự ép về chính mình với phạm vi SELF).
 
-export function useUnconfirmedOrders(userId: string, enabled: boolean) {
+/** Phiếu nhập kho 7 ngày qua — thay ô "Đơn chưa xử lý" cũ, xem dashboard.service.ts. */
+export function useRecentStockImports(userId: string, enabled: boolean) {
   return useQuery({
-    queryKey: ["dashboard", "unconfirmed-orders", userId],
-    queryFn: () => api.get<{ count: number }>("/dashboard/unconfirmed-orders", { userId }).then((r) => r.count),
+    queryKey: ["dashboard", "recent-imports", userId],
+    queryFn: () => api.get<{ count: number }>("/dashboard/recent-imports", { userId }).then((r) => r.count),
     enabled,
   });
 }

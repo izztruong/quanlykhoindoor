@@ -42,6 +42,21 @@ năng xem `nav-config.ts` và `apps/server/src/modules/`.
 
 ## Đang dở
 
+### Dọn phần kho cũ + ô Trang chủ mới (C5, C6) — CHƯA thử trên trình duyệt, CHƯA lên `staging`
+Xoá: phiếu xuất kho, phiếu kiểm kê kho, danh mục Khách hàng, `/product-stock`, **cả nhóm Kiểm toán (5 trang)**
+và 4 mã quyền tương ứng. `getPurchaseSummary` tách sang module `purchaseSummary` (giữ nguyên đường
+`/api/reports/purchase-summary`) rồi xoá sạch module `reports`; `modules/stock` đổi tên thành `modules/stockImports`.
+Trang chủ: ô "Đơn chưa xử lý" → **"Phiếu nhập kho 7 ngày"** (đơn giờ không có trạng thái nên đếm đơn chưa huỷ
+sẽ tăng mãi mà vô nghĩa).
+**Hai phát hiện khi chạy migration M6 trên bản copy** — đây đúng là thứ phép thử đó tồn tại để bắt:
+1. `DELETE` kho `KHO01` vô điều kiện làm **cả migration vỡ** vì còn 1 phiếu nhập cũ trỏ vào. Đã đổi thành
+   xoá có điều kiện + đổi tên thành "Kho tổng (cũ)", **không** xoá phiếu của người dùng trong migration.
+2. **Prisma KHÔNG rollback migration lỗi**: các `DROP TABLE` đã commit, chỉ câu cuối vỡ, để DB nửa vời.
+   Nghĩa là migration lỗi trên production sẽ để lại trạng thái dở — phải sửa tay rồi `migrate resolve`.
+Đã kiểm: `migrate deploy` trên **DB trắng tạo lại từ đầu** (cả 6 migration), typecheck 2 app, lint web về
+đúng mốc **3 cảnh báo**, `npm run build` web sạch, và 14 ca curl: 8 endpoint đã xoá trả 404, 6 endpoint còn
+lại 200, ô Trang chủ trả số.
+
 ### Phiếu nhập kho thành đường ghi chính: sửa/xoá + ảnh chứng từ + phạm vi theo kho (C4) — CHƯA thử trên trình duyệt, CHƯA lên `staging`
 Thêm `STOCK_IMPORTS.EDIT/DELETE`, 3 route ảnh (tối đa 5 ảnh/phiếu, prefix R2 `stock-imports/`), trang chi tiết
 + trang sửa bên web (**web trước đây không có trang chi tiết phiếu nhập**). Form: NCC bắt buộc, bỏ ô Khách hàng,

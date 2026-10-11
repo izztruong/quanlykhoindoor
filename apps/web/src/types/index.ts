@@ -181,34 +181,12 @@ export interface PosMappingSuggestion {
   suggestions: { finishedGoodItemId: string; code: string; name: string; score: number }[];
 }
 
-export interface Customer {
-  id: string;
-  code: string;
-  name: string;
-  phone?: string | null;
-  address?: string | null;
-}
-
 export type TransactionForm = "CASH" | "BANK_TRANSFER" | "DEBT" | "OTHER";
 export type TransactionStatus = "DRAFT" | "COMPLETED" | "CANCELLED";
 /** Bỏ CUSTOMER_RETURN (phiếu nhập không còn khách hàng) và TRANSFER_IN (đã có Phiếu điều chuyển). */
 export type StockImportType = "PURCHASE" | "OTHER";
-export type StockExportType = "SALE" | "SUPPLIER_RETURN" | "TRANSFER_OUT" | "DAMAGE" | "OTHER";
 
-export interface StockHeader {
-  id: string;
-  code: string;
-  type: string;
-  transactionAt: string;
-  form: TransactionForm;
-  status: TransactionStatus;
-  note?: string | null;
-  warehouse: Warehouse;
-  supplier?: Supplier | null;
-  customer?: Customer | null;
-}
-
-export interface StockItem {
+export interface StockImportLine {
   id: string;
   productId: string;
   product: Product;
@@ -216,19 +194,12 @@ export interface StockItem {
   costPrice: string | number;
   costAmount: string | number;
   note?: string | null;
-  /** Export lines only — which supplier's price this line's costPrice came from. */
-  supplierId?: string | null;
-  supplier?: Supplier | null;
-}
-
-export interface StockTransaction extends StockHeader {
-  items: StockItem[];
 }
 
 /**
  * Phiếu nhập kho — đường ghi chính thức cho "hàng về quán", nguồn cột "Nhận trong kỳ" của Check Cost.
- * Khác `StockTransaction` (phiếu xuất) ở chỗ: không có khách hàng, không có NCC theo dòng, có ảnh
- * chứng từ theo phiếu, và kho luôn kèm quán sở hữu.
+ * Không có khách hàng, không có NCC theo dòng (mỗi phiếu một NCC trên đầu phiếu), có ảnh chứng từ
+ * theo phiếu, và kho luôn kèm quán sở hữu.
  */
 export interface StockImport {
   id: string;
@@ -244,7 +215,7 @@ export interface StockImport {
   createdBy?: { id: string; name: string } | null;
   createdAt: string;
   updatedAt: string;
-  items: StockItem[];
+  items: StockImportLine[];
   /** Số ảnh chứng từ đã đính. URL ảnh tải riêng khi mở (URL ký hạn 1 giờ). */
   imageCount: number;
 }
@@ -309,30 +280,6 @@ export interface PagedResult<T> {
   pageSize?: number;
 }
 
-export interface ReportDetailRow {
-  stt: number;
-  id: string;
-  header: StockHeader;
-  product: Product;
-  productGroup: ProductGroup;
-  unit: Unit;
-  quantity: number;
-  costPrice: number;
-  costAmount: number;
-  note?: string | null;
-}
-
-export interface ReportSummaryRow {
-  stt: number;
-  product: Product;
-  productGroup: ProductGroup;
-  unit: Unit;
-  warehouse: Warehouse;
-  quantity: number;
-  costPrice: number;
-  costAmount: number;
-}
-
 /** Một dòng của trang Tổng hợp đặt NCC — xem getPurchaseSummary ở apps/server. */
 export interface PurchaseSummaryRow {
   stt: number;
@@ -355,41 +302,6 @@ export interface PurchaseSummaryRow {
   amount: number;
 }
 
-export interface InventoryCountRow {
-  stt: number;
-  product: { id: string; code: string; name: string };
-  productGroup: ProductGroup;
-  unit: Unit;
-  openingQty: number;
-  importedQty: number;
-  exportedQty: number;
-  systemQty: number;
-  actualQty: number;
-  surplusQty: number;
-  shortageQty: number;
-}
-
-export type InventoryCountStatus = "DRAFT" | "COMPLETED" | "CANCELLED";
-
-export interface InventoryCountItemRow {
-  id: string;
-  productId: string;
-  product: Product;
-  actualQuantity: string | number;
-  note?: string | null;
-}
-
-export interface InventoryCount {
-  id: string;
-  code: string;
-  warehouseId: string;
-  warehouse: Warehouse;
-  countDate: string;
-  status: InventoryCountStatus;
-  note?: string | null;
-  createdBy?: { id: string; name: string } | null;
-  items?: InventoryCountItemRow[];
-}
 
 export type FinishedGoodCategory = "TRA" | "DAV" | "THANH_PHAM";
 
