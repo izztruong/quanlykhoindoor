@@ -148,6 +148,23 @@ export async function createCostCheck(data: CostCheckCreateInput, actingUser?: A
     throw new HttpError(400, "Phiếu kiểm kê đầu kỳ phải có thời gian trước phiếu cuối kỳ");
   }
 
+  // Không có kho thì cột "Nhận trong kỳ" sẽ bằng 0 VĨNH VIỄN mà không có dấu hiệu gì — phiếu vẫn tạo
+  // được, vẫn chốt snapshot, chỉ là mọi nguyên liệu trông như chưa từng nhập về. Chặn ở đây thay vì
+  // để người dùng tự phát hiện qua con số sai. (Dữ liệu thật đã có một phiếu Check Cost mang userId
+  // của tài khoản admin, tức tài khoản không bao giờ có kho quán.)
+  const shopWarehouse = await prisma.warehouse.findUnique({
+    where: { shopUserId: data.userId },
+    select: { id: true },
+  });
+  if (!shopWarehouse) {
+    const shop = await prisma.user.findUnique({ where: { id: data.userId }, select: { name: true } });
+    throw new HttpError(
+      409,
+      `Quán ${shop?.name ?? ""} chưa có kho riêng nên không tính được hàng nhập trong kỳ. ` +
+        `Vào Danh mục › Kho hàng, tạo kho và chọn quán này ở ô "Quán", rồi tạo lại phiếu.`,
+    );
+  }
+
   // Đọc POS MỘT LẦN rồi dùng cho cả bảng CostCheckSoldItem lẫn báo cáo. Nếu mỗi bên tự đọc, một lượt
   // nhập doanh số chen vào giữa sẽ làm bảng chốt lệch với báo cáo chốt — và cả hai đều vĩnh viễn.
   const sales = await loadPosSalesForPeriod(data.userId, opening, closing);
@@ -240,8 +257,8 @@ export interface MaterialRow {
   productGroupName: string;
   unitLabel: string;
   openingQty: number;
-  // Đã gộp cả "nhận từ kho" (SalesOrder) lẫn "nhận điều chuyển" (MaterialTransfer đến) — 2 nguồn
-  // này cùng ý nghĩa "hàng về trong kỳ" nên hiển thị chung 1 cột.
+  // Đã gộp cả "nhập kho" (StockImport của kho quán) lẫn "nhận điều chuyển" (MaterialTransfer đến) —
+  // 2 nguồn này cùng ý nghĩa "hàng về trong kỳ" nên hiển thị chung 1 cột.
   receivedQty: number;
   transferOutQty: number;
   wastedQty: number;
@@ -290,10 +307,13 @@ function safeDiv(a: number, b: number): number {
 
 /**
  * Tính báo cáo Check Cost: với mỗi nguyên liệu, so sánh lượng thực tế đã dùng
- * (tồn đầu kỳ + nhận trong kỳ + nhận điều chuyển đến − huỷ − điều chuyển đi −
+ * (tồn đầu kỳ + nhập kho trong kỳ + nhận điều chuyển đến − huỷ − điều chuyển đi −
  * tồn cuối kỳ, trong đó tồn đầu/cuối kỳ đã cộng cả phần "đang nằm" ở đồ thành
  * phẩm/món tồn kho, quy đổi qua công thức) với lượng đáng lẽ phải dùng theo
  * công thức (từ SL đồ thành phẩm/món đã bán).
+ *
+ * "Nhập kho trong kỳ" đọc từ `StockImport` của kho có `shopUserId` = quán của phiếu — KHÔNG phải SL
+ * nhận trên đơn hàng như trước. Đơn hàng giờ chỉ là đề xuất; hàng mua ngoài không qua đơn cũng vào.
  *
  * Công thức và giá bán được tra theo PHIÊN BẢN CÓ HIỆU LỰC tại từng mốc, không phải bản hiện hành:
  * quán đổi công thức giữa kỳ thì phần trước và phần sau mốc đổi phải tính bằng hai định mức khác nhau.
@@ -319,16 +339,26 @@ export async function computeCostCheckReport(
 
   const { openingStockCheck: opening, closingStockCheck: closing } = costCheck;
 
-  // Lọc theo mốc nhận của TỪNG DÒNG (SalesOrderItem.receivedAt) chứ không phải mốc hoàn thành
-  // của cả đơn — đơn nhận rải rác nhiều ngày sẽ rơi vào đúng kỳ của từng dòng, thay vì bị dồn
-  // hết vào ngày bấm "Hoàn thành" lần cuối.
-  const receivedGroups = await prisma.salesOrderItem.groupBy({
+  // "Hàng về trong kỳ" lấy từ PHIẾU NHẬP KHO của kho quán, không phải SL nhận trên đơn hàng: đơn
+  // hàng chỉ còn là đề xuất của quán, còn hàng thực nhận (kể cả hàng mua ngoài, không qua đơn) ghi ở
+  // phiếu nhập. `Warehouse.shopUserId` là chỗ nối kho với tài khoản quán mà Check Cost neo theo.
+  //
+  // KHÔNG lọc theo `type`: phiếu `OTHER` cũng là hàng về trong kỳ. Đừng thêm `type: "PURCHASE"` vào
+  // đây — làm vậy là âm thầm bỏ mất hàng nhập loại khác. (Enum chỉ còn PURCHASE/OTHER đúng vì
+  // TRANSFER_IN sẽ đếm hai lần với `transferInItems` bên dưới.)
+  //
+  // Biên đóng cả hai đầu, khớp `utils/costCheckImpact` và hai nguồn huỷ/điều chuyển bên dưới. Doanh
+  // số POS cố ý khác (trái đóng phải mở, xem `loadPosSalesForPeriod`) — đừng đồng bộ hai cái.
+  const receivedGroups = await prisma.stockImportItem.groupBy({
     by: ["productId"],
     where: {
-      receivedAt: { gte: opening.checkedAt, lte: closing.checkedAt },
-      salesOrder: { createdById: costCheck.userId },
+      stockImport: {
+        status: "COMPLETED",
+        transactionAt: { gte: opening.checkedAt, lte: closing.checkedAt },
+        warehouse: { shopUserId: costCheck.userId },
+      },
     },
-    _sum: { receivedQuantity: true },
+    _sum: { quantity: true },
   });
 
   // Chỉ dòng huỷ được tích "trừ trong Check Cost"; dòng bỏ tích coi như hàng đã dùng (vẫn nằm trong actualUsed).
@@ -407,7 +437,7 @@ export async function computeCostCheckReport(
 
   const openingByProduct = new Map(opening.items.map((it) => [it.productId, it]));
   const closingByProduct = new Map(closing.items.map((it) => [it.productId, it]));
-  const receivedByProduct = new Map(receivedGroups.map((r) => [r.productId, Number(r._sum.receivedQuantity ?? 0)]));
+  const receivedByProduct = new Map(receivedGroups.map((r) => [r.productId, Number(r._sum.quantity ?? 0)]));
   const wasteByProduct = new Map<string, { wholeQuantity: unknown; looseQuantity: unknown }[]>();
   for (const it of wasteItems) {
     const list = wasteByProduct.get(it.productId) ?? [];

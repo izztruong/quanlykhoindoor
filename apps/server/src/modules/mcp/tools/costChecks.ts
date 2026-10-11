@@ -63,8 +63,8 @@ export const getCostCheck = defineTool({
   name: "get_cost_check",
   title: "Check Cost — chi tiết một phiếu",
   description:
-    "Chi tiết một phiếu Check Cost theo mã (CC…) hoặc id. rows = từng nguyên liệu: tồn đầu (openingQty), nhận trong kỳ " +
-    "(receivedQty, gồm cả nhận điều chuyển), điều chuyển đi (transferOutQty), huỷ (wastedQty), tồn cuối (closingQty), " +
+    "Chi tiết một phiếu Check Cost theo mã (CC…) hoặc id. rows = từng nguyên liệu: tồn đầu (openingQty), hàng về trong kỳ " +
+    "(receivedQty = phiếu nhập kho của kho quán + nhận điều chuyển), điều chuyển đi (transferOutQty), huỷ (wastedQty), tồn cuối (closingQty), " +
     "thực dùng (actualUsed), định mức theo công thức (theoretical), chênh lệch (variance = actualUsed − theoretical); " +
     `SL tính theo unitLabel. soldItems = món đã bán trong kỳ. ${SUMMARY_DOC}`,
   input: { codeOrId: z.string().min(1).describe("Mã phiếu (vd CC2608…) hoặc id") },

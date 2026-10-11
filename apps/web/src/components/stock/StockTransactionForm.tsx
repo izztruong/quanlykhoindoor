@@ -8,6 +8,7 @@ import { useCustomers, useProducts, useSuppliers, useWarehouses } from "@/hooks/
 import { useProductSupplierPrices } from "@/hooks/useProductSupplierPrices";
 import type { StockTransactionInput } from "@/hooks/useStockTransactions";
 import { ApiError } from "@/lib/api-client";
+import { nowForDatetimeLocal } from "@/lib/dateRange";
 import { formatCurrency } from "@/lib/format";
 import type { StockTransaction } from "@/types";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -86,7 +87,7 @@ export function StockTransactionForm({ title, description, typeOptions, useCreat
     resolver: zodResolver(formSchema),
     defaultValues: {
       type: typeOptions[0]?.value ?? "",
-      transactionAt: new Date().toISOString().slice(0, 10),
+      transactionAt: nowForDatetimeLocal(),
       form: "CASH",
       status: "COMPLETED",
       warehouseId: "",
@@ -125,6 +126,10 @@ export function StockTransactionForm({ title, description, typeOptions, useCreat
     createTransaction.mutate(
       {
         ...values,
+        // Chuỗi `datetime-local` không mang múi giờ, nên để server `z.coerce.date()` tự đọc là nó
+        // hiểu theo giờ MÁY CHỦ (Render chạy UTC) → lệch 7 tiếng. Đổi ở trình duyệt, nơi biết đúng
+        // giờ người dùng, giống StockCheckFormClient.
+        transactionAt: new Date(values.transactionAt).toISOString(),
         supplierId: values.supplierId || undefined,
         customerId: values.customerId || undefined,
         items: values.items.map((it) => ({ ...it, supplierId: variant === "export" ? it.supplierId || undefined : undefined })),
@@ -172,7 +177,11 @@ export function StockTransactionForm({ title, description, typeOptions, useCreat
 
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium text-slate-600">Thời gian</label>
-              <Input type="date" {...register("transactionAt")} />
+              {/*
+                Phải có GIỜ, không chỉ ngày: mốc kỳ Check Cost (StockCheck.checkedAt) có cả giờ, nên
+                phiếu nhập để 00:00 sẽ rơi ra ngoài kỳ nếu quán kiểm đầu kỳ lúc 08:00 — sai số im lặng.
+              */}
+              <Input type="datetime-local" {...register("transactionAt")} />
             </div>
 
             {variant === "import" && (

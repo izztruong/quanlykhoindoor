@@ -42,7 +42,18 @@ năng xem `nav-config.ts` và `apps/server/src/modules/`.
 
 ## Đang dở
 
-### Kho riêng cho từng quán (C1 của đợt chuyển Check Cost sang phiếu nhập) — CHƯA thử trên trình duyệt, CHƯA lên `staging`
+### Check Cost lấy hàng về trong kỳ từ phiếu nhập kho (C2) — CHƯA thử trên trình duyệt, CHƯA lên `staging`
+Cột "Nhận trong kỳ" đổi nguồn: `SalesOrderItem.receivedQuantity` → `StockImportItem` của kho quán. Migration
+chuyển 935 dòng SL nhận cũ thành **176 phiếu nhập** (chỉ đơn của tài khoản "Là quán", giữ đúng hành vi nguồn cũ).
+Ô Thời gian của phiếu nhập đổi sang `datetime-local` — mốc kỳ có cả giờ nên ngày trần 00:00 làm hàng rơi ra
+ngoài kỳ; mặc định cũ còn cắt chuỗi ISO theo UTC nên sau 17h điền sai ngày.
+Thêm 409 khi tạo Check Cost cho quán chưa có kho, và bỏ đường "tính lại phiếu cũ chưa có snapshot" (giờ 409):
+tính lại là dùng nguồn MỚI cho kỳ đã chốt bằng nguồn CŨ, rồi ghi vĩnh viễn chỉ vì ai đó mở trang.
+Đã kiểm: **đối chiếu 10 phiếu Check Cost cũ, nguồn cũ vs nguồn mới khớp từng SKU, 0 phiếu lệch**; tổng SL
+31598.999 khớp hai bên; `migrate deploy` DB trắng + `kho_dev_copy`; tạo phiếu thật ra 217005.000 / 25 hàng hoá,
+khớp SQL độc lập; 10 phiếu cũ vẫn mở được.
+
+### Kho riêng cho từng quán (C1) — CHƯA thử trên trình duyệt, CHƯA lên `staging`
 `Warehouse.shopUserId @unique` + ô "Quán" ở Danh mục › Kho hàng; migration tạo 4 kho `KHOQ01..04` cho 4 quán.
 Chặn: gán kho cho tài khoản không phải quán (400), một quán hai kho (409), xoá kho đang thuộc quán (409).
 Sửa kèm một vết sẵn có: lỗi `ON DELETE RESTRICT` của Postgres là mã **23001** và nằm ở `err.cause.code`,

@@ -6,7 +6,6 @@ import { HttpError } from "../../utils/httpError";
 import { parseDateRange, parsePagination } from "../../utils/pagination";
 import {
   compareMaterialRows,
-  computeCostCheckReport,
   costCheckDetailInclude,
   costCheckListInclude,
   createCostCheck,
@@ -84,21 +83,14 @@ costChecksRouter.get("/:id", requirePermission("COST_CHECKS"), async (req, res) 
     | { rows: MaterialRow[]; summary: FinancialSummary; posCoverage?: PosCoverage }
     | null;
   if (!snapshot) {
-    // Phiếu tạo trước khi có tính năng chốt số liệu — tính 1 lần rồi lưu lại để từ
-    // lần xem sau trở đi luôn trả về đúng số đã chốt ở lần xem đầu tiên này.
-    const { rows, summary } = await computeCostCheckReport(item.id);
-    snapshot = { rows, summary };
-
-    // CHỐT PHÒNG VỆ: định mức giờ tính từ doanh số POS, mà phiếu cũ thuộc kỳ có thể chưa có dữ liệu
-    // POS nào — khi đó `theoretical` toàn 0 và variance nổ bằng toàn bộ lượng đã dùng. Một lượt mở
-    // trang mà ghi con số đó vào snapshot là mất phiếu vĩnh viễn, nên chỉ TRẢ VỀ, không lưu.
-    const looksEmpty = rows.length > 0 && rows.every((row) => row.theoretical === 0);
-    if (!looksEmpty) {
-      await prisma.costCheck.update({
-        where: { id: item.id },
-        data: { reportSnapshot: snapshot as unknown as Prisma.InputJsonValue },
-      });
-    }
+    // KHÔNG tính lại phiếu chưa có snapshot nữa. Trước đây đường này tính một lần rồi lưu, nhưng từ
+    // khi cột "Nhận trong kỳ" đổi nguồn (SL nhận trên đơn → phiếu nhập kho), tính lại một phiếu cũ
+    // là tính bằng nguồn MỚI cho kỳ mà người dùng đã chốt bằng nguồn CŨ — và ghi vĩnh viễn, chỉ vì
+    // ai đó mở trang. Chốt `looksEmpty` cũ chỉ chặn được ca `theoretical` toàn 0, không chặn ca này.
+    throw new HttpError(
+      409,
+      "Phiếu này được chốt từ trước khi số liệu đổi nguồn nên không tính lại được. Hãy tạo lại phiếu Check Cost cho cùng kỳ.",
+    );
   } else if (snapshot.rows.some((row) => row.productType == null || row.productGroupName == null)) {
     // Snapshot chốt trước khi báo cáo gộp theo Loại/Nhóm hàng hoá — bổ sung hai nhãn phân loại rồi
     // lưu lại để lần xem sau không phải tra nữa. CHỈ thêm khoá phân loại và sắp xếp lại thứ tự
