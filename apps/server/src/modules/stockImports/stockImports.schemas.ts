@@ -31,6 +31,23 @@ export const stockImportCreateSchema = z.object({
 
 export type StockImportInput = z.infer<typeof stockImportCreateSchema>;
 
+/**
+ * Nhập nhiều phiếu từ một file Excel. Mỗi phần tử dùng ĐÚNG `stockImportCreateSchema` nên mọi chốt
+ * của `POST /` tự có (NCC bắt buộc, ít nhất 1 dòng hàng, không nhận `status`) — cùng quy ước payload
+ * `{ items }` với bulk-import của `crudFactory`.
+ *
+ * Trần 200 phiếu: 200 phiếu × ~20 dòng vẫn vào gọn một `createMany`, còn file lớn hơn thì nên chia
+ * ra chứ đừng để transaction chạm timeout của Neon. Tiền lệ `.max(500)` ở `posSales.schemas.ts`.
+ */
+export const stockImportBulkSchema = z.object({
+  items: z.array(stockImportCreateSchema).min(1, "File không có phiếu nào").max(200, "Một lần nhập tối đa 200 phiếu"),
+  /**
+   * Người dùng đã xem danh sách phiếu trùng ở bước xem trước và vẫn muốn ghi. Mặc định false để lần
+   * gửi đầu luôn đi qua bước cảnh báo.
+   */
+  confirmDuplicates: z.boolean().optional().default(false),
+});
+
 /** Tối đa 5 ảnh chứng từ mỗi phiếu nhập — cùng mức với khoản chi và phiếu đề xuất chi. */
 export const MAX_IMAGES_PER_IMPORT = 5;
 

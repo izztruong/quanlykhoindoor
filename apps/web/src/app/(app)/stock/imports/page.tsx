@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Select } from "@/components/ui/Select";
 import { useWarehouses } from "@/hooks/useCatalog";
+import { StockImportExcelActions } from "@/components/stock/StockImportExcelActions";
 import { useStockImports } from "@/hooks/useStockImports";
 import { useCurrentUser } from "@/lib/auth";
 import { formatCurrency, formatDateTime, labels } from "@/lib/format";
@@ -95,14 +96,27 @@ export default function StockImportsPage() {
             Hàng thực nhận về quán. Check Cost lấy cột &quot;Nhận trong kỳ&quot; từ chính các phiếu này.
           </p>
         </div>
-        {canOpen("/stock/imports/new") && (
-          <Link href="/stock/imports/new">
-            <Button>
-              <Plus size={16} />
-              Tạo phiếu
-            </Button>
-          </Link>
-        )}
+        <div className="flex items-center gap-2">
+          {/* Nhập Excel chỉ tạo phiếu mới nên gác cùng quyền với nút Tạo phiếu. */}
+          {canOpen("/stock/imports/new") && (
+            <StockImportExcelActions
+              filter={{
+                warehouseId: scopeAll ? warehouseId || undefined : undefined,
+                from: dateRange.from || undefined,
+                to: dateRange.to || undefined,
+              }}
+              scopeAll={scopeAll}
+            />
+          )}
+          {canOpen("/stock/imports/new") && (
+            <Link href="/stock/imports/new">
+              <Button>
+                <Plus size={16} />
+                Tạo phiếu
+              </Button>
+            </Link>
+          )}
+        </div>
       </div>
 
       <Card>

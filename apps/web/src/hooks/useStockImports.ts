@@ -59,6 +59,40 @@ export function useCreateStockImport() {
   });
 }
 
+/** Một phiếu trùng (kho, NCC, thời gian) đã có trong hệ thống — server trả về ở bước cảnh báo. */
+export interface StockImportDuplicate {
+  code: string;
+  warehouseCode: string;
+  supplierName: string | null;
+  transactionAt: string;
+}
+
+export interface StockImportBulkResult {
+  created: number;
+  codes: string[];
+  affectedCostChecks: AffectedCostCheck[];
+  /** Có phần tử **và** `created === 0` nghĩa là chưa ghi gì, đang chờ người dùng xác nhận. */
+  duplicates: StockImportDuplicate[];
+}
+
+/**
+ * Nhập nhiều phiếu từ một file Excel. Lần gửi đầu để `confirmDuplicates` false: nếu có phiếu trùng
+ * thì server trả `created: 0` kèm danh sách, chưa ghi gì — gửi lại với `true` mới ghi.
+ */
+export function useBulkImportStockImports() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ items, confirmDuplicates }: { items: StockImportInput[]; confirmDuplicates: boolean }) =>
+      api.post<StockImportBulkResult>("/stock-imports/bulk-import", { items, confirmDuplicates }),
+    onSuccess: (result) => {
+      // Lần trả về chỉ để cảnh báo trùng thì chưa có gì đổi, khỏi nạp lại danh sách.
+      if (result.created === 0) return;
+      queryClient.invalidateQueries({ queryKey: [KEY] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
+}
+
 export function useUpdateStockImport(id: string) {
   const queryClient = useQueryClient();
   return useMutation({

@@ -42,13 +42,17 @@ năng xem `nav-config.ts` và `apps/server/src/modules/`.
 
 ## Đang dở
 
-### Nhập Excel cho phiếu nhập kho, một file nhiều phiếu — ĐANG LÀM, chưa dùng được
-Xong bước 1/3: `parseDateTime` + `wallClockToIso` trong `lib/excelParse.ts`. Repo trước đó không có hàm
-nào đọc được ngày **kèm phút** (`parseSpentAt` chỉ ngày, `parseSoldAt` của POS làm tròn mất phút), mà
-`transactionAt` là mốc kỳ Check Cost nên thiếu giờ phải là **lỗi**, không mặc định 00:00.
-Làm tròn serial về phút chứ không về ms — 08:30 trong Excel là 0,35416666… nên đọc theo ms ra 08:29.
-Đã kiểm 26 ca bằng script `tsx` tạm (Date, serial lẻ, 4 dạng chuỗi, ô công thức, mm/dd bị từ chối) rồi xoá.
-Còn lại: endpoint `POST /stock-imports/bulk-import` (bước 2) và giao diện nhập/xuất hai sheet (bước 3).
+### Nhập/xuất Excel cho phiếu nhập kho, một file nhiều phiếu — CHƯA thử chạy thật, CHƯA lên `staging`
+File **hai sheet**: "Phiếu" (có *Mã phiếu tạm*) + "Dòng hàng" trỏ về mã tạm đó; định danh bằng mã kho / mã
+NCC / mã hàng hoá nên file xuất ra nhập lại được. Một dòng lỗi là **không ghi gì**, báo hết lỗi theo dòng.
+Giá vốn để trống thì lấy giá nhập của NCC. Phiếu trùng (kho, NCC, thời gian) thì trả `created: 0` kèm danh
+sách để người dùng bấm "Vẫn nhập" (khuôn 200 + danh sách của `posSales`, vì `HttpError` chỉ chở một câu).
+`POST /bulk-import` gộp mọi phép kiểm về **6 query** thay vì 4×N, ghi bằng 3 statement trong một
+`$transaction` timeout 30s (`createMany` không nhận nested create nên pre-generate mã rồi đọc lại id).
+Thêm `findCostChecksUsingPeriodRecords` gom lô — 200 mốc trước đây là 200 query.
+Đã kiểm: typecheck 2 app, lint web 3 cảnh báo, build web, 26 ca `parseDateTime` + 23 ca ghi/đọc workbook
+bằng script `tsx` tạm rồi xoá.
+**Chưa kiểm được: endpoint bằng curl và luồng trên trình duyệt — Docker Desktop không chạy nên không có DB.**
 
 ### Dọn phần kho cũ + ô Trang chủ mới (C5, C6) — CHƯA thử trên trình duyệt, CHƯA lên `staging`
 Xoá: phiếu xuất kho, phiếu kiểm kê kho, danh mục Khách hàng, `/product-stock`, **cả nhóm Kiểm toán (5 trang)**
