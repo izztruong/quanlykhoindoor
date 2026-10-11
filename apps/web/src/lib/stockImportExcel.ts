@@ -70,6 +70,23 @@ export function parseTransactionForm(text: string): string | null {
   return FORM_BY_LABEL.get(wanted) ?? null;
 }
 
+/**
+ * Thời gian nhập ghi ra file ở ĐÚNG dạng `parseDateTime` đọc lại được — nếu không thì chính file vừa
+ * xuất cũng không nhập ngược lại được.
+ *
+ * KHÔNG dùng `formatDateTime` của `lib/format.ts`: nó là `toLocaleString("vi-VN")` nên ra
+ * "08:30 15/8/26" (giờ đứng trước, năm 2 chữ số) — parser không đọc được dạng đó.
+ *
+ * Kèm `:ss` chỉ khi phiếu có giây thật (phiếu chuyển từ dữ liệu cũ mang `receivedAt` có giây); để
+ * tròn phút thì bỏ đi cho file dễ đọc.
+ */
+export function formatTransactionAtForExcel(iso: string): string {
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, "0");
+  const base = `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  return d.getSeconds() === 0 ? base : `${base}:${p(d.getSeconds())}`;
+}
+
 export interface SheetSpec {
   name: string;
   header: string[];

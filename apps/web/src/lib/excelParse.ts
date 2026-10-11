@@ -59,11 +59,18 @@ export interface WallClockMinute {
   day: number;
   hour: number;
   minute: number;
+  /**
+   * Phần giây, gần như luôn là 0. Người dùng gõ tới phút, nhưng phiếu chuyển từ dữ liệu cũ mang
+   * `receivedAt` có giây thật — giữ lại để file xuất ra nhập lại vẫn khớp ĐÚNG mốc, nếu không thì
+   * phép kiểm phiếu trùng bỏ sót và sinh ra một phiếu lệch vài giây.
+   */
+  second: number;
 }
 
 function validWallClock(w: WallClockMinute): WallClockMinute | null {
   if (w.month < 1 || w.month > 12 || w.day < 1 || w.day > 31) return null;
   if (w.hour < 0 || w.hour > 23 || w.minute < 0 || w.minute > 59) return null;
+  if (w.second < 0 || w.second > 59) return null;
   if (w.year < 2000 || w.year > 2100) return null;
   return w;
 }
@@ -94,6 +101,7 @@ export function parseDateTime(value: ExcelJS.CellValue, text: string): WallClock
       day: value.getUTCDate(),
       hour: value.getUTCHours(),
       minute: value.getUTCMinutes(),
+      second: value.getUTCSeconds(),
     });
   }
 
@@ -109,6 +117,7 @@ export function parseDateTime(value: ExcelJS.CellValue, text: string): WallClock
       day: date.getUTCDate(),
       hour: date.getUTCHours(),
       minute: date.getUTCMinutes(),
+      second: 0, // đã làm tròn về phút ở trên
     });
   }
 
@@ -117,7 +126,7 @@ export function parseDateTime(value: ExcelJS.CellValue, text: string): WallClock
 
   // dd/mm/yyyy hoặc dd-mm-yyyy kèm giờ. Ngày đứng TRƯỚC: file dùng mm/dd/yyyy thì số tháng vượt 12
   // và bị từ chối, thay vì âm thầm đọc ngược ngày với tháng.
-  const dmy = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})(?:[ T](\d{1,2}):(\d{1,2}))?/.exec(trimmed);
+  const dmy = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})(?:[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/.exec(trimmed);
   if (dmy) {
     if (dmy[4] === undefined) return null;
     return validWallClock({
@@ -126,10 +135,11 @@ export function parseDateTime(value: ExcelJS.CellValue, text: string): WallClock
       day: Number(dmy[1]),
       hour: Number(dmy[4]),
       minute: Number(dmy[5]),
+      second: dmy[6] === undefined ? 0 : Number(dmy[6]),
     });
   }
 
-  const ymd = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{1,2}))?/.exec(trimmed);
+  const ymd = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/.exec(trimmed);
   if (ymd) {
     if (ymd[4] === undefined) return null;
     return validWallClock({
@@ -138,6 +148,7 @@ export function parseDateTime(value: ExcelJS.CellValue, text: string): WallClock
       day: Number(ymd[3]),
       hour: Number(ymd[4]),
       minute: Number(ymd[5]),
+      second: ymd[6] === undefined ? 0 : Number(ymd[6]),
     });
   }
 
@@ -150,12 +161,13 @@ export function parseDateTime(value: ExcelJS.CellValue, text: string): WallClock
  * lệch 7 tiếng. Cùng lý do với `StockImportForm` đổi `datetime-local` sang ISO trước khi gửi.
  */
 export function wallClockToIso(w: WallClockMinute): string {
-  return new Date(w.year, w.month - 1, w.day, w.hour, w.minute, 0, 0).toISOString();
+  return new Date(w.year, w.month - 1, w.day, w.hour, w.minute, w.second, 0).toISOString();
 }
 
-/** "dd/mm/yyyy HH:mm" để in lại giá trị đã đọc cho người dùng đối chiếu. */
+/** "dd/mm/yyyy HH:mm", kèm ":ss" khi có giây, để in lại giá trị đã đọc cho người dùng đối chiếu. */
 export function formatWallClock(w: WallClockMinute): string {
-  return `${pad2(w.day)}/${pad2(w.month)}/${w.year} ${pad2(w.hour)}:${pad2(w.minute)}`;
+  const base = `${pad2(w.day)}/${pad2(w.month)}/${w.year} ${pad2(w.hour)}:${pad2(w.minute)}`;
+  return w.second === 0 ? base : `${base}:${pad2(w.second)}`;
 }
 
 /**
