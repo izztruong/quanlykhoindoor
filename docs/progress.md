@@ -50,9 +50,14 @@ sách để người dùng bấm "Vẫn nhập" (khuôn 200 + danh sách của `
 `POST /bulk-import` gộp mọi phép kiểm về **6 query** thay vì 4×N, ghi bằng 3 statement trong một
 `$transaction` timeout 30s (`createMany` không nhận nested create nên pre-generate mã rồi đọc lại id).
 Thêm `findCostChecksUsingPeriodRecords` gom lô — 200 mốc trước đây là 200 query.
-Đã kiểm: typecheck 2 app, lint web 3 cảnh báo, build web, 26 ca `parseDateTime` + 23 ca ghi/đọc workbook
-bằng script `tsx` tạm rồi xoá.
-**Chưa kiểm được: endpoint bằng curl và luồng trên trình duyệt — Docker Desktop không chạy nên không có DB.**
+Đã kiểm: typecheck 2 app, lint web 3 cảnh báo, build web; 54 ca script `tsx` tạm (26 ca `parseDateTime`,
+23 ca ghi/đọc workbook, 5 ca vòng xuất→nhập khép kín) rồi xoá; và **12 ca curl**: 3 phiếu/4 dòng ghi đúng
+`costAmount`, gửi lại ra `created: 0` + 3 duplicates, `confirmDuplicates` thì ghi, thiếu NCC/kho sai/hàng
+chưa có giá đều 400 **và không ghi gì**, câu lỗi nêu đúng tên hàng + NCC, quán ghi vào kho quán khác 400,
+một phiếu hợp lệ lẫn một phiếu sai cũng không ghi gì, 201 phiếu bị chặn, **200 phiếu chạy 335 ms**.
+Còn lại: bấm thử trên trình duyệt (đã sinh sẵn 3 file `.xlsx`: hợp lệ / sai tiêu đề / nhiều lỗi).
+Vết sẵn có chưa sửa: phần **xuất theo bộ lọc** đi qua `GET /stock-imports` nên chịu lệch 7 tiếng của
+`parseDateRange` (`setHours` theo giờ máy chủ, Render chạy UTC) — không phải lỗi mới của Excel.
 
 ### Dọn phần kho cũ + ô Trang chủ mới (C5, C6) — CHƯA thử trên trình duyệt, CHƯA lên `staging`
 Xoá: phiếu xuất kho, phiếu kiểm kê kho, danh mục Khách hàng, `/product-stock`, **cả nhóm Kiểm toán (5 trang)**
