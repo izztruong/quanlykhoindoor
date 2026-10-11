@@ -47,6 +47,118 @@ export function parseSpentAt(value: ExcelJS.CellValue, text: string, today = new
 }
 
 /**
+ * Mốc thời gian đọc từ ô Excel, dạng "giờ treo tường" đã tách sẵn — CỐ Ý không trả `Date`.
+ *
+ * Ô Excel không mang múi giờ, còn `Date` thì có. Trả `Date` ở đây là buộc người gọi phải đoán xem
+ * mốc đó thuộc múi nào, và cái đoán đó khác nhau giữa máy dev (UTC+7) với Render (UTC). Để người
+ * gọi tự đổi bằng `wallClockToIso` ở đúng nơi biết giờ người dùng (trình duyệt).
+ */
+export interface WallClockMinute {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+}
+
+function validWallClock(w: WallClockMinute): WallClockMinute | null {
+  if (w.month < 1 || w.month > 12 || w.day < 1 || w.day > 31) return null;
+  if (w.hour < 0 || w.hour > 23 || w.minute < 0 || w.minute > 59) return null;
+  if (w.year < 2000 || w.year > 2100) return null;
+  return w;
+}
+
+/**
+ * Đọc ô "ngày + giờ" của file Excel. Khác `parseSpentAt` (chỉ ngày) và `parseSoldAt` của
+ * `posSaleDate.ts` (ngày + giờ nhưng **làm tròn mất phút**, vì doanh số POS lưu ở mức giờ).
+ *
+ * Dùng cho mốc cần đủ phút — `StockImport.transactionAt` là mốc kỳ Check Cost, để 00:00 là hàng nhập
+ * cùng ngày với phiếu kiểm đầu kỳ rơi ra ngoài kỳ.
+ *
+ * **Thiếu phần giờ thì trả null, không mặc định 00:00.** Người dùng gõ thiếu giờ phải thấy lỗi ở
+ * đúng dòng đó, chứ không phải nhận một phiếu lệch kỳ mà không có dấu hiệu gì.
+ */
+export function parseDateTime(value: ExcelJS.CellValue, text: string): WallClockMinute | null {
+  // Ô công thức: ExcelJS trả { formula, result } — lấy kết quả rồi đọc lại.
+  if (value && typeof value === "object" && !(value instanceof Date) && "result" in value) {
+    const inner = (value as { result: unknown }).result;
+    return parseDateTime(inner as ExcelJS.CellValue, inner == null ? "" : String(inner));
+  }
+
+  // Date do ExcelJS dựng từ serial: giờ treo tường nằm ở các trường UTC, đọc theo giờ máy là lùi ngày.
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return null;
+    return validWallClock({
+      year: value.getUTCFullYear(),
+      month: value.getUTCMonth() + 1,
+      day: value.getUTCDate(),
+      hour: value.getUTCHours(),
+      minute: value.getUTCMinutes(),
+    });
+  }
+
+  // Số serial thô: ngày 0 là 1899-12-30. Làm tròn về PHÚT (không phải ms) — 08:30 trong Excel là
+  // 0.3541666666666667, nhân ra ms rồi đọc phút có thể ra 08:29 ở những giá trị lẻ.
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || value < 1) return null;
+    const date = new Date(Date.UTC(1899, 11, 30) + Math.round(value * 1440) * 60_000);
+    if (Number.isNaN(date.getTime())) return null;
+    return validWallClock({
+      year: date.getUTCFullYear(),
+      month: date.getUTCMonth() + 1,
+      day: date.getUTCDate(),
+      hour: date.getUTCHours(),
+      minute: date.getUTCMinutes(),
+    });
+  }
+
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+
+  // dd/mm/yyyy hoặc dd-mm-yyyy kèm giờ. Ngày đứng TRƯỚC: file dùng mm/dd/yyyy thì số tháng vượt 12
+  // và bị từ chối, thay vì âm thầm đọc ngược ngày với tháng.
+  const dmy = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})(?:[ T](\d{1,2}):(\d{1,2}))?/.exec(trimmed);
+  if (dmy) {
+    if (dmy[4] === undefined) return null;
+    return validWallClock({
+      year: Number(dmy[3]),
+      month: Number(dmy[2]),
+      day: Number(dmy[1]),
+      hour: Number(dmy[4]),
+      minute: Number(dmy[5]),
+    });
+  }
+
+  const ymd = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{1,2}))?/.exec(trimmed);
+  if (ymd) {
+    if (ymd[4] === undefined) return null;
+    return validWallClock({
+      year: Number(ymd[1]),
+      month: Number(ymd[2]),
+      day: Number(ymd[3]),
+      hour: Number(ymd[4]),
+      minute: Number(ymd[5]),
+    });
+  }
+
+  return null;
+}
+
+/**
+ * Giờ treo tường -> chuỗi ISO để gửi server. Gọi ở TRÌNH DUYỆT, nơi biết đúng giờ người dùng:
+ * `z.coerce.date()` bên server đọc chuỗi không múi giờ theo giờ máy chủ, mà Render chạy UTC nên sẽ
+ * lệch 7 tiếng. Cùng lý do với `StockImportForm` đổi `datetime-local` sang ISO trước khi gửi.
+ */
+export function wallClockToIso(w: WallClockMinute): string {
+  return new Date(w.year, w.month - 1, w.day, w.hour, w.minute, 0, 0).toISOString();
+}
+
+/** "dd/mm/yyyy HH:mm" để in lại giá trị đã đọc cho người dùng đối chiếu. */
+export function formatWallClock(w: WallClockMinute): string {
+  return `${pad2(w.day)}/${pad2(w.month)}/${w.year} ${pad2(w.hour)}:${pad2(w.minute)}`;
+}
+
+/**
  * Số trong file có thể là number thật hoặc chuỗi kiểu Việt Nam ("8.000", "0,5") — dấu chấm là
  * phân cách nghìn, dấu phẩy là phần thập phân.
  */

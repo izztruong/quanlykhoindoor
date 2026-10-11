@@ -42,6 +42,14 @@ năng xem `nav-config.ts` và `apps/server/src/modules/`.
 
 ## Đang dở
 
+### Nhập Excel cho phiếu nhập kho, một file nhiều phiếu — ĐANG LÀM, chưa dùng được
+Xong bước 1/3: `parseDateTime` + `wallClockToIso` trong `lib/excelParse.ts`. Repo trước đó không có hàm
+nào đọc được ngày **kèm phút** (`parseSpentAt` chỉ ngày, `parseSoldAt` của POS làm tròn mất phút), mà
+`transactionAt` là mốc kỳ Check Cost nên thiếu giờ phải là **lỗi**, không mặc định 00:00.
+Làm tròn serial về phút chứ không về ms — 08:30 trong Excel là 0,35416666… nên đọc theo ms ra 08:29.
+Đã kiểm 26 ca bằng script `tsx` tạm (Date, serial lẻ, 4 dạng chuỗi, ô công thức, mm/dd bị từ chối) rồi xoá.
+Còn lại: endpoint `POST /stock-imports/bulk-import` (bước 2) và giao diện nhập/xuất hai sheet (bước 3).
+
 ### Dọn phần kho cũ + ô Trang chủ mới (C5, C6) — CHƯA thử trên trình duyệt, CHƯA lên `staging`
 Xoá: phiếu xuất kho, phiếu kiểm kê kho, danh mục Khách hàng, `/product-stock`, **cả nhóm Kiểm toán (5 trang)**
 và 4 mã quyền tương ứng. `getPurchaseSummary` tách sang module `purchaseSummary` (giữ nguyên đường
