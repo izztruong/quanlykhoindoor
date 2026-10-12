@@ -19,6 +19,7 @@
     "expo-router": "~57.0.21",
     "expo-secure-store": "~57.0.4",
     "expo-status-bar": "~57.0.1",
+    "expo-updates": "~57.0.25",
     "react": "19.2.3",
     "react-dom": "^19.2.3",
     "react-hook-form": "^7.88.0",
@@ -41,7 +42,9 @@
     "build:preview": "node scripts/checkBuildBranch.js staging && npx eas-cli build --platform android --profile preview",
     "build:production": "node scripts/checkBuildBranch.js main && npx eas-cli build --platform android --profile production",
     "build:preview:ios": "node scripts/checkBuildBranch.js staging && npx eas-cli build --platform ios --profile preview",
-    "build:production:ios": "node scripts/checkBuildBranch.js main && npx eas-cli build --platform ios --profile production"
+    "build:production:ios": "node scripts/checkBuildBranch.js main && npx eas-cli build --platform ios --profile production",
+    "update:preview": "node scripts/checkBuildBranch.js staging && npx eas-cli update --branch preview",
+    "update:production": "node scripts/checkBuildBranch.js main && npx eas-cli update --branch production"
   },
   "private": true
 }

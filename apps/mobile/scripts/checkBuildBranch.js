@@ -1,5 +1,8 @@
-// Chặn build EAS từ sai nhánh: profile quyết định app gọi database nào, nhánh quyết định code nào được
-// đóng gói — build preview/production từ `dev` sẽ đưa code đang dở lên dữ liệu staging/production.
+// Chặn build EAS và phát hành OTA từ sai nhánh: profile/channel quyết định app gọi database nào,
+// nhánh quyết định code nào được đóng gói — build hay `eas update` lên preview/production từ `dev` sẽ
+// đưa code đang dở lên dữ liệu staging/production.
+//
+// Với OTA thì cái giá còn cao hơn build: bản JS đẩy sai tới máy người dùng NGAY, không qua store duyệt.
 const { execSync } = require("node:child_process");
 
 const required = process.argv[2];

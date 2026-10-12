@@ -292,7 +292,7 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
 
 Hai service Render: **`quanlykhoindoortest`** ← nhánh `staging`, **`quanlykhoindoor1`** ← `main`. Luồng làm việc: làm trên `dev` → merge fast-forward lên `staging` → rồi lên `main`.
 
-| Nhánh | Deploy | Profile EAS | App mobile gọi tới |
+| Nhánh | Deploy | Profile EAS = channel OTA | App mobile gọi tới |
 |---|---|---|---|
 | `dev` | không (không service nào theo) | `development` — JS tải từ Metro | server local (IP LAN) |
 | `staging` | Render `quanlykhoindoortest` | `preview` — APK | `quanlykhoindoortest.onrender.com` |
@@ -303,6 +303,24 @@ Hai service Render: **`quanlykhoindoortest`** ← nhánh `staging`, **`quanlykho
   `apps/mobile`: script `scripts/checkBuildBranch.js` từ chối chạy nếu sai nhánh hoặc còn file chưa commit.
 - App hiện nhãn `LOCAL`/`STAGING` ở màn đăng nhập và đầu trang (suy từ URL thật, `src/lib/apiEnvironment.ts`);
   bản production không có nhãn.
+
+### Cập nhật OTA (EAS Update) — đổi JS không cần store duyệt
+
+`npm run update:preview` / `npm run update:production` trong `apps/mobile` (gác nhánh bằng cùng
+`scripts/checkBuildBranch.js` như lệnh build). Tên channel **trùng tên profile**, nên nhánh nào ra
+channel nào thì xem bảng trên.
+
+- **Chỉ chở được JS và asset.** Thêm package native, nâng SDK, sửa `plugins`/quyền/icon/tên gói trong
+  `app.json` → vẫn phải build và qua store. Đẩy OTA cần module mà binary không có là app vỡ lúc mở.
+- **`runtimeVersion` policy `fingerprint`** là thứ chặn đúng cái bẫy đó: bản update chỉ tới được binary
+  có cùng fingerprint, mà thêm/bớt package native là fingerprint tự đổi. Đừng chuyển sang `appVersion` —
+  policy đó không biết gì về phần native.
+- **Bản update áp dụng ở lần mở NGUỘI tiếp theo**, không phải ngay lúc đang dùng.
+  `fallbackToCacheTimeout: 0` đặt tường minh để màn chờ khởi động không phải đợi tải update — màn đó
+  đã chặn vào app để nạp dữ liệu Trang chủ rồi, cộng thêm một lần chờ mạng nữa là quá lâu.
+- **App 1.0.4 và cũ hơn không bao giờ nhận OTA** (không có `expo-updates` bên trong). Đường duy nhất
+  ra khỏi chúng là cài bản mới từ store. Đừng xoá shim tương thích nào trên server khi chưa chắc không
+  còn máy nào ở đó — xem `/dashboard/unconfirmed-orders`.
 
 - **Chẩn đoán sự cố thì kiểm staging trước**, rồi mới tới production.
 - Header `x-render-routing` cho biết trạng thái (`hibernate-wake-error`, `no-deploy`); `status.render.com/api/v2/status.json` cho biết có phải sự cố toàn hệ thống Render không.

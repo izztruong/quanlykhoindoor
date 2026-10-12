@@ -42,6 +42,19 @@ năng xem `nav-config.ts` và `apps/server/src/modules/`.
 
 ## Đang dở
 
+### Cập nhật OTA cho app + shim giữ app 1.0.4 sống — CHƯA build, CHƯA lên `staging`
+Dựng `expo-updates`: `updates.url`, `runtimeVersion` policy **fingerprint**, `channel` cho cả 3 profile
+EAS, và `npm run update:preview|production` gác nhánh như lệnh build. Nâng `version` lên **1.0.5**.
+**OTA chưa cứu được bản đang dùng**: 1.0.4 không có `expo-updates` nên chỉ binary từ 1.0.5 trở đi nhận được.
+Vì vậy thêm shim `GET /api/dashboard/unconfirmed-orders` — thiếu nó thì app 1.0.4 **dừng vĩnh viễn ở màn chờ**
+(`useAppStartup` chặn vào app cho tới khi ô Trang chủ nạp xong), không chỉ hỏng một ô. Shim ghi một dòng
+`console.warn("[legacy] …")` mỗi lần bị gọi: log im vài ngày = không còn máy nào ở 1.0.4 → xoá được.
+Đã kiểm: typecheck 3 app, `npx expo export --platform android` sạch, `expo config` nạp đúng, và curl shim
+trên `kho_dev_copy` (5 đơn = đúng SQL, lọc theo quán ra 0 = đúng, chỉ shim sinh log còn `recent-imports` không).
+Còn lại: deploy server (shim phải lên `main` **cùng đợt** với phần đã dọn), build + gửi duyệt 1.0.5, rồi
+theo log để biết khi nào xoá shim. `expo-doctor` báo 3 lỗi **sẵn có** (`newArchEnabled`, thiếu peer
+`expo-font`/`react-native-worklets`, 7 package lệch bản patch) — không phải do đợt này, chưa sửa.
+
 ### App mobile theo kịp đợt bỏ kho tổng — CHƯA bấm thử trên máy thật, CHƯA lên `staging`
 Trước đợt này app vẫn gọi 8 route server đã xoá (phiếu xuất kho, Khách hàng, 5 báo cáo Kiểm toán,
 `/product-stock`, `PUT /sales-orders/:id/process`) và vẫn gửi `warehouseId`/`skipStockCheck` khi tạo đơn.
