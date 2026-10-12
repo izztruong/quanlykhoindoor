@@ -281,6 +281,12 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
 - Mọi ô xuất ra đều qua `sanitizeExcelRow` (`lib/excelExport.ts`) — chống chèn công thức.
 - Chỉ số cột gom vào **một hằng số dùng chung** cho mẫu trắng, xuất và nhập.
 - Phần nhập **kiểm tra hàng tiêu đề trước khi đọc**. Đổi bố cục cột mà không kiểm sẽ đọc nhầm cột giá thành cột số lượng — phiếu trông vẫn bình thường nhưng số liệu đã hỏng.
+- **Một quy ước số duy nhất: `lib/excelParse.ts` → `parseNumber`.** Ô số thật trả nguyên giá trị (đa số
+  tuyệt đối, vì Excel locale vi-VN tự biến `8.000` thành ô số 8000). Ô **chữ** đọc theo **kiểu máy**:
+  dấu chấm là thập phân, không có phân cách nghìn — `"1.5"` = 1,5 và `"8.000"` = 8. Vẫn nhận dấu phẩy
+  (`"0,5"`). Ca nhập nhằng (`"8.000.000"`, `"1.234,5"`) trả `null` để phần nhập **báo lỗi đúng dòng**
+  thay vì đoán im lặng. Đừng viết lại `Number()` tại chỗ — repo từng có hai bản quy ước đối nhau.
+  Mọi modal nhập phải nói quy ước này cho người dùng.
 
 ## Deploy
 

@@ -171,16 +171,37 @@ export function formatWallClock(w: WallClockMinute): string {
 }
 
 /**
- * Số trong file có thể là number thật hoặc chuỗi kiểu Việt Nam ("8.000", "0,5") — dấu chấm là
- * phân cách nghìn, dấu phẩy là phần thập phân.
+ * Số trong file Excel. Ô SỐ thật trả về nguyên giá trị — đó là đa số tuyệt đối, vì Excel với locale
+ * vi-VN tự biến "8.000" người dùng gõ thành ô số 8000. Phần dưới chỉ dành cho ô CHỮ (dán từ nơi khác,
+ * CSV…).
+ *
+ * Quy ước cho ô chữ là **kiểu máy**: dấu chấm là thập phân, không có phân cách nghìn.
+ *   "1.5" -> 1.5 · "0,5" -> 0.5 (vẫn nhận dấu phẩy, không nhập nhằng) · "8.000" -> 8 · "1 234" -> 1234
+ *
+ * Trước đây hàm này theo kiểu Việt Nam (xoá mọi dấu chấm, coi là phân cách nghìn) nên "1.5" ra 15.
+ * Repo có hai bản quy ước đối nhau — phiếu kiểm kê thì `Number()` trực tiếp — nên gộp về một.
+ *
+ * Hai ca nhập nhằng trả `null` để phần nhập **báo lỗi đúng dòng**, thay vì đoán im lặng như bản cũ:
+ *   "8.000.000" (hai dấu chấm, bản cũ ra 8) và "1.234,5" (lẫn hai kiểu, bản cũ ra 12345).
  */
 export function parseNumber(value: ExcelJS.CellValue, text: string): number | null {
-  if (typeof value === "number") return value;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+
+  // Ô công thức: ExcelJS trả { formula, result } — lấy kết quả rồi đọc lại.
+  if (value && typeof value === "object" && !(value instanceof Date) && "result" in value) {
+    const inner = (value as { result: unknown }).result;
+    return parseNumber(inner as ExcelJS.CellValue, inner == null ? "" : String(inner));
+  }
 
   const trimmed = text.trim();
   if (!trimmed) return null;
 
-  const normalised = trimmed.replace(/[\s.]/g, "").replace(",", ".");
+  // Khoảng trắng giữa các chữ số là phân cách nghìn, bỏ đi ("1 234" -> 1234).
+  const compact = trimmed.replace(/\s/g, "");
+  // Lẫn cả chấm lẫn phẩy thì không đoán được kiểu nào — để phần nhập báo lỗi dòng.
+  if (compact.includes(".") && compact.includes(",")) return null;
+
+  const normalised = compact.replace(",", ".");
   if (!/^-?\d+(\.\d+)?$/.test(normalised)) return null;
 
   const parsed = Number(normalised);

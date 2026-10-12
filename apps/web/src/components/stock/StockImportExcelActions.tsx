@@ -440,6 +440,10 @@ export function StockImportExcelActions({ filter, scopeAll }: Props) {
               Thời gian nhập <b>phải có giờ</b> (vd 15/08/2026 08:30) vì đó là mốc kỳ Check Cost. Giá vốn để trống thì lấy giá
               nhập của NCC.
             </p>
+            <p className="text-slate-600">
+              Số thập phân dùng dấu phẩy (<b>0,5</b>); dấu chấm là dấu thập phân kiểu máy, nên <b>8.000</b> đọc thành 8 chứ
+              không phải 8000 — gõ giá thì ghi thẳng <b>8000</b>.
+            </p>
             <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-800">
               Nhập Excel <b>luôn tạo phiếu mới</b>, không ghi đè phiếu cũ. Nhập lại chính file vừa xuất ra sẽ sinh phiếu
               trùng — nếu có, bạn sẽ được cảnh báo trước khi ghi.

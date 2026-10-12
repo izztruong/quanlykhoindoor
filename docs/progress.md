@@ -42,6 +42,15 @@ năng xem `nav-config.ts` và `apps/server/src/modules/`.
 
 ## Đang dở
 
+### Nhập Excel cho phiếu điều chuyển — ĐANG LÀM, chưa dùng được
+Xong bước 1/4: thống nhất `parseNumber` về **kiểu máy** cho cả repo (dấu chấm là thập phân). Trước đó
+repo có hai quy ước đối nhau: `parseNumber` kiểu Việt Nam (`"1.5"` ra **15**) và `Number()` tại chỗ ở
+phiếu kiểm kê (`"8.000"` ra **8**). Hai ca nhập nhằng `"8.000.000"` và `"1.234,5"` trước đây **đoán im
+lặng** (ra 8 và 12345), giờ trả null để báo lỗi đúng dòng. Chỉ ảnh hưởng ô **chữ** — ô số thật không đổi.
+Đã thêm dòng nói rõ quy ước vào **cả 4 modal nhập** và `CLAUDE.md`; phiếu kiểm kê bỏ bản `Number()` riêng.
+Đã kiểm 22 ca bằng script `tsx` tạm rồi xoá. Còn lại: dọn `writeWorkbook`/`matchShopByName` (bước 2),
+endpoint `POST /material-transfers/bulk-import` (bước 3), giao diện nhập hai sheet (bước 4).
+
 ### Nhập/xuất Excel cho phiếu nhập kho, một file nhiều phiếu — CHƯA thử chạy thật, CHƯA lên `staging`
 File **hai sheet**: "Phiếu" (có *Mã phiếu tạm*) + "Dòng hàng" trỏ về mã tạm đó; định danh bằng mã kho / mã
 NCC / mã hàng hoá nên file xuất ra nhập lại được. Một dòng lỗi là **không ghi gì**, báo hết lỗi theo dòng.

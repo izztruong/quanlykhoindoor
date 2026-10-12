@@ -10,6 +10,7 @@ import { useCreateStockCheck, useUpdateStockCheck } from "@/hooks/useStockChecks
 import { ApiError } from "@/lib/api-client";
 import { nowForDatetimeLocal, toDatetimeLocal } from "@/lib/dateRange";
 import { sanitizeExcelRow } from "@/lib/excelExport";
+import { parseNumber } from "@/lib/excelParse";
 import type { FinishedGoodItem, Product, ProductType, StockCheck, StockCheckType } from "@/types";
 import ExcelJS from "exceljs";
 import { ChevronDown, Download } from "lucide-react";
@@ -507,15 +508,25 @@ export function StockCheckFormClient({ existing }: StockCheckFormClientProps) {
         if (rowNumber === 1) return;
 
         const materialName = String(row.getCell(COL.materialName).value ?? "").trim();
-        const wholeRaw = row.getCell(COL.wholeQty).value;
-        const looseRaw = row.getCell(COL.looseQty).value;
+        const wholeCell = row.getCell(COL.wholeQty);
+        const looseCell = row.getCell(COL.looseQty);
         if (materialName) {
           const product = productByName.get(materialName.toLowerCase());
           if (!product) {
             errors.push(`Dòng ${rowNumber}: không tìm thấy nguyên liệu có tên "${materialName}"`);
           } else {
-            const wholeQuantity = wholeRaw === null || wholeRaw === undefined || wholeRaw === "" ? "" : String(Number(wholeRaw));
-            const looseQuantity = looseRaw === null || looseRaw === undefined || looseRaw === "" ? "" : String(Number(looseRaw));
+            // Đọc số qua parseNumber dùng chung thay vì Number() tại chỗ: repo từng có hai quy ước
+            // thập phân đối nhau ("1.5" ra 15 ở chỗ này, ra 1.5 ở chỗ khác).
+            const whole = parseNumber(wholeCell.value, wholeCell.text);
+            const loose = parseNumber(looseCell.value, looseCell.text);
+            if (wholeCell.text.trim() && whole === null) {
+              errors.push(`Dòng ${rowNumber}: SL chẵn không đọc được ("${wholeCell.text.trim()}")`);
+            }
+            if (looseCell.text.trim() && loose === null) {
+              errors.push(`Dòng ${rowNumber}: SL lẻ không đọc được ("${looseCell.text.trim()}")`);
+            }
+            const wholeQuantity = whole === null ? "" : String(whole);
+            const looseQuantity = loose === null ? "" : String(loose);
             const existed = Boolean(materialEntries[product.id]);
             // Chỉ ghi đè số lượng — giá giữ nguyên giá mặc định lấy từ danh mục lúc tạo dòng.
             updateMaterialEntry(product.id, { wholeQuantity, looseQuantity });
@@ -525,15 +536,16 @@ export function StockCheckFormClient({ existing }: StockCheckFormClientProps) {
         }
 
         const finishedName = String(row.getCell(COL.finishedName).value ?? "").trim();
-        const finishedQtyRaw = row.getCell(COL.finishedQty).value;
+        const finishedCell = row.getCell(COL.finishedQty);
+        const finishedQty = parseNumber(finishedCell.value, finishedCell.text);
         if (finishedName) {
           const finishedItem = finishedByName.get(finishedName.toLowerCase());
           if (!finishedItem) {
             errors.push(`Dòng ${rowNumber}: không tìm thấy đồ thành phẩm có tên "${finishedName}" trong nhóm Đồ thành phẩm`);
-          } else if (finishedQtyRaw !== null && finishedQtyRaw !== undefined && finishedQtyRaw !== "" && Number.isNaN(Number(finishedQtyRaw))) {
-            errors.push(`Dòng ${rowNumber}: số lượng đồ thành phẩm không hợp lệ`);
+          } else if (finishedCell.text.trim() && finishedQty === null) {
+            errors.push(`Dòng ${rowNumber}: số lượng đồ thành phẩm không đọc được ("${finishedCell.text.trim()}")`);
           } else {
-            const quantity = finishedQtyRaw === null || finishedQtyRaw === undefined || finishedQtyRaw === "" ? "" : String(Number(finishedQtyRaw));
+            const quantity = finishedQty === null ? "" : String(finishedQty);
             const existed = Boolean(finishedEntries[finishedItem.id]);
             updateFinishedEntry(finishedItem.id, { quantity });
             if (existed) updated++;
@@ -687,6 +699,10 @@ export function StockCheckFormClient({ existing }: StockCheckFormClientProps) {
               vị công thức của từng NL), Tên đồ thành phẩm (phải thuộc nhóm &quot;Đồ thành phẩm&quot;), Đơn vị kiểm (chỉ để
               tham khảo), Số lượng. Mỗi dòng có thể chỉ điền phần nguyên liệu, chỉ phần đồ thành phẩm, hoặc cả hai — 2 danh
               sách độc lập với nhau. Số lượng nhập vào sẽ điền thẳng vào đúng dòng của hàng hoá đó trong danh sách bên dưới.
+            </p>
+            <p className="text-sm text-slate-600">
+              Số thập phân dùng dấu phẩy (<strong>0,5</strong>); dấu chấm là dấu thập phân kiểu máy, nên <strong>8.000</strong>{" "}
+              đọc thành 8 chứ không phải 8000.
             </p>
             <Button type="button" variant="secondary" size="sm" className="self-start" onClick={downloadTemplate}>
               <Download size={14} />

@@ -237,7 +237,9 @@ export function ShiftExpenseExcelActions({ filter, scopeAll }: ShiftExpenseExcel
           <div className="flex flex-col gap-3">
             <p className="text-sm text-slate-600">
               Chọn file Excel theo đúng thứ tự cột trong file mẫu: {TEMPLATE_HEADER.join(", ")} (cột có dấu * là bắt buộc).
-              Ngày ghi dạng 1/9 hoặc 06/09/2026 đều được.
+              Ngày ghi dạng 1/9 hoặc 06/09/2026 đều được. Số thập phân dùng dấu phẩy (<strong>0,5</strong>); dấu chấm là
+              dấu thập phân kiểu máy, nên <strong>8.000</strong> đọc thành 8 chứ không phải 8000 — gõ tiền thì ghi thẳng
+              <strong>8000</strong>.
             </p>
             <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
               Nhập Excel luôn <strong>thêm dòng mới</strong>, không ghi đè dòng cũ — nhập lại cùng một file sẽ tạo thêm một
