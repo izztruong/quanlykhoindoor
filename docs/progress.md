@@ -1,6 +1,6 @@
 # Tiến độ dự án
 
-Cập nhật: 2026-10-08
+Cập nhật: 2026-10-12
 
 Ghi **đúng những gì git không tự trả lời được**. Lý do thiết kế đã nằm trong commit message, đừng
 chép lại vào đây. Mỗi mục "Đang dở" tối đa 3–4 dòng, và dòng quan trọng nhất luôn là: *đã kiểm thử
@@ -42,14 +42,20 @@ năng xem `nav-config.ts` và `apps/server/src/modules/`.
 
 ## Đang dở
 
-### Nhập Excel cho phiếu điều chuyển — ĐANG LÀM, chưa dùng được
-Xong bước 1/4: thống nhất `parseNumber` về **kiểu máy** cho cả repo (dấu chấm là thập phân). Trước đó
-repo có hai quy ước đối nhau: `parseNumber` kiểu Việt Nam (`"1.5"` ra **15**) và `Number()` tại chỗ ở
-phiếu kiểm kê (`"8.000"` ra **8**). Hai ca nhập nhằng `"8.000.000"` và `"1.234,5"` trước đây **đoán im
-lặng** (ra 8 và 12345), giờ trả null để báo lỗi đúng dòng. Chỉ ảnh hưởng ô **chữ** — ô số thật không đổi.
-Đã thêm dòng nói rõ quy ước vào **cả 4 modal nhập** và `CLAUDE.md`; phiếu kiểm kê bỏ bản `Number()` riêng.
-Đã kiểm 22 ca bằng script `tsx` tạm rồi xoá. Còn lại: dọn `writeWorkbook`/`matchShopByName` (bước 2),
-endpoint `POST /material-transfers/bulk-import` (bước 3), giao diện nhập hai sheet (bước 4).
+### Nhập Excel cho phiếu điều chuyển — ĐANG LÀM, chưa dùng được (xong 3/4 bước)
+Xong bước 1: `parseNumber` về **kiểu máy** cho cả repo (`"1.5"` là 1.5, không còn là 15); hai ca nhập nhằng
+`"8.000.000"` và `"1.234,5"` trước đây **đoán im lặng** thì giờ trả null để báo lỗi đúng dòng — chỉ ô **chữ**
+bị ảnh hưởng. Bước 2: `writeWorkbook` sang `lib/excelExport.ts`, `matchShopByName` sang `lib/excelParse.ts`.
+Bước 3: `POST /material-transfers/bulk-import` — khuôn phiếu nhập kho nhưng **hai quán mỗi phiếu**, nên cảnh
+báo Check Cost đẩy **hai cặp** (gửi + nhận); giá vốn trống thì lấy **`exportPrice`** (form điều chuyển lấy giá
+xuất, khác phiếu nhập lấy giá nhập); `subtractTareWeight` gọi **một lượt cho cả file**. `POST /` nay cũng trả
+`affectedCostChecks` — trước chỉ `PUT` có, nên gõ tay thì không cảnh báo gì.
+Đã kiểm: typecheck server, và **12 ca curl** trên `kho_dev_copy` — 3 phiếu/6 dòng ghi đúng (SL lẻ null, giá
+xuất tự lấy), cảnh báo gồm phiếu Check Cost của **cả hai quán**, gửi lại ra `created: 0` + 3 duplicates rồi
+`confirmDuplicates` thì ghi, gửi = nhận / tài khoản không phải quán / NCC chưa có giá xuất đều 400 **và không
+ghi gì**, 201 phiếu bị zod chặn, **200 phiếu chạy 403 ms**, SL lẻ qua đường bulk trừ vỏ ra đúng số của `POST /`.
+Dữ liệu thử đã dọn. Còn lại: bước 4 — giao diện nhập hai sheet (`lib/materialTransferExcel.ts` + component +
+hook + gắn vào trang). **Chưa làm Xuất Excel**: file bỏ cột SL lẻ, và web trừ vỏ lần hai khi mở phiếu ra sửa.
 
 ### Nhập/xuất Excel cho phiếu nhập kho, một file nhiều phiếu — CHƯA thử chạy thật, CHƯA lên `staging`
 File **hai sheet**: "Phiếu" (có *Mã phiếu tạm*) + "Dòng hàng" trỏ về mã tạm đó; định danh bằng mã kho / mã
