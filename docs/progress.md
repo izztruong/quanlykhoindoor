@@ -42,20 +42,23 @@ năng xem `nav-config.ts` và `apps/server/src/modules/`.
 
 ## Đang dở
 
-### Nhập Excel cho phiếu điều chuyển — ĐANG LÀM, chưa dùng được (xong 3/4 bước)
-Xong bước 1: `parseNumber` về **kiểu máy** cho cả repo (`"1.5"` là 1.5, không còn là 15); hai ca nhập nhằng
-`"8.000.000"` và `"1.234,5"` trước đây **đoán im lặng** thì giờ trả null để báo lỗi đúng dòng — chỉ ô **chữ**
-bị ảnh hưởng. Bước 2: `writeWorkbook` sang `lib/excelExport.ts`, `matchShopByName` sang `lib/excelParse.ts`.
-Bước 3: `POST /material-transfers/bulk-import` — khuôn phiếu nhập kho nhưng **hai quán mỗi phiếu**, nên cảnh
-báo Check Cost đẩy **hai cặp** (gửi + nhận); giá vốn trống thì lấy **`exportPrice`** (form điều chuyển lấy giá
-xuất, khác phiếu nhập lấy giá nhập); `subtractTareWeight` gọi **một lượt cho cả file**. `POST /` nay cũng trả
-`affectedCostChecks` — trước chỉ `PUT` có, nên gõ tay thì không cảnh báo gì.
-Đã kiểm: typecheck server, và **12 ca curl** trên `kho_dev_copy` — 3 phiếu/6 dòng ghi đúng (SL lẻ null, giá
-xuất tự lấy), cảnh báo gồm phiếu Check Cost của **cả hai quán**, gửi lại ra `created: 0` + 3 duplicates rồi
+### Nhập Excel cho phiếu điều chuyển — CHƯA bấm thử trên trình duyệt, CHƯA lên `staging`
+File **hai sheet** như phiếu nhập kho, nhưng quán khớp theo **tên** (tài khoản không có cột mã) và **không có
+cột SL lẻ** (dữ liệu thật 0/20 dòng dùng tới, mà đó là cột dễ nhập sai đơn vị nhất) — API vẫn nhận `looseQuantity`.
+Mã NCC + Giá vốn theo dòng, để trống được; có NCC mà trống giá thì lấy **`exportPrice`**. Một dòng lỗi là
+**không ghi gì**. Cảnh báo Check Cost đẩy **hai cặp** mỗi phiếu (quán gửi + quán nhận). `POST /` nay cũng trả
+`affectedCostChecks` — trước chỉ `PUT` có.
+Kèm theo: `parseNumber` của **cả repo** về **kiểu máy** (`"1.5"` là 1.5, không còn là 15; `"8.000.000"` và
+`"1.234,5"` trước đây đoán im lặng thì giờ báo lỗi đúng dòng) — chỉ ô **chữ** bị ảnh hưởng, đã thêm dòng nói
+rõ quy ước vào **cả 4 modal nhập**; `writeWorkbook` sang `lib/excelExport.ts`, `matchShopByName` sang
+`lib/excelParse.ts`.
+Đã kiểm: typecheck 2 app, lint web **0 lỗi/3 cảnh báo**, build web; **12 ca curl** trên `kho_dev_copy` (3 phiếu/
+6 dòng ghi đúng, cảnh báo gồm Check Cost của **cả hai quán**, gửi lại ra `created: 0` + duplicates rồi
 `confirmDuplicates` thì ghi, gửi = nhận / tài khoản không phải quán / NCC chưa có giá xuất đều 400 **và không
-ghi gì**, 201 phiếu bị zod chặn, **200 phiếu chạy 403 ms**, SL lẻ qua đường bulk trừ vỏ ra đúng số của `POST /`.
-Dữ liệu thử đã dọn. Còn lại: bước 4 — giao diện nhập hai sheet (`lib/materialTransferExcel.ts` + component +
-hook + gắn vào trang). **Chưa làm Xuất Excel**: file bỏ cột SL lẻ, và web trừ vỏ lần hai khi mở phiếu ra sửa.
+ghi gì**, 201 phiếu bị chặn, **200 phiếu chạy 403 ms**, SL lẻ qua bulk trừ vỏ ra đúng số của `POST /`); và 21 ca
+script `tsx` tạm đọc lại 3 file `.xlsx` vừa sinh rồi xoá script. Dữ liệu thử đã dọn.
+Còn lại: bấm thử trên trình duyệt (đã sinh sẵn 3 file: hợp lệ / sai tiêu đề / nhiều lỗi). **Chưa làm Xuất Excel**:
+file bỏ cột SL lẻ, và web trừ vỏ lần hai khi mở phiếu ra sửa.
 
 ### Nhập/xuất Excel cho phiếu nhập kho, một file nhiều phiếu — CHƯA thử chạy thật, CHƯA lên `staging`
 File **hai sheet**: "Phiếu" (có *Mã phiếu tạm*) + "Dòng hàng" trỏ về mã tạm đó; định danh bằng mã kho / mã

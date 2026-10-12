@@ -1,6 +1,7 @@
 "use client";
 
 import { DataTable } from "@/components/data-table/DataTable";
+import { MaterialTransferExcelActions } from "@/components/materialTransfers/MaterialTransferExcelActions";
 import { Pagination } from "@/components/data-table/Pagination";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -56,12 +57,15 @@ export default function MaterialTransfersPage() {
           <p className="text-sm text-slate-500">Điều chuyển nguyên liệu giữa các quán, không qua kho trung tâm.</p>
         </div>
         {canOpen("/material-transfers/new") && (
-          <Link href="/material-transfers/new">
-            <Button>
-              <Plus size={16} />
-              Tạo phiếu điều chuyển
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <MaterialTransferExcelActions />
+            <Link href="/material-transfers/new">
+              <Button>
+                <Plus size={16} />
+                Tạo phiếu điều chuyển
+              </Button>
+            </Link>
+          </div>
         )}
       </div>
 

@@ -53,3 +53,38 @@ export function useUpdateMaterialTransfer(id: string) {
     },
   });
 }
+
+/** Một phiếu trùng (quán gửi, quán nhận, thời gian) đã có trong hệ thống — server trả ở bước cảnh báo. */
+export interface MaterialTransferDuplicate {
+  code: string;
+  fromName: string;
+  toName: string;
+  transferAt: string;
+}
+
+export interface MaterialTransferBulkResult {
+  created: number;
+  codes: string[];
+  affectedCostChecks: AffectedCostCheck[];
+  /** Có phần tử **và** `created === 0` nghĩa là chưa ghi gì, đang chờ người dùng xác nhận. */
+  duplicates: MaterialTransferDuplicate[];
+}
+
+/**
+ * Nhập nhiều phiếu từ một file Excel. Lần gửi đầu để `confirmDuplicates` false: có phiếu trùng thì
+ * server trả `created: 0` kèm danh sách, chưa ghi gì — gửi lại với `true` mới ghi.
+ */
+export function useBulkImportMaterialTransfers() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ items, confirmDuplicates }: { items: MaterialTransferCreateInput[]; confirmDuplicates: boolean }) =>
+      api.post<MaterialTransferBulkResult>("/material-transfers/bulk-import", { items, confirmDuplicates }),
+    onSuccess: (result) => {
+      // Lần trả về chỉ để cảnh báo trùng thì chưa có gì đổi, khỏi nạp lại danh sách.
+      if (result.created === 0) return;
+      queryClient.invalidateQueries({ queryKey: ["material-transfers"] });
+      // Check Cost và Trang chủ đọc số điều chuyển.
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
+}
