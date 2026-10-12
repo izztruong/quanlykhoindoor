@@ -218,6 +218,29 @@ export function foldVietnamese(text: string) {
     .replace(/đ/g, "d");
 }
 
+export type ShopMatch = { id: string } | "empty" | "not-found" | "ambiguous";
+
+/**
+ * Khớp một ô tên quán với danh sách tài khoản quán, bỏ dấu và không phân biệt hoa thường ("Xuân La",
+ * "xuan la" đều ra một quán).
+ *
+ * KHÔNG đoán bừa: ô trống, tên lạ và tên trùng là ba kết quả riêng để phần nhập báo đúng câu. Đặc
+ * biệt ô trống cũng là lỗi chứ không tự điền người đang nhập file — kế toán nhập hộ nhiều quán mà
+ * bỏ sót một dòng thì dòng đó phải được chỉ ra, không được âm thầm tính sang quán khác.
+ *
+ * Dùng ở Chi ngoài (một ô "Quán chi") và Phiếu điều chuyển (hai ô: quán gửi và quán nhận) — tài khoản
+ * quán không có cột mã nào nên tên là thứ duy nhất gõ được vào file.
+ */
+export function matchShopByName(text: string, shops: { id: string; name: string }[]): ShopMatch {
+  const wanted = foldVietnamese(text);
+  if (!wanted) return "empty";
+
+  const hits = shops.filter((shop) => foldVietnamese(shop.name) === wanted);
+  if (hits.length === 0) return "not-found";
+  if (hits.length > 1) return "ambiguous";
+  return { id: hits[0]!.id };
+}
+
 /** So khớp hàng tiêu đề với file mẫu (bỏ qua dấu *, khoảng trắng và hoa/thường). */
 export function headerMatches(actual: (string | null | undefined)[], template: string[]): boolean {
   const normalise = (value: unknown) => String(value ?? "").replace("*", "").trim().toLowerCase();

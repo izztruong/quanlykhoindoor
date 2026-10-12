@@ -1,5 +1,4 @@
-import ExcelJS from "exceljs";
-import { sanitizeExcelRow } from "./excelExport";
+export { writeWorkbook, type SheetSpec } from "./excelExport";
 import { foldVietnamese, headerMatches } from "./excelParse";
 
 // Phần đọc số và ngày-giờ dùng chung nằm ở lib/excelParse.ts — component chỉ cần import module này.
@@ -85,38 +84,4 @@ export function formatTransactionAtForExcel(iso: string): string {
   const p = (n: number) => String(n).padStart(2, "0");
   const base = `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
   return d.getSeconds() === 0 ? base : `${base}:${p(d.getSeconds())}`;
-}
-
-export interface SheetSpec {
-  name: string;
-  header: string[];
-  /** Độ rộng từng cột, thiếu thì dùng 20. */
-  widths?: number[];
-  rows: (string | number | null | undefined)[][];
-}
-
-/**
- * Ghi workbook NHIỀU sheet. `exportRowsToExcel` (lib/excelExport.ts) chỉ ghi được một sheet, mà file
- * phiếu nhập cần hai sheet nối nhau bằng mã tạm.
- *
- * Mọi ô đi qua `sanitizeExcelRow` — tên hàng hoá hay ghi chú bắt đầu bằng `-` hoặc `=` sẽ thành công
- * thức Excel nếu không chặn.
- */
-export async function writeWorkbook(sheets: SheetSpec[], filename: string): Promise<void> {
-  const workbook = new ExcelJS.Workbook();
-  for (const spec of sheets) {
-    const sheet = workbook.addWorksheet(spec.name);
-    sheet.columns = spec.header.map((header, index) => ({ header, width: spec.widths?.[index] ?? 20 }));
-    sheet.getRow(1).font = { bold: true };
-    for (const row of spec.rows) sheet.addRow(sanitizeExcelRow(row));
-  }
-
-  const buffer = await workbook.xlsx.writeBuffer();
-  const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.click();
-  URL.revokeObjectURL(url);
 }
