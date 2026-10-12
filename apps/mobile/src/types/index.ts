@@ -36,6 +36,9 @@ export interface Warehouse {
   code: string;
   name: string;
   address?: string | null;
+  /** Quán sở hữu kho. Check Cost lấy cột "Nhận trong kỳ" từ phiếu nhập của kho có quán. */
+  shopUserId?: string | null;
+  shopUser?: { id: string; name: string } | null;
 }
 
 export interface ProductGroup {
@@ -106,33 +109,12 @@ export interface ProductSupplierPrice {
   priority?: number | null;
 }
 
-export interface Customer {
-  id: string;
-  code: string;
-  name: string;
-  phone?: string | null;
-  address?: string | null;
-}
-
 export type TransactionForm = "CASH" | "BANK_TRANSFER" | "DEBT" | "OTHER";
 export type TransactionStatus = "DRAFT" | "COMPLETED" | "CANCELLED";
-export type StockImportType = "PURCHASE" | "CUSTOMER_RETURN" | "TRANSFER_IN" | "OTHER";
-export type StockExportType = "SALE" | "SUPPLIER_RETURN" | "TRANSFER_OUT" | "DAMAGE" | "OTHER";
+/** Chỉ còn hai giá trị: CUSTOMER_RETURN bỏ cùng bảng Khách hàng, TRANSFER_IN bỏ vì Check Cost đã cộng hàng điều chuyển ở cột riêng. */
+export type StockImportType = "PURCHASE" | "OTHER";
 
-export interface StockHeader {
-  id: string;
-  code: string;
-  type: string;
-  transactionAt: string;
-  form: TransactionForm;
-  status: TransactionStatus;
-  note?: string | null;
-  warehouse: Warehouse;
-  supplier?: Supplier | null;
-  customer?: Customer | null;
-}
-
-export interface StockItem {
+export interface StockImportLine {
   id: string;
   productId: string;
   product: Product;
@@ -140,69 +122,74 @@ export interface StockItem {
   costPrice: string | number;
   costAmount: string | number;
   note?: string | null;
-  /** Export lines only — which supplier's price this line's costPrice came from. */
-  supplierId?: string | null;
+}
+
+/**
+ * Phiếu nhập kho — đường ghi chính thức cho "hàng về quán", nguồn cột "Nhận trong kỳ" của Check Cost.
+ * Không có khách hàng, mỗi phiếu một NCC trên đầu phiếu, và kho luôn kèm quán sở hữu.
+ */
+export interface StockImport {
+  id: string;
+  code: string;
+  type: StockImportType;
+  /** Có cả giờ — đây là mốc kỳ Check Cost dùng. */
+  transactionAt: string;
+  form: TransactionForm;
+  status: TransactionStatus;
+  note?: string | null;
+  warehouse: Warehouse;
   supplier?: Supplier | null;
+  createdBy?: { id: string; name: string } | null;
+  items: StockImportLine[];
+  /** Số ảnh chứng từ đã đính. App chưa có màn xem/đính ảnh — hiện chỉ web làm được. */
+  imageCount: number;
 }
 
-export interface StockTransaction extends StockHeader {
-  items: StockItem[];
-}
-
-export type SalesOrderStatus = "DRAFT" | "COMPLETED" | "CANCELLED";
+/** Đơn hàng chỉ là ĐỀ XUẤT của quán: đặt rồi huỷ, không có "hoàn thành". */
+export type SalesOrderStatus = "DRAFT" | "CANCELLED";
 
 export interface SalesOrderItem {
   id: string;
   productId: string;
   product: Product;
   quantity: string | number;
-  received: boolean;
-  receivedQuantity?: string | number | null;
-  receivedAt?: string | null;
-  note?: string | null;
-  /** Số ảnh chứng từ đã đính (chỉ đính được khi đơn COMPLETED). URL ảnh tải riêng khi mở. */
-  imageCount: number;
 }
 
-export interface SalesOrderItemImage {
-  id: string;
-  url: string;
-  contentType: string;
-  size: number;
-}
-
+/**
+ * Đơn hàng không nói gì về hàng đã về: không kho xuất, không giá, không SL nhận, không ảnh chứng từ.
+ * Hàng thực nhận ghi ở phiếu nhập kho của quán, và đó cũng là nguồn số của Check Cost.
+ */
 export interface SalesOrder {
   id: string;
   code: string;
-  warehouseId: string;
-  warehouse: Warehouse;
   orderDate: string;
   status: SalesOrderStatus;
   note?: string | null;
   createdAt: string;
   createdBy?: { id: string; name: string; email: string } | null;
+  /** Lúc admin tích "Đã xử lý"; null = chưa xử lý. Không ảnh hưởng tồn kho hay Check Cost. */
+  processedAt?: string | null;
+  processedBy?: { id: string; name: string } | null;
   items: SalesOrderItem[];
-  stockExport?: StockTransaction | null;
   /** null = tạo trước khi có chức năng chấm hạn, hoặc chưa cấu hình lịch — hiện chấm xám. */
   dueAt?: string | null;
   isLate?: boolean;
 }
 
 /**
- * Một dòng trong bảng danh sách đơn hàng — CỐ TÌNH nhẹ hơn `SalesOrder`: không có `items` lẫn
- * `stockExport`, đổi lại có sẵn `totalQuantity` do server cộng trước. Tách kiểu riêng thay vì
- * nới lỏng `SalesOrder` để các trang chi tiết vẫn chắc chắn có đủ dữ liệu chúng cần.
+ * Một dòng trong bảng danh sách đơn hàng — CỐ TÌNH nhẹ hơn `SalesOrder`: không có `items`, đổi lại
+ * có sẵn `totalQuantity` do server cộng trước. Tách kiểu riêng thay vì nới lỏng `SalesOrder` để các
+ * trang chi tiết vẫn chắc chắn có đủ dữ liệu chúng cần.
  */
 export interface SalesOrderListRow {
   id: string;
   code: string;
-  warehouseId: string;
-  warehouse: Warehouse;
   orderDate: string;
   status: SalesOrderStatus;
   note?: string | null;
   createdAt: string;
   createdBy?: { id: string; name: string; email: string } | null;
+  processedAt?: string | null;
   dueAt?: string | null;
   isLate?: boolean;
   totalQuantity: number;
@@ -213,30 +200,6 @@ export interface PagedResult<T> {
   total: number;
   page?: number;
   pageSize?: number;
-}
-
-export interface ReportDetailRow {
-  stt: number;
-  id: string;
-  header: StockHeader;
-  product: Product;
-  productGroup: ProductGroup;
-  unit: Unit;
-  quantity: number;
-  costPrice: number;
-  costAmount: number;
-  note?: string | null;
-}
-
-export interface ReportSummaryRow {
-  stt: number;
-  product: Product;
-  productGroup: ProductGroup;
-  unit: Unit;
-  warehouse: Warehouse;
-  quantity: number;
-  costPrice: number;
-  costAmount: number;
 }
 
 /** Một dòng của trang Tổng hợp đặt NCC — xem getPurchaseSummary ở apps/server. */
@@ -259,42 +222,6 @@ export interface PurchaseSummaryRow {
   raisedToMinimum: boolean;
   importPrice: number;
   amount: number;
-}
-
-export interface InventoryCountRow {
-  stt: number;
-  product: { id: string; code: string; name: string };
-  productGroup: ProductGroup;
-  unit: Unit;
-  openingQty: number;
-  importedQty: number;
-  exportedQty: number;
-  systemQty: number;
-  actualQty: number;
-  surplusQty: number;
-  shortageQty: number;
-}
-
-export type InventoryCountStatus = "DRAFT" | "COMPLETED" | "CANCELLED";
-
-export interface InventoryCountItemRow {
-  id: string;
-  productId: string;
-  product: Product;
-  actualQuantity: string | number;
-  note?: string | null;
-}
-
-export interface InventoryCount {
-  id: string;
-  code: string;
-  warehouseId: string;
-  warehouse: Warehouse;
-  countDate: string;
-  status: InventoryCountStatus;
-  note?: string | null;
-  createdBy?: { id: string; name: string } | null;
-  items?: InventoryCountItemRow[];
 }
 
 export type FinishedGoodCategory = "TRA" | "DAV" | "THANH_PHAM";

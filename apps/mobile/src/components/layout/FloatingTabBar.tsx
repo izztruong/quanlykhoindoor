@@ -10,7 +10,6 @@ type IoniconName = React.ComponentProps<typeof Ionicons>["name"];
 const icons: Record<string, { active: IoniconName; inactive: IoniconName }> = {
   index: { active: "home", inactive: "home-outline" },
   operations: { active: "grid", inactive: "grid-outline" },
-  reports: { active: "bar-chart", inactive: "bar-chart-outline" },
   more: { active: "menu", inactive: "menu-outline" },
 };
 

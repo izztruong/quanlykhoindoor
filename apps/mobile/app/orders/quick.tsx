@@ -7,8 +7,6 @@ import { GroupSection } from "@/components/ui/GroupSection";
 import { Input } from "@/components/ui/Input";
 import { Screen } from "@/components/ui/Screen";
 import { SearchBar } from "@/components/ui/SearchBar";
-import { Select } from "@/components/ui/Select";
-import { useWarehouses } from "@/hooks/useCatalog";
 import { useReorderThresholds } from "@/hooks/useReorderThresholds";
 import { useCreateSalesOrder } from "@/hooks/useSalesOrders";
 import { formatNumber } from "@/lib/format";
@@ -21,11 +19,9 @@ import type { ReorderThreshold } from "@/types";
  */
 export default function QuickOrderScreen() {
   const router = useRouter();
-  const { data: warehouses = [] } = useWarehouses();
   const { data: thresholds = [] } = useReorderThresholds();
   const createOrder = useCreateSalesOrder();
 
-  const [warehouseId, setWarehouseId] = useState("");
   const [stockInputs, setStockInputs] = useState<Record<string, string>>({});
   const [search, setSearch] = useState("");
   const [openGroup, setOpenGroup] = useState<string | null>(null);
@@ -62,36 +58,17 @@ export default function QuickOrderScreen() {
   }, [thresholds]);
 
   function submit() {
-    if (!warehouseId) {
-      Alert.alert("Thiếu thông tin", "Vui lòng chọn kho hàng.");
-      return;
-    }
     if (orderItems.length === 0) {
       Alert.alert("Chưa có gì để đặt", "Chưa có hàng hoá nào cần đặt thêm.");
       return;
     }
-    createOrder.mutate(
-      { warehouseId, items: orderItems, skipStockCheck: true },
-      { onSuccess: (order) => router.replace(`/orders/${order.id}`) },
-    );
+    createOrder.mutate({ items: orderItems }, { onSuccess: (order) => router.replace(`/orders/${order.id}`) });
   }
 
   return (
     <>
       <Stack.Screen options={{ title: "Order nhanh" }} />
       <Screen>
-        <Card>
-          <CardBody style={styles.headerCard}>
-            <Select
-              label="Kho hàng"
-              required
-              value={warehouseId}
-              onChange={setWarehouseId}
-              options={warehouses.map((w) => ({ value: w.id, label: w.name, sublabel: w.code }))}
-            />
-          </CardBody>
-        </Card>
-
         <View style={styles.totalCard}>
           <Text style={styles.totalLabel}>Sẽ đặt</Text>
           <Text style={styles.totalValue}>{orderItems.length} hàng hoá</Text>
@@ -173,7 +150,6 @@ export default function QuickOrderScreen() {
 }
 
 const styles = StyleSheet.create({
-  headerCard: { gap: spacing.lg, paddingTop: spacing.lg },
   totalCard: { padding: spacing.lg, borderRadius: radius.lg, backgroundColor: colors.primarySoft, gap: 2 },
   totalLabel: { fontSize: fontSize.sm, color: colors.info },
   totalValue: { fontSize: fontSize.xl, fontWeight: "700", color: colors.info },

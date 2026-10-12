@@ -15,14 +15,14 @@ import { useInfiniteList } from "@/hooks/useInfiniteList";
 import { useUserOptions } from "@/hooks/useUsers";
 import { formatDateVN, formatNumber, labels } from "@/lib/format";
 import { useCan } from "@/lib/permissions";
-import { SALES_ORDER_STATUS_OPTIONS, SALES_ORDER_STATUS_TONE } from "@/lib/salesOrder";
+import { SALES_ORDER_PROCESSED_OPTIONS, SALES_ORDER_STATUS_OPTIONS, SALES_ORDER_STATUS_TONE } from "@/lib/salesOrder";
 import { colors, fontSize, spacing } from "@/lib/theme";
 import type { SalesOrderListRow } from "@/types";
 
 export default function OrdersScreen() {
   const router = useRouter();
   const { can, scopeAll } = useCan();
-  const filter = useFilterSheet(() => ({ range: currentMonthRange(), status: "", createdById: "" }));
+  const filter = useFilterSheet(() => ({ range: currentMonthRange(), status: "", processed: "", createdById: "" }));
   const { applied, draft } = filter;
 
   const { data: users = [] } = useUserOptions({ enabled: scopeAll });
@@ -30,12 +30,15 @@ export default function OrdersScreen() {
     from: applied.range.from,
     to: applied.range.to,
     status: applied.status || undefined,
+    processed: applied.processed || undefined,
     createdById: applied.createdById || undefined,
   });
 
   const summary = [formatRangeLabel(applied.range)];
   const statusLabel = SALES_ORDER_STATUS_OPTIONS.find((o) => o.value === applied.status)?.label;
   if (statusLabel) summary.push(statusLabel);
+  const processedLabel = SALES_ORDER_PROCESSED_OPTIONS.find((o) => o.value === applied.processed)?.label;
+  if (processedLabel) summary.push(processedLabel);
   const shopName = users.find((u) => u.id === applied.createdById)?.name;
   if (shopName) summary.push(shopName);
 
@@ -76,10 +79,11 @@ export default function OrdersScreen() {
           renderItem={(item) => (
             <ListRowCard
               title={item.code}
-              subtitle={item.warehouse?.name}
+              subtitle={item.createdBy?.name}
               badge={
                 <View style={styles.badges}>
                   <Badge tone={SALES_ORDER_STATUS_TONE[item.status]}>{labels.salesOrderStatus(item.status)}</Badge>
+                  {item.processedAt ? <Badge tone="green">Đã xử lý</Badge> : null}
                   <LatenessDot dueAt={item.dueAt} isLate={item.isLate} showLabel={false} />
                 </View>
               }
@@ -102,6 +106,14 @@ export default function OrdersScreen() {
           onChange={(status) => filter.patchDraft({ status })}
           emptyLabel="Tất cả trạng thái"
           options={SALES_ORDER_STATUS_OPTIONS}
+          searchable={false}
+        />
+        <Select
+          label="Đã xử lý"
+          value={draft.processed}
+          onChange={(processed) => filter.patchDraft({ processed })}
+          emptyLabel="Tất cả"
+          options={SALES_ORDER_PROCESSED_OPTIONS}
           searchable={false}
         />
         {scopeAll ? (

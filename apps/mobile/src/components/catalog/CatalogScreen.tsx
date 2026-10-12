@@ -24,6 +24,8 @@ export interface CatalogFieldConfig {
   type?: "text" | "number" | "select" | "textarea" | "checkbox";
   required?: boolean;
   options?: { value: string; label: string }[];
+  /** Ô select gỡ được giá trị: để trống thì gửi null thay vì undefined — xem `buildPayload`. */
+  clearable?: boolean;
 }
 
 export interface CatalogFilterConfig {
@@ -64,7 +66,9 @@ function buildPayload(fields: CatalogFieldConfig[], values: Record<string, strin
     } else if (field.type === "checkbox") {
       payload[field.name] = raw === "true";
     } else {
-      payload[field.name] = raw || undefined;
+      // `clearable` phải gửi null khi để trống: gửi undefined thì server coi như "không sửa trường
+      // này" nên không gỡ được giá trị đã gán (vd bỏ quán khỏi kho).
+      payload[field.name] = raw || (field.clearable ? null : undefined);
     }
   }
   return payload;

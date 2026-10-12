@@ -1,5 +1,5 @@
-import { StockTransactionForm } from "@/components/stock/StockTransactionForm";
+import { StockImportForm } from "@/components/stock/StockImportForm";
 
-export default function StockScreen() {
-  return <StockTransactionForm variant="import" />;
+export default function NewStockImportScreen() {
+  return <StockImportForm />;
 }

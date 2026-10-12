@@ -1,5 +1,5 @@
-import { StockTransactionList } from "@/components/stock/StockTransactionList";
+import { StockImportList } from "@/components/stock/StockImportList";
 
-export default function StockScreen() {
-  return <StockTransactionList variant="import" />;
+export default function StockImportsScreen() {
+  return <StockImportList />;
 }

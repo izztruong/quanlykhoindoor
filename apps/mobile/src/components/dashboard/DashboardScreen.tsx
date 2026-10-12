@@ -5,7 +5,7 @@ import { AppHeader } from "@/components/layout/AppHeader";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Screen } from "@/components/ui/Screen";
 import { Select } from "@/components/ui/Select";
-import { useCostSummary, useUnconfirmedOrders, useWasteSummary } from "@/hooks/useDashboard";
+import { useCostSummary, useRecentStockImports, useWasteSummary } from "@/hooks/useDashboard";
 import { useUserOptions } from "@/hooks/useUsers";
 import { formatCurrency, formatNumber, formatPercent } from "@/lib/format";
 import { useCan } from "@/lib/permissions";
@@ -62,23 +62,23 @@ export function DashboardScreen() {
   // áp phạm vi nên phải truyền id của mình để không cộng lẫn số của quán khác.
   const userId = scopeAll ? selectedUserId : (user?.id ?? "");
 
-  const canOrders = can("ORDERS");
+  const canImports = can("STOCK_IMPORTS");
   const canWaste = can("MATERIAL_WASTE");
   const canCost = can("COST_CHECKS");
 
-  const orders = useUnconfirmedOrders(userId, canOrders);
+  const imports = useRecentStockImports(userId, canImports);
   const waste = useWasteSummary(userId, canWaste);
   const cost = useCostSummary(userId, year, canCost && !!user);
 
-  const nothingToShow = !canOrders && !canWaste && !canCost;
+  const nothingToShow = !canImports && !canWaste && !canCost;
 
   function refetchAll() {
-    if (canOrders) orders.refetch();
+    if (canImports) imports.refetch();
     if (canWaste) waste.refetch();
     if (canCost) cost.refetch();
   }
 
-  const refreshing = orders.isFetching || waste.isFetching || cost.isFetching;
+  const refreshing = imports.isFetching || waste.isFetching || cost.isFetching;
 
   return (
     <View style={styles.root}>
@@ -104,9 +104,9 @@ export function DashboardScreen() {
           </Card>
         ) : null}
 
-        {canOrders ? (
-          <StatCard title="Đơn hàng chưa xử lý" href="/orders" isLoading={orders.isLoading}>
-            <Text style={styles.bigValue}>{formatNumber(orders.data ?? 0)} đơn</Text>
+        {canImports ? (
+          <StatCard title="Phiếu nhập kho 7 ngày" href="/stock/imports" isLoading={imports.isLoading}>
+            <Text style={styles.bigValue}>{formatNumber(imports.data ?? 0)} phiếu</Text>
           </StatCard>
         ) : null}
 

@@ -2,7 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useCurrentUser } from "@/lib/auth";
 import { can, hasScopeAll } from "@/lib/permissions";
-import { useCostSummary, useUnconfirmedOrders, useWasteSummary } from "./useDashboard";
+import { useCostSummary, useRecentStockImports, useWasteSummary } from "./useDashboard";
 import { useUnreadNotificationCount } from "./useNotifications";
 import { useUserOptions } from "./useUsers";
 
@@ -16,18 +16,18 @@ export function useAppStartup() {
   const enabled = !!user && !ready;
   const scopeAll = hasScopeAll(user);
   const userId = scopeAll ? "" : (user?.id ?? "");
-  const canOrders = can(user, "ORDERS");
+  const canImports = can(user, "STOCK_IMPORTS");
   const canWaste = can(user, "MATERIAL_WASTE");
   const canCost = can(user, "COST_CHECKS");
-  const showUserFilter = scopeAll && (canOrders || canWaste || canCost);
+  const showUserFilter = scopeAll && (canImports || canWaste || canCost);
 
-  const orders = useUnconfirmedOrders(userId, enabled && canOrders);
+  const imports = useRecentStockImports(userId, enabled && canImports);
   const waste = useWasteSummary(userId, enabled && canWaste);
   const cost = useCostSummary(userId, new Date().getFullYear(), enabled && canCost);
   const users = useUserOptions({ enabled: enabled && showUserFilter });
   const unread = useUnreadNotificationCount(enabled);
   const required = [
-    ...(canOrders ? [orders] : []),
+    ...(canImports ? [imports] : []),
     ...(canWaste ? [waste] : []),
     ...(canCost ? [cost] : []),
     ...(showUserFilter ? [users] : []),

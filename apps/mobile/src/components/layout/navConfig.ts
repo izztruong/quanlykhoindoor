@@ -23,8 +23,9 @@ export interface NavSection {
 
 /**
  * Giữ đúng nhóm và mã quyền của bản web (apps/web/src/components/layout/nav-config.ts) để hai bên
- * không lệch nhau. Khác hai điểm: nhóm "Kiểm toán" tách sang tab Báo cáo, và mọi mục
- * nhập/xuất Excel bị bỏ vì app không làm Excel.
+ * không lệch nhau. Khác một điểm: mọi mục nhập/xuất Excel bị bỏ vì app không làm Excel.
+ *
+ * Nhóm "Kiểm toán" từng là tab Báo cáo riêng; cả nhóm đã bị xoá cùng phần kho tổng nên app còn 3 tab.
  */
 export const navSections: NavSection[] = [
   {
@@ -50,7 +51,6 @@ export const navSections: NavSection[] = [
     icon: "cube-outline",
     items: [
       { label: "Phiếu nhập kho", href: "/stock/imports", permission: "STOCK_IMPORTS.VIEW", icon: "arrow-down-circle-outline" },
-      { label: "Phiếu xuất kho", href: "/stock/exports", permission: "STOCK_EXPORTS.VIEW", icon: "arrow-up-circle-outline" },
       { label: "Phiếu Check Cost", href: "/cost-checks", permission: "COST_CHECKS.VIEW", icon: "calculator-outline" },
       { label: "Phiếu điều chuyển", href: "/material-transfers", permission: "MATERIAL_TRANSFERS.VIEW", icon: "swap-horizontal-outline" },
     ],
@@ -72,7 +72,6 @@ export const navSections: NavSection[] = [
       { label: "Đơn vị tính", href: "/catalog/units", permission: "UNITS.VIEW", icon: "resize-outline" },
       { label: "Kho hàng", href: "/catalog/warehouses", permission: "WAREHOUSES.VIEW", icon: "business-outline" },
       { label: "Nhà cung cấp", href: "/catalog/suppliers", permission: "SUPPLIERS.VIEW", icon: "people-outline" },
-      { label: "Khách hàng", href: "/catalog/customers", permission: "CUSTOMERS.VIEW", icon: "person-outline" },
       { label: "Đồ thành phẩm", href: "/catalog/finished-goods", permission: "FINISHED_GOODS.VIEW", icon: "cafe-outline" },
     ],
   },
@@ -82,21 +81,6 @@ export const navSections: NavSection[] = [
     items: [
       { label: "Tài khoản người dùng", href: "/admin/users", permission: "USERS.VIEW", icon: "people-circle-outline" },
       { label: "Vai trò & phân quyền", href: "/admin/roles", permission: "ROLES.VIEW", icon: "key-outline" },
-    ],
-  },
-];
-
-/** Nhóm "Kiểm toán" của web — trên app nó là tab Báo cáo, không nằm trong Nghiệp vụ. */
-export const reportSections: NavSection[] = [
-  {
-    label: "Kiểm toán",
-    icon: "clipboard-outline",
-    items: [
-      { label: "Kiểm kê", href: "/reports/inventory-count", permission: "AUDIT_REPORTS.VIEW", icon: "reader-outline" },
-      { label: "Chi tiết xuất", href: "/reports/export-detail", permission: "AUDIT_REPORTS.VIEW", icon: "reader-outline" },
-      { label: "Tổng hợp xuất", href: "/reports/export-summary", permission: "AUDIT_REPORTS.VIEW", icon: "reader-outline" },
-      { label: "Chi tiết nhập", href: "/reports/import-detail", permission: "AUDIT_REPORTS.VIEW", icon: "reader-outline" },
-      { label: "Tổng hợp nhập", href: "/reports/import-summary", permission: "AUDIT_REPORTS.VIEW", icon: "reader-outline" },
     ],
   },
 ];

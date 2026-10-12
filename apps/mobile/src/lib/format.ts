@@ -47,6 +47,8 @@ const transactionStatusLabel: Record<string, string> = {
   CANCELLED: "Đã huỷ",
 };
 
+// CUSTOMER_RETURN và TRANSFER_IN không còn tạo mới được (enum server chỉ còn PURCHASE/OTHER) nhưng
+// vẫn phải có nhãn: phiếu cũ trong DB còn mang hai giá trị đó.
 const stockImportTypeLabel: Record<string, string> = {
   PURCHASE: "Nhập mua",
   CUSTOMER_RETURN: "Khách trả hàng",
@@ -54,23 +56,10 @@ const stockImportTypeLabel: Record<string, string> = {
   OTHER: "Khác",
 };
 
-const stockExportTypeLabel: Record<string, string> = {
-  SALE: "Xuất bán",
-  SUPPLIER_RETURN: "Trả nhà cung cấp",
-  TRANSFER_OUT: "Chuyển kho đi",
-  DAMAGE: "Xuất huỷ",
-  OTHER: "Khác",
-};
-
+// Đơn hàng là đề xuất của quán nên DRAFT đọc là "Đã đặt", không phải "Chưa xử lý" — đơn không
+// chờ một trạng thái nào — xem SalesOrderStatus.
 const salesOrderStatusLabel: Record<string, string> = {
-  DRAFT: "Chưa xử lý",
-  COMPLETED: "Hoàn thành",
-  CANCELLED: "Đã huỷ",
-};
-
-const inventoryCountStatusLabel: Record<string, string> = {
-  DRAFT: "Chưa kiểm",
-  COMPLETED: "Đã kiểm",
+  DRAFT: "Đã đặt",
   CANCELLED: "Đã huỷ",
 };
 
@@ -97,9 +86,7 @@ export const labels = {
   transactionForm: (v: string) => transactionFormLabel[v] ?? v,
   transactionStatus: (v: string) => transactionStatusLabel[v] ?? v,
   stockImportType: (v: string) => stockImportTypeLabel[v] ?? v,
-  stockExportType: (v: string) => stockExportTypeLabel[v] ?? v,
   salesOrderStatus: (v: string) => salesOrderStatusLabel[v] ?? v,
-  inventoryCountStatus: (v: string) => inventoryCountStatusLabel[v] ?? v,
   productType: (v: string) => productTypeLabel[v] ?? v,
   finishedGoodCategory: (v: string) => finishedGoodCategoryLabel[v] ?? v,
   shiftExpenseType: (v: string) => shiftExpenseTypeLabel[v] ?? v,

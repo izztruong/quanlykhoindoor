@@ -42,6 +42,17 @@ năng xem `nav-config.ts` và `apps/server/src/modules/`.
 
 ## Đang dở
 
+### App mobile theo kịp đợt bỏ kho tổng — CHƯA bấm thử trên máy thật, CHƯA lên `staging`
+Trước đợt này app vẫn gọi 8 route server đã xoá (phiếu xuất kho, Khách hàng, 5 báo cáo Kiểm toán,
+`/product-stock`, `PUT /sales-orders/:id/process`) và vẫn gửi `warehouseId`/`skipStockCheck` khi tạo đơn.
+Đã xoá 11 màn + gộp phiếu nhập về một biến thể (NCC bắt buộc, bỏ ô Trạng thái/Khách hàng), đơn hàng còn
+DRAFT/CANCELLED kèm nút "Đánh dấu đã xử lý" + ô lọc Đã xử lý, ô Trang chủ đổi sang "Phiếu nhập kho 7 ngày",
+danh mục Kho thêm ô **Quán** (kèm `clearable` cho `CatalogScreen` — không có nó thì không gỡ được quán).
+Tab **Báo cáo** bỏ hẳn (nhóm Kiểm toán là toàn bộ nội dung của nó) nên app còn **3 tab**.
+Đã kiểm: `npm run typecheck` + `npx expo export --platform android` (bundle 5,8 MB, sạch).
+Còn lại: bấm thử trên máy thật, và **sửa/xoá phiếu nhập kho + ảnh chứng từ vẫn chỉ có trên web** —
+app chỉ xem và tạo.
+
 ### Nhập Excel cho phiếu điều chuyển — CHƯA bấm thử trên trình duyệt, CHƯA lên `staging`
 File **hai sheet** như phiếu nhập kho, nhưng quán khớp theo **tên** (tài khoản không có cột mã) và **không có
 cột SL lẻ** (dữ liệu thật 0/20 dòng dùng tới, mà đó là cột dễ nhập sai đơn vị nhất) — API vẫn nhận `looseQuantity`.

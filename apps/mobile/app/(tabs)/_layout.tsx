@@ -6,7 +6,6 @@ export default function TabsLayout() {
     <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <FloatingTabBar {...props} />}>
       <Tabs.Screen name="index" options={{ title: "Trang chủ" }} />
       <Tabs.Screen name="operations" options={{ title: "Nghiệp vụ" }} />
-      <Tabs.Screen name="reports" options={{ title: "Báo cáo" }} />
       <Tabs.Screen name="more" options={{ title: "Khác" }} />
     </Tabs>
   );

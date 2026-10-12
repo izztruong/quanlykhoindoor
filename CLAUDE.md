@@ -37,7 +37,7 @@ apps/web/src
   proxy.ts           middleware Next 16 — hiện chỉ pass-through
 
 apps/mobile
-  app/               expo-router: (tabs)/ gồm 4 tab + các màn stack theo nghiệp vụ
+  app/               expo-router: (tabs)/ gồm 3 tab + các màn stack theo nghiệp vụ
   src/               components/ · hooks/ · lib/ · types/ — types, format, hook phần lớn chép từ web
 ```
 

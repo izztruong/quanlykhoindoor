@@ -54,16 +54,12 @@ const stockImportTypeLabel: Record<string, string> = {
   OTHER: "Khác",
 };
 
-;
-
 // Đơn hàng là đề xuất của quán: chỉ đặt hoặc huỷ. Dấu "đã xử lý" là một cột riêng (processedAt),
 // không phải một trạng thái — xem SalesOrder trong schema.prisma.
 const salesOrderStatusLabel: Record<string, string> = {
   DRAFT: "Đã đặt",
   CANCELLED: "Đã huỷ",
 };
-
-;
 
 const productTypeLabel: Record<string, string> = {
   NVL: "Nguyên vật liệu",

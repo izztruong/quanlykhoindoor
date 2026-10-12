@@ -7,7 +7,7 @@ import { Card, CardBody } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Screen } from "@/components/ui/Screen";
 import { Select } from "@/components/ui/Select";
-import { useProducts, useWarehouses } from "@/hooks/useCatalog";
+import { useProducts } from "@/hooks/useCatalog";
 import { useCreateSalesOrder } from "@/hooks/useSalesOrders";
 import { colors, fontSize, spacing } from "@/lib/theme";
 
@@ -18,11 +18,9 @@ interface Row {
 
 export default function NewOrderScreen() {
   const router = useRouter();
-  const { data: warehouses = [] } = useWarehouses();
   const { data: products = [] } = useProducts({ activeOnly: true });
   const createOrder = useCreateSalesOrder();
 
-  const [warehouseId, setWarehouseId] = useState("");
   const [note, setNote] = useState("");
   const [rows, setRows] = useState<Row[]>([{ productId: "", quantity: "" }]);
 
@@ -34,10 +32,6 @@ export default function NewOrderScreen() {
   }
 
   function submit() {
-    if (!warehouseId) {
-      Alert.alert("Thiếu thông tin", "Chọn kho hàng.");
-      return;
-    }
     const items = rows
       .filter((row) => row.productId && Number(row.quantity) > 0)
       .map((row) => ({ productId: row.productId, quantity: Number(row.quantity) }));
@@ -47,10 +41,10 @@ export default function NewOrderScreen() {
       return;
     }
 
-    // Đặt vượt tồn là hợp lệ (giống trang tạo đơn bên web): tồn kho chỉ hiện để tham khảo dưới ô
-    // số lượng, quán vẫn gọi được nhiều hơn. Thiếu cờ này thì server chặn, lệch hẳn với web.
+    // Đơn hàng chỉ là đề xuất nên không còn phép kiểm tồn nào để bỏ qua: payload chỉ có ghi chú và
+    // danh sách hàng hoá.
     createOrder.mutate(
-      { warehouseId, note: note || undefined, items, skipStockCheck: true },
+      { note: note || undefined, items },
       { onSuccess: (created) => router.replace(`/orders/${created.id}`) },
     );
   }
@@ -61,13 +55,6 @@ export default function NewOrderScreen() {
       <Screen>
         <Card>
           <CardBody style={styles.headerCard}>
-            <Select
-              label="Kho hàng"
-              required
-              value={warehouseId}
-              onChange={setWarehouseId}
-              options={warehouses.map((w) => ({ value: w.id, label: w.name, sublabel: w.code }))}
-            />
             <Input label="Ghi chú" value={note} onChangeText={setNote} multiline />
           </CardBody>
         </Card>
