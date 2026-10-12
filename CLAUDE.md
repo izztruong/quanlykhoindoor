@@ -85,6 +85,14 @@ npx expo export --platform android   # bundle thử — bắt lỗi import mà t
   xong không phải build lại, chỉ buộc dừng app rồi mở lại. `google-services.json` thuộc project
   Firebase khác (`327851061860`) là **bình thường**: app truyền thẳng Web Client ID khi
   `GoogleSignin.configure`, không đọc client trong file đó.
+  **Và project Firebase đó (`indoor-7322a`) còn giữ service account dùng để NỘP lên CH Play.** Nên
+  `eas submit --platform android` hỏng ở hai chỗ, lần lượt chứ không cùng lúc: (1) *Google Play Android
+  Developer API* chưa bật — link trong câu lỗi mang sẵn `?project=327851061860`, mở đúng link đó, đừng
+  đoán project; (2) service account chưa được mời ở **Play Console › Users and permissions** kèm quyền
+  **trên app** `com.indoor.quanlykho` (cấp ở mức tài khoản mà không gắn app thì vẫn lỗi y hệt). Cả hai
+  project đều cần đăng nhập đúng tài khoản Google — sai tài khoản thì Cloud Console báo thiếu
+  `resourcemanager.projects.get`, trông như không có quyền chứ không nói là nhầm người. Service account
+  chỉ để TẢI FILE LÊN, không dính gì tới chữ ký app hay Google Sign-In.
 - **Tấm trượt `ui/Modal` tự né bàn phím — đừng bọc thêm `KeyboardAvoidingView` ở chỗ gọi**, bọc
   chồng là nội dung bị đẩy hai lần. `Modal` của React Native trên iOS là một window riêng nên hệ điều
   hành không tự thu nhỏ nó; Android thì `adjustResize` lo sẵn, nên `behavior` cố ý chỉ đặt cho iOS.

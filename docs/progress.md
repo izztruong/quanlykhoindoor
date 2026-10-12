@@ -12,54 +12,50 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đã xong
 
-Đang chạy trên `main`, đã bấm thử trên trình duyệt và đã tick quyền trên production. Chi tiết chức
-năng xem `nav-config.ts` và `apps/server/src/modules/`.
+Đang chạy trên `main`, đã bấm thử và đã tick quyền trên production. Chi tiết chức năng xem
+`nav-config.ts` và `apps/server/src/modules/`.
 
-- **Danh mục** — hàng hoá (có cờ `active`), nhóm, đơn vị, kho, NCC, khách hàng, đồ thành phẩm
-- **Kho** — phiếu nhập, xuất, kiểm kê kho, điều chuyển; giá theo từng NCC
-- **Order** — danh sách, tạo đơn (cho đặt vượt tồn), Order nhanh, Tổng hợp đặt NCC; luồng Chưa xử lý
-  → Hoàn thành/Huỷ với màn "Xử lý đơn" (NCC, giá, SL + ngày nhận từng dòng); ảnh chứng từ theo dòng hàng
+- **Danh mục** — hàng hoá (có cờ `active`), nhóm, đơn vị, kho (gắn quán sở hữu), NCC, đồ thành phẩm
+- **Kho** — phiếu nhập kho (sửa/xoá, ảnh chứng từ, nhập Excel nhiều phiếu), điều chuyển (nhập Excel),
+  Check Cost; giá theo từng NCC
+- **Order** — danh sách, tạo đơn, Order nhanh, Tổng hợp đặt NCC. Đơn chỉ là **đề xuất**: Đã đặt → Huỷ,
+  cộng ô tích "Đã xử lý" để admin đánh dấu đơn đã làm
 - **Kiểm kê quán** — phiếu kiểm (tuần/tháng), phiếu huỷ nguyên liệu (ô tích "Trừ CC" từng dòng), tự trừ vỏ
 - **Check Cost** — báo cáo NVL + tổng hợp tài chính, snapshot chốt cứng, huỷ mềm, công thức BOM và giá
-  bán theo mốc hiệu lực, SL món đã bán lấy từ POS, cột "% chênh lệch thực", gộp báo cáo theo loại
+  bán theo mốc hiệu lực, SL món đã bán lấy từ POS, cột "% chênh lệch thực", gộp báo cáo theo loại.
+  Cột "Nhận trong kỳ" lấy từ phiếu nhập kho của kho quán
 - **Doanh số POS** — nhập Excel, gõ tay từng dòng, nhập thẳng từ file nhật ký order của POS; Ánh xạ
   món POS; Khung giờ ca
 - **Tài chính** — Đề xuất chi (tạm ứng nhiều lần, duyệt bổ sung hạng mục, hoàn thành + chứng từ),
   Chi chốt ca (Loại chi, ảnh R2, cột Đã chi + Ngày lập phiếu), Chi ngoài
-- **Kiểm toán** — 5 báo cáo chỉ đọc
 - **Đánh dấu nộp muộn** — chấm xanh/đỏ/xám trên đơn hàng và phiếu kiểm, cấu hình hạn ở Quản trị
-- **Trang chủ** — đơn chưa xử lý, huỷ hàng 7 ngày, chi phí NVL tháng + biểu đồ tỷ lệ theo năm, lọc theo quán
+- **Trang chủ** — phiếu nhập kho 7 ngày, huỷ hàng 7 ngày, chi phí NVL tháng + biểu đồ tỷ lệ theo năm,
+  lọc theo quán
 - **MCP** — `/mcp` chỉ đọc 12 tool + trang Token MCP; connector claude.ai đã nối được trên production
-- **App mobile** — 4 tab, màn hình chờ khởi động, thông báo đẩy 7 loại, Check Cost, công thức theo mốc,
-  ghi nhớ đăng nhập, icon mới, tên gói `com.indoor.quanlykho`, nhãn LOCAL/STAGING
-- **iOS** — ẩn nút Google (Guideline 4.8), tắt iPad, phát hành dạng Unlisted; đã nộp App Store Connect
+- **App mobile** — 3 tab, màn hình chờ khởi động, thông báo đẩy 7 loại, Check Cost, công thức theo mốc,
+  ghi nhớ đăng nhập, nhãn LOCAL/STAGING. **EAS Update**: đổi JS phát hành thẳng, không qua store
+- **Phát hành** — **1.0.5 đã lên cả CH Play và App Store**; iOS ẩn nút Google (Guideline 4.8), tắt iPad,
+  phát hành dạng Unlisted
 - **Nền tảng** — JWT cookie có `tokenVersion`, vai trò tuỳ biến + cờ "Là quán", phạm vi dữ liệu theo
-  quán ép ở server, đăng nhập Google (web + mobile) + đổi email, rate limit đăng nhập theo IP thật,
-  phân trang 20 dòng, chống chèn công thức Excel, trang `/privacy-policy`, nhánh `dev` + chặn build
-  sai môi trường
+  quán ép ở server (phiếu nhập kho lọc theo **chủ kho**), đăng nhập Google (web + mobile) + đổi email,
+  rate limit đăng nhập theo IP thật, phân trang 20 dòng, chống chèn công thức Excel,
+  trang `/privacy-policy`, nhánh `dev` + chặn build/OTA sai nhánh
 
 ---
 
 ## Đang dở
 
-### Đợt "bỏ kho tổng" — đã bấm thử xong, đang ở `staging`, CHƯA lên `main`
-16 commit đi cùng nhau vì chúng phá nhau nếu tách: mỗi quán một kho · Check Cost lấy "Nhận trong kỳ" từ
-phiếu nhập kho của quán thay vì SL nhận của đơn · đơn hàng chỉ còn là đề xuất + ô tích "Đã xử lý" ·
-phiếu nhập kho thành đường ghi chính (sửa/xoá, ảnh chứng từ, phạm vi theo **chủ kho**) · xoá phiếu xuất,
-kiểm kê kho, Khách hàng, cả nhóm Kiểm toán · nhập Excel nhiều phiếu một lần cho phiếu nhập kho và phiếu
-điều chuyển · app mobile theo kịp (bỏ 11 màn, còn 3 tab) · dựng EAS Update + shim giữ app 1.0.4 sống ·
-sửa tấm trượt iOS bị bàn phím che.
-Đã bấm thử trên trình duyệt và trên máy (iOS + Android), không lỗi.
+### Gỡ shim `/dashboard/unconfirmed-orders` — việc DUY NHẤT còn lại của đợt này
+Shim giữ cho app cũ (Android 1.0.3, iOS 1.0.4) còn mở được: thiếu nó thì app cũ dừng vĩnh viễn ở màn chờ.
+Mỗi lần bị gọi nó ghi `console.warn("[legacy] …")` lên log Render — **log im vài ngày = không còn máy nào
+ở bản cũ → commit server xoá shim** (chỉ sửa `dashboard.routes.ts` + `.service.ts`). "Đã duyệt xong"
+không phải tín hiệu: người dùng vẫn có thể ở lại bản cũ hàng tuần, mà bản cũ thì không nhận được OTA.
 
-### Đưa lên `main` và phát hành app 1.0.5 — thứ tự bắt buộc
-1. Merge `staging` → `main`. **Shim `/dashboard/unconfirmed-orders` phải lên cùng đợt** với phần đã
-   dọn: thiếu nó thì app 1.0.4 đang cài dừng vĩnh viễn ở màn chờ.
-2. Build 1.0.5 từ `main` (`npm run build:production` / `:ios`) rồi nộp hai store.
-3. Theo log `[legacy] /dashboard/unconfirmed-orders` trên Render. Im vài ngày = không còn máy nào ở
-   1.0.4 → commit server xoá shim. **"Được duyệt" không phải tín hiệu**, người dùng vẫn ở lại bản cũ.
-Từ 1.0.5 trở đi, đổi JS thì `npm run update:production` (OTA), không phải chờ duyệt.
+---
 
-### Vết sẵn có, đã biết mà chưa sửa
+## Còn lại
+
+### Vết sẵn có, đã biết mà chủ động gác lại
 - **Sửa phiếu trên web trừ vỏ lần hai**: `subtractTareWeight` chạy ở cả POST lẫn PUT nên DB lưu lượng
   tịnh; mobile cộng vỏ ngược khi mở form sửa, web thì không. Dính cả 3 module dùng `tareWeight`.
 - **`parseDateRange` lệch 7 tiếng**: `setHours` theo giờ máy chủ mà Render chạy UTC. Ảnh hưởng mọi ô
@@ -69,13 +65,7 @@ Từ 1.0.5 trở đi, đổi JS thì `npm run update:production` (OTA), không p
 - **Sửa/xoá phiếu nhập kho và ảnh chứng từ chỉ có trên web**, app mobile chỉ xem và tạo.
 - **Vòng ảnh R2 thật chưa kiểm được**: `dev:copy` cố ý làm rỗng 4 biến `R2_*` để không xoá file thật.
 - **`expo-doctor` báo 3 lỗi sẵn có**: `newArchEnabled` ngoài schema SDK 57, thiếu peer `expo-font` +
-  `react-native-worklets`, 7 package lệch bản patch. Để sau khi 1.0.5 lên store hẵng đụng.
-
----
-
----
-
-## Còn lại
+  `react-native-worklets`, 7 package lệch bản patch.
 
 ### Danh sách đơn tự cập nhật khi có đơn mới
 Phần chuẩn bị xong (payload giảm 187 KB → 11,3 KB cho 20 đơn). Còn hai quyết định người dùng muốn
