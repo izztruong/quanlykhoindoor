@@ -67,7 +67,7 @@ npm run typecheck
 npx expo export --platform android   # bundle thử — bắt lỗi import mà typecheck bỏ sót
 ```
 
-### App mobile — bốn cái bẫy
+### App mobile — năm cái bẫy
 
 - **Thông báo đẩy không chạy trong Expo Go trên Android** (từ SDK 53). Phải dựng development build
   (`eas build --profile development`); code tự bỏ qua đăng ký push khi chạy trong Expo Go. Từ SDK 57
@@ -85,6 +85,12 @@ npx expo export --platform android   # bundle thử — bắt lỗi import mà t
   xong không phải build lại, chỉ buộc dừng app rồi mở lại. `google-services.json` thuộc project
   Firebase khác (`327851061860`) là **bình thường**: app truyền thẳng Web Client ID khi
   `GoogleSignin.configure`, không đọc client trong file đó.
+- **Tấm trượt `ui/Modal` tự né bàn phím — đừng bọc thêm `KeyboardAvoidingView` ở chỗ gọi**, bọc
+  chồng là nội dung bị đẩy hai lần. `Modal` của React Native trên iOS là một window riêng nên hệ điều
+  hành không tự thu nhỏ nó; Android thì `adjustResize` lo sẵn, nên `behavior` cố ý chỉ đặt cho iOS.
+  Trong `Modal` đừng đổi tấm trượt về `position: absolute`: phần tử tuyệt đối không đọc hộp nội dung
+  của cha nên lớp né mất tác dụng, và `pointerEvents="box-none"` phải giữ, thiếu nó thì chạm nền mờ
+  không đóng được nữa.
 - Kiểu, hook, `lib` chép từ web **không tự đồng bộ**: đổi payload API bên web thì phải sửa cả bên
   mobile (đã lỡ một lần với trường `category` của phiếu đề xuất chi).
 

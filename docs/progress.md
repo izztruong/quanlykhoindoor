@@ -42,6 +42,17 @@ năng xem `nav-config.ts` và `apps/server/src/modules/`.
 
 ## Đang dở
 
+### Tấm trượt trên iOS bị bàn phím che — CHƯA bấm thử trên iPhone, CHƯA lên `staging`
+Gõ số tiền ở màn Tạm ứng (phiếu đề xuất chi) trên iPhone thì bàn phím che mất ô nhập lẫn nút xác nhận.
+Lỗi ở `ui/Modal` dùng chung chứ không ở màn đó: tấm trượt `position: absolute` trong một `RNModal`
+và không có `KeyboardAvoidingView` — iOS không tự thu nhỏ window của Modal. Sửa một chỗ hết **8 tấm
+trượt**; hai cái body là `View` trơn (Tạm ứng, Từ chối phiếu) bọc thêm `ScrollView` như 6 cái còn lại.
+Thêm thanh **"Xong"** (`InputAccessoryView`, iOS) cho ô số tiền vì bàn phím `numeric` của iOS không có
+phím đóng. Thuần JS nên đi OTA được, không đổi fingerprint.
+Đã kiểm: typecheck + `npx expo export --platform android` sạch. Còn lại: bấm thử trên iPhone thật —
+đặc biệt **chạm nền mờ để đóng** (phép thử cho `pointerEvents="box-none"`), và thử lại trên Android
+để chắc không bị đẩy hai lần.
+
 ### Cập nhật OTA cho app + shim giữ app 1.0.4 sống — CHƯA build, CHƯA lên `staging`
 Dựng `expo-updates`: `updates.url`, `runtimeVersion` policy **fingerprint**, `channel` cho cả 3 profile
 EAS, và `npm run update:preview|production` gác nhánh như lệnh build. Nâng `version` lên **1.0.5**.

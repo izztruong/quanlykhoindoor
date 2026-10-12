@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
@@ -41,7 +41,9 @@ export function ExpenseAdvanceModal({ proposalId, initialAmount, remaining, isFi
       onClose={onClose}
       footer={<Button title="Xác nhận tạm ứng" fullWidth loading={advance.isPending} onPress={submit} />}
     >
-      <View style={styles.body}>
+      {/* ScrollView chứ không View trơn: trên máy nhỏ, phần trên bàn phím có thể không đủ cho ô
+          tiền + ô ghi chú + dòng lỗi, mà maxHeight của tấm trượt sẽ cắt mất phần thừa. */}
+      <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
         <View style={styles.remaining}>
           <Text style={styles.remainingLabel}>Còn được ứng</Text>
           <Text style={styles.remainingValue}>{formatCurrency(remaining)}</Text>
@@ -52,6 +54,7 @@ export function ExpenseAdvanceModal({ proposalId, initialAmount, remaining, isFi
           value={amount}
           onChangeText={setAmount}
           keyboardType="numeric"
+          doneAccessory
           autoFocus
           error={error ?? undefined}
           hint={
@@ -61,7 +64,7 @@ export function ExpenseAdvanceModal({ proposalId, initialAmount, remaining, isFi
           }
         />
         <Input label="Ghi chú" value={note} onChangeText={setNote} placeholder="Không bắt buộc" />
-      </View>
+      </ScrollView>
     </Modal>
   );
 }

@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
 import { ExpenseAdvanceModal } from "@/components/expenseProposals/ExpenseAdvanceModal";
 import { ExpenseProposalImagesCard } from "@/components/expenseProposals/ExpenseProposalImagesCard";
 import { Badge } from "@/components/ui/Badge";
@@ -356,7 +356,7 @@ export default function ExpenseProposalDetailScreen() {
         onClose={() => setRejectScope(null)}
         footer={<Button title="Từ chối" variant="danger" fullWidth loading={decide.isPending} onPress={submitReject} />}
       >
-        <View style={styles.rejectForm}>
+        <ScrollView contentContainerStyle={styles.rejectForm} keyboardShouldPersistTaps="handled">
           <Input
             label="Lý do từ chối"
             required
@@ -370,7 +370,7 @@ export default function ExpenseProposalDetailScreen() {
             multiline
             autoFocus
           />
-        </View>
+        </ScrollView>
       </Modal>
 
       {advancing ? (
