@@ -37,7 +37,8 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 - **Phát hành** — **1.0.5 đã lên cả CH Play và App Store**; iOS ẩn nút Google (Guideline 4.8), tắt iPad,
   phát hành dạng Unlisted
 - **Nền tảng** — JWT cookie có `tokenVersion`, vai trò tuỳ biến + cờ "Là quán", phạm vi dữ liệu theo
-  quán ép ở server (phiếu nhập kho lọc theo **chủ kho**), đăng nhập Google (web + mobile) + đổi email,
+  quán ép ở server (phiếu nhập kho theo **chủ kho**, Check Cost theo quán được check, điều chuyển cho
+  **cả quán gửi lẫn quán nhận**), đăng nhập Google (web + mobile) + đổi email,
   rate limit đăng nhập theo IP thật, phân trang 20 dòng, chống chèn công thức Excel,
   trang `/privacy-policy`, nhánh `dev` + chặn build/OTA sai nhánh
 
@@ -45,21 +46,14 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
-### Check Cost & điều chuyển lọc theo quán — đã bấm thử trên trình duyệt, CHƯA lên `staging`
-Check Cost neo theo `userId`, điều chuyển hiện cho **cả quán gửi lẫn quán nhận**; ô chọn quán/kho ở web
-và mobile bỏ luôn quán khác khi vai trò không có `DATA.SCOPE_ALL`.
-Đã kiểm: typecheck 3 app và một lượt curl trên `kho_db` với 3 quán thử — danh sách, chi tiết (404 ngoài
-phạm vi), tạo/sửa/huỷ, nhập Excel lô, xem trước POS. Dữ liệu thử đã dọn.
+### Phiếu nhập kho chọn được hàng NCC chưa khai giá — ĐÃ lên `main`, CHƯA bấm thử trên trình duyệt
+Hàng chưa khai giá thì giá vốn để **0**, nên "Tổng tiền vốn" thiếu phần đó — đã chốt chấp nhận.
+Đã kiểm bằng typecheck/build/`expo export` và curl trên `kho_dev_copy` (kể cả một phiếu Check Cost thật
+phủ kỳ có dòng giá 0). Còn thiếu đúng một lượt bấm trên trình duyệt production.
 
-### Phiếu nhập kho chọn được hàng NCC chưa khai giá — CHƯA bấm thử trên trình duyệt, CHƯA lên `staging`
-Bỏ `assertSupplierPrices` ở server (3 lời gọi) và hai lớp lọc trên form web + mobile; hàng chưa khai giá
-thì giá vốn để **0**. Mobile đổi fallback từ giá vốn danh mục sang 0 cho khớp web. Nhập Excel giữ nguyên:
-để trống giá mà NCC chưa khai thì vẫn báo lỗi đúng dòng. Dòng giá 0 không đánh dấu gì, nên "Tổng tiền vốn"
-sẽ thiếu phần đó — đã chốt chấp nhận.
-Đã kiểm: typecheck 3 app, lint web 0 lỗi/3 cảnh báo, build web, `expo export`; và 5 ca curl trên
-`kho_dev_copy` — tạo/sửa/bulk-import phiếu có dòng giá 0 đều qua (trước là 400), DB lưu `costPrice=0`
-`costAmount=0`, và **tạo phiếu Check Cost thật phủ kỳ đó thì `receivedQty` của hàng giá 0 vẫn đủ**
-(nền 0 → 5000 Gam cho 5 Kg). Dữ liệu thử đã dọn.
+### Phần mobile của hai commit vừa lên `main` chưa tới điện thoại
+`CostCheckForm`, `MaterialTransferForm`, `StockImportForm` đã sửa trong repo nhưng app đang cài vẫn là
+bản cũ — cần `npm run update:production` (và `update:preview` cho staging) mới phát hành.
 
 ---
 
