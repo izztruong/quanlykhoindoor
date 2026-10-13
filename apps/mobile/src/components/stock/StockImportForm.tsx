@@ -36,7 +36,7 @@ const number = (value: string) => (value.trim() ? Number(value.replace(",", ".")
  */
 export function StockImportForm() {
   const router = useRouter();
-  const { can } = useCan();
+  const { can, user: currentUser, scopeAll } = useCan();
   const create = useCreateStockImport();
   const warehouses = useWarehouses();
   const suppliers = useSuppliers();
@@ -52,6 +52,12 @@ export function StockImportForm() {
   const [rows, setRows] = useState<Row[]>([]);
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
+
+  // Phạm vi SELF chỉ nhập được vào kho của quán mình (server lọc theo warehouse.shopUserId).
+  const warehouseOptions = (warehouses.data ?? [])
+    .filter((w) => scopeAll || w.shopUserId === currentUser?.id)
+    .map((w) => ({ value: w.id, label: w.name, sublabel: w.shopUser?.name }));
+  if (!warehouseId && warehouseOptions.length === 1) setWarehouseId(warehouseOptions[0].value);
 
   const queries = [warehouses, suppliers, products, prices];
   const lookupError = queries.find((q) => q.error)?.error;
@@ -140,7 +146,7 @@ export function StockImportForm() {
                 label="Kho hàng"
                 required
                 value={warehouseId}
-                options={(warehouses.data ?? []).map((w) => ({ value: w.id, label: w.name, sublabel: w.shopUser?.name }))}
+                options={warehouseOptions}
                 onChange={setWarehouseId}
               />
               <DateTimeField label="Thời gian" value={transactionAt} onChange={setTransactionAt} />

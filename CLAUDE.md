@@ -248,7 +248,11 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
   token cũ phải tick thêm. Không đổi tên tool đã phát hành (token lưu theo tên). Tool chỉ được đọc.
 - **App mobile mang phiên bằng `Authorization: Bearer`** (không đọc được cookie httpOnly). `requireAuth` nhận cả hai, cookie được ưu tiên; login trả thêm `token` trong body.
 - **Không cấp được quyền mình không có**: sửa vai trò chỉ được thêm/bớt mã chính mình nắm (`sanitizePermissions`), gán vai trò chỉ được vai trò hẹp hơn mình. Không sửa được vai trò đang giữ.
-- **Phạm vi dữ liệu theo quán ép ở server**: mã `DATA.SCOPE_ALL` quyết định thấy mọi quán hay chỉ bản ghi mình tạo — dùng `ownerWhere` (danh sách) + `assertOwner` (chi tiết/sửa/xoá, ngoài phạm vi trả **404**). Mã phạm vi **không** dùng trong `requirePermission`. Check Cost và phiếu điều chuyển **cố ý không** áp phạm vi (người dùng đã quyết định). Ẩn ô lọc trên giao diện chỉ là hiển thị, **không phải lớp bảo vệ**.
+- **Phạm vi dữ liệu theo quán ép ở server**: mã `DATA.SCOPE_ALL` quyết định thấy mọi quán hay chỉ bản ghi mình tạo — dùng `ownerWhere` (danh sách) + `assertOwner` (chi tiết/sửa/xoá, ngoài phạm vi trả **404**). Mã phạm vi **không** dùng trong `requirePermission`. Ẩn ô lọc trên giao diện chỉ là hiển thị, **không phải lớp bảo vệ**.
+- **Ba chỗ neo phạm vi KHÔNG theo `createdById`** — vì admin/kế toán lập hộ quán là chuyện thường, neo
+  theo người tạo thì quán không thấy phiếu của chính mình: phiếu nhập kho theo **chủ kho** (xem dưới),
+  Check Cost theo `CostCheck.userId` (quán được check), phiếu điều chuyển theo `fromUserId` **hoặc**
+  `toUserId` — một phiếu thuộc cả hai quán nên cả hai đều thấy và sửa được (`assertInScope`).
 - **Ngoại lệ: phiếu nhập kho lọc theo CHỦ KHO, không theo người tạo.** `stockImports` dùng
   `warehouseScope`/`findScopedImport` riêng trong module, so `warehouse.shopUserId` thay vì
   `createdById`. Lý do: admin/kế toán gõ hộ quán là chuyện thường, mà lọc theo người tạo thì quán

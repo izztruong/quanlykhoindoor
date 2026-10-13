@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { useProducts, useSuppliers, useWarehouses } from "@/hooks/useCatalog";
 import { useProductSupplierPrices } from "@/hooks/useProductSupplierPrices";
+import { useCan } from "@/lib/permissions";
 import { useCreateStockImport, useUpdateStockImport, type StockImportInput } from "@/hooks/useStockImports";
 import { ApiError } from "@/lib/api-client";
 import { nowForDatetimeLocal, toDatetimeLocal } from "@/lib/dateRange";
@@ -14,7 +15,7 @@ import type { AffectedCostCheck, StockImport } from "@/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -58,13 +59,21 @@ type FormValues = z.infer<typeof formSchema>;
  */
 export function StockImportForm({ existing }: { existing?: StockImport }) {
   const router = useRouter();
-  const { data: warehouses = [] } = useWarehouses();
+  const { user: currentUser, scopeAll } = useCan();
+  const { data: allWarehouses = [] } = useWarehouses();
   const { data: suppliers = [] } = useSuppliers();
   const { data: products = [] } = useProducts({ activeOnly: true });
   const { data: prices = [] } = useProductSupplierPrices();
   const createImport = useCreateStockImport();
   const updateImport = useUpdateStockImport(existing?.id ?? "");
   const [error, setError] = useState<string | null>(null);
+
+  // Phạm vi SELF chỉ nhập được vào kho của quán mình (server lọc theo warehouse.shopUserId), nên ô
+  // chọn kho bỏ hẳn kho quán khác thay vì để chọn rồi báo lỗi lúc Lưu.
+  const warehouses = useMemo(
+    () => (scopeAll ? allWarehouses : allWarehouses.filter((w) => w.shopUserId === currentUser?.id)),
+    [allWarehouses, scopeAll, currentUser?.id],
+  );
 
   const isEdit = Boolean(existing);
   const mutation = isEdit ? updateImport : createImport;
@@ -108,6 +117,9 @@ export function StockImportForm({ existing }: { existing?: StockImport }) {
 
   const { fields, append, remove } = useFieldArray({ control, name: "items" });
   const items = watch("items");
+  const warehouseId = watch("warehouseId");
+  // Chỉ còn đúng một kho chọn được thì điền sẵn — quán nào cũng chỉ có một kho.
+  if (!isEdit && !warehouseId && warehouses.length === 1) setValue("warehouseId", warehouses[0].id);
   const supplierId = watch("supplierId");
   const total = items.reduce((sum, it) => sum + (Number(it.quantity) || 0) * (Number(it.costPrice) || 0), 0);
 

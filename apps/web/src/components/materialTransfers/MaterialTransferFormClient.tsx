@@ -9,6 +9,7 @@ import { useCreateMaterialTransfer, useUpdateMaterialTransfer } from "@/hooks/us
 import { useProductSupplierPrices } from "@/hooks/useProductSupplierPrices";
 import { useUserOptions } from "@/hooks/useUsers";
 import { ApiError } from "@/lib/api-client";
+import { useCan } from "@/lib/permissions";
 import { nowForDatetimeLocal, toDatetimeLocal } from "@/lib/dateRange";
 import { filterSuggestions } from "@/lib/searchSuggestions";
 import type { MaterialTransfer, Product } from "@/types";
@@ -47,6 +48,7 @@ interface MaterialTransferFormClientProps {
 export function MaterialTransferFormClient({ existing }: MaterialTransferFormClientProps) {
   const isEdit = Boolean(existing);
   const router = useRouter();
+  const { user: currentUser, scopeAll } = useCan();
   const { data: users = [] } = useUserOptions();
   const { data: products = [] } = useProducts({ activeOnly: true });
   const { data: suppliers = [] } = useSuppliers();
@@ -59,6 +61,11 @@ export function MaterialTransferFormClient({ existing }: MaterialTransferFormCli
   const [transferAt, setTransferAt] = useState(() => (existing ? toDatetimeLocal(existing.transferAt) : nowForDatetimeLocal()));
   const [note, setNote] = useState(existing?.note ?? "");
   const [rows, setRows] = useState<MaterialRow[]>(() => toMaterialRows(existing));
+
+  // Không có phạm vi mọi quán thì phiếu buộc phải có quán mình ở một đầu — điền sẵn đầu GỬI (hướng
+  // hay gặp) khi form còn trống, vẫn đổi sang đầu nhận được. Server chốt lại luật này.
+  // Gán state ngay trong thân component (mẫu React khuyến nghị; repo bật rule react-hooks/set-state-in-effect).
+  if (!scopeAll && currentUser && !fromUserId && !toUserId) setFromUserId(currentUser.id);
   const [search, setSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -100,6 +107,10 @@ export function MaterialTransferFormClient({ existing }: MaterialTransferFormCli
     }
     if (fromUserId === toUserId) {
       setError("Quán gửi và quán nhận phải khác nhau.");
+      return;
+    }
+    if (!scopeAll && fromUserId !== currentUser?.id && toUserId !== currentUser?.id) {
+      setError("Bạn chỉ lập được phiếu điều chuyển có quán của mình ở một đầu.");
       return;
     }
     const items = rows

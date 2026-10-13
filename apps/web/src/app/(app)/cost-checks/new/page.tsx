@@ -8,6 +8,7 @@ import { useCostCheckPosPreview, useCreateCostCheck } from "@/hooks/useCostCheck
 import { useStockChecks } from "@/hooks/useStockChecks";
 import { useUserOptions } from "@/hooks/useUsers";
 import { ApiError } from "@/lib/api-client";
+import { useCan } from "@/lib/permissions";
 import { formatDateOnly } from "@/lib/dateRange";
 import { formatDateTime, formatNumber } from "@/lib/format";
 import Link from "next/link";
@@ -25,10 +26,21 @@ import { useMemo, useState } from "react";
  */
 export default function NewCostCheckPage() {
   const router = useRouter();
-  const { data: users = [] } = useUserOptions();
+  const { user: currentUser, scopeAll } = useCan();
+  const { data: allUsers = [] } = useUserOptions();
   const createCostCheck = useCreateCostCheck();
 
+  // Không có phạm vi mọi quán thì chỉ lập được phiếu cho quán của mình — ô chọn còn đúng một dòng,
+  // chọn sẵn luôn cho khỏi phải bấm (server cũng từ chối quán khác).
+  const users = useMemo(
+    () => (scopeAll ? allUsers : allUsers.filter((u) => u.id === currentUser?.id)),
+    [allUsers, scopeAll, currentUser?.id],
+  );
   const [userId, setUserId] = useState("");
+  // Chỉnh state theo giá trị thay đổi ngay trong thân component (mẫu React khuyến nghị, repo bật
+  // rule react-hooks/set-state-in-effect nên không dùng useEffect).
+  const lockedUserId = scopeAll ? null : (currentUser?.id ?? null);
+  if (lockedUserId && userId !== lockedUserId) setUserId(lockedUserId);
   const { data: stockChecksResult } = useStockChecks({ createdById: userId || undefined, pageSize: 500 });
   // `?? []` nằm TRONG useMemo: để ngoài thì mỗi lần render lại sinh một mảng rỗng mới, dependency
   // đổi liên tục và useMemo không giữ được gì.
@@ -114,8 +126,8 @@ export default function NewCostCheckPage() {
         <CardBody className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-slate-600">Quán</label>
-            <Select value={userId} onChange={(e) => handleUserChange(e.target.value)}>
-              <option value="">Chọn quán</option>
+            <Select value={userId} onChange={(e) => handleUserChange(e.target.value)} disabled={Boolean(lockedUserId)}>
+              {!lockedUserId && <option value="">Chọn quán</option>}
               {users.map((u) => (
                 <option key={u.id} value={u.id}>
                   {u.name}

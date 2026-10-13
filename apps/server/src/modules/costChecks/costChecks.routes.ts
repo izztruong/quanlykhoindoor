@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { prisma } from "../../config/db";
-import { requirePermission } from "../../middleware/auth";
+import { assertInScope, ownerWhere, requirePermission, type AuthUser } from "../../middleware/auth";
 import type { Prisma } from "../../generated/prisma/client";
 import { HttpError } from "../../utils/httpError";
 import { parseDateRange, parsePagination } from "../../utils/pagination";
@@ -16,13 +16,28 @@ import {
 } from "./costChecks.service";
 import { costCheckCreateSchema, costCheckPosPreviewSchema, costCheckStatusSchema } from "./costChecks.schemas";
 
-// Không gắn phạm vi quán: người có COST_CHECKS.* thao tác trên mọi quán (Check Cost là nghiệp vụ tổng hợp).
+/**
+ * Phạm vi quán neo theo `CostCheck.userId` (quán được check), KHÔNG theo `createdById`: admin lập hộ
+ * là chuyện thường, lọc theo người tạo thì quán không thấy phiếu của chính mình — cùng lý do với
+ * phiếu nhập kho lọc theo chủ kho. Một quán một kho nên hai cách neo chỉ ra cùng một quán.
+ */
 export const costChecksRouter = Router();
+
+/** Lập phiếu (và xem trước POS) cho quán khác thì phải có phạm vi ALL. */
+function assertCostCheckShopInScope(userId: string, user: AuthUser | undefined) {
+  if (user?.scope !== "ALL" && userId !== user?.id) {
+    throw new HttpError(403, "Bạn chỉ lập được phiếu Check Cost cho quán của mình");
+  }
+}
 
 costChecksRouter.get("/", requirePermission("COST_CHECKS"), async (req, res) => {
   const { from, to } = parseDateRange(req);
+  const { userId } = req.query as Record<string, string>;
   const { skip, take, page, pageSize } = parsePagination(req, 20);
-  const where = { createdAt: from || to ? { gte: from, lte: to } : undefined };
+  const where = {
+    createdAt: from || to ? { gte: from, lte: to } : undefined,
+    userId: ownerWhere(req.user, userId),
+  };
 
   const [items, total] = await Promise.all([
     prisma.costCheck.findMany({
@@ -38,13 +53,12 @@ costChecksRouter.get("/", requirePermission("COST_CHECKS"), async (req, res) => 
 /**
  * Xem trước doanh số POS sẽ dùng cho một kỳ, trước khi bấm tạo phiếu.
  *
- * Đặt trong module này chứ KHÔNG gọi `/pos-sales/*` từ web: route đó ép phạm vi quán
- * (`resolveTargetUserId`) còn Check Cost cố ý không, nên người lập phiếu hộ quán khác sẽ bị chặn.
- * Thêm nữa, phép cắt kỳ khi đó chỉ tồn tại ở một chỗ (`loadPosSalesForPeriod`), form xem trước và lúc
- * tạo phiếu không thể lệch nhau.
+ * Đặt trong module này chứ KHÔNG gọi `/pos-sales/*` từ web: phép cắt kỳ nhờ vậy chỉ tồn tại ở một chỗ
+ * (`loadPosSalesForPeriod`), nên form xem trước và lúc tạo phiếu không thể lệch nhau.
  */
 costChecksRouter.get("/pos-preview", requirePermission("COST_CHECKS"), async (req, res) => {
   const query = costCheckPosPreviewSchema.parse(req.query);
+  assertCostCheckShopInScope(query.userId, req.user);
 
   const [opening, closing] = await Promise.all([
     prisma.stockCheck.findUnique({ where: { id: query.openingStockCheckId }, select: { checkedAt: true, createdById: true } }),
@@ -78,6 +92,9 @@ costChecksRouter.get("/pos-preview", requirePermission("COST_CHECKS"), async (re
 costChecksRouter.get("/:id", requirePermission("COST_CHECKS"), async (req, res) => {
   const item = await prisma.costCheck.findUnique({ where: { id: req.params.id }, include: costCheckDetailInclude });
   if (!item) throw new HttpError(404, "Không tìm thấy phiếu Check Cost");
+  // Chốt phạm vi TRƯỚC đoạn bổ sung nhãn phân loại bên dưới: đoạn đó ghi lại snapshot, không để
+  // người ngoài phạm vi chạm vào bản ghi của quán khác dù chỉ là ghi thêm khoá.
+  assertInScope([item.userId], req.user, "Không tìm thấy phiếu Check Cost");
 
   let snapshot = item.reportSnapshot as unknown as
     | { rows: MaterialRow[]; summary: FinancialSummary; posCoverage?: PosCoverage }
@@ -131,6 +148,7 @@ costChecksRouter.get("/:id", requirePermission("COST_CHECKS"), async (req, res) 
 
 costChecksRouter.post("/", requirePermission("COST_CHECKS"), async (req, res) => {
   const data = costCheckCreateSchema.parse(req.body);
+  assertCostCheckShopInScope(data.userId, req.user);
   const item = await createCostCheck(data, req.user);
   res.status(201).json(item);
 });
@@ -140,6 +158,7 @@ costChecksRouter.patch("/:id/status", requirePermission("COST_CHECKS"), async (r
   const { status } = costCheckStatusSchema.parse(req.body);
   const existing = await prisma.costCheck.findUnique({ where: { id: req.params.id } });
   if (!existing) throw new HttpError(404, "Không tìm thấy phiếu Check Cost");
+  assertInScope([existing.userId], req.user, "Không tìm thấy phiếu Check Cost");
 
   const item = await prisma.costCheck.update({
     where: { id: req.params.id },

@@ -7,6 +7,7 @@ import { useProductSupplierPrices } from "@/hooks/useProductSupplierPrices";
 import { useBulkImportStockImports, type StockImportInput, type StockImportDuplicate } from "@/hooks/useStockImports";
 import { ApiError, api } from "@/lib/api-client";
 import { formatDateTime } from "@/lib/format";
+import { useCan } from "@/lib/permissions";
 import {
   DONG_HANG_COL,
   DONG_HANG_HEADER,
@@ -28,7 +29,7 @@ import {
 import type { PagedResult, StockImport } from "@/types";
 import ExcelJS from "exceljs";
 import { ChevronDown, Download, FileSpreadsheet, Upload } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 interface Props {
   /** Bộ lọc đang áp trên trang danh sách — file xuất đi theo đúng bộ lọc này. */
@@ -44,7 +45,14 @@ interface ImportResult {
 }
 
 export function StockImportExcelActions({ filter, scopeAll }: Props) {
-  const { data: warehouses = [] } = useWarehouses();
+  const { user: currentUser } = useCan();
+  const { data: allWarehouses = [] } = useWarehouses();
+  // Cùng luật với form nhập tay: phạm vi SELF chỉ nhập được vào kho của quán mình, nên mẫu Excel và
+  // phần kiểm mã kho chỉ nhận kho đó — báo "mã kho không hợp lệ" ngay khi đọc file, không đợi server.
+  const warehouses = useMemo(
+    () => (scopeAll ? allWarehouses : allWarehouses.filter((w) => w.shopUserId === currentUser?.id)),
+    [allWarehouses, scopeAll, currentUser?.id],
+  );
   const { data: suppliers = [] } = useSuppliers();
   const { data: products = [] } = useProducts({ activeOnly: true });
   const { data: prices = [] } = useProductSupplierPrices();

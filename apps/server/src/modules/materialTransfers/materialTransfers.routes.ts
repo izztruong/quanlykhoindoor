@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { prisma } from "../../config/db";
-import { requirePermission } from "../../middleware/auth";
+import { assertInScope, requirePermission, type AuthUser } from "../../middleware/auth";
 import { generateCode } from "../../utils/codeGenerator";
 import { findCostChecksUsingPeriodRecord, findCostChecksUsingPeriodRecords } from "../../utils/costCheckImpact";
 import { HttpError } from "../../utils/httpError";
@@ -8,8 +8,31 @@ import { parseDateRange, parsePagination } from "../../utils/pagination";
 import { subtractTareWeight } from "../../utils/tareWeight";
 import { materialTransferBulkSchema, materialTransferCreateSchema } from "./materialTransfers.schemas";
 
-// Không có bước quán nhận xác nhận; người có MATERIAL_TRANSFERS.* thao tác trên mọi quán.
+/**
+ * Không có bước quán nhận xác nhận (tin theo đúng số admin ghi).
+ *
+ * Phạm vi quán: một phiếu thuộc về CẢ HAI quán, nên quán gửi lẫn quán nhận đều thấy và sửa được —
+ * `fromUserId` hoặc `toUserId` khớp là trong phạm vi. Không neo theo `createdById`: admin lập hộ là
+ * chuyện thường, neo theo người tạo thì cả hai quán đều không thấy phiếu của chính mình.
+ */
 export const materialTransfersRouter = Router();
+
+const NOT_FOUND_MESSAGE = "Không tìm thấy phiếu điều chuyển";
+
+/** Điều kiện danh sách: phạm vi ALL thấy hết, SELF chỉ phiếu có mình ở một trong hai đầu. */
+function transferScope(user: AuthUser | undefined) {
+  if (user?.scope === "ALL") return undefined;
+  const id = user?.id ?? "__none__";
+  return [{ fromUserId: id }, { toUserId: id }];
+}
+
+/** Ghi (tạo/sửa/nhập Excel): phiếu phải có mình ở một đầu, nếu không thì đó là phiếu của quán khác. */
+function assertTransferWritable(fromUserId: string, toUserId: string, user: AuthUser | undefined) {
+  if (user?.scope === "ALL") return;
+  if (fromUserId !== user?.id && toUserId !== user?.id) {
+    throw new HttpError(403, "Bạn chỉ lập được phiếu điều chuyển có quán của mình ở một đầu");
+  }
+}
 
 const listInclude = {
   _count: { select: { items: true } },
@@ -26,7 +49,7 @@ const detailInclude = {
 materialTransfersRouter.get("/", requirePermission("MATERIAL_TRANSFERS"), async (req, res) => {
   const { from, to } = parseDateRange(req);
   const { skip, take, page, pageSize } = parsePagination(req, 20);
-  const where = { transferAt: from || to ? { gte: from, lte: to } : undefined };
+  const where = { transferAt: from || to ? { gte: from, lte: to } : undefined, OR: transferScope(req.user) };
 
   const [items, total] = await Promise.all([
     prisma.materialTransfer.findMany({ where, orderBy: { transferAt: "desc" }, skip, take, include: listInclude }),
@@ -37,12 +60,14 @@ materialTransfersRouter.get("/", requirePermission("MATERIAL_TRANSFERS"), async 
 
 materialTransfersRouter.get("/:id", requirePermission("MATERIAL_TRANSFERS"), async (req, res) => {
   const item = await prisma.materialTransfer.findUnique({ where: { id: req.params.id }, include: detailInclude });
-  if (!item) throw new HttpError(404, "Không tìm thấy phiếu điều chuyển");
+  if (!item) throw new HttpError(404, NOT_FOUND_MESSAGE);
+  assertInScope([item.fromUserId, item.toUserId], req.user, NOT_FOUND_MESSAGE);
   res.json(item);
 });
 
 materialTransfersRouter.post("/", requirePermission("MATERIAL_TRANSFERS"), async (req, res) => {
   const data = materialTransferCreateSchema.parse(req.body);
+  assertTransferWritable(data.fromUserId, data.toUserId, req.user);
   const items = await subtractTareWeight(data.items);
 
   const item = await prisma.$transaction(async (tx) => {
@@ -115,6 +140,22 @@ materialTransfersRouter.post("/bulk-import", requirePermission("MATERIAL_TRANSFE
       400,
       `Tài khoản quán không dùng được: ${shown.slice(0, 10).join("; ")}${shown.length > 10 ? ` và ${shown.length - 10} tài khoản nữa` : ""}.`,
     );
+  }
+
+  // 1b. Phạm vi quán: mỗi phiếu trong file phải có quán của mình ở một đầu. Gom hết dòng sai vào một
+  //     câu lỗi như bước trên, thay vì để người dùng sửa từng dòng qua từng lần nhập.
+  if (req.user?.scope !== "ALL") {
+    const outOfScope = transfers
+      .filter((t) => t.fromUserId !== req.user?.id && t.toUserId !== req.user?.id)
+      .map((t) => `${shopById.get(t.fromUserId)?.name ?? t.fromUserId} → ${shopById.get(t.toUserId)?.name ?? t.toUserId}`);
+    if (outOfScope.length > 0) {
+      const shown = [...new Set(outOfScope)];
+      throw new HttpError(
+        403,
+        `Bạn chỉ nhập được phiếu điều chuyển có quán của mình ở một đầu. Không nhận: ${shown.slice(0, 10).join("; ")}` +
+          `${shown.length > 10 ? ` và ${shown.length - 10} cặp quán nữa` : ""}.`,
+      );
+    }
   }
 
   // 2. Dòng có NCC mà để trống giá vốn thì lấy GIÁ XUẤT của NCC đó — giống form điều chuyển (khác
@@ -251,7 +292,11 @@ materialTransfersRouter.put("/:id", requirePermission("MATERIAL_TRANSFERS"), asy
   const items = await subtractTareWeight(data.items);
 
   const existing = await prisma.materialTransfer.findUnique({ where: { id } });
-  if (!existing) throw new HttpError(404, "Không tìm thấy phiếu điều chuyển");
+  if (!existing) throw new HttpError(404, NOT_FOUND_MESSAGE);
+  // Chốt cả phiếu CŨ lẫn dữ liệu MỚI: chỉ chốt phiếu cũ thì quán sửa phiếu của mình thành phiếu giữa
+  // hai quán khác được, và sau đó chính nó cũng không còn thấy phiếu đó nữa.
+  assertInScope([existing.fromUserId, existing.toUserId], req.user, NOT_FOUND_MESSAGE);
+  assertTransferWritable(data.fromUserId, data.toUserId, req.user);
 
   const affectedCostChecks = await findCostChecksUsingPeriodRecord([existing.fromUserId, existing.toUserId], existing.transferAt);
 

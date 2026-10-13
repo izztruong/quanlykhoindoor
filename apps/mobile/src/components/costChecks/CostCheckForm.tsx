@@ -26,9 +26,15 @@ export function CostCheckForm() {
 
 function FormContent() {
   const router = useRouter();
+  const { user: currentUser, scopeAll } = useCan();
   const users = useUserOptions();
   const create = useCreateCostCheck();
+  // Không có phạm vi mọi quán thì chỉ lập được phiếu cho quán mình — ô chọn còn một dòng, điền sẵn.
+  const shopOptions = (users.data ?? [])
+    .filter((u) => scopeAll || u.id === currentUser?.id)
+    .map((u) => ({ value: u.id, label: u.name }));
   const [userId, setUserId] = useState("");
+  if (!scopeAll && currentUser && !userId) setUserId(currentUser.id);
   const [openingStockCheckId, setOpeningStockCheckId] = useState("");
   const [closingStockCheckId, setClosingStockCheckId] = useState("");
   const [discountTra, setDiscountTra] = useState("");
@@ -68,8 +74,8 @@ function FormContent() {
     <Card>
       <CardHeader><CardTitle>Thông tin chung</CardTitle></CardHeader>
       <CardBody style={styles.fields}>
-        <Select label="Quán" required value={userId} options={(users.data ?? []).map((u) => ({ value: u.id, label: u.name }))}
-          disabled={create.isPending || users.isLoading} onChange={(value) => {
+        <Select label="Quán" required value={userId} options={shopOptions}
+          disabled={create.isPending || users.isLoading || !scopeAll} onChange={(value) => {
             setUserId(value); setOpeningStockCheckId(""); setClosingStockCheckId("");
           }} />
         <Select label="Phiếu kiểm kê đầu kỳ" required value={openingStockCheckId} options={stockOptions}

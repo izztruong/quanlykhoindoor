@@ -45,6 +45,12 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
+### Check Cost & điều chuyển lọc theo quán — đã bấm thử trên trình duyệt, CHƯA lên `staging`
+Check Cost neo theo `userId`, điều chuyển hiện cho **cả quán gửi lẫn quán nhận**; ô chọn quán/kho ở web
+và mobile bỏ luôn quán khác khi vai trò không có `DATA.SCOPE_ALL`.
+Đã kiểm: typecheck 3 app và một lượt curl trên `kho_db` với 3 quán thử — danh sách, chi tiết (404 ngoài
+phạm vi), tạo/sửa/huỷ, nhập Excel lô, xem trước POS. Dữ liệu thử đã dọn.
+
 ### Phiếu nhập kho chọn được hàng NCC chưa khai giá — CHƯA bấm thử trên trình duyệt, CHƯA lên `staging`
 Bỏ `assertSupplierPrices` ở server (3 lời gọi) và hai lớp lọc trên form web + mobile; hàng chưa khai giá
 thì giá vốn để **0**. Mobile đổi fallback từ giá vốn danh mục sang 0 cho khớp web. Nhập Excel giữ nguyên:
@@ -110,10 +116,6 @@ Cơ chế chấm muộn chỉ đánh dấu được bản ghi **có tồn tại*
 sang tuần sau thì không bắt được — đó là bài toán "thiếu phiếu", không phải "nộp muộn". Người dùng
 xác nhận việc bỏ phiếu tuần sẽ không xảy ra nên không xử lý. Đã chặn được đường lách dễ nhất (khai
 ngày kiểm ở tương lai).
-
-### Giới hạn theo quán cho Check Cost và Phiếu điều chuyển
-Hai trang này không chịu mã `DATA.SCOPE_ALL`: ai có quyền Xem là thấy phiếu của mọi quán. Đã lên kế
-hoạch sửa (Check Cost theo `userId`, điều chuyển theo quán gửi/nhận), người dùng quyết định giữ nguyên.
 
 ### Ô lọc "đúng hạn / muộn"
 Chỉ cần chấm màu, không cần lọc.

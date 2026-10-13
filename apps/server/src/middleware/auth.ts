@@ -160,8 +160,16 @@ export function ownerWhere(user: AuthUser | undefined, requestedCreatedById?: st
 /**
  * Chốt một bản ghi theo phạm vi, dùng trước khi đọc chi tiết/sửa/xoá. Ngoài phạm vi trả 404 như
  * không tồn tại — vừa chặn vừa không tiết lộ là bản ghi có thật.
+ *
+ * Nhận NHIỀU chủ sở hữu vì có bản ghi thuộc về hơn một quán: phiếu điều chuyển thuộc cả quán gửi
+ * lẫn quán nhận, nên chỉ cần khớp một bên là trong phạm vi.
  */
-export function assertOwner(record: { createdById: string | null }, user: AuthUser | undefined, notFoundMessage: string) {
+export function assertInScope(ownerIds: (string | null | undefined)[], user: AuthUser | undefined, notFoundMessage: string) {
   if (user?.scope === "ALL") return;
-  if (!user || record.createdById !== user.id) throw new HttpError(404, notFoundMessage);
+  if (!user || !ownerIds.includes(user.id)) throw new HttpError(404, notFoundMessage);
+}
+
+/** Chốt bản ghi thuộc về đúng một người tạo — lớp mỏng trên assertInScope để khỏi có hai bản luật. */
+export function assertOwner(record: { createdById: string | null }, user: AuthUser | undefined, notFoundMessage: string) {
+  assertInScope([record.createdById], user, notFoundMessage);
 }

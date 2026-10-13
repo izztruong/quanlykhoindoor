@@ -21,7 +21,7 @@ interface Row { product: Product; wholeQuantity: string; looseQuantity: string; 
 const optionalNumber = (value: string) => value.trim() ? Number(value.replace(",", ".")) : undefined;
 
 export function MaterialTransferForm({ existing }: { existing?: MaterialTransfer }) {
-  const { can } = useCan();
+  const { can, user: currentUser, scopeAll } = useCan();
   const router = useRouter();
   const create = useCreateMaterialTransfer();
   const update = useUpdateMaterialTransfer(existing?.id ?? "");
@@ -42,6 +42,9 @@ export function MaterialTransferForm({ existing }: { existing?: MaterialTransfer
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
+  // Phiếu buộc phải có quán mình ở một đầu khi không có phạm vi mọi quán — điền sẵn đầu GỬI lúc form
+  // còn trống, vẫn đổi sang đầu nhận được. Server chốt lại luật này.
+  if (!scopeAll && currentUser && !fromUserId && !toUserId) setFromUserId(currentUser.id);
   const pending = create.isPending || update.isPending || saved;
   const allowed = can("MATERIAL_TRANSFERS", existing ? "EDIT" : "ADD");
   const queries = [users, products, prices];
