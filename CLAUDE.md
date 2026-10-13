@@ -333,8 +333,11 @@ channel nào thì xem bảng trên.
   `fallbackToCacheTimeout: 0` đặt tường minh để màn chờ khởi động không phải đợi tải update — màn đó
   đã chặn vào app để nạp dữ liệu Trang chủ rồi, cộng thêm một lần chờ mạng nữa là quá lâu.
 - **App 1.0.4 và cũ hơn không bao giờ nhận OTA** (không có `expo-updates` bên trong). Đường duy nhất
-  ra khỏi chúng là cài bản mới từ store. Đừng xoá shim tương thích nào trên server khi chưa chắc không
-  còn máy nào ở đó — xem `/dashboard/unconfirmed-orders`.
+  ra khỏi chúng là cài bản mới từ store, nên bản cũ có thể sống thêm hàng tuần sau ngày phát hành.
+  Khi xoá một endpoint mà app cũ còn gọi, cách đã dùng: giữ lại một shim có `console.warn("[legacy] …")`,
+  theo log Render tới khi im hẳn rồi mới xoá. **"Đã duyệt xong" không phải tín hiệu** — người dùng vẫn
+  ở lại bản cũ. Đặc biệt nguy hiểm với endpoint mà `useAppStartup` chờ: thiếu nó là app **không mở
+  được**, chứ không phải hỏng một ô.
 
 - **Chẩn đoán sự cố thì kiểm staging trước**, rồi mới tới production.
 - Header `x-render-routing` cho biết trạng thái (`hibernate-wake-error`, `no-deploy`); `status.render.com/api/v2/status.json` cho biết có phải sự cố toàn hệ thống Render không.

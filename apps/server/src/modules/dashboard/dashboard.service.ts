@@ -6,16 +6,6 @@ import { RecipeHistory } from "../../utils/recipeVersions";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/**
- * TẠM, chỉ cho ô Trang chủ của app mobile 1.0.4 — xoá cùng route `/unconfirmed-orders`.
- *
- * Nhãn cũ là "Đơn hàng chưa xử lý". Bản gốc chỉ đếm `status: DRAFT` vì hồi đó còn trạng thái
- * COMPLETED; giờ DRAFT là MỌI đơn chưa huỷ nên đếm như vậy sẽ tăng mãi. Thêm `processedAt: null`
- * để con số vẫn đúng nghĩa nhãn — trả 0 giả thì người dùng app cũ tưởng không còn đơn nào cần làm.
- */
-export function countPendingOrders(createdById: string | undefined) {
-  return prisma.salesOrder.count({ where: { status: "DRAFT", processedAt: null, createdById } });
-}
 const WASTE_WINDOW_DAYS = 7;
 
 /**

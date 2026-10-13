@@ -1,6 +1,6 @@
 # Tiến độ dự án
 
-Cập nhật: 2026-10-12
+Cập nhật: 2026-10-13
 
 Ghi **đúng những gì git không tự trả lời được**. Lý do thiết kế đã nằm trong commit message, đừng
 chép lại vào đây. Mỗi mục "Đang dở" tối đa 3–4 dòng, và dòng quan trọng nhất luôn là: *đã kiểm thử
@@ -45,11 +45,8 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
-### Gỡ shim `/dashboard/unconfirmed-orders` — việc DUY NHẤT còn lại của đợt này
-Shim giữ cho app cũ (Android 1.0.3, iOS 1.0.4) còn mở được: thiếu nó thì app cũ dừng vĩnh viễn ở màn chờ.
-Mỗi lần bị gọi nó ghi `console.warn("[legacy] …")` lên log Render — **log im vài ngày = không còn máy nào
-ở bản cũ → commit server xoá shim** (chỉ sửa `dashboard.routes.ts` + `.service.ts`). "Đã duyệt xong"
-không phải tín hiệu: người dùng vẫn có thể ở lại bản cũ hàng tuần, mà bản cũ thì không nhận được OTA.
+Không có. Đợt "bỏ kho tổng" đã lên `main`, app 1.0.5 đã ra cả hai store, và shim
+`/dashboard/unconfirmed-orders` đã gỡ.
 
 ---
 
