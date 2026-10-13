@@ -142,6 +142,26 @@ async function advancedCents(tx: Tx, id: string) {
   return toCents(agg._sum.amount);
 }
 
+/**
+ * "Tiền quỹ đã xuất" của một bộ lọc danh sách: phiếu đã hoàn thành tính theo **số thực chi**, phiếu
+ * còn dở tính theo **tiền đã ứng ra**. Cộng kiểu này không đếm trùng — tạm ứng của phiếu đã hoàn
+ * thành là tiền đưa trước của chính khoản thực chi đó, không phải một khoản chi thêm.
+ *
+ * Ghép điều kiện bằng `AND` chứ không ghi đè `status` của `where`: người dùng lọc trạng thái nào thì
+ * tổng phải nằm trong đúng bộ lọc đó (lọc "Chờ duyệt" thì phần thực chi bằng 0, và ngược lại). `where`
+ * truyền vào đã mang `ownerWhere`, nên quán chỉ cộng phiếu của mình.
+ */
+export async function sumPaidOut(where: Prisma.ExpenseProposalWhereInput) {
+  const [spent, advanced] = await Promise.all([
+    prisma.expenseProposal.aggregate({ where: { AND: [where, { status: "SPENT" }] }, _sum: { spentAmount: true } }),
+    prisma.expenseProposalAdvance.aggregate({
+      where: { expenseProposal: { AND: [where, { status: { not: "SPENT" } }] } },
+      _sum: { amount: true },
+    }),
+  ]);
+  return fromCents(toCents(spent._sum.spentAmount) + toCents(advanced._sum.amount));
+}
+
 const detail = (tx: Tx, id: string) => tx.expenseProposal.findUniqueOrThrow({ where: { id }, include: expenseProposalDetailInclude });
 
 /** Duyệt / từ chối phiếu đang Chờ duyệt. */

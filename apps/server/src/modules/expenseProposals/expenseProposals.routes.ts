@@ -29,6 +29,7 @@ import {
   NOT_FOUND_MESSAGE,
   recordAdvance,
   submitRevision,
+  sumPaidOut,
   toProposalData,
 } from "./expenseProposals.service";
 
@@ -49,7 +50,7 @@ expenseProposalsRouter.get("/", requirePermission("EXPENSE_PROPOSALS"), async (r
     createdById: ownerWhere(req.user, createdById),
   };
 
-  const [items, total] = await Promise.all([
+  const [items, total, paidOutTotal] = await Promise.all([
     prisma.expenseProposal.findMany({
       where,
       orderBy: [{ proposalDate: "desc" }, { createdAt: "desc" }],
@@ -58,8 +59,10 @@ expenseProposalsRouter.get("/", requirePermission("EXPENSE_PROPOSALS"), async (r
       include: expenseProposalListInclude,
     }),
     prisma.expenseProposal.count({ where }),
+    // Tổng của CẢ bộ lọc, không phải của trang đang xem.
+    sumPaidOut(where),
   ]);
-  res.json({ items, total, page, pageSize });
+  res.json({ items, total, paidOutTotal, page, pageSize });
 });
 
 expenseProposalsRouter.get("/:id", requirePermission("EXPENSE_PROPOSALS"), async (req, res) => {

@@ -46,6 +46,13 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
+### Dải "Tiền quỹ đã xuất" dưới danh sách phiếu đề xuất chi — CHƯA bấm thử trên trình duyệt, CHƯA lên `staging`
+Server cộng cho cả bộ lọc: phiếu Hoàn thành tính theo thực chi, phiếu còn dở tính theo tiền đã tạm ứng.
+Web có dải dưới bảng, mobile có thẻ ở đầu danh sách (màn này phải bỏ `useInfiniteList` vì hook đó không
+mang được trường tổng).
+Đã kiểm: typecheck 3 app, lint web, `expo export`, và 11 ca curl trên `kho_db` (lọc trạng thái/ngày/người
+lập, sang trang 2 không đổi tổng, tài khoản quán chỉ cộng phiếu của mình). Dữ liệu thử đã dọn.
+
 ### Phiếu nhập kho chọn được hàng NCC chưa khai giá — ĐÃ lên `main`, CHƯA bấm thử trên trình duyệt
 Hàng chưa khai giá thì giá vốn để **0**, nên "Tổng tiền vốn" thiếu phần đó — đã chốt chấp nhận.
 Đã kiểm bằng typecheck/build/`expo export` và curl trên `kho_dev_copy` (kể cả một phiếu Check Cost thật

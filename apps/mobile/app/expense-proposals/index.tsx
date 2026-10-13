@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { Stack, useRouter } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
 import { DateRangeFilter, currentMonthRange, formatRangeLabel } from "@/components/filters/DateRangeFilter";
@@ -9,9 +10,11 @@ import { Button } from "@/components/ui/Button";
 import { DataList } from "@/components/ui/DataList";
 import { ListRowCard } from "@/components/ui/ListRowCard";
 import { Select } from "@/components/ui/Select";
+import type { ExpenseProposalListResult } from "@/hooks/useExpenseProposals";
 import { useFilterSheet } from "@/hooks/useFilterSheet";
-import { useInfiniteList } from "@/hooks/useInfiniteList";
+import { LIST_PAGE_SIZE } from "@/hooks/useInfiniteList";
 import { useUserOptions } from "@/hooks/useUsers";
+import { api } from "@/lib/apiClient";
 import {
   EXPENSE_PAYER_LABEL,
   EXPENSE_PROPOSAL_STATUS_LABEL,
@@ -19,8 +22,7 @@ import {
 } from "@/lib/expenseProposal";
 import { formatCurrency, formatDateOnly } from "@/lib/format";
 import { useCan } from "@/lib/permissions";
-import { colors, fontSize, spacing } from "@/lib/theme";
-import type { ExpenseProposal } from "@/types";
+import { colors, fontSize, radius, spacing } from "@/lib/theme";
 
 const STATUS_OPTIONS = Object.entries(EXPENSE_PROPOSAL_STATUS_LABEL).map(([value, label]) => ({ value, label }));
 
@@ -32,12 +34,28 @@ export default function ExpenseProposalsScreen() {
 
   // Lọc "Người lập" thấy mọi tài khoản, không chỉ quán — giống bên web.
   const { data: users = [] } = useUserOptions({ enabled: scopeAll, scope: "all" });
-  const list = useInfiniteList<ExpenseProposal>(["expense-proposals"], "/expense-proposals", {
+
+  const params = {
     from: applied.range.from,
     to: applied.range.to,
     status: applied.status || undefined,
     createdById: applied.createdById || undefined,
+  };
+
+  // Không dùng useInfiniteList được: endpoint này trả thêm paidOutTotal (tổng của CẢ bộ lọc, không
+  // phải của trang đang xem) mà kiểu PagedResult chung không có — y như màn Chi chốt ca.
+  const list = useInfiniteQuery({
+    queryKey: ["expense-proposals", "list", params],
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) =>
+      api.get<ExpenseProposalListResult>("/expense-proposals", { ...params, page: pageParam, pageSize: LIST_PAGE_SIZE }),
+    getNextPageParam: (lastPage, pages) =>
+      pages.length * LIST_PAGE_SIZE < lastPage.total ? pages.length + 1 : undefined,
   });
+
+  const items = list.data?.pages.flatMap((page) => page.items) ?? [];
+  const total = list.data?.pages[0]?.total ?? 0;
+  const paidOutTotal = Number(list.data?.pages[0]?.paidOutTotal ?? 0);
 
   const summary = [formatRangeLabel(applied.range)];
   const statusLabel = STATUS_OPTIONS.find((o) => o.value === applied.status)?.label;
@@ -48,8 +66,17 @@ export default function ExpenseProposalsScreen() {
   const header = (
     <View style={styles.header}>
       <FilterBar summary={summary} activeCount={filter.activeCount} onOpen={filter.openSheet} />
+
+      {/* Phiếu đã hoàn thành tính theo thực chi, phiếu còn dở tính theo tiền đã tạm ứng — nên con số
+          này KHÔNG bằng tổng cột "Tổng tiền" (số dự kiến) của các thẻ bên dưới. */}
+      <View style={styles.totalCard}>
+        <Text style={styles.totalLabel}>Tiền quỹ đã xuất theo bộ lọc</Text>
+        <Text style={styles.totalValue}>{formatCurrency(Math.round(paidOutTotal))}</Text>
+        <Text style={styles.totalHint}>đã hoàn thành tính theo thực chi, còn dở tính theo tiền đã ứng</Text>
+      </View>
+
       <View style={styles.summaryRow}>
-        <Text style={styles.summary}>Tổng {list.total} phiếu</Text>
+        <Text style={styles.summary}>Tổng {total} phiếu</Text>
         {can("EXPENSE_PROPOSALS", "ADD") ? (
           <Button
             title="Tạo phiếu"
@@ -67,13 +94,15 @@ export default function ExpenseProposalsScreen() {
       <Stack.Screen options={{ title: "Phiếu đề xuất chi" }} />
       <View style={styles.root}>
         <DataList
-          data={list.items}
+          data={items}
           header={header}
           keyExtractor={(item) => item.id}
           isLoading={list.isLoading}
           isRefetching={list.isRefetching}
           onRefresh={() => list.refetch()}
-          onEndReached={list.loadMore}
+          onEndReached={() => {
+            if (list.hasNextPage && !list.isFetchingNextPage) list.fetchNextPage();
+          }}
           isFetchingMore={list.isFetchingNextPage}
           emptyMessage="Không có phiếu đề xuất chi nào khớp bộ lọc."
           renderItem={(item) => (
@@ -122,6 +151,15 @@ export default function ExpenseProposalsScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
   header: { gap: spacing.md, marginBottom: spacing.xs },
+  totalCard: {
+    padding: spacing.lg,
+    borderRadius: radius.lg,
+    backgroundColor: colors.primarySoft,
+    gap: 2,
+  },
+  totalLabel: { fontSize: fontSize.sm, color: colors.info },
+  totalValue: { fontSize: fontSize.xxl, fontWeight: "700", color: colors.info },
+  totalHint: { fontSize: fontSize.xs, color: colors.info },
   summaryRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   summary: { fontSize: fontSize.sm, color: colors.textMuted },
 });

@@ -42,11 +42,17 @@ export interface ExpenseProposalFilter {
   pageSize?: number;
 }
 
+/**
+ * Danh sách kèm "tiền quỹ đã xuất" của CẢ bộ lọc (không phải của trang đang xem): thực chi của phiếu
+ * đã hoàn thành cộng tiền đã ứng của phiếu còn dở. Decimal của Prisma về dạng chuỗi.
+ */
+export type ExpenseProposalListResult = PagedResult<ExpenseProposal> & { paidOutTotal: string | number };
+
 export function useExpenseProposals(filter: ExpenseProposalFilter = {}) {
   return useQuery({
     queryKey: ["expense-proposals", filter],
     queryFn: () =>
-      api.get<PagedResult<ExpenseProposal>>("/expense-proposals", { ...filter, pageSize: filter.pageSize ?? 20 }),
+      api.get<ExpenseProposalListResult>("/expense-proposals", { ...filter, pageSize: filter.pageSize ?? 20 }),
   });
 }
 

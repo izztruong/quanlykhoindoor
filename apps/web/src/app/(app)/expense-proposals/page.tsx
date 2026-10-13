@@ -171,6 +171,15 @@ export default function ExpenseProposalsPage() {
         </CardHeader>
         <CardBody className="p-0">
           <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} emptyMessage="Chưa có phiếu đề xuất chi nào" />
+          {/* Tổng của CẢ bộ lọc do server cộng, không phải tổng của trang đang xem. Nói rõ cách cộng:
+              cột "Tổng tiền" trong bảng là số DỰ KIẾN nên cộng lại sẽ không ra con số này. */}
+          <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 border-t border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+            <span className="text-xs text-slate-400">
+              phiếu đã hoàn thành tính theo thực chi, phiếu còn dở tính theo tiền đã tạm ứng
+            </span>
+            <span className="font-medium text-slate-500">Tiền quỹ đã xuất (theo bộ lọc)</span>
+            <span className="font-semibold text-slate-800">{formatCurrency(data?.paidOutTotal ?? 0)}</span>
+          </div>
           <Pagination
             page={page}
             pageSize={pageSize}
