@@ -45,8 +45,15 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
-Không có. Đợt "bỏ kho tổng" đã lên `main`, app 1.0.5 đã ra cả hai store, và shim
-`/dashboard/unconfirmed-orders` đã gỡ.
+### Phiếu nhập kho chọn được hàng NCC chưa khai giá — CHƯA bấm thử trên trình duyệt, CHƯA lên `staging`
+Bỏ `assertSupplierPrices` ở server (3 lời gọi) và hai lớp lọc trên form web + mobile; hàng chưa khai giá
+thì giá vốn để **0**. Mobile đổi fallback từ giá vốn danh mục sang 0 cho khớp web. Nhập Excel giữ nguyên:
+để trống giá mà NCC chưa khai thì vẫn báo lỗi đúng dòng. Dòng giá 0 không đánh dấu gì, nên "Tổng tiền vốn"
+sẽ thiếu phần đó — đã chốt chấp nhận.
+Đã kiểm: typecheck 3 app, lint web 0 lỗi/3 cảnh báo, build web, `expo export`; và 5 ca curl trên
+`kho_dev_copy` — tạo/sửa/bulk-import phiếu có dòng giá 0 đều qua (trước là 400), DB lưu `costPrice=0`
+`costAmount=0`, và **tạo phiếu Check Cost thật phủ kỳ đó thì `receivedQty` của hàng giá 0 vẫn đủ**
+(nền 0 → 5000 Gam cho 5 Kg). Dữ liệu thử đã dọn.
 
 ---
 

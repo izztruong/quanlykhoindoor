@@ -56,34 +56,33 @@ export function StockImportForm() {
   const queries = [warehouses, suppliers, products, prices];
   const lookupError = queries.find((q) => q.error)?.error;
   const loading = queries.some((q) => q.isLoading);
-  // Server đòi mọi dòng phải có giá thiết lập cho NCC của phiếu (`assertSupplierPrices`), nên chỉ
-  // cho thêm đúng những hàng hoá đó thay vì để lưu xong mới báo lỗi.
-  const allowedProducts = (products.data ?? []).filter(
-    (p) => !supplierId || prices.data?.some((price) => price.productId === p.id && price.supplierId === supplierId),
-  );
   const total = rows.reduce((sum, row) => sum + (number(row.quantity) || 0) * (number(row.costPrice) || 0), 0);
 
   function patch(index: number, values: Partial<Row>) {
     setRows((prev) => prev.map((r, i) => (i === index ? { ...r, ...values } : r)));
   }
 
+  // NCC chưa khai giá cho hàng này thì để **0**, KHÔNG lấy giá vốn danh mục: giá 0 là dấu "chưa có
+  // giá", đoán một con số là mất dấu đó — và bản web cũng để 0, lệch nhau là hai nền tảng ghi hai số
+  // khác nhau cho cùng một thao tác.
   function add(product: Product) {
     const price = prices.data?.find((p) => p.productId === product.id && p.supplierId === supplierId);
     setRows((prev) =>
       prev.some((r) => r.product.id === product.id)
         ? prev
-        : [...prev, { product, quantity: "1", costPrice: String(price ? price.importPrice : product.costPrice), note: "" }],
+        : [...prev, { product, quantity: "1", costPrice: price ? String(price.importPrice) : "0", note: "" }],
     );
     setSearch("");
   }
 
   function changeSupplier(next: string) {
     setSupplierId(next);
-    // Giữ dòng đang nhập để người dùng xem/sửa, chỉ nạp lại giá theo NCC mới.
+    // Giữ dòng đang nhập để người dùng xem/sửa, chỉ nạp lại giá theo NCC mới. NCC mới chưa khai giá
+    // cho hàng nào thì dòng đó về 0 — xem chú thích ở `add`.
     setRows((prev) =>
       prev.map((row) => {
         const price = prices.data?.find((p) => p.productId === row.product.id && p.supplierId === next);
-        return { ...row, costPrice: String(price ? price.importPrice : row.product.costPrice) };
+        return { ...row, costPrice: price ? String(price.importPrice) : "0" };
       }),
     );
   }
@@ -99,8 +98,6 @@ export function StockImportForm() {
         return setError(`${row.product.name}: số lượng phải lớn hơn 0.`);
       if (!Number.isFinite(number(row.costPrice)) || number(row.costPrice) < 0)
         return setError(`${row.product.name}: giá vốn phải là số không âm.`);
-      if (!prices.data?.some((p) => p.productId === row.product.id && p.supplierId === supplierId))
-        return setError(`${row.product.name}: chưa được thiết lập giá cho nhà cung cấp đã chọn.`);
     }
     create.mutate(
       {
@@ -158,16 +155,14 @@ export function StockImportForm() {
               <Input label="Ghi chú" value={note} onChangeText={setNote} multiline />
             </CardBody>
           </Card>
-          {!!supplierId && <Text style={{ color: colors.textMuted }}>Chỉ thêm được hàng hoá đã có giá cho nhà cung cấp này.</Text>}
           <ProductAdder
-            products={allowedProducts}
+            products={products.data ?? []}
             selectedIds={new Set(rows.map((r) => r.product.id))}
             search={search}
             onSearch={setSearch}
             onAdd={add}
           />
           {rows.map((row, i) => {
-            const missing = supplierId && !prices.data?.some((p) => p.productId === row.product.id && p.supplierId === supplierId);
             return (
               <Card key={row.product.id}>
                 <CardBody style={{ paddingTop: spacing.lg, gap: spacing.md }}>
@@ -175,11 +170,6 @@ export function StockImportForm() {
                   <Text style={{ color: colors.textMuted }}>
                     {row.product.code} · {row.product.unit.name}
                   </Text>
-                  {!!missing && (
-                    <Text style={{ color: colors.danger }}>
-                      Hàng hoá chưa có giá cho nhà cung cấp đã chọn. Hãy đổi nhà cung cấp hoặc bỏ dòng này.
-                    </Text>
-                  )}
                   <View style={{ flexDirection: "row", gap: spacing.md }}>
                     <Input
                       containerStyle={{ flex: 1 }}

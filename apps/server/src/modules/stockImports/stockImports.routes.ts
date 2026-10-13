@@ -65,41 +65,6 @@ async function affectedCostChecks(shopUserId: string | null, ...moments: (Date |
   return findCostChecksUsingPeriodRecords(moments.filter((at): at is Date => Boolean(at)).map((at) => ({ shopUserId, at })));
 }
 
-/**
- * Mọi dòng phải có giá thiết lập cho NCC của phiếu nó thuộc về.
- *
- * Nhận NHIỀU cặp để đường nhập Excel kiểm cả file bằng một query — và nêu **tên** hàng hoá cùng NCC
- * trong câu lỗi: với một phiếu thì "có hàng hoá chưa có giá" còn đoán được, với file 200 phiếu thì
- * câu đó vô dụng.
- */
-async function assertSupplierPrices(pairs: { supplierId: string; productId: string }[]) {
-  if (pairs.length === 0) return;
-  const supplierIds = [...new Set(pairs.map((p) => p.supplierId))];
-  const productIds = [...new Set(pairs.map((p) => p.productId))];
-
-  const prices = await prisma.productSupplierPrice.findMany({
-    where: { supplierId: { in: supplierIds }, productId: { in: productIds } },
-    select: { supplierId: true, productId: true },
-  });
-  const priced = new Set(prices.map((p) => `${p.supplierId}|${p.productId}`));
-  const missing = pairs.filter((p) => !priced.has(`${p.supplierId}|${p.productId}`));
-  if (missing.length === 0) return;
-
-  const [products, suppliers] = await Promise.all([
-    prisma.product.findMany({ where: { id: { in: [...new Set(missing.map((m) => m.productId))] } }, select: { id: true, name: true } }),
-    prisma.supplier.findMany({ where: { id: { in: [...new Set(missing.map((m) => m.supplierId))] } }, select: { id: true, name: true } }),
-  ]);
-  const productName = new Map(products.map((p) => [p.id, p.name]));
-  const supplierName = new Map(suppliers.map((s) => [s.id, s.name]));
-
-  // Gộp theo cặp để file lặp cùng một hàng hoá ở nhiều phiếu không in ra mấy chục dòng giống nhau.
-  const shown = [...new Set(missing.map((m) => `"${productName.get(m.productId) ?? m.productId}" với NCC "${supplierName.get(m.supplierId) ?? m.supplierId}"`))];
-  throw new HttpError(
-    400,
-    `Chưa thiết lập giá cho: ${shown.slice(0, 10).join("; ")}${shown.length > 10 ? ` và ${shown.length - 10} cặp nữa` : ""}.`,
-  );
-}
-
 stockImportsRouter.get("/", requirePermission("STOCK_IMPORTS"), async (req, res) => {
   const { warehouseId, type } = req.query as Record<string, string>;
   const { from, to } = parseDateRange(req);
@@ -138,8 +103,6 @@ stockImportsRouter.post("/", requirePermission("STOCK_IMPORTS"), async (req, res
     select: { shopUserId: true },
   });
   if (!warehouse) throw new HttpError(404, "Không tìm thấy kho hàng");
-
-  await assertSupplierPrices(data.items.map((it) => ({ supplierId: data.supplierId, productId: it.productId })));
 
   const item = await prisma.stockImport.create({
     data: {
@@ -197,12 +160,7 @@ stockImportsRouter.post("/bulk-import", requirePermission("STOCK_IMPORTS"), asyn
     throw new HttpError(400, `Có ${badWarehouses.length} kho không tồn tại hoặc không thuộc quán của bạn.`);
   }
 
-  // 2. Kiểm giá NCC — một query, câu lỗi nêu tên hàng hoá và NCC.
-  await assertSupplierPrices(
-    items.flatMap((it) => it.items.map((line) => ({ supplierId: it.supplierId, productId: line.productId }))),
-  );
-
-  // 3. Kiểm phiếu trùng — một query. Nhập lại chính file vừa xuất ra sẽ sinh phiếu trùng, nên cảnh
+  // 2. Kiểm phiếu trùng — một query. Nhập lại chính file vừa xuất ra sẽ sinh phiếu trùng, nên cảnh
   //    báo trước; người dùng xác nhận thì mới ghi. Trả 200 kèm danh sách thay vì 400: `HttpError`
   //    chỉ chở được một câu, và web không đọc `ZodError.issues` (khuôn `posSales` cũng trả 200).
   const existing = await prisma.stockImport.findMany({
@@ -226,7 +184,7 @@ stockImportsRouter.post("/bulk-import", requirePermission("STOCK_IMPORTS"), asyn
     return;
   }
 
-  // 4. Sinh mã trước rồi kiểm trùng một lượt. `generateCode` dựa `Date.now() % 100000` cộng một
+  // 3. Sinh mã trước rồi kiểm trùng một lượt. `generateCode` dựa `Date.now() % 100000` cộng một
   //    counter TRONG PROCESS, nên hai instance hoặc một lần restart vẫn có thể cho mã trùng — để
   //    P2002 nổ là rollback cả lô, và người dùng chỉ thấy "Dữ liệu đã tồn tại (trùng code)".
   const codes: string[] = [];
@@ -239,7 +197,7 @@ stockImportsRouter.post("/bulk-import", requirePermission("STOCK_IMPORTS"), asyn
   }
   if (codes.length < items.length) throw new HttpError(409, "Không sinh được mã phiếu duy nhất, vui lòng thử lại.");
 
-  // 5. Ghi: 3 statement bất kể N. `createMany` KHÔNG nhận nested create nên phải pre-generate mã rồi
+  // 4. Ghi: 3 statement bất kể N. `createMany` KHÔNG nhận nested create nên phải pre-generate mã rồi
   //    đọc lại id theo mã — khuôn của `finishedGoodPrices.routes.ts`.
   //    timeout 30s là chuẩn repo cho nhập từ file; quá hạn thì Postgres trả 57014 và middleware map 504.
   await prisma.$transaction(
@@ -277,7 +235,7 @@ stockImportsRouter.post("/bulk-import", requirePermission("STOCK_IMPORTS"), asyn
     { timeout: 30000 },
   );
 
-  // 6. Cảnh báo Check Cost — một query cho cả lô (xem findCostChecksUsingPeriodRecords).
+  // 5. Cảnh báo Check Cost — một query cho cả lô (xem findCostChecksUsingPeriodRecords).
   const affected = await findCostChecksUsingPeriodRecords(
     items.map((it) => ({ shopUserId: warehouseById.get(it.warehouseId)?.shopUserId ?? null, at: it.transactionAt })),
   );
@@ -295,8 +253,6 @@ stockImportsRouter.put("/:id", requirePermission("STOCK_IMPORTS"), async (req, r
   if (data.warehouseId !== existing.warehouseId) {
     throw new HttpError(400, "Không đổi được kho của phiếu đã lưu — hãy xoá phiếu và tạo lại");
   }
-
-  await assertSupplierPrices(data.items.map((it) => ({ supplierId: data.supplierId, productId: it.productId })));
 
   const updated = await prisma.$transaction(async (tx) => {
     await tx.stockImportItem.deleteMany({ where: { stockImportId: id } });

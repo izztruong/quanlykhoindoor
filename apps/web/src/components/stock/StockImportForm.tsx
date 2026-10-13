@@ -14,7 +14,7 @@ import type { AffectedCostCheck, StockImport } from "@/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -111,14 +111,6 @@ export function StockImportForm({ existing }: { existing?: StockImport }) {
   const supplierId = watch("supplierId");
   const total = items.reduce((sum, it) => sum + (Number(it.quantity) || 0) * (Number(it.costPrice) || 0), 0);
 
-  // Chọn NCC thì ô hàng hoá chỉ còn những món đã thiết lập giá cho NCC đó — khớp với chốt ở server.
-  const allowedProductIds = useMemo(() => {
-    if (!supplierId) return null;
-    return new Set(prices.filter((p) => p.supplierId === supplierId).map((p) => p.productId));
-  }, [supplierId, prices]);
-
-  const productOptions = allowedProductIds ? products.filter((p) => allowedProductIds.has(p.id)) : products;
-
   function onSubmit(values: FormValues) {
     setError(null);
     const payload: StockImportInput = {
@@ -206,7 +198,6 @@ export function StockImportForm({ existing }: { existing?: StockImport }) {
                 ))}
               </Select>
               {errors.supplierId && <p className="text-xs text-red-600">{errors.supplierId.message}</p>}
-              {supplierId && <p className="text-xs text-slate-400">Chỉ hiện hàng hoá đã có giá thiết lập cho NCC này.</p>}
             </div>
 
             <div className="flex flex-col gap-1">
@@ -251,15 +242,17 @@ export function StockImportForm({ existing }: { existing?: StockImport }) {
                       {...productRegister}
                       onChange={(e) => {
                         productRegister.onChange(e);
-                        // Tự điền giá nhập của NCC đã chọn — người dùng vẫn sửa được.
+                        // Tự điền giá nhập của NCC đã chọn — người dùng vẫn sửa được. NCC chưa khai
+                        // giá cho hàng này thì để nguyên 0 (mặc định của dòng mới), KHÔNG đoán theo
+                        // giá vốn danh mục: giá 0 là dấu "chưa có giá", đoán một con số là mất dấu đó.
                         const price = prices.find((p) => p.productId === e.target.value && p.supplierId === supplierId);
                         if (price) setValue(`items.${index}.costPrice`, Number(price.importPrice));
                       }}
                     >
                       <option value="">Chọn hàng hoá</option>
-                      {productOptions.map((p) => (
+                      {products.map((p) => (
                         <option key={p.id} value={p.id}>
-                          {p.name} ({formatCurrency(p.costPrice)})
+                          {p.name}
                         </option>
                       ))}
                     </Select>

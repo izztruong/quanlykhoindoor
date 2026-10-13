@@ -438,7 +438,7 @@ export function StockImportExcelActions({ filter, scopeAll }: Props) {
             <p className="text-slate-600">
               <b>Mã phiếu tạm</b> chỉ dùng để nối hai sheet, không lưu lại — các dòng hàng cùng một mã tạm sẽ vào cùng một phiếu.
               Thời gian nhập <b>phải có giờ</b> (vd 15/08/2026 08:30) vì đó là mốc kỳ Check Cost. Giá vốn để trống thì lấy giá
-              nhập của NCC.
+              nhập của NCC; NCC chưa khai giá cho hàng đó thì <b>phải gõ rõ giá</b> — gõ <b>0</b> nếu chưa có giá.
             </p>
             <p className="text-slate-600">
               Số thập phân dùng dấu phẩy (<b>0,5</b>); dấu chấm là dấu thập phân kiểu máy, nên <b>8.000</b> đọc thành 8 chứ
