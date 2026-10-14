@@ -48,6 +48,16 @@ export const stockImportBulkSchema = z.object({
   confirmDuplicates: z.boolean().optional().default(false),
 });
 
+/**
+ * Tra phiếu theo danh sách MÃ — cho màn đính ảnh hàng loạt, nơi người dùng đặt tên ảnh theo mã phiếu.
+ * Cần id để gọi `POST /:id/images`, mà tên file chỉ mang mã.
+ *
+ * Trần 200 cùng mức với `bulk-import`.
+ */
+export const stockImportByCodesSchema = z.object({
+  codes: z.array(z.string().min(1)).min(1, "Chưa có mã phiếu nào").max(200, "Một lần tra tối đa 200 mã"),
+});
+
 /** Tối đa 5 ảnh chứng từ mỗi phiếu nhập — cùng mức với khoản chi và phiếu đề xuất chi. */
 export const MAX_IMAGES_PER_IMPORT = 5;
 

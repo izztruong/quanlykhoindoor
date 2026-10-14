@@ -8,6 +8,7 @@ import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Select } from "@/components/ui/Select";
 import { useWarehouses } from "@/hooks/useCatalog";
 import { StockImportExcelActions } from "@/components/stock/StockImportExcelActions";
+import { StockImportImageActions } from "@/components/stock/StockImportImageActions";
 import { useStockImports } from "@/hooks/useStockImports";
 import { useCurrentUser } from "@/lib/auth";
 import { formatCurrency, formatDateTime, labels } from "@/lib/format";
@@ -108,6 +109,9 @@ export default function StockImportsPage() {
               scopeAll={scopeAll}
             />
           )}
+          {/* Đính ảnh là ghi vào phiếu nên gác cùng quyền; nó KHÔNG liên quan nhập Excel, tên ảnh mang
+              mã phiếu thật nên dùng được bất cứ lúc nào. */}
+          {canOpen("/stock/imports/new") && <StockImportImageActions />}
           {canOpen("/stock/imports/new") && (
             <Link href="/stock/imports/new">
               <Button>

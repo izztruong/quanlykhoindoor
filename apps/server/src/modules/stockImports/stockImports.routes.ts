@@ -9,6 +9,7 @@ import { parseDateRange, parsePagination } from "../../utils/pagination";
 import { HttpError } from "../../utils/httpError";
 import {
   MAX_IMAGES_PER_IMPORT,
+  stockImportByCodesSchema,
   MAX_IMAGE_BYTES,
   stockImportBulkSchema,
   stockImportCreateSchema,
@@ -200,10 +201,6 @@ stockImportsRouter.post("/bulk-import", requirePermission("STOCK_IMPORTS"), asyn
   // 4. Ghi: 3 statement bất kể N. `createMany` KHÔNG nhận nested create nên phải pre-generate mã rồi
   //    đọc lại id theo mã — khuôn của `finishedGoodPrices.routes.ts`.
   //    timeout 30s là chuẩn repo cho nhập từ file; quá hạn thì Postgres trả 57014 và middleware map 504.
-  //
-  //    `ids` hứng ra ngoài transaction để trả về cho client: đường nhập Excel đẩy ảnh chứng từ bằng
-  //    `POST /:id/images` nên cần id, mà `codes` thì không tra ngược được nếu không gọi thêm query.
-  let ids: string[] = [];
   await prisma.$transaction(
     async (tx) => {
       await tx.stockImport.createMany({
@@ -222,9 +219,6 @@ stockImportsRouter.post("/bulk-import", requirePermission("STOCK_IMPORTS"), asyn
 
       const created = await tx.stockImport.findMany({ where: { code: { in: codes } }, select: { id: true, code: true } });
       const idByCode = new Map(created.map((row) => [row.code, row.id]));
-      // Cùng thứ tự với `items` và `codes` — client ghép ảnh theo chỉ số, lệch một chỗ là ảnh gắn
-      // sang nhầm phiếu mà không có gì báo.
-      ids = codes.map((code) => idByCode.get(code)!);
 
       await tx.stockImportItem.createMany({
         data: items.flatMap((it, index) =>
@@ -247,7 +241,25 @@ stockImportsRouter.post("/bulk-import", requirePermission("STOCK_IMPORTS"), asyn
     items.map((it) => ({ shopUserId: warehouseById.get(it.warehouseId)?.shopUserId ?? null, at: it.transactionAt })),
   );
 
-  res.status(201).json({ created: items.length, codes, ids, affectedCostChecks: affected, duplicates: [] });
+  res.status(201).json({ created: items.length, codes, affectedCostChecks: affected, duplicates: [] });
+});
+
+/**
+ * Tra phiếu theo danh sách mã — màn đính ảnh hàng loạt dùng, vì tên file ảnh chỉ mang MÃ phiếu còn
+ * `POST /:id/images` thì cần id.
+ *
+ * Lọc qua `warehouseScope` như mọi đường đọc khác: mã không thuộc phạm vi thì **không trả về**, y
+ * như nó không tồn tại — cùng luật với `findScopedImport`, không lộ chuyện phiếu đó có thật.
+ *
+ * Trả kèm `imageCount` để client biết phiếu còn chỗ cho mấy ảnh nữa.
+ */
+stockImportsRouter.post("/by-codes", requirePermission("STOCK_IMPORTS", "VIEW"), async (req, res) => {
+  const { codes } = stockImportByCodesSchema.parse(req.body);
+  const rows = await prisma.stockImport.findMany({
+    where: { code: { in: [...new Set(codes)] }, warehouse: warehouseScope(req.user) },
+    select: { id: true, code: true, _count: { select: { images: true } } },
+  });
+  res.json(rows.map((row) => ({ id: row.id, code: row.code, imageCount: row._count.images })));
 });
 
 stockImportsRouter.put("/:id", requirePermission("STOCK_IMPORTS"), async (req, res) => {

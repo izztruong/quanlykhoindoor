@@ -53,15 +53,18 @@ mang được trường tổng).
 Đã kiểm: typecheck 3 app, lint web, `expo export`, và 11 ca curl trên `kho_db` (lọc trạng thái/ngày/người
 lập, sang trang 2 không đổi tổng, tài khoản quán chỉ cộng phiếu của mình). Dữ liệu thử đã dọn.
 
-### Nhập Excel phiếu nhập kho: đính ảnh theo tên file — CHƯA bấm thử trên trình duyệt, CHƯA lên `staging`
-Nhập Excel xong, modal hiện ô chọn ảnh: đặt tên theo **Mã phiếu tạm** (`P1.jpg`, `P1-2.jpg`), tối đa **2 ảnh
-mỗi phiếu** — thấp hơn trần 5 của đường đính thủ công, cố ý. Ảnh đẩy **sau** khi phiếu đã tạo vì phải có `id`,
-nên `bulk-import` trả thêm `ids` cùng thứ tự `codes`. Tên ảnh sai **không** ảnh hưởng phiếu đã tạo, chỉ báo
-"chưa gắn được", sửa tên rồi chọn lại ngay trong modal. Một request mỗi phiếu (trần 4,5 MB của proxy Vercel),
-chạy song song 3, có thanh tiến trình và nút "Thử đẩy lại ảnh" khi đẩy hỏng giữa chừng.
-Đã kiểm: typecheck 2 app, lint web 0 lỗi/3 cảnh báo, build web; **15 ca** script `tsx` tạm cho hàm khớp tên
-(gồm hai ca dễ sai nhất: `P10` không bị cắt thành `P1`, mã tạm chứa dấu `-`) rồi xoá; và curl xác nhận
-`ids` trả về **đúng thứ tự** `items`. Dữ liệu thử đã dọn.
+### Đính ảnh chứng từ hàng loạt cho phiếu nhập kho — CHƯA bấm thử trên trình duyệt, CHƯA lên `staging`
+Nút **"Nhập ảnh chứng từ"** riêng ngoài danh sách phiếu, **không dính gì nhập Excel**: đặt tên ảnh theo
+**mã phiếu thật** (`PN…​.jpg`, ảnh thứ hai thêm `-2`), tối đa **2 ảnh/phiếu** — thấp hơn trần 5 của đường
+đính thủ công, cố ý. Nhờ khớp theo mã thật nên nhập phiếu hôm nay, hôm khác đính ảnh vẫn chạy; mã phiếu
+*tạm* của file Excel không lưu vào DB nên không dùng được cho việc này.
+Thêm `POST /stock-imports/by-codes` để đổi mã sang id (route ảnh cần id), lọc qua `warehouseScope` nên
+quán không tra được phiếu của kho quán khác. Một request mỗi phiếu (trần 4,5 MB của proxy Vercel), song
+song 3, có thanh tiến trình và nút "Thử đẩy lại ảnh".
+Đã kiểm: typecheck 2 app, lint web 0 lỗi/3 cảnh báo, build web; **16 ca** script `tsx` tạm cho hàm khớp
+tên rồi xoá; và 5 ca curl trên `kho_dev_copy` — id khớp SQL, mã bịa bị bỏ qua, 201 mã và mảng rỗng đều
+400, và **tài khoản quán chỉ tra được phiếu kho mình** (1/3 mã, dựng tài khoản + đổi chủ kho tạm rồi trả
+lại nguyên trạng). Dữ liệu thử đã dọn.
 
 ### Phiếu nhập kho chọn được hàng NCC chưa khai giá — ĐÃ lên `main`, CHƯA bấm thử trên trình duyệt
 Hàng chưa khai giá thì giá vốn để **0**, nên "Tổng tiền vốn" thiếu phần đó — đã chốt chấp nhận.

@@ -70,9 +70,6 @@ export interface StockImportDuplicate {
 export interface StockImportBulkResult {
   created: number;
   codes: string[];
-  /** Id phiếu vừa tạo, CÙNG THỨ TỰ với `codes` và với mảng `items` đã gửi — đường nhập Excel cần
-   *  id để đẩy ảnh chứng từ qua `POST /:id/images`. Rỗng khi `created === 0`. */
-  ids: string[];
   affectedCostChecks: AffectedCostCheck[];
   /** Có phần tử **và** `created === 0` nghĩa là chưa ghi gì, đang chờ người dùng xác nhận. */
   duplicates: StockImportDuplicate[];
@@ -145,5 +142,22 @@ export function useDeleteStockImportImage(id: string) {
   return useMutation({
     mutationFn: (imageId: string) => api.delete<void>(`/stock-imports/${id}/images/${imageId}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [KEY, id] }),
+  });
+}
+
+/** Một phiếu tra được theo mã — cho màn đính ảnh hàng loạt. */
+export interface StockImportByCode {
+  id: string;
+  code: string;
+  imageCount: number;
+}
+
+/**
+ * Tra phiếu theo danh sách mã. Mã không tồn tại HOẶC ngoài phạm vi đều không có trong kết quả — client
+ * báo "không tìm thấy" cho cả hai, đúng luật phạm vi của repo.
+ */
+export function useLookupStockImportsByCodes() {
+  return useMutation({
+    mutationFn: (codes: string[]) => api.post<StockImportByCode[]>("/stock-imports/by-codes", { codes }),
   });
 }
