@@ -131,8 +131,10 @@ export function StockImportExcelActions({ filter, scopeAll }: Props) {
             // Mã phiếu thật, để hai sheet nối đúng nhau. Lưu ý: nhập lại chính file này sẽ báo LỖI
             // TRÙNG MÃ — đó là mong muốn, nó chặn ca vô tình nhập lại file cũ.
             name: SHEET.phieu,
-            header: [...PHIEU_HEADER, "Người tạo", "Tổng tiền vốn"],
-            widths: [18, 14, 14, 20, 14, 16, 28, 18, 16],
+            // Cột tham khảo luôn nối SAU khối cột mẫu: phần nhập chỉ đọc đúng `PHIEU_HEADER.length`
+            // ô đầu, nên chèn vào giữa (vd cạnh "Mã NCC") là file xuất ra không nhập lại được nữa.
+            header: [...PHIEU_HEADER, "Tên NCC", "Người tạo", "Tổng tiền vốn"],
+            widths: [18, 14, 14, 20, 14, 16, 28, 24, 18, 16],
             rows: data.items.map((row) => [
               row.code,
               row.warehouse.code,
@@ -141,14 +143,18 @@ export function StockImportExcelActions({ filter, scopeAll }: Props) {
               TYPE_LABEL[row.type] ?? row.type,
               FORM_LABEL[row.form] ?? row.form,
               row.note ?? "",
+              // `supplierId` nullable trong DB (phiếu sinh từ SL nhận của đơn hàng cũ không biết NCC).
+              row.supplier?.name ?? "",
               scopeAll ? (row.createdBy?.name ?? "") : "",
               row.items.reduce((sum, line) => sum + Number(line.costAmount), 0),
             ]),
           },
           {
+            // NCC là của cả PHIẾU chứ không theo từng dòng, nên tên NCC lặp lại ở mọi dòng của cùng
+            // một phiếu — nhìn qua dễ tưởng lỗi, nhưng đó đúng là hình dạng dữ liệu.
             name: SHEET.dongHang,
-            header: [...DONG_HANG_HEADER, "Tên hàng hoá"],
-            widths: [18, 18, 12, 14, 28, 30],
+            header: [...DONG_HANG_HEADER, "Tên NCC", "Tên hàng hoá"],
+            widths: [18, 18, 12, 14, 28, 24, 30],
             rows: data.items.flatMap((row) =>
               row.items.map((line) => [
                 row.code,
@@ -156,6 +162,7 @@ export function StockImportExcelActions({ filter, scopeAll }: Props) {
                 Number(line.quantity),
                 Number(line.costPrice),
                 line.note ?? "",
+                row.supplier?.name ?? "",
                 line.product.name,
               ]),
             ),

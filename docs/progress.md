@@ -46,6 +46,12 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
+### Xuất Excel phiếu nhập kho có thêm cột "Tên NCC" — CHƯA bấm thử trên trình duyệt, CHƯA lên `staging`
+Thêm ở **cả hai sheet**, nối sau khối cột mẫu nên phần nhập vẫn bỏ qua như "Người tạo"/"Tên hàng hoá" —
+file xuất ra vẫn nhập lại được. Sheet "Dòng hàng" lặp tên NCC ở mọi dòng vì NCC là của cả phiếu.
+Đã kiểm: typecheck + lint (0 lỗi/3 cảnh báo) + build web; 11 ca script `tsx` tạm dựng workbook rồi đọc
+lại, gồm **headerMatchesPhieu/DongHang vẫn true** và phiếu không có NCC ra ô rỗng. Script đã xoá.
+
 ### Dải "Tiền quỹ đã xuất" dưới danh sách phiếu đề xuất chi — ĐÃ lên `main`, CHƯA bấm thử trên trình duyệt
 Server cộng cho cả bộ lọc: phiếu Hoàn thành tính theo thực chi, phiếu còn dở tính theo tiền đã tạm ứng.
 Web có dải dưới bảng, mobile có thẻ ở đầu danh sách (màn này phải bỏ `useInfiniteList` vì hook đó không
