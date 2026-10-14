@@ -16,8 +16,8 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 `nav-config.ts` và `apps/server/src/modules/`.
 
 - **Danh mục** — hàng hoá (có cờ `active`), nhóm, đơn vị, kho (gắn quán sở hữu), NCC, đồ thành phẩm
-- **Kho** — phiếu nhập kho (sửa/xoá, ảnh chứng từ, nhập Excel nhiều phiếu), điều chuyển (nhập Excel),
-  Check Cost; giá theo từng NCC
+- **Kho** — phiếu nhập kho (sửa/xoá, nhập Excel nhiều phiếu với **mã phiếu tự đặt**, đính ảnh chứng
+  từ hàng loạt theo tên file), điều chuyển (nhập Excel), Check Cost; giá theo từng NCC
 - **Order** — danh sách, tạo đơn, Order nhanh, Tổng hợp đặt NCC. Đơn chỉ là **đề xuất**: Đã đặt → Huỷ,
   cộng ô tích "Đã xử lý" để admin đánh dấu đơn đã làm
 - **Kiểm kê quán** — phiếu kiểm (tuần/tháng), phiếu huỷ nguyên liệu (ô tích "Trừ CC" từng dòng), tự trừ vỏ
@@ -46,28 +46,12 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
-### Dải "Tiền quỹ đã xuất" dưới danh sách phiếu đề xuất chi — CHƯA bấm thử trên trình duyệt, CHƯA lên `staging`
+### Dải "Tiền quỹ đã xuất" dưới danh sách phiếu đề xuất chi — ĐÃ lên `main`, CHƯA bấm thử trên trình duyệt
 Server cộng cho cả bộ lọc: phiếu Hoàn thành tính theo thực chi, phiếu còn dở tính theo tiền đã tạm ứng.
 Web có dải dưới bảng, mobile có thẻ ở đầu danh sách (màn này phải bỏ `useInfiniteList` vì hook đó không
 mang được trường tổng).
 Đã kiểm: typecheck 3 app, lint web, `expo export`, và 11 ca curl trên `kho_db` (lọc trạng thái/ngày/người
 lập, sang trang 2 không đổi tổng, tài khoản quán chỉ cộng phiếu của mình). Dữ liệu thử đã dọn.
-
-### Mã phiếu nhập kho tự đặt + đính ảnh hàng loạt — CHƯA bấm thử trên trình duyệt, CHƯA lên `staging`
-Hai việc gắn nhau: cột "Mã phiếu tạm" trong file Excel đổi thành **"Mã phiếu"** và lưu làm **mã thật**,
-nhờ đó đặt tên ảnh theo mã ngắn của mình (`HD001.jpg`) thay vì mã 17 ký tự. Trùng mã là **400 nêu đúng
-mã**, kể cả trùng chỉ khác hoa/thường trong cùng file — khác hẳn cảnh báo mềm "(kho, NCC, thời gian)"
-vẫn giữ. `PUT` không đổi mã. Để trống mã hoặc tạo từ form thì vẫn tự sinh `PN…`.
-Nút **"Nhập ảnh chứng từ"** riêng ngoài danh sách phiếu, tối đa **2 ảnh/phiếu** (trần đính thủ công vẫn
-5, cố ý). `POST /stock-imports/by-codes` đổi mã sang id, lọc qua `warehouseScope` nên quán không tra
-được phiếu kho quán khác. Một request mỗi phiếu (trần 4,5 MB của proxy Vercel), song song 3, có thanh
-tiến trình và nút "Thử đẩy lại ảnh".
-**File Excel cũ không nhập lại được** (tiêu đề đổi) — chặn ở bước kiểm tiêu đề, nêu đúng tên cột cần có.
-**Phiếu điều chuyển cố ý giữ nguyên** mã tạm đúng nghĩa tạm, hai module lệch nhau là có chủ đích.
-Đã kiểm: typecheck 2 app, lint web 0 lỗi/3 cảnh báo, build web; 16 ca script `tsx` cho hàm khớp tên ảnh
-rồi xoá; 5 ca curl cho `by-codes` (gồm **tài khoản quán chỉ tra được phiếu kho mình**); và 8 ca curl cho
-mã tự đặt — tạo đúng mã, trùng DB/trùng lô/trùng hoa-thường/mã `=SUM()`/mã 33 ký tự đều 400, bỏ trống
-mã vẫn sinh `PN…`, và lô có một mã trùng thì **không phiếu nào được ghi**. Dữ liệu thử đã dọn.
 
 ### Phiếu nhập kho chọn được hàng NCC chưa khai giá — ĐÃ lên `main`, CHƯA bấm thử trên trình duyệt
 Hàng chưa khai giá thì giá vốn để **0**, nên "Tổng tiền vốn" thiếu phần đó — đã chốt chấp nhận.
