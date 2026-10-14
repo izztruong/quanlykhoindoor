@@ -1,6 +1,6 @@
 # Tiến độ dự án
 
-Cập nhật: 2026-10-13
+Cập nhật: 2026-10-14
 
 Ghi **đúng những gì git không tự trả lời được**. Lý do thiết kế đã nằm trong commit message, đừng
 chép lại vào đây. Mỗi mục "Đang dở" tối đa 3–4 dòng, và dòng quan trọng nhất luôn là: *đã kiểm thử
@@ -52,6 +52,16 @@ Web có dải dưới bảng, mobile có thẻ ở đầu danh sách (màn này 
 mang được trường tổng).
 Đã kiểm: typecheck 3 app, lint web, `expo export`, và 11 ca curl trên `kho_db` (lọc trạng thái/ngày/người
 lập, sang trang 2 không đổi tổng, tài khoản quán chỉ cộng phiếu của mình). Dữ liệu thử đã dọn.
+
+### Nhập Excel phiếu nhập kho: đính ảnh theo tên file — CHƯA bấm thử trên trình duyệt, CHƯA lên `staging`
+Nhập Excel xong, modal hiện ô chọn ảnh: đặt tên theo **Mã phiếu tạm** (`P1.jpg`, `P1-2.jpg`), tối đa **2 ảnh
+mỗi phiếu** — thấp hơn trần 5 của đường đính thủ công, cố ý. Ảnh đẩy **sau** khi phiếu đã tạo vì phải có `id`,
+nên `bulk-import` trả thêm `ids` cùng thứ tự `codes`. Tên ảnh sai **không** ảnh hưởng phiếu đã tạo, chỉ báo
+"chưa gắn được", sửa tên rồi chọn lại ngay trong modal. Một request mỗi phiếu (trần 4,5 MB của proxy Vercel),
+chạy song song 3, có thanh tiến trình và nút "Thử đẩy lại ảnh" khi đẩy hỏng giữa chừng.
+Đã kiểm: typecheck 2 app, lint web 0 lỗi/3 cảnh báo, build web; **15 ca** script `tsx` tạm cho hàm khớp tên
+(gồm hai ca dễ sai nhất: `P10` không bị cắt thành `P1`, mã tạm chứa dấu `-`) rồi xoá; và curl xác nhận
+`ids` trả về **đúng thứ tự** `items`. Dữ liệu thử đã dọn.
 
 ### Phiếu nhập kho chọn được hàng NCC chưa khai giá — ĐÃ lên `main`, CHƯA bấm thử trên trình duyệt
 Hàng chưa khai giá thì giá vốn để **0**, nên "Tổng tiền vốn" thiếu phần đó — đã chốt chấp nhận.

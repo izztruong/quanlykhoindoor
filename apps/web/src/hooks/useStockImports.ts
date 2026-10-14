@@ -70,6 +70,9 @@ export interface StockImportDuplicate {
 export interface StockImportBulkResult {
   created: number;
   codes: string[];
+  /** Id phiếu vừa tạo, CÙNG THỨ TỰ với `codes` và với mảng `items` đã gửi — đường nhập Excel cần
+   *  id để đẩy ảnh chứng từ qua `POST /:id/images`. Rỗng khi `created === 0`. */
+  ids: string[];
   affectedCostChecks: AffectedCostCheck[];
   /** Có phần tử **và** `created === 0` nghĩa là chưa ghi gì, đang chờ người dùng xác nhận. */
   duplicates: StockImportDuplicate[];

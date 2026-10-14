@@ -85,3 +85,40 @@ export function formatTransactionAtForExcel(iso: string): string {
   const base = `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
   return d.getSeconds() === 0 ? base : `${base}:${p(d.getSeconds())}`;
 }
+
+/**
+ * Trần ảnh chứng từ cho ĐƯỜNG EXCEL — cố ý **thấp hơn** `MAX_IMAGES_PER_IMPORT = 5` của server
+ * (`stockImports.schemas.ts`). Đính thủ công ở trang chi tiết vẫn 5 ảnh; ở đây 2 là đủ (hoá đơn +
+ * phiếu giao) và giữ quy ước đặt tên chỉ còn đúng hai dạng. Đừng "thống nhất" hai con số này làm một.
+ */
+export const MAX_EXCEL_IMAGES_PER_SLIP = 2;
+
+/**
+ * Ghép một file ảnh với Mã phiếu tạm theo TÊN FILE: `P1.jpg` là ảnh thứ nhất của phiếu `P1`,
+ * `P1-2.jpg` là ảnh thứ hai.
+ *
+ * Khớp theo mã tạm **DÀI NHẤT** mà tên file bắt đầu bằng, rồi phần dư phải rỗng hoặc đúng `-<số>`.
+ * Chọn dài nhất vì mã tạm có thể chứa dấu `-`: file `P1-A.jpg` của phiếu `P1-A` mà khớp tham lam từ
+ * trái sẽ thành "phiếu P1, ảnh thứ A". Không khớp được thì trả `null` để phần nhập **báo lỗi theo tên
+ * file**, không đoán bừa.
+ *
+ * Trả về cả `index` (1 hoặc 2…) để phần nhập phát hiện hai file cùng trỏ một vị trí.
+ */
+export function matchImageToTempCode(
+  fileName: string,
+  tempCodes: string[],
+): { tempCode: string; index: number } | null {
+  // Bỏ đuôi file; không quan tâm đuôi là gì vì `compressImage` nhận mọi ảnh trình duyệt giải mã được.
+  const base = fileName.replace(/\.[^.]*$/, "").trim();
+  if (!base) return null;
+
+  const candidates = [...tempCodes].sort((a, b) => b.length - a.length);
+  for (const tempCode of candidates) {
+    if (!base.startsWith(tempCode)) continue;
+    const rest = base.slice(tempCode.length);
+    if (rest === "") return { tempCode, index: 1 };
+    const matched = /^-(\d+)$/.exec(rest);
+    if (matched) return { tempCode, index: Number(matched[1]) };
+  }
+  return null;
+}

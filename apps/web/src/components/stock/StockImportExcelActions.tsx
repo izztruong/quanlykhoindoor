@@ -6,12 +6,14 @@ import { useProducts, useSuppliers, useWarehouses } from "@/hooks/useCatalog";
 import { useProductSupplierPrices } from "@/hooks/useProductSupplierPrices";
 import { useBulkImportStockImports, type StockImportInput, type StockImportDuplicate } from "@/hooks/useStockImports";
 import { ApiError, api } from "@/lib/api-client";
+import { compressImage, type CompressedImage } from "@/lib/imageCompress";
 import { formatDateTime } from "@/lib/format";
 import { useCan } from "@/lib/permissions";
 import {
   DONG_HANG_COL,
   DONG_HANG_HEADER,
   FORM_LABEL,
+  MAX_EXCEL_IMAGES_PER_SLIP,
   PHIEU_COL,
   PHIEU_HEADER,
   SHEET,
@@ -19,6 +21,7 @@ import {
   formatTransactionAtForExcel,
   headerMatchesDongHang,
   headerMatchesPhieu,
+  matchImageToTempCode,
   parseDateTime,
   parseImportType,
   parseNumber,
@@ -44,6 +47,35 @@ interface ImportResult {
   errors: string[];
 }
 
+/** Một phiếu vừa tạo: nối Mã phiếu tạm trong file Excel với phiếu thật, để gắn ảnh theo tên file. */
+interface CreatedSlip {
+  id: string;
+  code: string;
+  tempCode: string;
+}
+
+/** Một phiếu kèm ảnh đã nén — giữ lại để bấm "Thử đẩy lại ảnh" mà khỏi chọn file lần nữa. */
+interface SlipImages extends CreatedSlip {
+  images: CompressedImage[];
+}
+
+/**
+ * Đẩy ảnh là MỘT request mỗi phiếu — không gộp được vì web gọi API qua rewrite `/api/*` của Next nên
+ * mọi request đi qua proxy Vercel, trần 4,5 MB, mà ảnh base64 phình thêm ~33%.
+ *
+ * Chạy song song tối đa 3: Render gói free là máy nhỏ, nhiều kết nối Neon cùng lúc dễ nghẽn hơn là nhanh.
+ */
+const IMAGE_UPLOAD_CONCURRENCY = 3;
+
+async function runWithLimit(tasks: (() => Promise<void>)[], limit: number) {
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(limit, tasks.length) }, async () => {
+      while (next < tasks.length) await tasks[next++]!();
+    }),
+  );
+}
+
 export function StockImportExcelActions({ filter, scopeAll }: Props) {
   const { user: currentUser } = useCan();
   const { data: allWarehouses = [] } = useWarehouses();
@@ -65,7 +97,14 @@ export function StockImportExcelActions({ filter, scopeAll }: Props) {
   const [result, setResult] = useState<ImportResult | null>(null);
   // Giữ dữ liệu đã đọc để bấm "Vẫn nhập" không phải chọn lại file.
   const [pending, setPending] = useState<StockImportInput[] | null>(null);
+  const [pendingTempCodes, setPendingTempCodes] = useState<string[] | null>(null);
   const [duplicates, setDuplicates] = useState<StockImportDuplicate[] | null>(null);
+  // Phiếu vừa tạo — ô chọn ảnh chỉ hiện sau khi có cái này, vì phải có id mới gắn ảnh vào đâu được.
+  const [createdSlips, setCreatedSlips] = useState<CreatedSlip[]>([]);
+  const [imageErrors, setImageErrors] = useState<string[]>([]);
+  const [attached, setAttached] = useState<{ images: number; slips: number } | null>(null);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [failedImages, setFailedImages] = useState<SlipImages[]>([]);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -81,8 +120,86 @@ export function StockImportExcelActions({ filter, scopeAll }: Props) {
     setMenuOpen(false);
     setResult(null);
     setPending(null);
+    setPendingTempCodes(null);
     setDuplicates(null);
+    setCreatedSlips([]);
+    setImageErrors([]);
+    setAttached(null);
+    setProgress(null);
+    setFailedImages([]);
     setModalOpen(true);
+  }
+
+  /**
+   * Chọn ảnh — chỉ dùng được SAU khi phiếu đã tạo, vì ảnh gắn theo `id` của phiếu.
+   *
+   * Tên ảnh sai KHÔNG đụng gì tới phiếu đã tạo: chỉ báo "ảnh này chưa gắn được", sửa tên rồi chọn lại
+   * ngay trong modal. Ảnh là thứ đi kèm, không đáng để chặn cả lượt nhập vì một cái tên gõ nhầm.
+   */
+  async function handlePickImages(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = Array.from(e.target.files ?? []);
+    // Chọn lại cùng bộ file vẫn phải nổ event.
+    e.target.value = "";
+    if (picked.length === 0) return;
+
+    setBusy(true);
+    setImageErrors([]);
+    setAttached(null);
+    setFailedImages([]);
+    try {
+      const errors: string[] = [];
+      const tempCodes = createdSlips.map((slip) => slip.tempCode);
+
+      // Khớp tên trước, nén sau: tên sai thì khỏi tốn công nén.
+      const slots = new Map<string, { file: File; index: number }[]>();
+      for (const file of picked) {
+        const matched = matchImageToTempCode(file.name, tempCodes);
+        if (!matched) {
+          errors.push(`"${file.name}": không có phiếu nào mang mã tạm khớp tên file.`);
+          continue;
+        }
+        const list = slots.get(matched.tempCode) ?? [];
+        list.push({ file, index: matched.index });
+        slots.set(matched.tempCode, list);
+      }
+
+      const slipByTempCode = new Map(createdSlips.map((slip) => [slip.tempCode, slip]));
+      const ready: SlipImages[] = [];
+      for (const [tempCode, list] of slots) {
+        const taken = new Map<number, string>();
+        const usable: { file: File; index: number }[] = [];
+        for (const entry of [...list].sort((a, b) => a.index - b.index)) {
+          const other = taken.get(entry.index);
+          if (other) {
+            errors.push(`Phiếu "${tempCode}": "${other}" và "${entry.file.name}" cùng là ảnh thứ ${entry.index}.`);
+            continue;
+          }
+          if (entry.index > MAX_EXCEL_IMAGES_PER_SLIP) {
+            errors.push(`Phiếu "${tempCode}": tối đa ${MAX_EXCEL_IMAGES_PER_SLIP} ảnh, bỏ qua "${entry.file.name}".`);
+            continue;
+          }
+          taken.set(entry.index, entry.file.name);
+          usable.push(entry);
+        }
+
+        const compressed: CompressedImage[] = [];
+        for (const { file } of usable) {
+          try {
+            compressed.push(await compressImage(file));
+          } catch (err) {
+            // compressImage nêu sẵn tên file trong câu lỗi (ảnh HEIC iPhone không giải mã được).
+            errors.push(err instanceof Error ? err.message : `Không nén được ảnh "${file.name}"`);
+          }
+        }
+        const slip = slipByTempCode.get(tempCode);
+        if (slip && compressed.length > 0) ready.push({ ...slip, images: compressed });
+      }
+
+      setImageErrors(errors);
+      await uploadImages(ready);
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function handleDownloadTemplate() {
@@ -364,8 +481,10 @@ export function StockImportExcelActions({ filter, scopeAll }: Props) {
         supplierId: d.supplierId,
         items: d.lines,
       }));
+      // Cùng thứ tự với `items` (và với `ids` server trả về) — đây là thứ nối ảnh về đúng phiếu.
+      const tempCodes = [...drafts.keys()];
 
-      await send(items, false);
+      await send(items, tempCodes, false);
     } catch (err) {
       setResult({
         created: 0,
@@ -378,18 +497,28 @@ export function StockImportExcelActions({ filter, scopeAll }: Props) {
     }
   }
 
-  async function send(items: StockImportInput[], confirmDuplicates: boolean) {
+  async function send(items: StockImportInput[], tempCodes: string[], confirmDuplicates: boolean) {
     try {
       const res = await bulkImport.mutateAsync({ items, confirmDuplicates });
       if (res.created === 0 && res.duplicates.length > 0) {
         setPending(items);
+        setPendingTempCodes(tempCodes);
         setDuplicates(res.duplicates);
         setResult(null);
         return;
       }
       setPending(null);
+      setPendingTempCodes(null);
       setDuplicates(null);
       setResult({ created: res.created, codes: res.codes, affectedCostChecks: res.affectedCostChecks, errors: [] });
+
+      // Phiếu đã ghi xong thì mới mở ô chọn ảnh: ảnh gắn theo id, chưa có id thì chưa gắn vào đâu được.
+      // `ids` server trả về cùng thứ tự với `items` và `codes` — lệch một chỗ là ảnh sang nhầm phiếu.
+      setCreatedSlips(
+        tempCodes
+          .map((tempCode, index) => ({ tempCode, id: res.ids[index] ?? "", code: res.codes[index] ?? tempCode }))
+          .filter((slip) => slip.id),
+      );
     } catch (err) {
       setResult({
         created: 0,
@@ -400,11 +529,53 @@ export function StockImportExcelActions({ filter, scopeAll }: Props) {
     }
   }
 
-  async function handleConfirmDuplicates() {
-    if (!pending) return;
+  /**
+   * Phiếu đã nằm trong DB rồi nên đẩy ảnh hỏng KHÔNG rollback được, và cũng không nên: báo đúng phiếu
+   * nào còn thiếu ảnh, giữ ảnh đã nén trong state để bấm thử lại mà không phải chọn file lần nữa.
+   */
+  async function uploadImages(slips: SlipImages[]) {
+    if (slips.length === 0) {
+      setProgress(null);
+      setFailedImages([]);
+      return;
+    }
+    setProgress({ done: 0, total: slips.length });
+    const failed: SlipImages[] = [];
+    await runWithLimit(
+      slips.map((slip) => async () => {
+        try {
+          await api.post(`/stock-imports/${slip.id}/images`, {
+            images: slip.images.map(({ contentType, dataBase64 }) => ({ contentType, dataBase64 })),
+          });
+        } catch {
+          failed.push(slip);
+        } finally {
+          setProgress((prev) => (prev ? { ...prev, done: prev.done + 1 } : prev));
+        }
+      }),
+      IMAGE_UPLOAD_CONCURRENCY,
+    );
+    setProgress(null);
+    setFailedImages(failed);
+
+    const done = slips.filter((slip) => !failed.includes(slip));
+    setAttached({ images: done.reduce((sum, slip) => sum + slip.images.length, 0), slips: done.length });
+  }
+
+  async function handleRetryImages() {
     setBusy(true);
     try {
-      await send(pending, true);
+      await uploadImages(failedImages);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleConfirmDuplicates() {
+    if (!pending || !pendingTempCodes) return;
+    setBusy(true);
+    try {
+      await send(pending, pendingTempCodes, true);
     } finally {
       setBusy(false);
     }
@@ -509,6 +680,50 @@ export function StockImportExcelActions({ filter, scopeAll }: Props) {
                     ({result.affectedCostChecks.map((cc) => cc.code).join(", ")}). Hãy tạo lại những phiếu đó.
                   </p>
                 )}
+              </div>
+            )}
+
+            {createdSlips.length > 0 && (
+              <div className="flex flex-col gap-2 rounded-lg border border-slate-200 p-3">
+                <p className="text-sm font-medium text-slate-700">Đính ảnh chứng từ (không bắt buộc)</p>
+                <p className="text-xs text-slate-500">
+                  Đặt tên ảnh theo <b>Mã phiếu tạm</b> trong file vừa nhập: <code>P1.jpg</code>, ảnh thứ hai{" "}
+                  <code>P1-2.jpg</code>. Tối đa {MAX_EXCEL_IMAGES_PER_SLIP} ảnh mỗi phiếu. Chọn được nhiều lần — tên nào
+                  sai thì sửa rồi chọn lại, phiếu đã tạo không bị ảnh hưởng.
+                </p>
+                <input type="file" accept="image/*" multiple onChange={handlePickImages} disabled={busy} className="text-sm" />
+                {progress && (
+                  <p className="text-xs text-slate-500">
+                    Đang đẩy ảnh {progress.done}/{progress.total} phiếu…
+                  </p>
+                )}
+                {attached && attached.slips > 0 && (
+                  <p className="text-xs text-emerald-700">
+                    Đã đính {attached.images} ảnh vào {attached.slips} phiếu.
+                  </p>
+                )}
+                {imageErrors.length > 0 && (
+                  <ul className="list-disc pl-5 text-xs text-red-600">
+                    {imageErrors.map((error, index) => (
+                      <li key={index}>{error}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+
+            {failedImages.length > 0 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-800">
+                <p className="font-medium">
+                  {failedImages.length} phiếu đã tạo nhưng <b>chưa đẩy được ảnh</b>:
+                </p>
+                <p className="mt-1 text-xs">{failedImages.map((slip) => `${slip.code} (${slip.tempCode})`).join(", ")}</p>
+                <p className="mt-1 text-xs">Ảnh vẫn còn trong trình duyệt — bấm thử lại, hoặc mở từng phiếu để đính tay.</p>
+                <div className="mt-2">
+                  <Button size="sm" disabled={busy} onClick={handleRetryImages}>
+                    Thử đẩy lại ảnh
+                  </Button>
+                </div>
               </div>
             )}
           </div>

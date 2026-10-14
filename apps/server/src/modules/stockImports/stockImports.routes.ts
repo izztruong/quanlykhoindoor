@@ -200,6 +200,10 @@ stockImportsRouter.post("/bulk-import", requirePermission("STOCK_IMPORTS"), asyn
   // 4. Ghi: 3 statement bất kể N. `createMany` KHÔNG nhận nested create nên phải pre-generate mã rồi
   //    đọc lại id theo mã — khuôn của `finishedGoodPrices.routes.ts`.
   //    timeout 30s là chuẩn repo cho nhập từ file; quá hạn thì Postgres trả 57014 và middleware map 504.
+  //
+  //    `ids` hứng ra ngoài transaction để trả về cho client: đường nhập Excel đẩy ảnh chứng từ bằng
+  //    `POST /:id/images` nên cần id, mà `codes` thì không tra ngược được nếu không gọi thêm query.
+  let ids: string[] = [];
   await prisma.$transaction(
     async (tx) => {
       await tx.stockImport.createMany({
@@ -218,6 +222,9 @@ stockImportsRouter.post("/bulk-import", requirePermission("STOCK_IMPORTS"), asyn
 
       const created = await tx.stockImport.findMany({ where: { code: { in: codes } }, select: { id: true, code: true } });
       const idByCode = new Map(created.map((row) => [row.code, row.id]));
+      // Cùng thứ tự với `items` và `codes` — client ghép ảnh theo chỉ số, lệch một chỗ là ảnh gắn
+      // sang nhầm phiếu mà không có gì báo.
+      ids = codes.map((code) => idByCode.get(code)!);
 
       await tx.stockImportItem.createMany({
         data: items.flatMap((it, index) =>
@@ -240,7 +247,7 @@ stockImportsRouter.post("/bulk-import", requirePermission("STOCK_IMPORTS"), asyn
     items.map((it) => ({ shopUserId: warehouseById.get(it.warehouseId)?.shopUserId ?? null, at: it.transactionAt })),
   );
 
-  res.status(201).json({ created: items.length, codes, affectedCostChecks: affected, duplicates: [] });
+  res.status(201).json({ created: items.length, codes, ids, affectedCostChecks: affected, duplicates: [] });
 });
 
 stockImportsRouter.put("/:id", requirePermission("STOCK_IMPORTS"), async (req, res) => {
