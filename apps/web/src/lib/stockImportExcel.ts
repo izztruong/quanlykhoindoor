@@ -9,13 +9,17 @@ export { formatWallClock, parseDateTime, parseNumber, wallClockToIso, type WallC
  * cần dựng React.
  *
  * **Hai sheet** chứ không một: một phiếu có nhiều dòng hàng, mà gom theo (kho, NCC, thời gian) thì
- * không tách được hai chuyến giao cùng NCC trùng giờ. Sheet "Phiếu" khai từng phiếu kèm *Mã phiếu
- * tạm*, sheet "Dòng hàng" trỏ về mã tạm đó. Mã tạm chỉ dùng để nối hai sheet, không lưu vào DB.
+ * không tách được hai chuyến giao cùng NCC trùng giờ. Sheet "Phiếu" khai từng phiếu kèm *Mã phiếu*,
+ * sheet "Dòng hàng" trỏ về mã đó.
+ *
+ * **Mã phiếu trong file là MÃ THẬT**, được lưu vào DB chứ không còn là mã tạm chỉ để nối hai sheet:
+ * nó khớp với số chứng từ trên giấy, và cũng là tên để đặt cho ảnh chứng từ khi đính hàng loạt. Vì
+ * `StockImport.code` là `@unique` toàn hệ thống nên trùng mã là **lỗi**, không phải cảnh báo mềm.
  */
 export const SHEET = { phieu: "Phiếu", dongHang: "Dòng hàng" } as const;
 
 export const PHIEU_HEADER = [
-  "Mã phiếu tạm*",
+  "Mã phiếu*",
   "Mã kho*",
   "Mã NCC*",
   "Thời gian nhập*",
@@ -24,7 +28,7 @@ export const PHIEU_HEADER = [
   "Ghi chú",
 ];
 
-export const DONG_HANG_HEADER = ["Mã phiếu tạm*", "Mã hàng hoá*", "Số lượng*", "Giá vốn", "Ghi chú"];
+export const DONG_HANG_HEADER = ["Mã phiếu*", "Mã hàng hoá*", "Số lượng*", "Giá vốn", "Ghi chú"];
 
 /** Chỉ số cột (1-based), gom một chỗ để mẫu/xuất/nhập không bao giờ lệch nhau. */
 export const PHIEU_COL = { tempCode: 1, warehouseCode: 2, supplierCode: 3, transactionAt: 4, type: 5, form: 6, note: 7 } as const;

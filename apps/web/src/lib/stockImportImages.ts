@@ -1,9 +1,8 @@
 /**
  * Đính ảnh chứng từ cho NHIỀU phiếu nhập kho một lượt, ghép theo **tên file**.
  *
- * Tách hẳn khỏi đường nhập Excel: tên ảnh mang **mã phiếu thật** (`PN…`) chứ không phải mã phiếu tạm
- * của file Excel. Mã tạm chỉ tồn tại trong file, không lưu vào DB, nên dùng nó thì đóng trình duyệt
- * là mất bản đồ — còn mã phiếu thì tra lại lúc nào cũng được.
+ * Tên ảnh mang **mã phiếu**. Mã do người dùng đặt khi nhập Excel (vd `HD001`) hoặc server tự sinh
+ * (`PN…`) nếu tạo từ form, nên ĐỪNG ràng buộc hình dạng mã ở bất cứ đâu trong luồng này.
  */
 
 /**
@@ -14,12 +13,12 @@
 export const MAX_BULK_IMAGES_PER_SLIP = 2;
 
 /**
- * Ghép một file ảnh với mã phiếu theo TÊN FILE: `PN261014778870001.jpg` là ảnh thứ nhất của phiếu đó,
- * `PN261014778870001-2.jpg` là ảnh thứ hai.
+ * Ghép một file ảnh với mã phiếu theo TÊN FILE: `HD001.jpg` là ảnh thứ nhất của phiếu `HD001`,
+ * `HD001-2.jpg` là ảnh thứ hai.
  *
- * Khớp theo mã **DÀI NHẤT** mà tên file bắt đầu bằng, rồi phần dư phải rỗng hoặc đúng `-<số>`. Mã `PN…`
- * hiện không chứa dấu `-` nên phần "dài nhất" ít khi dùng tới, nhưng giữ thì không hại và nó chặn sẵn
- * trường hợp một mã là tiền tố của mã khác.
+ * Khớp theo mã **DÀI NHẤT** mà tên file bắt đầu bằng, rồi phần dư phải rỗng hoặc đúng `-<số>`. Phần
+ * "dài nhất" là thứ chặn trường hợp một mã là tiền tố của mã khác (`HD1` và `HD10`), rất dễ xảy ra
+ * với mã người dùng tự đánh số.
  *
  * Trả thêm `index` để phần nhập phát hiện hai file cùng trỏ một vị trí. Không khớp được thì trả `null`
  * để **báo lỗi theo tên file**, không đoán bừa.

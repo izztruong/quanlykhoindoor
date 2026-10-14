@@ -107,7 +107,9 @@ stockImportsRouter.post("/", requirePermission("STOCK_IMPORTS"), async (req, res
 
   const item = await prisma.stockImport.create({
     data: {
-      code: generateCode("PN"),
+      // Form tạo tay không có ô nhập mã nên luôn tự sinh; vẫn tôn trọng `code` nếu ai đó gửi lên, để
+      // schema dùng chung với bulk-import không nói dối. Trùng mã ở đây thì P2002 -> 409.
+      code: data.code ?? generateCode("PN"),
       type: data.type,
       transactionAt: data.transactionAt,
       form: data.form,
@@ -185,18 +187,34 @@ stockImportsRouter.post("/bulk-import", requirePermission("STOCK_IMPORTS"), asyn
     return;
   }
 
-  // 3. Sinh mã trước rồi kiểm trùng một lượt. `generateCode` dựa `Date.now() % 100000` cộng một
-  //    counter TRONG PROCESS, nên hai instance hoặc một lần restart vẫn có thể cho mã trùng — để
-  //    P2002 nổ là rollback cả lô, và người dùng chỉ thấy "Dữ liệu đã tồn tại (trùng code)".
-  const codes: string[] = [];
-  for (let attempt = 0; attempt < 5; attempt++) {
-    while (codes.length < items.length) codes.push(generateCode("PN"));
-    const taken = await prisma.stockImport.findMany({ where: { code: { in: codes } }, select: { code: true } });
-    if (taken.length === 0) break;
-    const takenSet = new Set(taken.map((row) => row.code));
-    for (let i = codes.length - 1; i >= 0; i--) if (takenSet.has(codes[i]!)) codes.splice(i, 1);
+  // 3. Mã phiếu: lấy từ file nếu người dùng khai, không thì tự sinh. Kiểm trùng MỘT query cho cả hai
+  //    nguồn — mã trùng là lỗi của người dùng, không có gì để thử lại nên bỏ vòng retry cũ.
+  const codes = items.map((it) => it.code ?? generateCode("PN"));
+
+  // Trùng ngay trong lô. So KHÔNG phân biệt hoa/thường dù Postgres `@unique` thì có: "hd001" và
+  // "HD001" về mặt DB là hai phiếu khác nhau, nhưng gần như luôn là lỗi gõ — chặn sớm hơn là để người
+  // dùng tự hỏi vì sao có hai phiếu trông giống hệt.
+  const seen = new Map<string, string>();
+  const dupInFile: string[] = [];
+  for (const code of codes) {
+    const key = code.toLowerCase();
+    const other = seen.get(key);
+    if (other) dupInFile.push(other === code ? `"${code}"` : `"${other}" và "${code}"`);
+    else seen.set(key, code);
   }
-  if (codes.length < items.length) throw new HttpError(409, "Không sinh được mã phiếu duy nhất, vui lòng thử lại.");
+  if (dupInFile.length > 0) {
+    throw new HttpError(400, `Mã phiếu bị lặp trong file: ${[...new Set(dupInFile)].slice(0, 10).join("; ")}.`);
+  }
+
+  // Trùng với phiếu đã có. Nêu đúng mã nào để người dùng sửa chứ không phải tự dò cả file.
+  const taken = await prisma.stockImport.findMany({ where: { code: { in: codes } }, select: { code: true } });
+  if (taken.length > 0) {
+    const shown = taken.map((row) => `"${row.code}"`);
+    throw new HttpError(
+      400,
+      `Mã phiếu đã tồn tại: ${shown.slice(0, 10).join("; ")}${shown.length > 10 ? ` và ${shown.length - 10} mã nữa` : ""}.`,
+    );
+  }
 
   // 4. Ghi: 3 statement bất kể N. `createMany` KHÔNG nhận nested create nên phải pre-generate mã rồi
   //    đọc lại id theo mã — khuôn của `finishedGoodPrices.routes.ts`.
@@ -218,6 +236,11 @@ stockImportsRouter.post("/bulk-import", requirePermission("STOCK_IMPORTS"), asyn
       });
 
       const created = await tx.stockImport.findMany({ where: { code: { in: codes } }, select: { id: true, code: true } });
+      // Khối này dựa HOÀN TOÀN vào việc mã duy nhất: thiếu một dòng là `idByCode.get(...)!` gán dòng
+      // hàng sang phiếu khác, im lặng. Mã giờ do người dùng đặt nên chốt lại cho chắc.
+      if (created.length !== items.length) {
+        throw new HttpError(409, "Mã phiếu bị trùng trong lúc ghi, vui lòng thử lại.");
+      }
       const idByCode = new Map(created.map((row) => [row.code, row.id]));
 
       await tx.stockImportItem.createMany({
@@ -277,6 +300,8 @@ stockImportsRouter.put("/:id", requirePermission("STOCK_IMPORTS"), async (req, r
     await tx.stockImportItem.deleteMany({ where: { stockImportId: id } });
     return tx.stockImport.update({
       where: { id },
+      // CỐ Ý không nhận `data.code`: mã phiếu đã phát ra ngoài (in trên chứng từ, dùng làm tên file
+      // ảnh chứng từ) nên đổi mã là làm hỏng những thứ trỏ tới nó. Muốn đổi thì xoá phiếu và tạo lại.
       data: {
         type: data.type,
         transactionAt: data.transactionAt,

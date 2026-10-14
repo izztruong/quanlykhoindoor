@@ -53,18 +53,21 @@ mang được trường tổng).
 Đã kiểm: typecheck 3 app, lint web, `expo export`, và 11 ca curl trên `kho_db` (lọc trạng thái/ngày/người
 lập, sang trang 2 không đổi tổng, tài khoản quán chỉ cộng phiếu của mình). Dữ liệu thử đã dọn.
 
-### Đính ảnh chứng từ hàng loạt cho phiếu nhập kho — CHƯA bấm thử trên trình duyệt, CHƯA lên `staging`
-Nút **"Nhập ảnh chứng từ"** riêng ngoài danh sách phiếu, **không dính gì nhập Excel**: đặt tên ảnh theo
-**mã phiếu thật** (`PN…​.jpg`, ảnh thứ hai thêm `-2`), tối đa **2 ảnh/phiếu** — thấp hơn trần 5 của đường
-đính thủ công, cố ý. Nhờ khớp theo mã thật nên nhập phiếu hôm nay, hôm khác đính ảnh vẫn chạy; mã phiếu
-*tạm* của file Excel không lưu vào DB nên không dùng được cho việc này.
-Thêm `POST /stock-imports/by-codes` để đổi mã sang id (route ảnh cần id), lọc qua `warehouseScope` nên
-quán không tra được phiếu của kho quán khác. Một request mỗi phiếu (trần 4,5 MB của proxy Vercel), song
-song 3, có thanh tiến trình và nút "Thử đẩy lại ảnh".
-Đã kiểm: typecheck 2 app, lint web 0 lỗi/3 cảnh báo, build web; **16 ca** script `tsx` tạm cho hàm khớp
-tên rồi xoá; và 5 ca curl trên `kho_dev_copy` — id khớp SQL, mã bịa bị bỏ qua, 201 mã và mảng rỗng đều
-400, và **tài khoản quán chỉ tra được phiếu kho mình** (1/3 mã, dựng tài khoản + đổi chủ kho tạm rồi trả
-lại nguyên trạng). Dữ liệu thử đã dọn.
+### Mã phiếu nhập kho tự đặt + đính ảnh hàng loạt — CHƯA bấm thử trên trình duyệt, CHƯA lên `staging`
+Hai việc gắn nhau: cột "Mã phiếu tạm" trong file Excel đổi thành **"Mã phiếu"** và lưu làm **mã thật**,
+nhờ đó đặt tên ảnh theo mã ngắn của mình (`HD001.jpg`) thay vì mã 17 ký tự. Trùng mã là **400 nêu đúng
+mã**, kể cả trùng chỉ khác hoa/thường trong cùng file — khác hẳn cảnh báo mềm "(kho, NCC, thời gian)"
+vẫn giữ. `PUT` không đổi mã. Để trống mã hoặc tạo từ form thì vẫn tự sinh `PN…`.
+Nút **"Nhập ảnh chứng từ"** riêng ngoài danh sách phiếu, tối đa **2 ảnh/phiếu** (trần đính thủ công vẫn
+5, cố ý). `POST /stock-imports/by-codes` đổi mã sang id, lọc qua `warehouseScope` nên quán không tra
+được phiếu kho quán khác. Một request mỗi phiếu (trần 4,5 MB của proxy Vercel), song song 3, có thanh
+tiến trình và nút "Thử đẩy lại ảnh".
+**File Excel cũ không nhập lại được** (tiêu đề đổi) — chặn ở bước kiểm tiêu đề, nêu đúng tên cột cần có.
+**Phiếu điều chuyển cố ý giữ nguyên** mã tạm đúng nghĩa tạm, hai module lệch nhau là có chủ đích.
+Đã kiểm: typecheck 2 app, lint web 0 lỗi/3 cảnh báo, build web; 16 ca script `tsx` cho hàm khớp tên ảnh
+rồi xoá; 5 ca curl cho `by-codes` (gồm **tài khoản quán chỉ tra được phiếu kho mình**); và 8 ca curl cho
+mã tự đặt — tạo đúng mã, trùng DB/trùng lô/trùng hoa-thường/mã `=SUM()`/mã 33 ký tự đều 400, bỏ trống
+mã vẫn sinh `PN…`, và lô có một mã trùng thì **không phiếu nào được ghi**. Dữ liệu thử đã dọn.
 
 ### Phiếu nhập kho chọn được hàng NCC chưa khai giá — ĐÃ lên `main`, CHƯA bấm thử trên trình duyệt
 Hàng chưa khai giá thì giá vốn để **0**, nên "Tổng tiền vốn" thiếu phần đó — đã chốt chấp nhận.

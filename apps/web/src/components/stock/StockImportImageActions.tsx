@@ -37,9 +37,8 @@ async function runWithLimit(tasks: (() => Promise<void>)[], limit: number) {
 /**
  * Đính ảnh chứng từ cho nhiều phiếu nhập kho một lượt, ghép theo **tên file**.
  *
- * Tách hẳn khỏi nhập Excel: tên ảnh mang mã phiếu THẬT nên dùng được bất cứ lúc nào — nhập Excel hôm
- * nay, mai đính ảnh vẫn chạy. (Mã phiếu tạm của file Excel không lưu vào DB, dùng nó thì đóng trình
- * duyệt là mất bản đồ.)
+ * Tách hẳn khỏi nhập Excel: tên ảnh mang mã phiếu nên dùng được bất cứ lúc nào — nhập Excel hôm nay,
+ * mai đính ảnh vẫn chạy. Mã do người dùng tự đặt trong file Excel nên thường ngắn và dễ gõ (`HD001`).
  */
 export function StockImportImageActions() {
   const lookup = useLookupStockImportsByCodes();
@@ -69,10 +68,11 @@ export function StockImportImageActions() {
     setAttached(null);
     setFailed([]);
     try {
-      // Đoán mã từ tên file TRƯỚC, để chỉ hỏi server đúng những mã có khả năng.
-      const found = [...new Set(picked.map((file) => firstCodeLike(file.name)).filter((code): code is string => !!code))];
+      // Bỏ đuôi file và hậu tố "-<số>" rồi hỏi thẳng server mã nào có thật. KHÔNG đoán theo hình
+      // dạng mã: mã phiếu giờ do người dùng tự đặt khi nhập Excel nên có thể là bất cứ chuỗi gì.
+      const found = [...new Set(picked.map((file) => codeFromFileName(file.name)).filter((code): code is string => !!code))];
       if (found.length === 0) {
-        setErrors([`Không tên ảnh nào có dạng mã phiếu (vd PN261014778870001.jpg).`]);
+        setErrors(["Không đọc được mã phiếu từ tên ảnh nào."]);
         return;
       }
 
@@ -197,8 +197,8 @@ export function StockImportImageActions() {
         <Modal title="Đính ảnh chứng từ hàng loạt" onClose={() => setModalOpen(false)} size="lg">
           <div className="flex flex-col gap-3 text-sm">
             <p className="text-slate-600">
-              Đặt tên ảnh theo <b>mã phiếu nhập kho</b>: <code>PN261014778870001.jpg</code>, ảnh thứ hai thêm{" "}
-              <code>-2</code> vào cuối. Tối đa <b>{MAX_BULK_IMAGES_PER_SLIP} ảnh mỗi phiếu</b> cho đường này.
+              Đặt tên ảnh theo <b>mã phiếu nhập kho</b>: <code>HD001.jpg</code>, ảnh thứ hai thêm <code>-2</code> vào
+              cuối (<code>HD001-2.jpg</code>). Tối đa <b>{MAX_BULK_IMAGES_PER_SLIP} ảnh mỗi phiếu</b> cho đường này.
             </p>
             <p className="text-slate-600">
               Mã phiếu xem ở cột <b>Mã phiếu</b> ngoài danh sách, hoặc trong file Excel xuất theo bộ lọc. Việc này
@@ -253,11 +253,17 @@ export function StockImportImageActions() {
 }
 
 /**
- * Đoán mã phiếu từ tên file để biết nên hỏi server những mã nào. Chỉ cần "trông giống mã", việc khớp
- * thật nằm ở `matchImageToSlipCode` sau khi đã biết mã nào có thật.
+ * Lấy phần tên file có thể là mã phiếu, để biết nên hỏi server những mã nào.
+ *
+ * KHÔNG ràng buộc hình dạng mã: mã phiếu do người dùng tự đặt khi nhập Excel (`HD001`, `TS-2026-01`…)
+ * nên ép theo khuôn `PN…` là loại nhầm ảnh ngay trước khi kịp hỏi server. Việc khớp thật nằm ở
+ * `matchImageToSlipCode` sau khi đã biết mã nào có thật.
+ *
+ * Bỏ cả hậu tố `-<số>` để `HD001-2.jpg` cũng hỏi về mã `HD001`; nếu chính mã lại kết thúc bằng
+ * `-2` thì mã đầy đủ vẫn nằm trong danh sách hỏi nhờ bước lọc trùng bên dưới.
  */
-function firstCodeLike(fileName: string): string | null {
+function codeFromFileName(fileName: string): string | null {
   const base = fileName.replace(/\.[^.]*$/, "").trim();
-  const matched = /^(PN[A-Za-z0-9]+?)(-\d+)?$/.exec(base);
-  return matched ? matched[1]! : null;
+  if (!base) return null;
+  return base.replace(/-\d+$/, "") || base;
 }

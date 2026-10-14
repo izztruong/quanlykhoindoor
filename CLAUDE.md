@@ -182,6 +182,14 @@ trùng lặp và file sẽ phình (đã từng lên 4.400 token, hơn cả CLAUD
 | `DC` điều chuyển | `CC` Check Cost | | |
 | `DX` đề xuất chi | | | |
 
+**Ngoại lệ: phiếu nhập kho nhận mã do NGƯỜI DÙNG đặt** khi nhập Excel — cột "Mã phiếu" trong file là
+mã thật, lưu thẳng vào DB; để trống hoặc tạo từ form thì mới tự sinh `PN…`. Mã vẫn **duy nhất toàn
+hệ thống** (`StockImport.code @unique`), và đó là điều kiện để **đính ảnh chứng từ hàng loạt theo tên
+file** chạy được — một tên ảnh phải ra đúng một phiếu. Vì vậy: trùng mã là **lỗi 400 nêu đúng mã**,
+không phải cảnh báo mềm; `PUT /:id` **không** đổi mã (mã đã in ra chứng từ và dùng làm tên file ảnh);
+và đừng ràng buộc hình dạng mã ở bất cứ đâu — chỉ cấm ký tự mở đầu `- = + @` vì `sanitizeExcelRow`
+sẽ làm biến dạng ô đó khi xuất ra. **Phiếu điều chuyển vẫn dùng mã tạm đúng nghĩa tạm**, cố ý lệch.
+
 ## Quyết định thiết kế đã chốt
 
 Những điều dưới đây đều có lý do cụ thể — đổi mà không nắm lý do sẽ làm hỏng thứ khác.

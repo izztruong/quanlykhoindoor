@@ -20,6 +20,20 @@ export const stockItemSchema = z.object({
  *    hiệu gì, nên bỏ hẳn lựa chọn đó thay vì để người dùng tự bẫy mình.
  */
 export const stockImportCreateSchema = z.object({
+  /**
+   * Mã phiếu do NGƯỜI DÙNG đặt — đường nhập Excel gửi lên, form tạo tay để trống nên server tự sinh.
+   *
+   * Cấm ký tự mở đầu `- = + @` không phải tuỳ tiện: `sanitizeExcelRow` (web) thêm dấu nháy vào đầu ô
+   * bắt đầu bằng chúng để chống chèn công thức Excel, nên mã kiểu `-001` sẽ biến dạng khi xuất ra và
+   * file xuất không nhập lại đúng mã nữa.
+   */
+  code: z
+    .string()
+    .trim()
+    .min(1, "Mã phiếu không được để trống")
+    .max(32, "Mã phiếu tối đa 32 ký tự")
+    .refine((value) => !/^[-=+@]/.test(value), "Mã phiếu không được bắt đầu bằng - = + @")
+    .optional(),
   type: stockImportTypeEnum.default("PURCHASE"),
   transactionAt: z.coerce.date(),
   form: transactionFormEnum.default("CASH"),

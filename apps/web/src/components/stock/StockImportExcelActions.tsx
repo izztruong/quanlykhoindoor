@@ -99,8 +99,8 @@ export function StockImportExcelActions({ filter, scopeAll }: Props) {
           header: PHIEU_HEADER,
           widths: [16, 14, 14, 20, 14, 16, 28],
           rows: [
-            ["P1", warehouseCode, supplierCode, "15/08/2026 08:30", "Nhập mua", "Tiền mặt", ""],
-            ["P2", warehouseCode, supplierCode, "15/08/2026 14:00", "", "", "Chuyến chiều"],
+            ["HD001", warehouseCode, supplierCode, "15/08/2026 08:30", "Nhập mua", "Tiền mặt", ""],
+            ["HD002", warehouseCode, supplierCode, "15/08/2026 14:00", "", "", "Chuyến chiều"],
           ],
         },
         {
@@ -108,9 +108,9 @@ export function StockImportExcelActions({ filter, scopeAll }: Props) {
           header: DONG_HANG_HEADER,
           widths: [16, 18, 12, 14, 28],
           rows: [
-            ["P1", productCode, 10, "", ""],
-            ["P1", products[1]?.code ?? productCode, 5, 12000, "Hàng lẻ"],
-            ["P2", productCode, 8, "", ""],
+            ["HD001", productCode, 10, "", ""],
+            ["HD001", products[1]?.code ?? productCode, 5, 12000, "Hàng lẻ"],
+            ["HD002", productCode, 8, "", ""],
           ],
         },
       ],
@@ -128,7 +128,8 @@ export function StockImportExcelActions({ filter, scopeAll }: Props) {
       await writeWorkbook(
         [
           {
-            // Mã phiếu tạm = mã phiếu THẬT, để hai sheet nối đúng nhau và nhập ngược lại được.
+            // Mã phiếu thật, để hai sheet nối đúng nhau. Lưu ý: nhập lại chính file này sẽ báo LỖI
+            // TRÙNG MÃ — đó là mong muốn, nó chặn ca vô tình nhập lại file cũ.
             name: SHEET.phieu,
             header: [...PHIEU_HEADER, "Người tạo", "Tổng tiền vốn"],
             widths: [18, 14, 14, 20, 14, 16, 28, 18, 16],
@@ -216,6 +217,9 @@ export function StockImportExcelActions({ filter, scopeAll }: Props) {
       const priceByPair = new Map(prices.map((p) => [`${p.supplierId}|${p.productId}`, Number(p.importPrice)]));
 
       // ---- Sheet Phiếu ----
+      // `drafts` khoá bằng mã viết THƯỜNG, còn `tempCode` giữ nguyên chữ người dùng gõ. Nhờ vậy vừa
+      // bắt được mã lặp chỉ khác hoa/thường, vừa nối hai sheet được khi họ gõ "HD001" ở sheet này và
+      // "hd001" ở sheet kia. DB thì phân biệt hoa/thường, nhưng đó gần như luôn là lỗi gõ.
       interface Draft {
         tempCode: string;
         rowNumber: number;
@@ -242,8 +246,9 @@ export function StockImportExcelActions({ filter, scopeAll }: Props) {
         if (!tempCode && !warehouseCode && !supplierCode && !atText) return;
 
         const where = `Sheet "${SHEET.phieu}" dòng ${rowNumber}`;
-        if (!tempCode) errors.push(`${where}: thiếu Mã phiếu tạm.`);
-        else if (drafts.has(tempCode)) errors.push(`${where}: Mã phiếu tạm "${tempCode}" bị lặp.`);
+        const codeKey = tempCode.toLowerCase();
+        if (!tempCode) errors.push(`${where}: thiếu Mã phiếu.`);
+        else if (drafts.has(codeKey)) errors.push(`${where}: Mã phiếu "${tempCode}" bị lặp.`);
 
         const warehouse = warehouseByCode.get(warehouseCode.toLowerCase());
         if (!warehouse) {
@@ -266,8 +271,8 @@ export function StockImportExcelActions({ filter, scopeAll }: Props) {
         const form = parseTransactionForm(text(PHIEU_COL.form));
         if (!form) errors.push(`${where}: Hình thức phải là ${Object.values(FORM_LABEL).join(" / ")} ("${text(PHIEU_COL.form)}").`);
 
-        if (!tempCode || drafts.has(tempCode) || !warehouse || !supplier || !at || !type || !form) return;
-        drafts.set(tempCode, {
+        if (!tempCode || drafts.has(codeKey) || !warehouse || !supplier || !at || !type || !form) return;
+        drafts.set(codeKey, {
           tempCode,
           rowNumber,
           warehouseId: warehouse.id,
@@ -292,14 +297,14 @@ export function StockImportExcelActions({ filter, scopeAll }: Props) {
         if (!tempCode && !productCode && !qtyText) return;
 
         const where = `Sheet "${SHEET.dongHang}" dòng ${rowNumber}`;
-        const draft = drafts.get(tempCode);
+        const draft = drafts.get(tempCode.toLowerCase());
         if (!tempCode) {
-          errors.push(`${where}: thiếu Mã phiếu tạm.`);
+          errors.push(`${where}: thiếu Mã phiếu.`);
           return;
         }
         if (!draft) {
           // Có thể do chính phiếu đó đã lỗi ở sheet trên — vẫn báo để người dùng thấy dòng mồ côi.
-          errors.push(`${where}: Mã phiếu tạm "${tempCode}" không có ở sheet "${SHEET.phieu}" (hoặc phiếu đó đang lỗi).`);
+          errors.push(`${where}: Mã phiếu "${tempCode}" không có ở sheet "${SHEET.phieu}" (hoặc phiếu đó đang lỗi).`);
           return;
         }
 
@@ -356,6 +361,8 @@ export function StockImportExcelActions({ filter, scopeAll }: Props) {
       }
 
       const items: StockImportInput[] = [...drafts.values()].map((d) => ({
+        // Mã trong file là mã phiếu THẬT — gửi nguyên chữ người dùng gõ, không hạ về chữ thường.
+        code: d.tempCode,
         type: d.type,
         transactionAt: d.transactionAt,
         form: d.form,
@@ -444,7 +451,11 @@ export function StockImportExcelActions({ filter, scopeAll }: Props) {
               <b>“{SHEET.dongHang}”</b>: {DONG_HANG_HEADER.join(", ")}.
             </p>
             <p className="text-slate-600">
-              <b>Mã phiếu tạm</b> chỉ dùng để nối hai sheet, không lưu lại — các dòng hàng cùng một mã tạm sẽ vào cùng một phiếu.
+              <b>Mã phiếu</b> bạn tự đặt (vd <code>HD001</code>) và nó được <b>lưu làm mã phiếu thật</b> — các dòng hàng
+              cùng một mã sẽ vào cùng một phiếu. Mã phải <b>chưa từng dùng</b>, tối đa 32 ký tự, không bắt đầu bằng{" "}
+              <code>- = + @</code>. Đây cũng chính là tên để đặt cho ảnh chứng từ khi đính hàng loạt.
+            </p>
+            <p className="text-slate-600">
               Thời gian nhập <b>phải có giờ</b> (vd 15/08/2026 08:30) vì đó là mốc kỳ Check Cost. Giá vốn để trống thì lấy giá
               nhập của NCC; NCC chưa khai giá cho hàng đó thì <b>phải gõ rõ giá</b> — gõ <b>0</b> nếu chưa có giá.
             </p>
@@ -453,8 +464,8 @@ export function StockImportExcelActions({ filter, scopeAll }: Props) {
               không phải 8000 — gõ giá thì ghi thẳng <b>8000</b>.
             </p>
             <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-800">
-              Nhập Excel <b>luôn tạo phiếu mới</b>, không ghi đè phiếu cũ. Nhập lại chính file vừa xuất ra sẽ sinh phiếu
-              trùng — nếu có, bạn sẽ được cảnh báo trước khi ghi.
+              Nhập Excel <b>luôn tạo phiếu mới</b>, không ghi đè phiếu cũ. Nhập lại chính file vừa xuất ra sẽ <b>báo lỗi
+              trùng mã</b> và không ghi gì — đó là cố ý, để file cũ không vô tình vào lần hai.
             </p>
 
             <div>
