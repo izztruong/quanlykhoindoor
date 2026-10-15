@@ -349,6 +349,25 @@ npx eas-cli update --branch production --environment production --platform ios  
 - `--platform` phải chỉ rõ: mặc định `all` **gồm cả web**, mà repo cố ý không cài `react-native-web`
   → bundle web vỡ và cả lệnh hỏng.
 
+**`--environment production` KHÔNG đọc `env` trong `eas.json`** — khối đó chỉ dành cho *build*.
+`eas update` lấy biến từ **environment trên máy chủ EAS** (`npx eas-cli env:list production`). Ba biến
+`EXPO_PUBLIC_*` đã được khai ở cả `production` và `preview`; **thêm biến mới thì phải khai cả hai nơi**,
+không thì bundle OTA ra đời thiếu biến đó. Hậu quả đã xảy ra thật (15/10/2026): environment rỗng →
+bundle không có `EXPO_PUBLIC_API_URL` → `apiClient.ts` rơi về `defaultApiUrl()`, mà app cài thật không có
+`hostUri` nên thành `http://localhost:4000/api`; **mọi** request chết, app đứng ở "Chưa tải được dữ liệu",
+cả Android lẫn iOS. Dấu hiệu nhìn thấy được: màn đăng nhập hiện nhãn vàng `LOCAL · localhost`.
+
+Vì vậy **soát bundle trước khi tin là xong** — `eas update` để lại đúng bundle vừa tải lên ở
+`apps/mobile/dist`:
+
+```bash
+grep -ao "localhost:4000/api" dist/_expo/static/js/android/*.hbc   # phải KHÔNG thấy
+grep -ao "quanlykhoindoor1.onrender.com/api" dist/_expo/static/js/android/*.hbc   # phải thấy
+```
+
+Soát bằng `npx expo export` cục bộ thì nhớ `--clear`: Metro giữ cache theo nội dung file nên đổi biến
+môi trường mà không xoá cache sẽ ra **bundle cũ**, nhìn tưởng biến không có tác dụng.
+
 **ĐỪNG sửa `apps/mobile/package.json` để thêm mấy cờ đó.** Fingerprint băm **cả file**, không chỉ
 phần `dependencies`: thêm một dòng `scripts` cũng đổi fingerprint (đã đo — `b1d0e9bd…` thành
 `2eed1463…`), và từ đó mọi `eas update` trỏ vào một runtime **không máy nào có**, nên bản update

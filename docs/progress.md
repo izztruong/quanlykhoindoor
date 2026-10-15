@@ -64,6 +64,12 @@ Hàng chưa khai giá thì giá vốn để **0**, nên "Tổng tiền vốn" th
 Đã kiểm bằng typecheck/build/`expo export` và curl trên `kho_dev_copy` (kể cả một phiếu Check Cost thật
 phủ kỳ có dòng giá 0). Còn thiếu đúng một lượt bấm trên trình duyệt production.
 
+### Bản OTA 15/10 trỏ nhầm `localhost` — đã đẩy bản sửa, CHƯA xác nhận trên máy thật
+Bản đẩy buổi sáng thiếu `EXPO_PUBLIC_API_URL` (environment `production` trên EAS rỗng; `eas update`
+không đọc `env` của `eas.json`), app rơi về `http://localhost:4000/api` nên đứng ở "Chưa tải được
+dữ liệu" trên cả hai nền tảng. Đã khai 3 biến cho cả `production` lẫn `preview`, đẩy lại Android +
+iOS và soát `dist` thấy đúng URL production. Chờ người dùng mở nguội app để xác nhận.
+
 ### Phần mobile đã đẩy OTA tới điện thoại — CHƯA bấm thử trên máy thật
 Đẩy lên channel `production` cho cả hai nền tảng, runtime khớp đúng fingerprint bản 1.0.5 đang cài
 (`b1d0e9bd…` Android, `a9f58888…` iOS). **Bản update chỉ áp dụng ở lần mở NGUỘI kế tiếp.**
