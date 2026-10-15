@@ -46,7 +46,7 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
-### Xuất Excel phiếu nhập kho có thêm cột "Tên NCC" — CHƯA bấm thử trên trình duyệt, CHƯA lên `staging`
+### Xuất Excel phiếu nhập kho có thêm cột "Tên NCC" — ĐÃ lên `main`, CHƯA bấm thử trên trình duyệt
 Thêm ở **cả hai sheet**, nối sau khối cột mẫu nên phần nhập vẫn bỏ qua như "Người tạo"/"Tên hàng hoá" —
 file xuất ra vẫn nhập lại được. Sheet "Dòng hàng" lặp tên NCC ở mọi dòng vì NCC là của cả phiếu.
 Đã kiểm: typecheck + lint (0 lỗi/3 cảnh báo) + build web; 11 ca script `tsx` tạm dựng workbook rồi đọc
