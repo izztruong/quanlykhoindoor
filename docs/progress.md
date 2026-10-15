@@ -1,6 +1,6 @@
 # Tiến độ dự án
 
-Cập nhật: 2026-10-14
+Cập nhật: 2026-10-15
 
 Ghi **đúng những gì git không tự trả lời được**. Lý do thiết kế đã nằm trong commit message, đừng
 chép lại vào đây. Mỗi mục "Đang dở" tối đa 3–4 dòng, và dòng quan trọng nhất luôn là: *đã kiểm thử
@@ -64,9 +64,13 @@ Hàng chưa khai giá thì giá vốn để **0**, nên "Tổng tiền vốn" th
 Đã kiểm bằng typecheck/build/`expo export` và curl trên `kho_dev_copy` (kể cả một phiếu Check Cost thật
 phủ kỳ có dòng giá 0). Còn thiếu đúng một lượt bấm trên trình duyệt production.
 
-### Phần mobile của hai commit vừa lên `main` chưa tới điện thoại
-`CostCheckForm`, `MaterialTransferForm`, `StockImportForm` đã sửa trong repo nhưng app đang cài vẫn là
-bản cũ — cần `npm run update:production` (và `update:preview` cho staging) mới phát hành.
+### Phần mobile đã đẩy OTA tới điện thoại — CHƯA bấm thử trên máy thật
+Đẩy lên channel `production` cho cả hai nền tảng, runtime khớp đúng fingerprint bản 1.0.5 đang cài
+(`b1d0e9bd…` Android, `a9f58888…` iOS). **Bản update chỉ áp dụng ở lần mở NGUỘI kế tiếp.**
+Phát hiện khi làm: 4 script `update:*` trong `apps/mobile/package.json` chạy không tương tác là hỏng
+(thiếu `--message`, `--environment`, `--platform`), **nhưng không sửa được** — fingerprint băm cả
+`package.json` nên thêm một dòng `scripts` cũng làm OTA không tới được máy nào. Cách gọi đúng đã ghi
+vào `CLAUDE.md`; sửa script để dành cho đợt có build native mới.
 
 ---
 

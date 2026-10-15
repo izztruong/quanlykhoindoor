@@ -332,9 +332,29 @@ Hai service Render: **`quanlykhoindoortest`** ← nhánh `staging`, **`quanlykho
 
 ### Cập nhật OTA (EAS Update) — đổi JS không cần store duyệt
 
-`npm run update:preview` / `npm run update:production` trong `apps/mobile` (gác nhánh bằng cùng
-`scripts/checkBuildBranch.js` như lệnh build). Tên channel **trùng tên profile**, nên nhánh nào ra
-channel nào thì xem bảng trên.
+Tên channel **trùng tên profile**, nên nhánh nào ra channel nào thì xem bảng trên.
+
+**`npm run update:preview` / `update:production` trong `package.json` CHẠY KHÔNG ĐƯỢC** ở chế độ
+không tương tác — thiếu ba cờ. Gõ thẳng, **mỗi nền tảng một lệnh**, sau khi đã ở đúng nhánh:
+
+```bash
+cd apps/mobile
+node scripts/checkBuildBranch.js main   # gác nhánh + cây sạch, y như lệnh build
+npx eas-cli update --branch production --environment production --platform android --message "..."
+npx eas-cli update --branch production --environment production --platform ios     --message "..."
+```
+
+- `--message` **bắt buộc** khi không tương tác; thiếu là lệnh bỏ ngang.
+- `--environment` cũng bắt buộc.
+- `--platform` phải chỉ rõ: mặc định `all` **gồm cả web**, mà repo cố ý không cài `react-native-web`
+  → bundle web vỡ và cả lệnh hỏng.
+
+**ĐỪNG sửa `apps/mobile/package.json` để thêm mấy cờ đó.** Fingerprint băm **cả file**, không chỉ
+phần `dependencies`: thêm một dòng `scripts` cũng đổi fingerprint (đã đo — `b1d0e9bd…` thành
+`2eed1463…`), và từ đó mọi `eas update` trỏ vào một runtime **không máy nào có**, nên bản update
+**lặng lẽ không tới ai**. Chỉ sửa được ở đợt nào có build native mới. Cùng lý do, trước mỗi lần đẩy
+OTA nên đối chiếu `npx eas-cli fingerprint:generate --platform android` với `Runtime version` của
+bản build đang phát hành (`npx eas-cli build:list`); lệch là dừng lại, đừng đẩy.
 
 - **Chỉ chở được JS và asset.** Thêm package native, nâng SDK, sửa `plugins`/quyền/icon/tên gói trong
   `app.json` → vẫn phải build và qua store. Đẩy OTA cần module mà binary không có là app vỡ lúc mở.
