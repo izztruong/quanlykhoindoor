@@ -2,10 +2,17 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
 
 export class ApiError extends Error {
   status: number;
+  /**
+   * Nguyên body JSON của câu lỗi, khi server trả kèm dữ liệu chứ không chỉ `message` — vd 409 của
+   * `PUT /finished-good-menus` mang theo `willBecomeGlobal` để giao diện hỏi lại cho đúng món.
+   * `undefined` khi body không phải JSON.
+   */
+  data?: unknown;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, data?: unknown) {
     super(message);
     this.status = status;
+    this.data = data;
   }
 }
 
@@ -21,13 +28,15 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   if (!res.ok) {
     let message = res.statusText;
+    let data: unknown;
     try {
-      const data = await res.json();
-      if (data?.message) message = data.message;
+      data = await res.json();
+      const message_ = (data as { message?: unknown } | null)?.message;
+      if (typeof message_ === "string") message = message_;
     } catch {
       // ignore body parse errors, keep statusText
     }
-    throw new ApiError(res.status, message);
+    throw new ApiError(res.status, message, data);
   }
 
   if (res.status === 204) return undefined as T;

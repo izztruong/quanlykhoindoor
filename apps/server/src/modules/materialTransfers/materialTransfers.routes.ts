@@ -5,6 +5,11 @@ import { generateCode } from "../../utils/codeGenerator";
 import { findCostChecksUsingPeriodRecord, findCostChecksUsingPeriodRecords } from "../../utils/costCheckImpact";
 import { HttpError } from "../../utils/httpError";
 import { parseDateRange, parsePagination } from "../../utils/pagination";
+import {
+  assertAddedProductsInShopList,
+  assertProductsInShopList,
+  resolveMenuShopId,
+} from "../../utils/shopMenu";
 import { subtractTareWeight } from "../../utils/tareWeight";
 import { materialTransferBulkSchema, materialTransferCreateSchema } from "./materialTransfers.schemas";
 
@@ -69,6 +74,14 @@ materialTransfersRouter.post("/", requirePermission("MATERIAL_TRANSFERS"), async
   const data = materialTransferCreateSchema.parse(req.body);
   assertTransferWritable(data.fromUserId, data.toUserId, req.user);
   const items = await subtractTareWeight(data.items);
+
+  // Kiểm theo danh sách hàng hoá của CHÍNH người lập, không phải của cả hai đầu phiếu: quán lập
+  // phiếu luôn ở một đầu (`assertTransferWritable`), còn ép cả đầu kia là không điều chuyển nổi
+  // hàng sang quán chưa ai kịp gán. Admin lập hộ thì `resolveMenuShopId` trả rỗng, bỏ qua.
+  const menuShopId = resolveMenuShopId(req.user);
+  if (menuShopId) {
+    await assertProductsInShopList(menuShopId, items.map((it) => it.productId));
+  }
 
   const item = await prisma.$transaction(async (tx) => {
     const created = await tx.materialTransfer.create({
@@ -197,6 +210,13 @@ materialTransfersRouter.post("/bulk-import", requirePermission("MATERIAL_TRANSFE
   //    lẫn PUT; bỏ sót ở đây là hai đường ghi cho hai kết quả khác nhau khi về sau có SL lẻ.
   const flatLines = transfers.flatMap((t, index) => t.items.map((it) => ({ ...it, _transfer: index })));
   const adjusted = await subtractTareWeight(flatLines);
+
+  // Danh sách hàng hoá của quán cũng phải chốt ở CẢ đường Excel, cùng lý do như trừ vỏ ngay trên:
+  // một đường chặn một đường không là hai đường ghi cho hai kết quả khác nhau.
+  const menuShopId = resolveMenuShopId(req.user);
+  if (menuShopId) {
+    await assertProductsInShopList(menuShopId, adjusted.map((it) => it.productId));
+  }
   const linesByTransfer = new Map<number, typeof adjusted>();
   for (const line of adjusted) {
     const list = linesByTransfer.get(line._transfer) ?? [];
@@ -291,12 +311,25 @@ materialTransfersRouter.put("/:id", requirePermission("MATERIAL_TRANSFERS"), asy
   const data = materialTransferCreateSchema.parse(req.body);
   const items = await subtractTareWeight(data.items);
 
-  const existing = await prisma.materialTransfer.findUnique({ where: { id } });
+  const existing = await prisma.materialTransfer.findUnique({
+    where: { id },
+    include: { items: { select: { productId: true } } },
+  });
   if (!existing) throw new HttpError(404, NOT_FOUND_MESSAGE);
   // Chốt cả phiếu CŨ lẫn dữ liệu MỚI: chỉ chốt phiếu cũ thì quán sửa phiếu của mình thành phiếu giữa
   // hai quán khác được, và sau đó chính nó cũng không còn thấy phiếu đó nữa.
   assertInScope([existing.fromUserId, existing.toUserId], req.user, NOT_FOUND_MESSAGE);
   assertTransferWritable(data.fromUserId, data.toUserId, req.user);
+
+  // Chỉ hàng MỚI thêm — xem chú thích `assertAddedItemsInShopMenu`.
+  const menuShopId = resolveMenuShopId(req.user);
+  if (menuShopId) {
+    await assertAddedProductsInShopList(
+      menuShopId,
+      items.map((it) => it.productId),
+      existing.items.map((it) => it.productId),
+    );
+  }
 
   const affectedCostChecks = await findCostChecksUsingPeriodRecord([existing.fromUserId, existing.toUserId], existing.transferAt);
 

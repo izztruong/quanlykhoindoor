@@ -10,6 +10,10 @@ import { dashboardRouter } from "./modules/dashboard/dashboard.routes";
 import { deadlinesRouter } from "./modules/deadlines/deadlines.routes";
 import { expenseProposalsRouter } from "./modules/expenseProposals/expenseProposals.routes";
 import { finishedGoodItemsRouter } from "./modules/finishedGoodItems/finishedGoodItems.routes";
+import {
+  finishedGoodItemMenuScopeRouter,
+  finishedGoodMenusRouter,
+} from "./modules/finishedGoodMenus/finishedGoodMenus.routes";
 import { finishedGoodItemPriceSyncRouter, finishedGoodPricesRouter } from "./modules/finishedGoodPrices/finishedGoodPrices.routes";
 import { finishedGoodRecipesRouter } from "./modules/finishedGoodRecipes/finishedGoodRecipes.routes";
 import { googleAuthRouter } from "./modules/googleAuth/googleAuth.routes";
@@ -19,6 +23,7 @@ import { mcpRouter } from "./modules/mcp/mcp.routes";
 import { mcpTokensRouter } from "./modules/mcpTokens/mcpTokens.routes";
 import { productGroupsRouter } from "./modules/productGroups/productGroups.routes";
 import { productsRouter } from "./modules/products/products.routes";
+import { productMenuScopeRouter, productShopsRouter } from "./modules/productShops/productShops.routes";
 import { posItemMappingsRouter } from "./modules/posItemMappings/posItemMappings.routes";
 import { posSalesRouter } from "./modules/posSales/posSales.routes";
 import { productSupplierPricesRouter } from "./modules/productSupplierPrices/productSupplierPrices.routes";
@@ -73,11 +78,19 @@ app.use("/api", requireAuth);
 // Ngoại lệ có chủ đích: GET danh mục tra cứu (kho, hàng hoá, khách hàng, đơn vị, nhóm, NCC, đồ thành
 // phẩm, tồn kho, hạn nộp) chỉ cần đăng nhập, vì form tạo đơn/phiếu của quán phải đọc chúng.
 app.use("/api/warehouses", warehousesRouter);
+// menuScope tiếp quản GET / (lọc theo danh sách hàng hoá của quán); phần còn lại rơi xuống crudFactory.
+app.use("/api/products", productMenuScopeRouter);
 app.use("/api/products", productsRouter);
-// PriceSync phải đứng TRƯỚC: nó tiếp quản PUT /:id và POST /bulk-import để ghi mốc giá và cột giá
-// hiện hành trong cùng một transaction. Các route còn lại rơi xuống crudFactory bên dưới.
+app.use("/api/product-shops", productShopsRouter);
+// Ba router chồng nhau trên cùng path, THỨ TỰ CÓ NGHĨA — mỗi lớp tiếp quản hẳn vài route rồi để
+// phần còn lại rơi xuống lớp sau:
+//  1. menuScope — GET /       : lọc danh mục theo menu của quán
+//  2. priceSync — PUT /:id, POST /bulk-import : mốc giá và cột giá hiện hành trong cùng transaction
+//  3. crud      — phần còn lại: GET /:id, POST /, DELETE /:id
+app.use("/api/finished-good-items", finishedGoodItemMenuScopeRouter);
 app.use("/api/finished-good-items", finishedGoodItemPriceSyncRouter);
 app.use("/api/finished-good-items", finishedGoodItemsRouter);
+app.use("/api/finished-good-menus", finishedGoodMenusRouter);
 app.use("/api/reorder-thresholds", reorderThresholdsRouter);
 app.use("/api/deadlines", deadlinesRouter);
 app.use("/api/shift-definitions", shiftDefinitionsRouter);

@@ -412,7 +412,7 @@ export async function computeCostCheckReport(
     ...posSales.byItem.keys(),
   ]);
 
-  const recipes = await RecipeHistory.load(finishedGoodItemIds);
+  const recipes = await RecipeHistory.load(finishedGoodItemIds, costCheck.userId);
   const openingAtMs = opening.checkedAt.getTime();
   const closingAtMs = closing.checkedAt.getTime();
 
@@ -569,7 +569,7 @@ export async function computeCostCheckReport(
   // `costCheck.soldItems` × giá hiện hành: đổi giá bán giữa kỳ thì phần trước và phần sau mốc đổi phải
   // tính bằng hai giá khác nhau. `CostCheckSoldItem` từ đây chỉ còn là bảng HIỂN THỊ (tổng theo món),
   // không còn là đầu vào — sửa tay bảng đó không làm đổi báo cáo.
-  const prices = await PriceHistory.load(posSales.byItem.keys());
+  const prices = await PriceHistory.load(posSales.byItem.keys(), costCheck.userId);
   let revenueTra = 0;
   let revenueDav = 0;
   for (const cell of posSales.cells) {

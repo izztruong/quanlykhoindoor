@@ -96,17 +96,25 @@ export async function findCostChecksUsingPeriodRecords(
  * Thêm/sửa một mốc công thức hay mốc giá bán có ngày hiệu lực nằm trong kỳ của những phiếu Check Cost
  * nào (đang ACTIVE).
  *
- * Khác hai hàm trên: **không lọc theo quán**. Công thức và giá bán là dữ liệu toàn cục, một mốc mới
- * ảnh hưởng phiếu của mọi quán có kỳ chứa mốc đó.
+ * `shopUserId` = mốc vừa ghi là mốc RIÊNG của quán đó, nên chỉ phiếu của chính quán đó bị ảnh hưởng.
+ * Bỏ trống/`null` = mốc CHUNG, ảnh hưởng phiếu của mọi quán có kỳ chứa mốc đó.
+ *
+ * (Trước khi có công thức/giá riêng theo quán, hàm này cố ý KHÔNG lọc quán vì hai thứ đó là dữ liệu
+ * toàn cục. Giờ không còn đúng nữa: thiếu bộ lọc thì sửa giá riêng của một quán lại cảnh báo phiếu
+ * của cả 5 quán kia, và cảnh báo thành tiếng ồn người ta bỏ đọc.)
  *
  * `effectiveFrom` là cột `@db.Date` nên phải quy về 00:00 GIỜ VN trước khi so với `checkedAt` (mốc
  * thật có giờ) — cắt thẳng sẽ lệch 7 tiếng ở hai ngày biên.
  */
-export async function findCostChecksUsingEffectiveDate(effectiveFrom: Date): Promise<AffectedCostCheck[]> {
+export async function findCostChecksUsingEffectiveDate(
+  effectiveFrom: Date,
+  shopUserId?: string | null,
+): Promise<AffectedCostCheck[]> {
   const at = new Date(vnDayStartMs(effectiveFrom));
   return prisma.costCheck.findMany({
     where: {
       status: "ACTIVE",
+      ...(shopUserId ? { userId: shopUserId } : {}),
       openingStockCheck: { checkedAt: { lte: at } },
       closingStockCheck: { checkedAt: { gte: at } },
     },

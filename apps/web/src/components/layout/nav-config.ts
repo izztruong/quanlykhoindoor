@@ -63,6 +63,7 @@ export const navSections: NavSection[] = [
       { label: "Kho hàng", href: "/catalog/warehouses", permission: "WAREHOUSES.VIEW" },
       { label: "Nhà cung cấp", href: "/catalog/suppliers", permission: "SUPPLIERS.VIEW" },
       { label: "Đồ thành phẩm", href: "/catalog/finished-goods", permission: "FINISHED_GOODS.VIEW" },
+      { label: "Menu & nguyên liệu theo quán", href: "/admin/finished-good-menus", permission: "FINISHED_GOODS.VIEW" },
     ],
   },
   {

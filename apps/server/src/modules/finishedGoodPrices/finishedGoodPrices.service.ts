@@ -37,9 +37,25 @@ export async function recordPriceChange(
   if (samePrice(currentPrice, nextPrice)) return;
 
   const effectiveFrom = parseDateOnly(todayDateKey());
-  await tx.finishedGoodPrice.upsert({
-    where: { finishedGoodItemId_effectiveFrom: { finishedGoodItemId, effectiveFrom } },
-    create: { finishedGoodItemId, effectiveFrom, sellingPrice: nextPrice, createdById: actingUserId },
-    update: { sellingPrice: nextPrice, createdById: actingUserId },
+
+  // `shopUserId: null` TƯỜNG MINH: helper này phục vụ hai đường ghi cấp DANH MỤC (modal sửa món và
+  // nhập Excel) — cả hai đều không có trục quán, nên giá chúng ghi luôn là giá CHUNG.
+  //
+  // Không dùng `upsert` theo compound unique được nữa: khoá đã có `shopUserId`, mà SQL không khớp
+  // được `NULL = NULL` nên upsert sẽ không bao giờ tìm thấy mốc chung cũ và cứ tạo dòng mới. Index
+  // unique một phần trong migration là lớp chắn nếu hai request vào cùng lúc.
+  const existing = await tx.finishedGoodPrice.findFirst({
+    where: { finishedGoodItemId, shopUserId: null, effectiveFrom },
+    select: { id: true },
+  });
+  if (existing) {
+    await tx.finishedGoodPrice.update({
+      where: { id: existing.id },
+      data: { sellingPrice: nextPrice, createdById: actingUserId },
+    });
+    return;
+  }
+  await tx.finishedGoodPrice.create({
+    data: { finishedGoodItemId, shopUserId: null, effectiveFrom, sellingPrice: nextPrice, createdById: actingUserId },
   });
 }

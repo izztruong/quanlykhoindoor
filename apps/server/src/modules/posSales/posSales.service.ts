@@ -1,5 +1,6 @@
 import { prisma } from "../../config/db";
 import { HttpError } from "../../utils/httpError";
+import { assertItemsInShopMenu } from "../../utils/shopMenu";
 import { parseDateOnly } from "../../utils/vnTime";
 import { normalizePosName } from "../posItemMappings/posItemMappings.service";
 import type { PosSaleRow } from "./posSales.schemas";
@@ -89,6 +90,9 @@ export async function importPosSales(userId: string, rows: PosSaleRow[]): Promis
 
   const cells = [...byCell.values()];
   await assertNoPreparedItems(cells.map((c) => c.finishedGoodItemId));
+  // Quán ở đây là tường minh (`userId` đã resolve ở route), nên kiểm được cả khi admin nhập hộ —
+  // khác hai module phiếu, chỗ quán là chính người đăng nhập.
+  await assertItemsInShopMenu(userId, cells.map((c) => c.finishedGoodItemId));
   const days = [...new Set(cells.map((c) => c.soldOn))];
 
   /**
@@ -208,6 +212,7 @@ export async function saveManualRows(
   }
 
   await assertNoPreparedItems(upserts.map((r) => r.finishedGoodItemId));
+  await assertItemsInShopMenu(userId, upserts.map((r) => r.finishedGoodItemId));
 
   const toWhere = (row: ManualRowKey) => ({
     soldOn: parseDateOnly(row.soldOn),

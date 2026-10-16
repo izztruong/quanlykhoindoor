@@ -287,6 +287,8 @@ export function StockCheckFormClient({ existing }: StockCheckFormClientProps) {
   const isEdit = Boolean(existing);
   const router = useRouter();
   const { data: products = [] } = useProducts({ activeOnly: true });
+  // KHÔNG truyền quán: phiếu này luôn thuộc tài khoản đang đăng nhập, và server đã tự ép
+  // phạm vi theo menu của quán đó (resolveMenuShopId). Truyền thêm chỉ sinh một lượt tải lại.
   const { data: finishedGoodItems = [] } = useFinishedGoodItems();
   const createCheck = useCreateStockCheck();
   const updateCheck = useUpdateStockCheck(existing?.id ?? "");

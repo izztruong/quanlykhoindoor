@@ -96,6 +96,8 @@ export function MaterialWasteForm({ existing }: { existing?: MaterialWaste }) {
   const { can } = useCan();
   const canDeduct = can("MATERIAL_WASTE", "DEDUCT");
   const { data: products = [] } = useProducts({ activeOnly: true });
+  // KHÔNG truyền quán: phiếu này luôn thuộc tài khoản đang đăng nhập, và server đã tự ép
+  // phạm vi theo menu của quán đó (resolveMenuShopId). Truyền thêm chỉ sinh một lượt tải lại.
   const { data: finishedGoodItems = [] } = useFinishedGoodItems();
   const createWaste = useCreateMaterialWaste();
   const updateWaste = useUpdateMaterialWaste(existing?.id ?? "");

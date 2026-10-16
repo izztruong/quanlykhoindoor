@@ -66,6 +66,8 @@ export function MaterialWasteFormClient({ existing }: MaterialWasteFormClientPro
   // Không có quyền thì vẫn thấy ô tích nhưng không bấm được; server cũng tự bỏ qua giá trị gửi lên.
   const canDeduct = can(currentUser, "MATERIAL_WASTE", "DEDUCT");
   const { data: products = [] } = useProducts({ activeOnly: true });
+  // KHÔNG truyền quán: phiếu này luôn thuộc tài khoản đang đăng nhập, và server đã tự ép
+  // phạm vi theo menu của quán đó (resolveMenuShopId). Truyền thêm chỉ sinh một lượt tải lại.
   const { data: finishedGoodItems = [] } = useFinishedGoodItems();
   const createWaste = useCreateMaterialWaste();
   const updateWaste = useUpdateMaterialWaste(existing?.id ?? "");

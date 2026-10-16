@@ -22,4 +22,9 @@ export const recipeUpdateSchema = z.object({
    * sạch một phiên bản lịch sử, và người dùng thường chỉ muốn tạo mốc MỚI.
    */
   overwrite: z.coerce.boolean().optional(),
+  /**
+   * Quán được khai công thức RIÊNG. Bỏ trống / null = phiên bản CHUNG, áp cho mọi quán chưa có công
+   * thức riêng. Cố ý optional, cùng lý do như `effectiveFrom`: bản mobile đã phát hành không gửi.
+   */
+  shopUserId: z.string().min(1).nullable().optional(),
 });

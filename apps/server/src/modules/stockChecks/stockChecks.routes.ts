@@ -6,6 +6,13 @@ import { findCostChecksUsingStockCheck } from "../../utils/costCheckImpact";
 import { assertCheckedAtNotInFuture, stampStockCheckLateness } from "../../utils/deadlines";
 import { HttpError } from "../../utils/httpError";
 import { parseDateRange, parsePagination } from "../../utils/pagination";
+import {
+  assertAddedItemsInShopMenu,
+  assertAddedProductsInShopList,
+  assertItemsInShopMenu,
+  assertProductsInShopList,
+  resolveMenuShopId,
+} from "../../utils/shopMenu";
 import { subtractTareWeight } from "../../utils/tareWeight";
 import { stockCheckCreateSchema } from "./stockChecks.schemas";
 
@@ -51,6 +58,15 @@ stockChecksRouter.get("/:id", requirePermission("STOCK_CHECKS"), async (req, res
 stockChecksRouter.post("/", requirePermission("STOCK_CHECKS"), async (req, res) => {
   const data = stockCheckCreateSchema.parse(req.body);
   const items = await subtractTareWeight(data.items);
+
+  // Chỉ kiểm khi người lập LÀ MỘT QUÁN: `resolveMenuShopId` trả rỗng cho admin và cho tài khoản
+  // không phải quán, và đúng như vậy — họ không có menu nào để đối chiếu, chặn theo menu rỗng là
+  // admin không lập nổi phiếu nào.
+  const menuShopId = resolveMenuShopId(req.user);
+  if (menuShopId) {
+    await assertItemsInShopMenu(menuShopId, data.finishedItems.map((it) => it.finishedGoodItemId));
+    await assertProductsInShopList(menuShopId, items.map((it) => it.productId));
+  }
 
   // Xem chú thích ở createSalesOrder: createdAt ghi tường minh để dấu muộn và mốc hiển thị luôn
   // khớp nhau. Tính hạn trước khi mở transaction cho khỏi kéo dài thời gian giữ transaction.
@@ -113,9 +129,30 @@ stockChecksRouter.put("/:id", requirePermission("STOCK_CHECKS"), async (req, res
   const data = stockCheckCreateSchema.parse(req.body);
   const items = await subtractTareWeight(data.items);
 
-  const existing = await prisma.stockCheck.findUnique({ where: { id } });
+  const existing = await prisma.stockCheck.findUnique({
+    where: { id },
+    include: {
+      items: { select: { productId: true } },
+      finishedItems: { select: { finishedGoodItemId: true } },
+    },
+  });
   if (!existing) throw new HttpError(404, "Không tìm thấy phiếu kiểm");
   assertOwner(existing, req.user, "Không tìm thấy phiếu kiểm");
+
+  // Chỉ dòng MỚI thêm phải nằm trong menu/danh sách — xem chú thích `assertAddedItemsInShopMenu`.
+  const menuShopId = resolveMenuShopId(req.user);
+  if (menuShopId) {
+    await assertAddedItemsInShopMenu(
+      menuShopId,
+      data.finishedItems.map((it) => it.finishedGoodItemId),
+      existing.finishedItems.map((it) => it.finishedGoodItemId),
+    );
+    await assertAddedProductsInShopList(
+      menuShopId,
+      items.map((it) => it.productId),
+      existing.items.map((it) => it.productId),
+    );
+  }
 
   // Áp cả ở đường sửa: ngày kiểm ở tương lai là dữ liệu vô nghĩa dù người nhập là admin.
   assertCheckedAtNotInFuture(data.checkedAt);

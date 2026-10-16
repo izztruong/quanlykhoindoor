@@ -46,6 +46,19 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
+### Menu & nguyên liệu riêng theo quán — CHƯA lên `main`, CHƯA bấm thử trên trình duyệt
+Bốn migration: `FinishedGoodItemShop`, `ProductShop`, `shopUserId` trên `FinishedGoodPrice` và
+`FinishedGoodRecipeVersion`. Quy ước **chưa gán quán nào = mọi quán đều thấy** nên chưa tích ô nào
+thì toàn bộ là no-op. Trang `/admin/finished-good-menus` hai tab; ô chọn phạm vi "Chung / từng quán"
+ở trang giá bán và trang công thức.
+Đã kiểm: typecheck 3 app, lint web, build web, `expo export`; `migrate deploy` trên DB trắng +
+`kho_db` + `kho_dev_copy`, drift check ra migration RỖNG; 17 ca script `tsx` cho luật đắp bù
+riêng→chung (gồm `productIdsInWindow` không làm nguyên liệu sống lại) — script đã xoá; ~30 ca curl
+(ép phạm vi, 409 widening + `hasHistory`, sửa phiếu cũ có món đã rời menu vẫn được, mirror KHÔNG xê
+dịch khi khai giá riêng, `?active=true` vẫn lọc sau khi tiếp quản `GET /products`). Dữ liệu thử đã dọn.
+**Lưu ý**: lúc dọn đã xoá luôn 1 mốc giá chung cũ của món M043 trên `kho_dev_copy` — nạp lại bản copy
+nếu cần lịch sử giá của món đó.
+
 ### Xuất Excel phiếu nhập kho có thêm cột "Tên NCC" — ĐÃ lên `main`, CHƯA bấm thử trên trình duyệt
 Thêm ở **cả hai sheet**, nối sau khối cột mẫu nên phần nhập vẫn bỏ qua như "Người tạo"/"Tên hàng hoá" —
 file xuất ra vẫn nhập lại được. Sheet "Dòng hàng" lặp tên NCC ở mọi dòng vì NCC là của cả phiếu.

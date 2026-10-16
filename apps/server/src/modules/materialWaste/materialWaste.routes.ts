@@ -5,6 +5,13 @@ import { generateCode } from "../../utils/codeGenerator";
 import { findCostChecksUsingPeriodRecord } from "../../utils/costCheckImpact";
 import { HttpError } from "../../utils/httpError";
 import { parseDateRange, parsePagination } from "../../utils/pagination";
+import {
+  assertAddedItemsInShopMenu,
+  assertAddedProductsInShopList,
+  assertItemsInShopMenu,
+  assertProductsInShopList,
+  resolveMenuShopId,
+} from "../../utils/shopMenu";
 import { subtractTareWeight } from "../../utils/tareWeight";
 import { materialWasteCreateSchema, materialWasteDeductionsSchema } from "./materialWaste.schemas";
 
@@ -61,6 +68,13 @@ materialWasteRouter.post("/", requirePermission("MATERIAL_WASTE"), async (req, r
   const items = await subtractTareWeight(data.items);
   const canDeduct = can(req.user, "MATERIAL_WASTE", "DEDUCT");
 
+  // Chỉ kiểm khi người lập LÀ MỘT QUÁN — xem chú thích ở stockChecks.routes.ts.
+  const menuShopId = resolveMenuShopId(req.user);
+  if (menuShopId) {
+    await assertItemsInShopMenu(menuShopId, data.finishedItems.map((it) => it.finishedGoodItemId));
+    await assertProductsInShopList(menuShopId, items.map((it) => it.productId));
+  }
+
   const item = await prisma.$transaction(async (tx) => {
     const created = await tx.materialWaste.create({
       data: { code: generateCode("PH"), wasteAt: data.wasteAt, note: data.note, createdById: req.user?.id },
@@ -114,6 +128,21 @@ materialWasteRouter.put("/:id", requirePermission("MATERIAL_WASTE"), async (req,
   });
   if (!existing) throw new HttpError(404, "Không tìm thấy phiếu huỷ");
   assertOwner(existing, req.user, "Không tìm thấy phiếu huỷ");
+
+  // Chỉ dòng MỚI thêm phải nằm trong menu/danh sách — xem chú thích `assertAddedItemsInShopMenu`.
+  const menuShopId = resolveMenuShopId(req.user);
+  if (menuShopId) {
+    await assertAddedItemsInShopMenu(
+      menuShopId,
+      data.finishedItems.map((it) => it.finishedGoodItemId),
+      existing.finishedItems.map((it) => it.finishedGoodItemId),
+    );
+    await assertAddedProductsInShopList(
+      menuShopId,
+      items.map((it) => it.productId),
+      existing.items.map((it) => it.productId),
+    );
+  }
 
   const canDeduct = can(req.user, "MATERIAL_WASTE", "DEDUCT");
   const prevItemDeduct = new Map(existing.items.map((it) => [it.productId, it.deductInCostCheck]));

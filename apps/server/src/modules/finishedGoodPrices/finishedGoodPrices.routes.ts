@@ -22,14 +22,26 @@ import { parseDateOnly, recordPriceChange, samePrice, todayDateKey } from "./fin
 
 export const finishedGoodPricesRouter = Router();
 
-/** Các mốc giá của một món, mới nhất trước. */
+/**
+ * Các mốc giá của một món, mới nhất trước.
+ *
+ * `?shopUserId=` trả về CHỈ mốc riêng của quán đó (không trộn mốc chung vào), kèm `sharedCount` để
+ * giao diện nói được "quán này chưa có giá riêng — đang dùng giá Chung (N mốc)". Trộn sẵn thì bảng
+ * hiện ra không còn khớp 1-1 với thứ sửa/xoá được.
+ */
 finishedGoodPricesRouter.get("/:finishedGoodItemId", requirePermission("FINISHED_GOODS"), async (req, res) => {
-  const items = await prisma.finishedGoodPrice.findMany({
-    where: { finishedGoodItemId: req.params.finishedGoodItemId },
-    orderBy: { effectiveFrom: "desc" },
-    include: { createdBy: { select: { id: true, name: true } } },
-  });
-  res.json({ items });
+  const finishedGoodItemId = req.params.finishedGoodItemId as string;
+  const shopUserId = typeof req.query.shopUserId === "string" && req.query.shopUserId ? req.query.shopUserId : null;
+
+  const [items, sharedCount] = await Promise.all([
+    prisma.finishedGoodPrice.findMany({
+      where: { finishedGoodItemId, shopUserId },
+      orderBy: { effectiveFrom: "desc" },
+      include: { createdBy: { select: { id: true, name: true } } },
+    }),
+    shopUserId ? prisma.finishedGoodPrice.count({ where: { finishedGoodItemId, shopUserId: null } }) : Promise.resolve(0),
+  ]);
+  res.json({ items, sharedCount });
 });
 
 /**
@@ -46,18 +58,41 @@ finishedGoodPricesRouter.put("/:finishedGoodItemId", requirePermission("FINISHED
   const item = await prisma.finishedGoodItem.findUnique({ where: { id: finishedGoodItemId }, select: { id: true } });
   if (!item) throw new HttpError(404, "Không tìm thấy đồ thành phẩm");
 
+  const shopUserId = data.shopUserId ?? null;
+  if (shopUserId) {
+    const shop = await prisma.user.findUnique({ where: { id: shopUserId }, select: { role: { select: { isShop: true } } } });
+    if (!shop) throw new HttpError(404, "Không tìm thấy quán");
+    if (!shop.role.isShop) throw new HttpError(400, "Chỉ khai giá riêng được cho tài khoản thuộc vai trò là quán");
+  }
+
   const effectiveFrom = parseDateOnly(data.effectiveFrom);
   const todayKey = todayDateKey();
 
   await prisma.$transaction(async (tx) => {
-    await tx.finishedGoodPrice.upsert({
-      where: { finishedGoodItemId_effectiveFrom: { finishedGoodItemId, effectiveFrom } },
-      create: { finishedGoodItemId, effectiveFrom, sellingPrice: data.sellingPrice, createdById: req.user?.id },
-      update: { sellingPrice: data.sellingPrice, createdById: req.user?.id },
+    // `upsert` theo compound unique không dùng được vì khoá có `shopUserId` nullable — xem chú thích
+    // ở `recordPriceChange`.
+    const existing = await tx.finishedGoodPrice.findFirst({
+      where: { finishedGoodItemId, shopUserId, effectiveFrom },
+      select: { id: true },
     });
+    if (existing) {
+      await tx.finishedGoodPrice.update({
+        where: { id: existing.id },
+        data: { sellingPrice: data.sellingPrice, createdById: req.user?.id },
+      });
+    } else {
+      await tx.finishedGoodPrice.create({
+        data: { finishedGoodItemId, shopUserId, effectiveFrom, sellingPrice: data.sellingPrice, createdById: req.user?.id },
+      });
+    }
+
+    // Mirror `FinishedGoodItem.sellingPrice` mang nghĩa GIÁ HIỆN HÀNH CỦA BẢN CHUNG, và chỉ thế. Một
+    // cột không giữ nổi N giá, nên mốc RIÊNG của một quán KHÔNG BAO GIỜ được làm xê dịch nó —
+    // đây là lỗi dễ mắc nhất của cả tính năng giá theo quán.
+    if (shopUserId) return;
 
     const current = await tx.finishedGoodPrice.findFirst({
-      where: { finishedGoodItemId, effectiveFrom: { lte: parseDateOnly(todayKey) } },
+      where: { finishedGoodItemId, shopUserId: null, effectiveFrom: { lte: parseDateOnly(todayKey) } },
       orderBy: { effectiveFrom: "desc" },
       select: { sellingPrice: true },
     });
@@ -68,11 +103,11 @@ finishedGoodPricesRouter.put("/:finishedGoodItemId", requirePermission("FINISHED
 
   const [items, affectedCostChecks] = await Promise.all([
     prisma.finishedGoodPrice.findMany({
-      where: { finishedGoodItemId },
+      where: { finishedGoodItemId, shopUserId },
       orderBy: { effectiveFrom: "desc" },
       include: { createdBy: { select: { id: true, name: true } } },
     }),
-    findCostChecksUsingEffectiveDate(effectiveFrom),
+    findCostChecksUsingEffectiveDate(effectiveFrom, shopUserId),
   ]);
   res.json({ items, affectedCostChecks });
 });
@@ -84,19 +119,21 @@ finishedGoodPricesRouter.delete(
     const { finishedGoodItemId, priceId } = req.params;
     const price = await prisma.finishedGoodPrice.findUnique({
       where: { id: priceId },
-      select: { finishedGoodItemId: true, effectiveFrom: true },
+      select: { finishedGoodItemId: true, effectiveFrom: true, shopUserId: true },
     });
     if (!price || price.finishedGoodItemId !== finishedGoodItemId) throw new HttpError(404, "Không tìm thấy mốc giá");
 
-    const affectedCostChecks = await findCostChecksUsingEffectiveDate(price.effectiveFrom);
+    const affectedCostChecks = await findCostChecksUsingEffectiveDate(price.effectiveFrom, price.shopUserId);
 
     // Xoá xong PHẢI tính lại giá hiện hành: mốc vừa xoá có thể chính là mốc đang áp dụng, để nguyên
     // thì cột mirror kẹt ở giá của một mốc không còn tồn tại — Check Cost tính một giá, danh mục và
     // phiếu kiểm kê quán hiện giá khác.
     await prisma.$transaction(async (tx) => {
       await tx.finishedGoodPrice.delete({ where: { id: priceId } });
+      // Xoá mốc RIÊNG của một quán không được làm xê dịch mirror — mirror là giá của bản CHUNG.
+      if (price.shopUserId) return;
       const current = await tx.finishedGoodPrice.findFirst({
-        where: { finishedGoodItemId, effectiveFrom: { lte: parseDateOnly(todayDateKey()) } },
+        where: { finishedGoodItemId, shopUserId: null, effectiveFrom: { lte: parseDateOnly(todayDateKey()) } },
         orderBy: { effectiveFrom: "desc" },
         select: { sellingPrice: true },
       });

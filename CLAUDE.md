@@ -219,6 +219,24 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
   Dấu "đã báo quán một lần" là `processedById`, nên **bỏ tích cố ý KHÔNG xoá cột đó** — xoá thì bỏ
   tích rồi tick lại là bắn thông báo lần hai.
 - SL lẻ ở `stockChecks`, `materialWaste`, `materialTransfers` luôn đi qua `utils/tareWeight`.
+- **Menu món và danh sách nguyên liệu theo quán nằm ở `utils/shopMenu.ts`** — quy ước duy nhất:
+  **chưa gán quán nào = MỌI quán đều thấy** (`FinishedGoodItemShop`, `ProductShop` rỗng). Đừng viết
+  lại mảnh `where` đó ở chỗ khác. Đường ĐỌC thu hẹp qua `resolveMenuShopId` (ép theo tài khoản, bỏ
+  qua tham số của client khi `scope = SELF`; trả rỗng cho tài khoản **không phải quán** — "SELF"
+  không đồng nghĩa "là quán"). Đường GHI phải gọi `assertItemsInShopMenu`/`assertProductsInShopList`
+  ở `stockChecks`, `materialWaste`, `materialTransfers` (cả đường Excel) và `posSales`; ở **PUT chỉ
+  kiểm dòng MỚI thêm** (`assertAdded*`) — kiểm cả phiếu là sửa phiếu cũ không nổi sau khi đổi menu.
+  Thêm bề mặt mới = thêm lời gọi, grep không chỉ ra được.
+- **Ẩn một hàng hoá khỏi quán KHÔNG phải "bỏ qua"**: Check Cost không thấy dòng kiểm kê thì tính tồn
+  đầu/cuối kỳ bằng **0**, nên `actualUsed` phồng lên bằng cả lượng tồn. Đường ghi `ProductShop` vì
+  vậy trả 409 kèm `hasHistory` (hàng quán đó đã từng kiểm khác 0) ngoài `willBecomeGlobal`.
+- **Công thức và giá bán có bản RIÊNG theo quán** (`shopUserId` nullable, NULL = chung). Phân giải
+  nằm trong `utils/recipeVersions.ts` + `utils/priceHistory.ts`, **luật: thay cả dòng thời gian, đắp
+  bù phần trước mốc riêng đầu tiên** — chú thích trong file giải thích vì sao hai luật ngây thơ khác
+  đều sai. Gọi `load(ids, shopUserId)` ở `costChecks` (cả hai loader) và `dashboard`; thêm call site
+  mới mà quên truyền quán là lặng lẽ tính bằng bản chung. `CostCheck.reportSnapshot` chốt cứng nên
+  phiếu đã lập không đổi. `findCostChecksUsingEffectiveDate` nay nhận `shopUserId` — mốc riêng chỉ
+  cảnh báo phiếu của chính quán đó.
 - `utils/deadlines` được gọi lúc tạo đơn (`salesOrders`) và lúc tạo/sửa phiếu (`stockChecks`).
 - **Thông báo đẩy** gắn ở route của `salesOrders` (tạo, tick "Đã xử lý" lần đầu, huỷ) và
   `expenseProposals` (tạo, duyệt/từ chối, tạm ứng/tạm ứng thêm, gửi và duyệt bổ sung hạng mục, hoàn thành)
@@ -297,6 +315,35 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
 - Migration nào **chèn hoặc sửa dữ liệu** thì bắt buộc thử `migrate deploy` trên một **database trắng** trước khi push. Máy dev áp migration theo thứ tự viết ra nên che mất lỗi này.
 - **Không sửa file migration đã áp** — Prisma lưu checksum, deploy sẽ hỏng ở nơi migration đó đã chạy. Muốn chữa thì thêm migration mới.
 - Dữ liệu khởi tạo bắt buộc phải nằm trong **migration**, không phải `prisma/seed.ts`: Render chỉ chạy `migrate deploy` lúc khởi động, không chạy seed.
+- **`prisma migrate dev` không chạy được** ở chế độ không tương tác (nó là lệnh tương tác). Cách đang
+  dùng để sinh SQL: dựng một DB shadow, `migrate deploy` lên đó, rồi
+  `npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script` với
+  `DATABASE_URL` trỏ vào shadow. Prisma 7 đã bỏ `--from-url` và đổi `--to-schema-datamodel` thành
+  `--to-schema` — gõ cờ cũ thì nó **in ra trang help** thay vì báo lỗi, rất dễ tưởng là lệnh chạy xong.
+- **Kiểm drift** bằng `npx prisma migrate dev --create-only --name drift_check`: ra migration **rỗng**
+  là SQL viết tay khớp đúng schema. Nhớ xoá thư mục migration tạm đó.
+
+### Index viết tay (Prisma không khai báo được)
+
+Hai index **UNIQUE một phần** được tạo bằng SQL thô, không có trong `schema.prisma`:
+
+| Index | Bảng | Dùng để |
+|---|---|---|
+| `FinishedGoodPrice_shared_effective_key` | `FinishedGoodPrice` | chặn hai mốc giá **CHUNG** cùng ngày |
+| `FinishedGoodRecipeVersion_shared_effective_key` | `FinishedGoodRecipeVersion` | chặn hai version công thức **CHUNG** cùng ngày |
+
+Lý do: hai bảng đó có `shopUserId` **nullable** (NULL = bản chung), mà PostgreSQL coi `NULL` là
+**khác nhau** trong UNIQUE — nên `@@unique([finishedGoodItemId, shopUserId, effectiveFrom])` chỉ chặn
+được các bản RIÊNG. Prisma 7.8 không khai báo được `NULLS NOT DISTINCT` lẫn index một phần.
+
+**Đã đo trên Prisma 7.8: `migrate dev --create-only` KHÔNG đòi xoá hai index này** (nó bỏ qua index mà
+PSL không diễn tả được). Nhưng Prisma cũng không biết chúng tồn tại, nên **mỗi lần sinh migration vẫn
+phải grep `_shared_effective_key` trong file mới** và xoá câu `DROP INDEX` nếu có.
+
+Hệ quả thứ hai, đã cắn một lần: **`upsert`/`findUnique` theo compound unique có cột nullable không
+dùng được** — SQL không khớp được `NULL = NULL` nên nó không bao giờ tìm thấy bản chung cũ và cứ tạo
+dòng mới. Ba đường ghi đã đổi sang `findFirst` + `create`/`update`: `recordPriceChange`,
+`PUT /finished-good-prices/:id`, `PUT /finished-good-recipes/:id`.
 
 ### Prisma client trên Windows
 
