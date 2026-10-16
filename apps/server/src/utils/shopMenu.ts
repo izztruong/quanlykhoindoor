@@ -176,3 +176,39 @@ export async function resolveEffectiveSellingPrices(
   }
   return out;
 }
+
+type ProductShopTx = Pick<Prisma.TransactionClient, "product" | "productShop">;
+
+/**
+ * Gán thêm hàng hoá cho một quán — dùng khi hàng THẬT SỰ đã về quán đó, cụ thể là quán NHẬN của
+ * phiếu điều chuyển. Hàng đã nằm trong kho quán thì đương nhiên "có ở quán đó".
+ *
+ * Nếu không làm bước này, điều chuyển sang quán chưa được gán sẽ để lại một trạng thái hỏng: quán
+ * đang giữ hàng mà phiếu kiểm không hiện dòng đó, nên Check Cost tính tồn cuối kỳ bằng 0 và
+ * `actualUsed` phồng lên bằng cả lượng đang giữ.
+ *
+ * CHỈ gán cho hàng ĐÃ CÓ danh sách quán. Hàng chưa gán quán nào vốn đã hiện ở MỌI quán — thêm một
+ * dòng gán cho quán nhận sẽ THU HẸP nó về đúng quán đó và làm mọi quán khác mất hàng. Đây là mặt
+ * ngược của quy ước "chưa gán = mọi quán thấy", và là lý do hàm này phải tra trước khi ghi.
+ *
+ * Chỉ THÊM, không bao giờ bớt, nên không có nguy cơ nới rộng hay thu hẹp phạm vi ngoài ý muốn.
+ */
+export async function grantProductsToShop(
+  tx: ProductShopTx,
+  shopUserId: string,
+  productIds: string[],
+): Promise<void> {
+  const ids = [...new Set(productIds)];
+  if (ids.length === 0) return;
+
+  const constrained = await tx.product.findMany({
+    where: { id: { in: ids }, shops: { some: {} } },
+    select: { id: true },
+  });
+  if (constrained.length === 0) return;
+
+  await tx.productShop.createMany({
+    data: constrained.map((p) => ({ shopUserId, productId: p.id })),
+    skipDuplicates: true,
+  });
+}

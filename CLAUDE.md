@@ -227,6 +227,13 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
   ở `stockChecks`, `materialWaste`, `materialTransfers` (cả đường Excel) và `posSales`; ở **PUT chỉ
   kiểm dòng MỚI thêm** (`assertAdded*`) — kiểm cả phiếu là sửa phiếu cũ không nổi sau khi đổi menu.
   Thêm bề mặt mới = thêm lời gọi, grep không chỉ ra được.
+- **Điều chuyển neo theo QUÁN GỬI, và tự gán hàng cho QUÁN NHẬN.** Không gửi được thứ mình không
+  có là ràng buộc của dữ liệu, không phụ thuộc ai gõ phiếu — neo theo người lập thì cùng một phiếu
+  A→B lại được khi A gõ và bị chặn khi B gõ. Và phải gọi `grantProductsToShop` cho `toUserId` trong
+  cùng transaction ở **cả ba** đường ghi (POST, PUT, Excel): thiếu nó là quán giữ hàng thật mà phiếu
+  kiểm không hiện dòng, nên Check Cost tính tồn cuối kỳ bằng 0. Hàm đó **chỉ gán cho hàng ĐÃ có danh
+  sách quán** — hàng chưa gán quán nào vốn đã hiện ở mọi quán, thêm một dòng gán là THU HẸP nó về
+  đúng quán nhận và làm mọi quán khác mất hàng.
 - **Ẩn một hàng hoá khỏi quán KHÔNG phải "bỏ qua"**: Check Cost không thấy dòng kiểm kê thì tính tồn
   đầu/cuối kỳ bằng **0**, nên `actualUsed` phồng lên bằng cả lượng tồn. Đường ghi `ProductShop` vì
   vậy trả 409 kèm `hasHistory` (hàng quán đó đã từng kiểm khác 0) ngoài `willBecomeGlobal`.

@@ -8,7 +8,7 @@ import { parseDateRange, parsePagination } from "../../utils/pagination";
 import {
   assertAddedProductsInShopList,
   assertProductsInShopList,
-  resolveMenuShopId,
+  grantProductsToShop,
 } from "../../utils/shopMenu";
 import { subtractTareWeight } from "../../utils/tareWeight";
 import { materialTransferBulkSchema, materialTransferCreateSchema } from "./materialTransfers.schemas";
@@ -75,13 +75,13 @@ materialTransfersRouter.post("/", requirePermission("MATERIAL_TRANSFERS"), async
   assertTransferWritable(data.fromUserId, data.toUserId, req.user);
   const items = await subtractTareWeight(data.items);
 
-  // Kiểm theo danh sách hàng hoá của CHÍNH người lập, không phải của cả hai đầu phiếu: quán lập
-  // phiếu luôn ở một đầu (`assertTransferWritable`), còn ép cả đầu kia là không điều chuyển nổi
-  // hàng sang quán chưa ai kịp gán. Admin lập hộ thì `resolveMenuShopId` trả rỗng, bỏ qua.
-  const menuShopId = resolveMenuShopId(req.user);
-  if (menuShopId) {
-    await assertProductsInShopList(menuShopId, items.map((it) => it.productId));
-  }
+  // Kiểm theo danh sách của QUÁN GỬI, không theo người đăng nhập: "không gửi được thứ mình không
+  // có" là ràng buộc của DỮ LIỆU, không phụ thuộc ai gõ phiếu. Neo theo người lập thì cùng một phiếu
+  // A → B lại được khi A gõ và bị chặn khi B gõ — không giải thích nổi cho người dùng.
+  //
+  // Quán NHẬN cố ý không kiểm: hàng về quán đó là chuyện hợp lệ dù trước đó quán chưa được gán, và
+  // `grantProductsToShop` dưới đây gán luôn trong cùng transaction.
+  await assertProductsInShopList(data.fromUserId, items.map((it) => it.productId));
 
   const item = await prisma.$transaction(async (tx) => {
     const created = await tx.materialTransfer.create({
@@ -106,6 +106,10 @@ materialTransfersRouter.post("/", requirePermission("MATERIAL_TRANSFERS"), async
         note: it.note,
       })),
     });
+
+    // Hàng đã về quán nhận thì phải có trong danh sách của quán đó, nếu không quán giữ hàng mà
+    // phiếu kiểm không hiện dòng — xem chú thích `grantProductsToShop`.
+    await grantProductsToShop(tx, data.toUserId, items.map((it) => it.productId));
 
     return tx.materialTransfer.findUniqueOrThrow({ where: { id: created.id }, include: detailInclude });
   });
@@ -211,17 +215,23 @@ materialTransfersRouter.post("/bulk-import", requirePermission("MATERIAL_TRANSFE
   const flatLines = transfers.flatMap((t, index) => t.items.map((it) => ({ ...it, _transfer: index })));
   const adjusted = await subtractTareWeight(flatLines);
 
-  // Danh sách hàng hoá của quán cũng phải chốt ở CẢ đường Excel, cùng lý do như trừ vỏ ngay trên:
-  // một đường chặn một đường không là hai đường ghi cho hai kết quả khác nhau.
-  const menuShopId = resolveMenuShopId(req.user);
-  if (menuShopId) {
-    await assertProductsInShopList(menuShopId, adjusted.map((it) => it.productId));
-  }
   const linesByTransfer = new Map<number, typeof adjusted>();
   for (const line of adjusted) {
     const list = linesByTransfer.get(line._transfer) ?? [];
     list.push(line);
     linesByTransfer.set(line._transfer, list);
+  }
+
+  // Danh sách hàng hoá của quán cũng phải chốt ở CẢ đường Excel, cùng lý do như trừ vỏ ngay trên:
+  // một đường chặn một đường không là hai đường ghi cho hai kết quả khác nhau.
+  //
+  // Theo TỪNG phiếu, vì mỗi dòng file có cặp quán gửi/nhận riêng — gộp cả lô rồi kiểm một lượt sẽ
+  // đòi mọi hàng phải có ở mọi quán gửi trong file.
+  for (const [index, transfer] of transfers.entries()) {
+    await assertProductsInShopList(
+      transfer.fromUserId,
+      (linesByTransfer.get(index) ?? []).map((it) => it.productId),
+    );
   }
 
   // 4. Kiểm phiếu trùng — một query. Trả 200 kèm danh sách thay vì 400: `HttpError` chỉ chở được một
@@ -288,6 +298,15 @@ materialTransfersRouter.post("/bulk-import", requirePermission("MATERIAL_TRANSFE
           })),
         ),
       });
+
+      // Gán hàng cho từng quán NHẬN — xem chú thích `grantProductsToShop`.
+      for (const [index, transfer] of transfers.entries()) {
+        await grantProductsToShop(
+          tx,
+          transfer.toUserId,
+          (linesByTransfer.get(index) ?? []).map((it) => it.productId),
+        );
+      }
     },
     { timeout: 30000 },
   );
@@ -321,15 +340,12 @@ materialTransfersRouter.put("/:id", requirePermission("MATERIAL_TRANSFERS"), asy
   assertInScope([existing.fromUserId, existing.toUserId], req.user, NOT_FOUND_MESSAGE);
   assertTransferWritable(data.fromUserId, data.toUserId, req.user);
 
-  // Chỉ hàng MỚI thêm — xem chú thích `assertAddedItemsInShopMenu`.
-  const menuShopId = resolveMenuShopId(req.user);
-  if (menuShopId) {
-    await assertAddedProductsInShopList(
-      menuShopId,
-      items.map((it) => it.productId),
-      existing.items.map((it) => it.productId),
-    );
-  }
+  // Theo QUÁN GỬI như ở POST, và chỉ hàng MỚI thêm — xem chú thích `assertAddedItemsInShopMenu`.
+  await assertAddedProductsInShopList(
+    data.fromUserId,
+    items.map((it) => it.productId),
+    existing.items.map((it) => it.productId),
+  );
 
   const affectedCostChecks = await findCostChecksUsingPeriodRecord([existing.fromUserId, existing.toUserId], existing.transferAt);
 
@@ -352,6 +368,9 @@ materialTransfersRouter.put("/:id", requirePermission("MATERIAL_TRANSFERS"), asy
         note: it.note,
       })),
     });
+
+    // Gán cho quán nhận MỚI (phiếu sửa được cả hai đầu) — xem chú thích `grantProductsToShop`.
+    await grantProductsToShop(tx, data.toUserId, items.map((it) => it.productId));
 
     return tx.materialTransfer.findUniqueOrThrow({ where: { id }, include: detailInclude });
   });

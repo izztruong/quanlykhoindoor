@@ -59,6 +59,13 @@ dịch khi khai giá riêng, `?active=true` vẫn lọc sau khi tiếp quản `G
 **Lưu ý**: lúc dọn đã xoá luôn 1 mốc giá chung cũ của món M043 trên `kho_dev_copy` — nạp lại bản copy
 nếu cần lịch sử giá của món đó.
 
+### Điều chuyển tự gán hàng cho quán nhận — CHƯA lên `main`, CHƯA bấm thử trên trình duyệt
+Phép chặn ở `materialTransfers` đổi sang neo theo **quán gửi** (trước đó neo theo người đăng nhập nên
+cùng một phiếu A→B được khi A gõ, bị chặn khi B gõ), và `grantProductsToShop` gán hàng cho quán nhận
+trong cùng transaction ở cả POST/PUT/Excel — không gán thì quán giữ hàng mà phiếu kiểm không hiện
+dòng, Check Cost tính tồn cuối kỳ bằng 0. Hàng **chưa gán quán nào** cố ý KHÔNG gán (gán sẽ thu hẹp
+nó về đúng quán nhận). Đã kiểm 7 ca curl gồm đúng bẫy đó; dữ liệu thử đã dọn.
+
 ### Xuất Excel phiếu nhập kho có thêm cột "Tên NCC" — ĐÃ lên `main`, CHƯA bấm thử trên trình duyệt
 Thêm ở **cả hai sheet**, nối sau khối cột mẫu nên phần nhập vẫn bỏ qua như "Người tạo"/"Tên hàng hoá" —
 file xuất ra vẫn nhập lại được. Sheet "Dòng hàng" lặp tên NCC ở mọi dòng vì NCC là của cả phiếu.
