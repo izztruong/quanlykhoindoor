@@ -217,6 +217,86 @@ export async function createCostCheck(data: CostCheckCreateInput, actingUser?: A
   return { ...withSnapshot, report: rows, financialSummary: summary, posCoverage: sales.coverage };
 }
 
+/**
+ * Một dòng bánh bán ra, giữ lại người mua để trang chi tiết tách được theo quán.
+ * `shopUserId = null` nghĩa là BÁN NGOÀI.
+ */
+export interface BakerySaleCell {
+  shopUserId: string | null;
+  soldOn: Date;
+  finishedGoodItemId: string;
+  quantity: number;
+}
+
+export interface BakeryPeriodSales extends PosPeriodSales {
+  bakeryCells: BakerySaleCell[];
+}
+
+/**
+ * Trục "bán ra" của TIỆM BÁNH, đóng gói đúng hình dạng `PosPeriodSales` để `computeCostCheckReport`
+ * dùng lại y nguyên — phần tính `theoretical` chỉ đọc `soldOn`/`quantity`/`finishedGoodItemId`, không
+ * đọc `hour`, nên `hour` ở đây là giá trị bù (12) và không mang nghĩa gì.
+ *
+ * Biên kỳ so theo NGÀY, không theo mốc giờ như POS: tiệm bánh giao theo ngày nên `BakerySale` không
+ * có trục giờ, và cắt theo giờ sẽ làm rơi cả ngày đầu hoặc ngày cuối kỳ.
+ *
+ * `costChecks` đọc thẳng bảng của module khác là chuyện đã có (StockCheck, MaterialWasteItem,
+ * MaterialTransferItem, StockImportItem, FinishedGoodRecipeItem) — thêm `BakerySale` vào danh sách đó.
+ */
+export async function loadBakerySalesForPeriod(
+  bakeryUserId: string,
+  opening: { checkedAt: Date },
+  closing: { checkedAt: Date },
+): Promise<BakeryPeriodSales> {
+  const fromDayKey = vnDateKeyOf(opening.checkedAt);
+  const toDayKey = vnDateKeyOf(closing.checkedAt);
+
+  const rows = await prisma.bakerySale.findMany({
+    where: {
+      bakeryUserId,
+      soldOn: { gte: parseDateOnly(fromDayKey), lte: parseDateOnly(toDayKey) },
+    },
+    select: { shopUserId: true, soldOn: true, finishedGoodItemId: true, quantity: true },
+  });
+
+  const bakeryCells: BakerySaleCell[] = rows.map((row) => ({
+    shopUserId: row.shopUserId,
+    soldOn: row.soldOn,
+    finishedGoodItemId: row.finishedGoodItemId,
+    quantity: Number(row.quantity),
+  }));
+
+  const cells: PosCell[] = bakeryCells.map((cell) => ({
+    soldOn: cell.soldOn,
+    hour: 12,
+    finishedGoodItemId: cell.finishedGoodItemId,
+    quantity: cell.quantity,
+  }));
+
+  const byItem = new Map<string, number>();
+  const daysWithData = new Set<string>();
+  for (const cell of cells) {
+    byItem.set(cell.finishedGoodItemId, (byItem.get(cell.finishedGoodItemId) ?? 0) + cell.quantity);
+    daysWithData.add(toDateKey(cell.soldOn));
+  }
+
+  const expectedDayKeys: string[] = [];
+  for (let key = fromDayKey; key <= toDayKey; key = shiftDateKey(key, 1)) expectedDayKeys.push(key);
+
+  return {
+    cells,
+    bakeryCells,
+    byItem,
+    coverage: {
+      expectedDays: expectedDayKeys.length,
+      daysWithData: daysWithData.size,
+      missingDays: expectedDayKeys.filter((key) => !daysWithData.has(key)),
+      // Tiệm bánh không có khái niệm "đồ pha sẵn bị bỏ": mọi bánh bán ra đều tính.
+      skippedPreparedItems: [],
+    },
+  };
+}
+
 /** "dd/MM/yyyy HH:mm" theo giờ VN — chỉ dùng cho thông báo lỗi gửi người dùng. */
 function formatVnDateTime(instant: Date): string {
   const shifted = new Date(instant.getTime() + 7 * 60 * 60 * 1000);
@@ -333,6 +413,8 @@ export async function computeCostCheckReport(
       soldItems: { include: { finishedGoodItem: true } },
       openingStockCheck: { include: { items: true, finishedItems: true } },
       closingStockCheck: { include: { items: true, finishedItems: true } },
+      // Chỉ để biết phiếu này là của quán hay của tiệm bánh — xem chỗ nạp `posSales` bên dưới.
+      user: { select: { role: { select: { isBakery: true } } } },
     },
   });
   if (!costCheck) throw new HttpError(404, "Không tìm thấy phiếu Check Cost");
@@ -403,7 +485,15 @@ export async function computeCostCheckReport(
     },
   });
 
-  const posSales = sales ?? (await loadPosSalesForPeriod(costCheck.userId, opening, closing));
+  // Đường TÍNH LẠI (không truyền `sales`) phải tự chọn đúng nguồn bán ra. Chốt ở ĐÂY, không dựa vào
+  // call site nhớ truyền: phiếu của tiệm bánh mà đi đọc `PosSaleHour` thì được một tập RỖNG, và hậu
+  // quả là `theoretical = 0` cho mọi nguyên liệu — một báo cáo trông bình thường nhưng sai sạch, im
+  // lặng. Đây là cái bẫy nguy hiểm nhất của phần tiệm bánh.
+  const posSales =
+    sales ??
+    (costCheck.user.role.isBakery
+      ? await loadBakerySalesForPeriod(costCheck.userId, opening, closing)
+      : await loadPosSalesForPeriod(costCheck.userId, opening, closing));
 
   const finishedGoodItemIds = new Set<string>([
     ...opening.finishedItems.map((it) => it.finishedGoodItemId),

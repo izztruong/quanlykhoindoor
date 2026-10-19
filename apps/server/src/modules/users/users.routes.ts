@@ -54,6 +54,12 @@ const OPTION_SCOPES = {
   shop: { role: { isShop: true } },
   other: { role: { isShop: false } },
   all: undefined,
+  // Tiệm bánh. Nó cũng bật `isShop` nên vẫn nằm trong scope "shop" — cố ý, để không phải soát lại
+  // mọi ô chọn quán. Scope này dành cho chỗ chỉ được chọn tiệm bánh (trang Bánh bán ra, Check Cost
+  // tiệm bánh).
+  bakery: { role: { isBakery: true } },
+  // Quán THẬT, bỏ tiệm bánh ra — dùng cho ô "quán mua" ở trang Bánh bán ra.
+  shopOnly: { role: { isShop: true, isBakery: false } },
 } satisfies Record<string, Prisma.UserWhereInput | undefined>;
 
 usersRouter.get("/options", async (req, res) => {

@@ -5,6 +5,7 @@ import type { PermissionCatalog, Role } from "@/types";
 export interface RoleInput {
   name: string;
   isShop: boolean;
+  isBakery: boolean;
   permissions: string[];
 }
 

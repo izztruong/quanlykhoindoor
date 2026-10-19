@@ -23,6 +23,14 @@ model Role {
   // Tài khoản thuộc vai trò này là một quán: chỉ những tài khoản đó hiện trong các ô chọn/lọc quán
   // (GET /api/users/options). Vai trò chỉ để dùng một chức năng (vd đề xuất chi) để false.
   isShop      Boolean  @default(false)
+  /// Là TIỆM BÁNH: làm bánh rồi bán cho các quán và bán ra ngoài, không bán qua POS.
+  ///
+  /// Hai cờ này KHÁC nhau và tiệm bánh bật CẢ HAI. `isShop` nghĩa thực là "một cơ sở có kho và có
+  /// kiểm kê" — nhờ bật nó mà tiệm bánh dùng ngay được kho, phiếu kiểm, phiếu huỷ, điều chuyển,
+  /// menu và chấm muộn, không phải soát lại ~11 chỗ đang đọc `isShop`. `isBakery` chỉ dùng ở những
+  /// chỗ BẮT BUỘC phải khác: trục bán ra (bảng `BakerySale` thay cho `PosSaleHour`) và phiếu Check
+  /// Cost (module `bakeryCostChecks`, vì Check Cost của quán chặn 409 khi không có doanh số POS).
+  isBakery    Boolean  @default(false)
   permissions String[] @default([])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -73,6 +81,9 @@ model User {
   finishedGoodPricesShop    FinishedGoodPrice[]         @relation("FinishedGoodPriceShop")
   recipeVersionsShop        FinishedGoodRecipeVersion[] @relation("FinishedGoodRecipeVersionShop")
   posSaleHours              PosSaleHour[]
+  bakerySales               BakerySale[]                @relation("BakerySaleBakery")
+  bakerySalesBought         BakerySale[]                @relation("BakerySaleShop")
+  bakerySalesCreated        BakerySale[]                @relation("BakerySaleCreatedBy")
   mcpTokens                 McpToken[]                  @relation("McpTokenCreatedBy")
   shopWarehouse             Warehouse?                  @relation("WarehouseShop")
   finishedGoodMenu          FinishedGoodItemShop[]
@@ -180,6 +191,7 @@ model FinishedGoodItem {
   prices                     FinishedGoodPrice[]
   costCheckSoldItems         CostCheckSoldItem[]
   posSaleHours               PosSaleHour[]
+  bakerySales                BakerySale[]
   posItemMappings            PosItemMapping[]
   shops                      FinishedGoodItemShop[]
 }
@@ -232,8 +244,8 @@ model FinishedGoodRecipeVersion {
 
   /// NULL = phiên bản công thức CHUNG (áp cho mọi quán chưa khai công thức riêng); có giá trị = bản
   /// riêng của quán đó. Phép phân giải riêng→chung nằm gọn trong utils/recipeVersions.ts.
-  shopUserId         String?
-  shopUser           User?            @relation("FinishedGoodRecipeVersionShop", fields: [shopUserId], references: [id], onDelete: Cascade)
+  shopUserId String?
+  shopUser   User?   @relation("FinishedGoodRecipeVersionShop", fields: [shopUserId], references: [id], onDelete: Cascade)
 
   /// CẨN TRỌNG, y như FinishedGoodPrice: PostgreSQL coi NULL là KHÁC NHAU trong UNIQUE nên ràng buộc
   /// này KHÔNG chặn được hai version CHUNG cùng ngày. Nửa còn lại là index UNIQUE MỘT PHẦN viết tay
@@ -1133,6 +1145,44 @@ model PosSaleHour {
 
   @@unique([userId, soldOn, hour, finishedGoodItemId])
   @@index([userId, soldOn])
+  @@index([finishedGoodItemId])
+}
+
+/**
+ * Bánh tiệm bánh bán ra — bản tương đương `PosSaleHour` của tiệm bánh, và là đầu vào `theoretical`
+ * cùng doanh thu cho Check Cost tiệm bánh.
+ * Độ mịn (ngày, người mua, bánh): KHÔNG có trục giờ vì tiệm bánh giao theo ngày, và THÊM trục người
+ * mua vì mục tiêu đầu tiên là biết phát cho quán nào bao nhiêu — cũng để đối chiếu được với phiếu
+ * nhập kho mà quán tự lập (bánh về quán đi đường phiếu nhập từ NCC "Tiệm bánh", không qua điều chuyển).
+ * KHÔNG lưu giá: giá lấy theo đồ thành phẩm, cụ thể là mốc giá RIÊNG của tiệm bánh trên chính món đó
+ * (`PriceHistory.load(ids, bakeryUserId)`) — một giá cho mọi người mua, kể cả bán ngoài.
+ */
+model BakerySale {
+  id                 String           @id @default(cuid())
+  bakeryUserId       String
+  bakeryUser         User             @relation("BakerySaleBakery", fields: [bakeryUserId], references: [id], onDelete: Cascade)
+  /// NULL = BÁN NGOÀI, gộp chung một mục và cố ý KHÔNG theo dõi người mua (repo không có thực thể
+  /// khách hàng — CUSTOMER_RETURN đã bị bỏ khỏi phiếu nhập trước đây). Có giá trị = bán cho quán đó.
+  shopUserId         String?
+  shopUser           User?            @relation("BakerySaleShop", fields: [shopUserId], references: [id], onDelete: Cascade)
+  /// Cùng lý do @db.Date như PosSaleHour.soldOn: ngày trần không dính lệch múi giờ.
+  soldOn             DateTime         @db.Date
+  finishedGoodItemId String
+  finishedGoodItem   FinishedGoodItem @relation(fields: [finishedGoodItemId], references: [id], onDelete: Cascade)
+  quantity           Decimal          @db.Decimal(18, 3)
+  createdById        String?
+  createdBy          User?            @relation("BakerySaleCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt          DateTime         @default(now())
+
+  /// CHỈ chặn được các dòng bán cho QUÁN: PostgreSQL coi NULL là khác nhau trong UNIQUE nên hai dòng
+  /// "bán ngoài" cùng (ngày, bánh) vẫn lọt. Nhánh đó bịt bằng index UNIQUE MỘT PHẦN viết tay
+  /// "BakerySale_external_key" — xem mục "Index viết tay" trong CLAUDE.md.
+  ///
+  /// Đường ghi KHÔNG bị bẫy này: `saveBakerySales` dùng deleteMany + createMany chứ không `upsert`
+  /// theo compound unique, và deleteMany sinh `shopUserId IS NULL` đúng. ĐỪNG đổi sang `upsert`.
+  @@unique([bakeryUserId, shopUserId, soldOn, finishedGoodItemId])
+  @@index([bakeryUserId, soldOn])
+  @@index([shopUserId, soldOn])
   @@index([finishedGoodItemId])
 }
 

@@ -29,6 +29,12 @@ export interface AuthUser {
    * (xem `resolveMenuShopId` trong modules/finishedGoodMenus).
    */
   isShop: boolean;
+  /**
+   * Là TIỆM BÁNH (`Role.isBakery`) — làm bánh rồi bán cho quán và bán ra ngoài, không qua POS.
+   *
+   * Tiệm bánh bật CẢ `isShop` lẫn cờ này; xem chú thích ở model `Role` để biết vì sao.
+   */
+  isBakery: boolean;
 }
 
 declare global {
@@ -53,7 +59,7 @@ export async function loadAuthUser(id: string): Promise<(AuthUser & { tokenVersi
       email: true,
       name: true,
       tokenVersion: true,
-      role: { select: { id: true, name: true, isSystem: true, isShop: true, permissions: true } },
+      role: { select: { id: true, name: true, isSystem: true, isShop: true, isBakery: true, permissions: true } },
     },
   });
   if (!user) return null;
@@ -69,6 +75,7 @@ export async function loadAuthUser(id: string): Promise<(AuthUser & { tokenVersi
     permissions: role.permissions,
     scope: role.isSystem || role.permissions.includes(SCOPE_ALL_CODE) ? "ALL" : "SELF",
     isShop: role.isShop,
+    isBakery: role.isBakery,
   };
 }
 

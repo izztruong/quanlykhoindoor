@@ -59,6 +59,18 @@ dịch khi khai giá riêng, `?active=true` vẫn lọc sau khi tiếp quản `G
 **Lưu ý**: lúc dọn đã xoá luôn 1 mốc giá chung cũ của món M043 trên `kho_dev_copy` — nạp lại bản copy
 nếu cần lịch sử giá của món đó.
 
+### Tiệm bánh: cờ `isBakery`, Bánh bán ra, Check Cost riêng — CHƯA lên `main`, CHƯA bấm thử trên trình duyệt
+Tiệm bánh dùng lại toàn bộ đầu vào của quán (kho, phiếu nhập, phiếu kiểm, phiếu huỷ, điều chuyển);
+chỉ trục bán ra là mới (`BakerySale`, độ mịn ngày × người mua × bánh, `shopUserId = null` = bán ngoài).
+Công thức và giá xuất dùng **bản riêng theo quán** đã có nên **không tạo bản ghi bánh mới nào**.
+Phiếu là một dòng `CostCheck`, phân biệt bằng `role.isBakery`; đặt trong module `costChecks` chứ không
+tách module — tách thì phải chép 400 dòng tính báo cáo hoặc gọi service module khác.
+Đã kiểm: typecheck 3 app, lint + build web; migrate trên DB trắng + `kho_db` + `kho_dev_copy`, drift
+check rỗng; 10 ca curl với dữ liệu thử `ZZ-*` — mọi con số khớp tính tay (doanh thu 1.000.000 theo
+GIÁ XUẤT chứ không phải giá bán lẻ, định mức 280.000/28%, thực 300.000/30%, lệch +20.000/2%), hàng
+`ZZ-BANH` không sống lại từ bản công thức chung, đường TÍNH LẠI không truyền `sales` vẫn ra định mức
+đúng, index một phần chặn trùng dòng bán ngoài. **Dữ liệu thử `ZZ-*` còn trên `kho_dev_copy`** để bấm thử.
+
 ### Điều chuyển tự gán hàng cho quán nhận — CHƯA lên `main`, CHƯA bấm thử trên trình duyệt
 Phép chặn ở `materialTransfers` đổi sang neo theo **quán gửi** (trước đó neo theo người đăng nhập nên
 cùng một phiếu A→B được khi A gõ, bị chặn khi B gõ), và `grantProductsToShop` gán hàng cho quán nhận

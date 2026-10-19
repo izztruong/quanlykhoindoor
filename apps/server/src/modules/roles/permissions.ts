@@ -98,6 +98,11 @@ export const PERMISSION_RESOURCES = [
   { resource: "POS_SALES", label: "Doanh số POS", group: "Quản trị", actions: ["VIEW", "ADD", "DELETE"] },
   { resource: "POS_ITEM_MAPPING", label: "Ánh xạ món POS", group: "Quản trị", actions: ["VIEW", "EDIT"] },
   { resource: "SHIFT_DEFINITIONS", label: "Khung giờ ca", group: "Quản trị", actions: ["VIEW", "EDIT"] },
+
+  // Trục BÁN RA của tiệm bánh, tương đương POS_SALES của quán — nên cũng không có EDIT: nhập lại
+  // cùng ô (ngày, người mua, bánh) là GHI ĐÈ.
+  { resource: "BAKERY_SALES", label: "Bánh bán ra", group: "Quản trị", actions: ["VIEW", "ADD", "DELETE"] },
+  { resource: "BAKERY_COST_CHECKS", label: "Check Cost tiệm bánh", group: "Kho", actions: ["VIEW", "ADD", "EDIT"] },
 ] as const satisfies readonly { resource: string; label: string; group: string; actions: readonly PermissionAction[] }[];
 
 export type PermissionResource = (typeof PERMISSION_RESOURCES)[number]["resource"];

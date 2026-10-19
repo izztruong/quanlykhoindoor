@@ -42,6 +42,7 @@ export const navSections: NavSection[] = [
     items: [
       { label: "Phiếu nhập kho", href: "/stock/imports", permission: "STOCK_IMPORTS.VIEW" },
       { label: "Phiếu Check Cost", href: "/cost-checks", permission: "COST_CHECKS.VIEW" },
+      { label: "Check Cost tiệm bánh", href: "/bakery-cost-checks", permission: "BAKERY_COST_CHECKS.VIEW" },
       { label: "Phiếu điều chuyển", href: "/material-transfers", permission: "MATERIAL_TRANSFERS.VIEW" },
     ],
   },
@@ -79,6 +80,7 @@ export const navSections: NavSection[] = [
       { label: "Hạn order & kiểm kê", href: "/admin/deadlines", permission: "DEADLINES.VIEW" },
       { label: "Khung giờ ca", href: "/admin/shift-definitions", permission: "SHIFT_DEFINITIONS.VIEW" },
       { label: "Doanh số POS", href: "/admin/pos-sales", permission: "POS_SALES.VIEW" },
+      { label: "Bánh bán ra", href: "/admin/bakery-sales", permission: "BAKERY_SALES.VIEW" },
       { label: "Ánh xạ món POS", href: "/admin/pos-item-mapping", permission: "POS_ITEM_MAPPING.VIEW" },
     ],
   },

@@ -244,6 +244,20 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
   mới mà quên truyền quán là lặng lẽ tính bằng bản chung. `CostCheck.reportSnapshot` chốt cứng nên
   phiếu đã lập không đổi. `findCostChecksUsingEffectiveDate` nay nhận `shopUserId` — mốc riêng chỉ
   cảnh báo phiếu của chính quán đó.
+- **TIỆM BÁNH là một "quán" bật thêm cờ `Role.isBakery`** — nó dùng lại nguyên kho, phiếu nhập, phiếu
+  kiểm, phiếu huỷ, điều chuyển, menu, chấm muộn. Chỉ **trục bán ra** là khác: `BakerySale`
+  (ngày × người mua × bánh, `shopUserId = null` = **bán ngoài**) thay cho `PosSaleHour`. Bánh về quán
+  đi đường **phiếu nhập kho từ NCC "Tiệm bánh"**, nên `costChecks` của quán không phải biết gì về
+  tiệm bánh. Công thức nguyên liệu và giá xuất của bánh là **bản RIÊNG theo quán** trên chính món
+  quán đang bán — không tạo bản ghi bánh mới.
+- **Phiếu Check Cost tiệm bánh LÀ một dòng `CostCheck`**, phân biệt bằng `user.role.isBakery` (không
+  có cột riêng). Nên `GET /api/cost-checks` phải lọc `isBakery: false` và `/api/bakery-cost-checks`
+  lọc `true` — bỏ bộ lọc là hai loại phiếu lẫn vào nhau với hai khối tổng hợp khác nghĩa. Code nằm
+  **trong module `costChecks`** (`bakeryCostChecks.*`) chứ không tách module: tách thì phải chép ~400
+  dòng `computeCostCheckReport` hoặc gọi service module khác.
+- **`computeCostCheckReport` tự chọn nguồn bán ra khi không được truyền `sales`** — phiếu tiệm bánh đi
+  đọc `PosSaleHour` sẽ được tập RỖNG và ra `theoretical = 0` cho mọi nguyên liệu: một báo cáo trông
+  bình thường nhưng sai sạch, **im lặng**. Chốt đó nằm TRONG hàm, đừng dời ra call site.
 - `utils/deadlines` được gọi lúc tạo đơn (`salesOrders`) và lúc tạo/sửa phiếu (`stockChecks`).
 - **Thông báo đẩy** gắn ở route của `salesOrders` (tạo, tick "Đã xử lý" lần đầu, huỷ) và
   `expenseProposals` (tạo, duyệt/từ chối, tạm ứng/tạm ứng thêm, gửi và duyệt bổ sung hạng mục, hoàn thành)
@@ -332,25 +346,29 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
 
 ### Index viết tay (Prisma không khai báo được)
 
-Hai index **UNIQUE một phần** được tạo bằng SQL thô, không có trong `schema.prisma`:
+**Ba** index **UNIQUE một phần** được tạo bằng SQL thô, không có trong `schema.prisma`:
 
 | Index | Bảng | Dùng để |
 |---|---|---|
 | `FinishedGoodPrice_shared_effective_key` | `FinishedGoodPrice` | chặn hai mốc giá **CHUNG** cùng ngày |
 | `FinishedGoodRecipeVersion_shared_effective_key` | `FinishedGoodRecipeVersion` | chặn hai version công thức **CHUNG** cùng ngày |
+| `BakerySale_external_key` | `BakerySale` | chặn hai dòng **BÁN NGOÀI** cùng (ngày, bánh) |
 
-Lý do: hai bảng đó có `shopUserId` **nullable** (NULL = bản chung), mà PostgreSQL coi `NULL` là
-**khác nhau** trong UNIQUE — nên `@@unique([finishedGoodItemId, shopUserId, effectiveFrom])` chỉ chặn
-được các bản RIÊNG. Prisma 7.8 không khai báo được `NULLS NOT DISTINCT` lẫn index một phần.
+Lý do: ba bảng đó có một cột **nullable trong khoá unique** (`shopUserId`: NULL = bản chung, hoặc
+NULL = bán ngoài), mà PostgreSQL coi `NULL` là **khác nhau** trong UNIQUE — nên `@@unique` khai trong
+PSL chỉ chặn được các dòng có giá trị. Prisma 7.8 không khai báo được `NULLS NOT DISTINCT` lẫn index
+một phần.
 
-**Đã đo trên Prisma 7.8: `migrate dev --create-only` KHÔNG đòi xoá hai index này** (nó bỏ qua index mà
+**Đã đo trên Prisma 7.8: `migrate dev --create-only` KHÔNG đòi xoá mấy index này** (nó bỏ qua index mà
 PSL không diễn tả được). Nhưng Prisma cũng không biết chúng tồn tại, nên **mỗi lần sinh migration vẫn
-phải grep `_shared_effective_key` trong file mới** và xoá câu `DROP INDEX` nếu có.
+phải grep `_shared_effective_key` và `_external_key` trong file mới** rồi xoá câu `DROP INDEX` nếu có.
 
-Hệ quả thứ hai, đã cắn một lần: **`upsert`/`findUnique` theo compound unique có cột nullable không
-dùng được** — SQL không khớp được `NULL = NULL` nên nó không bao giờ tìm thấy bản chung cũ và cứ tạo
-dòng mới. Ba đường ghi đã đổi sang `findFirst` + `create`/`update`: `recordPriceChange`,
-`PUT /finished-good-prices/:id`, `PUT /finished-good-recipes/:id`.
+Hệ quả thứ hai, đã cắn **hai** lần (một lần ở code, một lần ở script seed): **`upsert`/`findUnique`
+theo compound unique có cột nullable không dùng được** — Prisma từ chối thẳng với
+*"Argument `shopUserId` must not be null"*, và nếu lách được thì SQL cũng không khớp `NULL = NULL` nên
+cứ tạo dòng mới. Ba đường ghi đã đổi sang `findFirst` + `create`/`update`: `recordPriceChange`,
+`PUT /finished-good-prices/:id`, `PUT /finished-good-recipes/:id`. `BakerySale` thì dùng
+`deleteMany` + `createMany` nên không dính — **đừng đổi nó sang `upsert`**.
 
 ### Prisma client trên Windows
 

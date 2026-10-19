@@ -11,17 +11,10 @@ import {
   posSalesImportSchema,
 } from "./posSales.schemas";
 import { importPosSales, parseDateOnly, saveManualRows } from "./posSales.service";
+import { resolveTargetUserId } from "../../utils/targetUser";
 import { sliceByShift } from "./shiftSlicing";
 
 export const posSalesRouter = Router();
-
-/** Quán bán. Bỏ trống = chính mình; khai quán khác cần DATA.SCOPE_ALL, ngoài phạm vi trả 404. */
-function resolveTargetUserId(req: Request, requested?: string): string {
-  const self = req.user!.id;
-  if (!requested || requested === self) return self;
-  if (req.user!.scope !== "ALL") throw new HttpError(404, "Không tìm thấy quán");
-  return requested;
-}
 
 /**
  * Danh sách theo NGÀY (không phải theo ô giờ): người dùng cần biết "đã có dữ liệu ngày nào chưa", chứ
@@ -74,7 +67,7 @@ posSalesRouter.get("/", requirePermission("POS_SALES", "VIEW"), async (req, res)
  */
 posSalesRouter.get("/day", requirePermission("POS_SALES", "VIEW"), async (req, res) => {
   const { soldOn, userId: requested } = posSalesDeleteDaySchema.parse(req.query);
-  const userId = resolveTargetUserId(req, requested);
+  const userId = resolveTargetUserId(req.user, requested);
 
   const items = await prisma.posSaleHour.findMany({
     where: { userId, soldOn: parseDateOnly(soldOn) },
@@ -91,7 +84,7 @@ posSalesRouter.get("/day", requirePermission("POS_SALES", "VIEW"), async (req, r
  */
 posSalesRouter.get("/by-shift", requirePermission("POS_SALES", "VIEW"), async (req, res) => {
   const { from, to, userId: requested } = posSalesByShiftSchema.parse(req.query);
-  const userId = resolveTargetUserId(req, requested);
+  const userId = resolveTargetUserId(req.user, requested);
 
   const shifts = await prisma.shiftDefinition.findMany({ orderBy: { code: "asc" } });
   if (shifts.length === 0) throw new HttpError(409, "Chưa khai khung giờ ca — vào Quản trị › Khung giờ ca để thiết lập");
@@ -128,7 +121,7 @@ posSalesRouter.get("/by-shift", requirePermission("POS_SALES", "VIEW"), async (r
 
 posSalesRouter.post("/import", requirePermission("POS_SALES", "ADD"), async (req, res) => {
   const input = posSalesImportSchema.parse(req.body);
-  const userId = resolveTargetUserId(req, input.userId);
+  const userId = resolveTargetUserId(req.user, input.userId);
 
   const result = await importPosSales(userId, input.rows);
   // Thiếu ánh xạ KHÔNG phải lỗi 400: người dùng không làm gì sai, họ chỉ cần khai ánh xạ rồi nhập lại.
@@ -138,7 +131,7 @@ posSalesRouter.post("/import", requirePermission("POS_SALES", "ADD"), async (req
 
 posSalesRouter.delete("/day", requirePermission("POS_SALES", "DELETE"), async (req, res) => {
   const { soldOn, userId: requested } = posSalesDeleteDaySchema.parse(req.query);
-  const userId = resolveTargetUserId(req, requested);
+  const userId = resolveTargetUserId(req.user, requested);
 
   const { count } = await prisma.posSaleHour.deleteMany({ where: { userId, soldOn: parseDateOnly(soldOn) } });
   if (count === 0) throw new HttpError(404, "Không có dữ liệu doanh số cho ngày này");
@@ -153,7 +146,7 @@ posSalesRouter.delete("/day", requirePermission("POS_SALES", "DELETE"), async (r
  */
 posSalesRouter.get("/rows", requirePermission("POS_SALES", "VIEW"), async (req, res) => {
   const { from, to, userId: requested } = posSaleRowsQuerySchema.parse(req.query);
-  const userId = resolveTargetUserId(req, requested);
+  const userId = resolveTargetUserId(req.user, requested);
   const { skip, take, page, pageSize } = parsePagination(req, 20);
 
   const where = { userId, soldOn: { gte: parseDateOnly(from), lte: parseDateOnly(to) } };
@@ -180,6 +173,6 @@ posSalesRouter.get("/rows", requirePermission("POS_SALES", "VIEW"), async (req, 
  */
 posSalesRouter.post("/manual", requirePermission("POS_SALES", "ADD"), async (req, res) => {
   const input = manualRowsSchema.parse(req.body);
-  const userId = resolveTargetUserId(req, input.userId);
+  const userId = resolveTargetUserId(req.user, input.userId);
   res.json(await saveManualRows(userId, input.upserts, input.deletes));
 });
