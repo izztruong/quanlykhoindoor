@@ -71,7 +71,9 @@ function CompleteForm({ proposal }: { proposal: ExpenseProposal }) {
   const { total } = totalsOf(rows);
   const budget = Number(proposal.totalAmount);
   const overBudget = total > budget;
-  const remainingPhotos = MAX_PROPOSAL_IMAGES - photos.length;
+  // Ảnh đính lúc tạm ứng đã chiếm chỗ — trần tính chung cho cả phiếu.
+  const existingImageCount = proposal._count?.images ?? 0;
+  const remainingPhotos = MAX_PROPOSAL_IMAGES - existingImageCount - photos.length;
   const busy = complete.isPending || uploading;
 
   function copyEstimated() {
@@ -91,7 +93,7 @@ function CompleteForm({ proposal }: { proposal: ExpenseProposal }) {
     setPreparing(true);
     try {
       const picked = source === "camera" ? await captureReceiptPhoto() : await pickReceiptPhotos(remainingPhotos);
-      setPhotos((prev) => [...prev, ...picked].slice(0, MAX_PROPOSAL_IMAGES));
+      setPhotos((prev) => [...prev, ...picked].slice(0, MAX_PROPOSAL_IMAGES - existingImageCount));
     } catch (err) {
       Alert.alert("Không lấy được ảnh", err instanceof Error ? err.message : "Vui lòng thử lại");
     } finally {
@@ -171,7 +173,7 @@ function CompleteForm({ proposal }: { proposal: ExpenseProposal }) {
       <Card>
         <CardHeader>
           <CardTitle>
-            Chứng từ ({photos.length}/{MAX_PROPOSAL_IMAGES})
+            Chứng từ ({existingImageCount + photos.length}/{MAX_PROPOSAL_IMAGES})
           </CardTitle>
           <Text style={styles.optional}>Không bắt buộc</Text>
         </CardHeader>

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import { prisma } from "../../config/db";
 import type { Prisma } from "../../generated/prisma/client";
-import { assertOwner, ownerWhere, requirePermission } from "../../middleware/auth";
+import { assertOwner, ownerWhere, requireAnyPermission, requirePermission } from "../../middleware/auth";
 import { generateCode } from "../../utils/codeGenerator";
 import { HttpError } from "../../utils/httpError";
 import { deleteImages, isStorageConfigured, putImage, signedImageUrl } from "../../utils/objectStorage";
@@ -177,7 +177,7 @@ expenseProposalsRouter.post("/:id/revision/reject", requirePermission("EXPENSE_P
   res.json(item);
 });
 
-// --- Hoàn thành: hạng mục thực chi + ngày nộp hoá đơn; ảnh chứng từ đính riêng ngay sau đó ---
+// --- Hoàn thành: hạng mục thực chi + ngày nộp hoá đơn; ảnh chứng từ đính riêng ngay sau đó (Tạm ứng cũng vậy) ---
 
 expenseProposalsRouter.post("/:id/complete", requirePermission("EXPENSE_PROPOSALS", "COMPLETE"), async (req, res) => {
   const { items, invoiceDate } = expenseProposalCompleteSchema.parse(req.body);
@@ -214,14 +214,21 @@ expenseProposalsRouter.get("/:id/images", requirePermission("EXPENSE_PROPOSALS")
   res.json(withUrls);
 });
 
-// Chứng từ thuộc bước quyết toán nên chỉ đính được khi phiếu đã Hoàn thành, và cần quyền Hoàn thành.
-expenseProposalsRouter.post("/:id/images", requirePermission("EXPENSE_PROPOSALS", "COMPLETE"), async (req, res) => {
+// Người tạm ứng hoặc người hoàn thành đều đính/xoá được chứng từ (biên lai chuyển khoản lúc ứng, hoá đơn
+// lúc quyết toán) — chung một mục, không gắn theo lần ứng.
+const canManageImages = requireAnyPermission("EXPENSE_PROPOSALS.COMPLETE", "EXPENSE_PROPOSALS.ADVANCE");
+
+// Chỉ khi đã có tiền ra: Đã tạm ứng hoặc Đã hoàn thành. Phiếu kế toán chi (không tạm ứng) vẫn chỉ
+// đính được sau Hoàn thành.
+expenseProposalsRouter.post("/:id/images", canManageImages, async (req, res) => {
   if (!isStorageConfigured()) {
     throw new HttpError(503, "Chưa cấu hình kho ảnh (Cloudflare R2) nên không đính được ảnh");
   }
   const id = req.params.id as string;
   const proposal = await findOwnedProposal(id, req.user);
-  if (proposal.status !== "SPENT") throw new HttpError(409, "Chỉ đính chứng từ cho phiếu đã hoàn thành");
+  if (proposal.status !== "ADVANCED" && proposal.status !== "SPENT") {
+    throw new HttpError(409, "Chỉ đính chứng từ cho phiếu đã tạm ứng hoặc đã hoàn thành");
+  }
   const { images } = expenseProposalImageUploadSchema.parse(req.body);
 
   const existingCount = await prisma.expenseProposalImage.count({ where: { expenseProposalId: id } });
@@ -268,7 +275,7 @@ expenseProposalsRouter.post("/:id/images", requirePermission("EXPENSE_PROPOSALS"
   res.status(201).json({ created: uploaded.length });
 });
 
-expenseProposalsRouter.delete("/:id/images/:imageId", requirePermission("EXPENSE_PROPOSALS", "COMPLETE"), async (req, res) => {
+expenseProposalsRouter.delete("/:id/images/:imageId", canManageImages, async (req, res) => {
   const id = req.params.id as string;
   await findOwnedProposal(id, req.user);
 

@@ -72,7 +72,7 @@ export const stockImportByCodesSchema = z.object({
   codes: z.array(z.string().min(1)).min(1, "Chưa có mã phiếu nào").max(200, "Một lần tra tối đa 200 mã"),
 });
 
-/** Tối đa 5 ảnh chứng từ mỗi phiếu nhập — cùng mức với khoản chi và phiếu đề xuất chi. */
+/** Tối đa 5 ảnh chứng từ mỗi phiếu nhập — cùng mức với khoản chi. */
 export const MAX_IMAGES_PER_IMPORT = 5;
 
 /** Trình duyệt đã nén xuống ~200 KB trước khi gửi, 1,5 MB là trần rộng rãi cho ảnh lọt lưới nén. */

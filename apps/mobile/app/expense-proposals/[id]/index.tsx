@@ -296,11 +296,11 @@ export default function ExpenseProposalDetailScreen() {
           )
         ) : null}
 
-        {status === "SPENT" ? (
+        {status === "ADVANCED" || status === "SPENT" ? (
           <ExpenseProposalImagesCard
             proposalId={proposal.id}
             imageCount={proposal._count?.images ?? 0}
-            canManage={can("EXPENSE_PROPOSALS", "COMPLETE")}
+            canManage={can("EXPENSE_PROPOSALS", "COMPLETE") || can("EXPENSE_PROPOSALS", "ADVANCE")}
           />
         ) : null}
 
@@ -379,6 +379,7 @@ export default function ExpenseProposalDetailScreen() {
           isFirst={canFirstAdvance}
           initialAmount={canFirstAdvance && proposal.advanceAmount != null ? Math.min(Number(proposal.advanceAmount), remaining) : null}
           remaining={remaining}
+          existingImageCount={proposal._count?.images ?? 0}
           onClose={() => setAdvancing(false)}
           onError={(err) => {
             setAdvancing(false);
