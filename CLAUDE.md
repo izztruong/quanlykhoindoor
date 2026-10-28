@@ -313,6 +313,12 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
   từng dòng — **cùng độ mịn**: người gõ tay tự khai giờ thật. `PosSaleHour.source` vì vậy chỉ mang nghĩa
   **xuất xứ** (`EXCEL` = POS xuất ra, `MANUAL` = người gõ), không phải độ tin; nó dùng khi một con số
   trông lạ, để biết nên soát lại file hay soát lại người nhập.
+- **Ô chọn món ở phiếu huỷ KHÔNG lọc theo category** — web và mobile đều hiện cả `TRA`/`DAV`/
+  `THANH_PHAM`. Huỷ một món ĐÃ PHA là chuyện thật: nguyên liệu đã rời kho mà không có doanh thu, nên
+  không khai thì nó nằm im trong `actualUsed` và hiện thành chênh lệch dương không ai giải thích
+  được; khai thì Check Cost quy ngược về nguyên liệu qua công thức (`wastedFg`) và dồn sang cột
+  "Giá trị NVL huỷ". Không đếm hai lần vì món `TRA`/`DAV` không có trong phiếu kiểm kê quán lẫn
+  doanh số POS. (Mobile từng lọc chỉ `THANH_PHAM`, lệch với web — đã gộp về một bên.)
 - **POS chỉ bán món `TRA`/`DAV`.** `THANH_PHAM` là đồ pha sẵn đếm ở phiếu kiểm kê quán, không có doanh thu.
   Chặn ở **server** trong `saveShiftSales`, không chỉ lọc trên giao diện — dữ liệu thật đã có 12 dòng
   `CostCheckSoldItem` ghi nhầm đồ thành phẩm thành món đã bán, vì hai tên chỉ khác nhau chữ hoa

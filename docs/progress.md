@@ -130,6 +130,7 @@ vào `CLAUDE.md`; sửa script để dành cho đợt có build native mới.
 - **Vòng ảnh R2 thật chưa kiểm được**: `dev:copy` cố ý làm rỗng 4 biến `R2_*` để không xoá file thật.
 - **`expo-doctor` báo 3 lỗi sẵn có**: `newArchEnabled` ngoài schema SDK 57, thiếu peer `expo-font` +
   `react-native-worklets`, 7 package lệch bản patch.
+- ~~Lệch web/mobile ở ô chọn món phiếu huỷ~~ — đã gộp: mobile bỏ bộ lọc `THANH_PHAM`, giống web.
 
 ### Danh sách đơn tự cập nhật khi có đơn mới
 Phần chuẩn bị xong (payload giảm 187 KB → 11,3 KB cho 20 đơn). Còn hai quyết định người dùng muốn
