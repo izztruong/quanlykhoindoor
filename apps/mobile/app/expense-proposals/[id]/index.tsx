@@ -12,17 +12,11 @@ import { Modal } from "@/components/ui/Modal";
 import { ErrorState, LoadingState, Screen } from "@/components/ui/Screen";
 import { useDecideExpenseProposal, useDeleteExpenseProposal, useExpenseProposal } from "@/hooks/useExpenseProposals";
 import { ApiError } from "@/lib/apiClient";
-import {
-  EXPENSE_PAYER_LABEL,
-  EXPENSE_PROPOSAL_STATUS_LABEL,
-  EXPENSE_PROPOSAL_STATUS_TONE,
-} from "@/lib/expenseProposal";
+import { EXPENSE_PROPOSAL_STATUS_LABEL, EXPENSE_PROPOSAL_STATUS_TONE } from "@/lib/expenseProposal";
 import { formatCurrency, formatDateOnly, formatDateVN, formatNumber } from "@/lib/format";
 import { useCan } from "@/lib/permissions";
 import { colors, fontSize, radius, spacing } from "@/lib/theme";
-import type { ExpenseProposal, ExpenseProposalItem, ExpenseProposalPendingItem } from "@/types";
-
-type Scope = "proposal" | "revision";
+import type { ExpenseProposal, ExpenseProposalItem } from "@/types";
 
 const sumAdvances = (p: ExpenseProposal) => (p.advances ?? []).reduce((sum, a) => sum + Number(a.amount), 0);
 
@@ -42,6 +36,7 @@ function historyOf(p: ExpenseProposal) {
       at: a.createdAt,
     }),
   );
+  // Bước "duyệt bổ sung hạng mục" đã bỏ — phiếu cũ vẫn giữ dòng lịch sử này.
   if (p.revisionDecidedAt) {
     steps.push({
       key: "revision",
@@ -62,7 +57,7 @@ export default function ExpenseProposalDetailScreen() {
   const { data: proposal, isLoading, isRefetching, refetch } = useExpenseProposal(id);
   const decide = useDecideExpenseProposal(id);
   const deleteProposal = useDeleteExpenseProposal();
-  const [rejectScope, setRejectScope] = useState<Scope | null>(null);
+  const [rejecting, setRejecting] = useState(false);
   const [advancing, setAdvancing] = useState(false);
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState<string | null>(null);
@@ -85,7 +80,7 @@ export default function ExpenseProposalDetailScreen() {
     );
   }
 
-  const { status, payer } = proposal;
+  const { status } = proposal;
   const total = Number(proposal.totalAmount);
   const advanced = sumAdvances(proposal);
   const remaining = Math.max(total - advanced, 0);
@@ -95,10 +90,8 @@ export default function ExpenseProposalDetailScreen() {
   const isApproverHere = Boolean(user?.isSystem || (user && user.id === proposal.approverId));
   const canDecide = can("EXPENSE_PROPOSALS", "APPROVE") && isApproverHere;
   const canApprove = status === "PENDING" && canDecide;
-  const canDecideRevision = status === "REAPPROVAL" && canDecide;
   const canFirstAdvance = status === "APPROVED" && proposal.advanceAmount != null && can("EXPENSE_PROPOSALS", "ADVANCE");
   const canAdvanceMore = status === "ADVANCED" && remaining > 0 && can("EXPENSE_PROPOSALS", "ADVANCE");
-  const canRevise = (status === "APPROVED" || status === "ADVANCED") && can("EXPENSE_PROPOSALS", "EDIT");
   const canComplete =
     ((status === "APPROVED" && proposal.advanceAmount == null) || status === "ADVANCED") && can("EXPENSE_PROPOSALS", "COMPLETE");
   const busy = decide.isPending || deleteProposal.isPending;
@@ -115,30 +108,28 @@ export default function ExpenseProposalDetailScreen() {
     if (err instanceof ApiError && err.status === 409) refetch();
   }
 
-  function confirmApprove(scope: Scope) {
-    const message = scope === "revision" ? "Duyệt bảng hạng mục chi dự kiến bổ sung?" : "Duyệt phiếu đề xuất chi này?";
-    Alert.alert(scope === "revision" ? "Duyệt bổ sung" : "Duyệt phiếu", message, [
+  function confirmApprove() {
+    Alert.alert("Duyệt phiếu", "Duyệt phiếu đề xuất chi này?", [
       { text: "Huỷ", style: "cancel" },
-      { text: "Duyệt", onPress: () => decide.mutate({ scope, outcome: "approve" }, { onError: refetchOnConflict }) },
+      { text: "Duyệt", onPress: () => decide.mutate({ outcome: "approve" }, { onError: refetchOnConflict }) },
     ]);
   }
 
   function submitReject() {
-    if (!rejectScope) return;
     if (!reason.trim()) {
       setReasonError("Vui lòng nhập lý do từ chối.");
       return;
     }
     decide.mutate(
-      { scope: rejectScope, outcome: "reject", reason: reason.trim() },
+      { outcome: "reject", reason: reason.trim() },
       {
         onSuccess: () => {
-          setRejectScope(null);
+          setRejecting(false);
           setReason("");
           setReasonError(null);
         },
         onError: (err) => {
-          setRejectScope(null);
+          setRejecting(false);
           refetchOnConflict(err);
         },
       },
@@ -156,7 +147,7 @@ export default function ExpenseProposalDetailScreen() {
     ]);
   }
 
-  const hasMainActions = canApprove || canDecideRevision || canFirstAdvance || canAdvanceMore || canComplete || canRevise;
+  const hasMainActions = canApprove || canFirstAdvance || canAdvanceMore || canComplete;
 
   return (
     <>
@@ -172,7 +163,6 @@ export default function ExpenseProposalDetailScreen() {
             <InfoRow label="Người lập" value={proposal.createdBy?.name ?? "—"} />
             <InfoRow label="Quán chi" value={proposal.shop?.name ?? "—"} />
             <InfoRow label="Người duyệt" value={proposal.approver?.name ?? "—"} />
-            <InfoRow label="Người chi" value={EXPENSE_PAYER_LABEL[payer]} />
             <View style={styles.purpose}>
               <Text style={styles.infoLabel}>Mục đích sử dụng</Text>
               <Text style={styles.purposeText}>{proposal.purpose}</Text>
@@ -183,27 +173,19 @@ export default function ExpenseProposalDetailScreen() {
         {status === "REJECTED" && proposal.rejectReason ? (
           <Notice tone="danger" title="Lý do từ chối" body={proposal.rejectReason} />
         ) : null}
-        {status !== "REAPPROVAL" && proposal.revisionRejectReason ? (
-          <Notice tone="warning" title="Bảng hạng mục bổ sung bị từ chối" body={proposal.revisionRejectReason} />
-        ) : null}
 
         {hasMainActions ? (
           <View style={styles.actionGroup}>
-            {canApprove || canDecideRevision ? (
+            {canApprove ? (
               <View style={styles.actions}>
                 <Button
-                  title={canDecideRevision ? "Từ chối bổ sung" : "Từ chối"}
+                  title="Từ chối"
                   variant="danger"
                   style={styles.actionButton}
                   disabled={busy}
-                  onPress={() => setRejectScope(canDecideRevision ? "revision" : "proposal")}
+                  onPress={() => setRejecting(true)}
                 />
-                <Button
-                  title={canDecideRevision ? "Duyệt bổ sung" : "Duyệt"}
-                  style={styles.actionButton}
-                  loading={decide.isPending}
-                  onPress={() => confirmApprove(canDecideRevision ? "revision" : "proposal")}
-                />
+                <Button title="Duyệt" style={styles.actionButton} loading={decide.isPending} onPress={confirmApprove} />
               </View>
             ) : null}
             {canFirstAdvance || canAdvanceMore || canComplete ? (
@@ -228,27 +210,7 @@ export default function ExpenseProposalDetailScreen() {
                 ) : null}
               </View>
             ) : null}
-            {canRevise ? (
-              <Button
-                title="Thêm hạng mục chi dự kiến"
-                variant="secondary"
-                fullWidth
-                disabled={busy}
-                icon={<Ionicons name="list-outline" size={16} color={colors.text} />}
-                onPress={() => router.push(`/expense-proposals/${proposal.id}/revision`)}
-              />
-            ) : null}
           </View>
-        ) : null}
-
-        {status === "REAPPROVAL" ? (
-          <ItemsCard
-            title="Hạng mục dự kiến đề nghị bổ sung"
-            subtitle={`Tổng hiện tại ${formatCurrency(total)} → đề nghị ${formatCurrency(proposal.pendingTotal ?? 0)}. Chỉ thay bảng hiện tại khi được duyệt.`}
-            items={proposal.pendingItems ?? []}
-            total={proposal.pendingTotal ?? 0}
-            totalLabel="Tổng đề nghị"
-          />
         ) : null}
 
         <ItemsCard title="Hạng mục chi dự kiến" items={proposal.items ?? []} total={total} totalLabel="Tổng dự kiến" />
@@ -351,9 +313,9 @@ export default function ExpenseProposalDetailScreen() {
       </Screen>
 
       <Modal
-        visible={rejectScope !== null}
-        title={rejectScope === "revision" ? "Từ chối bảng bổ sung" : "Từ chối phiếu"}
-        onClose={() => setRejectScope(null)}
+        visible={rejecting}
+        title="Từ chối phiếu"
+        onClose={() => setRejecting(false)}
         footer={<Button title="Từ chối" variant="danger" fullWidth loading={decide.isPending} onPress={submitReject} />}
       >
         <ScrollView contentContainerStyle={styles.rejectForm} keyboardShouldPersistTaps="handled">
@@ -366,7 +328,6 @@ export default function ExpenseProposalDetailScreen() {
               setReasonError(null);
             }}
             error={reasonError ?? undefined}
-            hint={rejectScope === "revision" ? "Bảng hạng mục hiện tại được giữ nguyên, phiếu quay về trạng thái trước." : undefined}
             multiline
             autoFocus
           />
@@ -400,7 +361,7 @@ function ItemsCard({
 }: {
   title: string;
   subtitle?: string;
-  items: (ExpenseProposalItem | ExpenseProposalPendingItem)[];
+  items: ExpenseProposalItem[];
   total: string | number;
   totalLabel: string;
 }) {

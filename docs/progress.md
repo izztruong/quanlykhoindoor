@@ -46,7 +46,18 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
-### Đính ảnh chứng từ ngay lúc Tạm ứng (đề xuất chi) — ĐÃ lên `main` (web + API), CHƯA bấm thử; mobile CHƯA đẩy OTA
+### Đề xuất chi: bỏ ô "Người chi" + lọc theo Quán chi — ĐÃ lên `main`, CHƯA bấm thử trên trình duyệt
+Mọi phiếu đi luồng người lập chi (bắt buộc số tạm ứng + ngày trả hoá đơn); migration xoá cột `payer`.
+Đã kiểm: typecheck 3 app, lint web, `expo export`; migrate trên DB trắng + `kho_db` + `kho_dev_copy`,
+drift rỗng; 9 ca curl trên `kho_dev_copy` (thiếu tạm ứng/ngày → 400, app cũ gửi `payer` vẫn tạo được,
+lọc `shopId` đúng, Duyệt → Tạm ứng → Hoàn thành). Dữ liệu thử đã dọn.
+
+### Đề xuất chi: bỏ "Thêm hạng mục chi dự kiến", Hoàn thành được chi vượt — ĐÃ lên `main`, CHƯA bấm thử
+Vượt dự kiến chỉ còn cảnh báo vàng. Migration chỉ trả phiếu `REAPPROVAL` về trạng thái trước; cột/enum giữ làm lịch sử.
+Đã kiểm: typecheck 3 app, lint web, `expo export`; migrate DB trắng + `kho_db` + `kho_dev_copy`, drift rỗng;
+curl trên `kho_dev_copy`: hoàn thành 180k trên phiếu dự kiến 100k → SPENT, `POST /revision` → 404. Đã dọn.
+
+### Đính ảnh chứng từ ngay lúc Tạm ứng (đề xuất chi) — ĐÃ lên `main` (web + API), ĐÃ đẩy OTA, CHƯA bấm thử
 Hộp Tạm ứng có ô ảnh; ảnh vào chung mục Chứng từ, mục này hiện từ lúc Đã tạm ứng. Trần 5 → 10 ảnh/phiếu.
 Đã kiểm typecheck 3 app, lint web, `expo export`; curl trên `kho_dev_copy` chỉ qua được tới cổng R2
 (`dev:copy` tắt R2) — **vòng tải ảnh thật chưa thử, thử trên staging trước**.

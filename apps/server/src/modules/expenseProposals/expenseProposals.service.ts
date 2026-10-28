@@ -53,13 +53,12 @@ export function toItemRows(items: ExpenseProposalItemInput[]) {
 type ItemRow = ReturnType<typeof toItemRows>["rows"][number];
 
 /**
- * Chuyển dữ liệu form thành cột để ghi. Kế toán chi thì ép hai cột tạm ứng về null, kể cả khi client
- * có gửi. Số tiền đề nghị tạm ứng không được vượt tổng dự kiến — tổng do server tính nên kiểm ở đây.
+ * Chuyển dữ liệu form thành cột để ghi. Schema đã bắt buộc hai cột tạm ứng; số tiền đề nghị tạm ứng
+ * không được vượt tổng dự kiến — tổng do server tính nên kiểm ở đây.
  */
 export function toProposalData(data: ExpenseProposalInput) {
   const { rows: items, total: totalAmount } = toItemRows(data.items);
-  const isCreator = data.payer === "CREATOR";
-  const advanceAmount = isCreator && data.advanceAmount !== undefined ? fromCents(toCents(data.advanceAmount)) : null;
+  const advanceAmount = data.advanceAmount !== undefined ? fromCents(toCents(data.advanceAmount)) : null;
   if (advanceAmount !== null && toCents(advanceAmount) > toCents(totalAmount)) {
     throw new HttpError(400, "Số tiền đề nghị tạm ứng không được vượt tổng dự kiến");
   }
@@ -67,13 +66,12 @@ export function toProposalData(data: ExpenseProposalInput) {
   return {
     header: {
       proposalDate: data.proposalDate,
-      payer: data.payer,
       shopId: data.shopId,
       approverId: data.approverId,
       purpose: data.purpose,
       totalAmount,
       advanceAmount,
-      invoiceDueDate: isCreator ? (data.invoiceDueDate ?? null) : null,
+      invoiceDueDate: data.invoiceDueDate ?? null,
     },
     items,
   };
@@ -106,7 +104,7 @@ export async function assertParties(data: { shopId: string; approverId: string }
 }
 
 /**
- * Duyệt/từ chối (lần đầu và bổ sung) chỉ dành cho đúng người duyệt của phiếu, hoặc vai trò hệ thống.
+ * Duyệt/từ chối chỉ dành cho đúng người duyệt của phiếu, hoặc vai trò hệ thống.
  * Chặn thêm này nằm SAU requirePermission("APPROVE"): có quyền Duyệt mà không phải người duyệt của
  * phiếu thì vẫn bị từ chối.
  */
@@ -212,78 +210,8 @@ export async function recordAdvance(id: string, user: AuthUser | undefined, amou
 }
 
 /**
- * Gửi bảng hạng mục dự kiến mới đi duyệt bổ sung. Bảng cũ giữ nguyên tới khi được duyệt; tổng mới
- * không được nhỏ hơn số đã tạm ứng.
- */
-export async function submitRevision(id: string, user: AuthUser | undefined, items: ExpenseProposalItemInput[]) {
-  const proposal = await findOwnedProposal(id, user);
-  if (proposal.status !== "APPROVED" && proposal.status !== "ADVANCED") throw new HttpError(409, WRONG_STATUS_MESSAGE);
-  const { rows, total } = toItemRows(items);
-
-  return prisma.$transaction(
-    async (tx) => {
-      await lockTransition(tx, id, proposal.status, {
-        status: "REAPPROVAL",
-        pendingItems: rows,
-        pendingTotal: total,
-        revisionRejectReason: null,
-        revisionDecidedById: null,
-        revisionDecidedAt: null,
-      });
-      const advanced = await advancedCents(tx, id);
-      if (toCents(total) < advanced) {
-        throw new HttpError(
-          400,
-          `Tổng dự kiến mới không được nhỏ hơn số đã tạm ứng (${moneyFormat.format(fromCents(advanced))}đ)`,
-        );
-      }
-      return detail(tx, id);
-    },
-    { timeout: 20000 },
-  );
-}
-
-/**
- * Duyệt hoặc từ chối bảng hạng mục dự kiến đang chờ. Duyệt: thay bảng + tổng. Từ chối: bỏ bảng mới,
- * giữ bảng cũ. Cả hai đều trả phiếu về Đã tạm ứng nếu đã ứng, không thì Đã duyệt.
- */
-export async function decideRevision(
-  id: string,
-  user: AuthUser | undefined,
-  outcome: "APPROVED" | "REJECTED",
-  reason?: string,
-) {
-  const proposal = await findOwnedProposal(id, user);
-  assertCanApprove(proposal, user);
-  if (proposal.status !== "REAPPROVAL") throw new HttpError(409, WRONG_STATUS_MESSAGE);
-
-  return prisma.$transaction(
-    async (tx) => {
-      const hasAdvance = (await tx.expenseProposalAdvance.count({ where: { expenseProposalId: id } })) > 0;
-      const approved = outcome === "APPROVED";
-      await lockTransition(tx, id, "REAPPROVAL", {
-        status: hasAdvance ? "ADVANCED" : "APPROVED",
-        ...(approved ? { totalAmount: proposal.pendingTotal ?? proposal.totalAmount } : {}),
-        pendingItems: Prisma.DbNull,
-        pendingTotal: null,
-        revisionRejectReason: approved ? null : reason,
-        revisionDecidedById: user?.id,
-        revisionDecidedAt: new Date(),
-      });
-      if (approved) {
-        const rows = (proposal.pendingItems ?? []) as ItemRow[];
-        await tx.expenseProposalItem.deleteMany({ where: { expenseProposalId: id } });
-        await tx.expenseProposalItem.createMany({ data: rows.map((row) => ({ ...row, expenseProposalId: id })) });
-      }
-      return detail(tx, id);
-    },
-    { timeout: 20000 },
-  );
-}
-
-/**
  * Hoàn thành: khai hạng mục thực chi + ngày nộp hoá đơn. Đi từ Đã duyệt (phiếu không có tạm ứng) hoặc
- * Đã tạm ứng. Thực chi vượt tổng dự kiến đã duyệt thì chặn — phải gửi duyệt bổ sung trước.
+ * Đã tạm ứng. Thực chi được phép vượt tổng dự kiến đã duyệt — không còn bước duyệt bổ sung hạng mục.
  */
 export async function completeProposal(
   id: string,
@@ -296,9 +224,6 @@ export async function completeProposal(
   if (!fromApproved && proposal.status !== "ADVANCED") throw new HttpError(409, WRONG_STATUS_MESSAGE);
 
   const { rows, total } = toItemRows(items);
-  if (toCents(total) > toCents(proposal.totalAmount)) {
-    throw new HttpError(400, "Chi vượt dự kiến — hãy thêm hạng mục chi dự kiến để người duyệt duyệt trước");
-  }
 
   return prisma.$transaction(
     async (tx) => {

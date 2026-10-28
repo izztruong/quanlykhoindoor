@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/apiClient";
 import type {
-  ExpensePayer,
   ExpenseProposal,
   ExpenseProposalImage,
   ExpenseProposalStatus,
@@ -19,17 +18,16 @@ export interface ExpenseProposalItemInput {
 export interface ExpenseProposalInput {
   /** "YYYY-MM-DD" */
   proposalDate: string;
-  payer: ExpensePayer;
   /** Tài khoản quán (vai trò có cờ "là quán"). */
   shopId: string;
   /** Người duyệt — tài khoản không phải quán. */
   approverId: string;
   purpose: string;
   items: ExpenseProposalItemInput[];
-  /** Số tiền đề nghị tạm ứng lần đầu. Chỉ gửi khi payer = CREATOR — server bỏ qua với kế toán chi. */
-  advanceAmount?: number;
-  /** Ngày trả hoá đơn dự kiến, "YYYY-MM-DD". */
-  invoiceDueDate?: string;
+  /** Số tiền đề nghị tạm ứng lần đầu — bắt buộc với mọi phiếu. */
+  advanceAmount: number;
+  /** Ngày trả hoá đơn dự kiến, "YYYY-MM-DD" — bắt buộc. */
+  invoiceDueDate: string;
 }
 
 export interface ExpenseProposalFilter {
@@ -37,6 +35,8 @@ export interface ExpenseProposalFilter {
   to?: string;
   status?: ExpenseProposalStatus;
   createdById?: string;
+  /** Quán chi (`ExpenseProposal.shopId`). */
+  shopId?: string;
   page?: number;
   pageSize?: number;
 }
@@ -98,22 +98,12 @@ export function useDeleteExpenseProposal() {
   });
 }
 
-/** Duyệt / từ chối — lần đầu (`scope: "proposal"`) hoặc bảng hạng mục bổ sung (`scope: "revision"`). */
+/** Duyệt / từ chối phiếu đang Chờ duyệt. */
 export function useDecideExpenseProposal(id: string) {
   const invalidate = useInvalidateProposals();
   return useMutation({
-    mutationFn: ({
-      scope,
-      outcome,
-      reason,
-    }: {
-      scope: "proposal" | "revision";
-      outcome: "approve" | "reject";
-      reason?: string;
-    }) => {
-      const base = scope === "revision" ? `/expense-proposals/${id}/revision` : `/expense-proposals/${id}`;
-      return api.post<ExpenseProposal>(`${base}/${outcome}`, outcome === "reject" ? { reason } : undefined);
-    },
+    mutationFn: ({ outcome, reason }: { outcome: "approve" | "reject"; reason?: string }) =>
+      api.post<ExpenseProposal>(`/expense-proposals/${id}/${outcome}`, outcome === "reject" ? { reason } : undefined),
     onSuccess: invalidate,
   });
 }
@@ -123,16 +113,6 @@ export function useAdvanceExpenseProposal(id: string) {
   const invalidate = useInvalidateProposals();
   return useMutation({
     mutationFn: (data: { amount: number; note?: string }) => api.post<ExpenseProposal>(`/expense-proposals/${id}/advance`, data),
-    onSuccess: invalidate,
-  });
-}
-
-/** Gửi bảng hạng mục dự kiến mới đi duyệt bổ sung. */
-export function useReviseExpenseProposal(id: string) {
-  const invalidate = useInvalidateProposals();
-  return useMutation({
-    mutationFn: (items: ExpenseProposalItemInput[]) =>
-      api.post<ExpenseProposal>(`/expense-proposals/${id}/revision`, { items }),
     onSuccess: invalidate,
   });
 }

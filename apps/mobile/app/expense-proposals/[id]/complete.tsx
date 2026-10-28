@@ -52,7 +52,7 @@ export default function ExpenseProposalCompleteScreen() {
 
 /**
  * Khai hạng mục thực chi (sao chép từ dự kiến rồi sửa được), ngày nộp hoá đơn và ảnh chứng từ không bắt
- * buộc. Thực chi vượt tổng dự kiến đã duyệt thì khoá nút — phải duyệt bổ sung trước. Cùng luật với web.
+ * buộc. Thực chi được vượt tổng dự kiến — chỉ cảnh báo, không chặn. Cùng luật với web.
  */
 function CompleteForm({ proposal }: { proposal: ExpenseProposal }) {
   const router = useRouter();
@@ -106,7 +106,6 @@ function CompleteForm({ proposal }: { proposal: ExpenseProposal }) {
     const checked = validateRows(rows);
     if ("error" in checked) return setError(checked.error);
     if (!invoiceDate) return setError("Vui lòng chọn ngày nộp hoá đơn.");
-    if (overBudget) return setError("Chi vượt dự kiến — hãy thêm hạng mục chi dự kiến để người duyệt duyệt trước.");
 
     try {
       await complete.mutateAsync({ items: checked.items, invoiceDate });
@@ -152,9 +151,7 @@ function CompleteForm({ proposal }: { proposal: ExpenseProposal }) {
         </View>
         <Text style={[styles.budget, overBudget && styles.overText]}>Tổng dự kiến đã duyệt: {formatCurrency(budget)}</Text>
         {overBudget ? (
-          <Text style={styles.overHint}>
-            Vượt dự kiến {formatCurrency(total - budget)} — hãy dùng &quot;Thêm hạng mục chi dự kiến&quot; để duyệt bổ sung trước.
-          </Text>
+          <Text style={styles.overHint}>Vượt dự kiến {formatCurrency(total - budget)}.</Text>
         ) : null}
       </View>
 
@@ -228,7 +225,7 @@ function CompleteForm({ proposal }: { proposal: ExpenseProposal }) {
         title={uploading ? "Đang tải ảnh..." : "Hoàn thành"}
         fullWidth
         loading={complete.isPending}
-        disabled={busy || preparing || overBudget}
+        disabled={busy || preparing}
         onPress={submit}
       />
     </Screen>
@@ -246,13 +243,13 @@ const styles = StyleSheet.create({
   },
   fields: { gap: spacing.md, paddingTop: spacing.md },
   totalCard: { gap: 4, padding: spacing.lg, borderRadius: radius.lg, backgroundColor: colors.primarySoft },
-  totalCardOver: { backgroundColor: colors.dangerSoft },
+  totalCardOver: { backgroundColor: colors.warningSoft },
   totalRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   totalLabel: { fontSize: fontSize.md, color: colors.info, fontWeight: "600" },
   totalValue: { fontSize: fontSize.xl, color: colors.info, fontWeight: "700" },
   budget: { fontSize: fontSize.sm, color: colors.info },
-  overText: { color: colors.danger },
-  overHint: { fontSize: fontSize.sm, color: colors.danger, fontWeight: "600" },
+  overText: { color: colors.warning },
+  overHint: { fontSize: fontSize.sm, color: colors.warning, fontWeight: "600" },
   optional: { fontSize: fontSize.sm, color: colors.textFaint },
   pair: { flexDirection: "row", gap: spacing.md },
   half: { flex: 1 },

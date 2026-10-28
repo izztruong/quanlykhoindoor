@@ -24,7 +24,7 @@ const isRowEmpty = (row: ItemRow) => [row.content, row.unitPrice, row.unit, row.
 
 /**
  * Hoàn thành phiếu: khai hạng mục thực chi (có thể sao chép từ dự kiến rồi sửa), ngày nộp hoá đơn,
- * và ảnh chứng từ không bắt buộc. Thực chi vượt tổng dự kiến thì khoá nút — phải duyệt bổ sung trước.
+ * và ảnh chứng từ không bắt buộc. Thực chi được vượt tổng dự kiến — chỉ cảnh báo, không chặn.
  */
 export function ExpenseCompleteModal({ proposal, onClose, onImageError }: ExpenseCompleteModalProps) {
   const complete = useCompleteExpenseProposal(proposal.id);
@@ -79,7 +79,6 @@ export function ExpenseCompleteModal({ proposal, onClose, onImageError }: Expens
     const checked = validateRows(rows);
     if ("error" in checked) return setError(checked.error);
     if (!invoiceDate) return setError("Vui lòng chọn ngày nộp hoá đơn.");
-    if (overBudget) return setError("Chi vượt dự kiến — hãy thêm hạng mục chi dự kiến để người duyệt duyệt trước.");
 
     try {
       await complete.mutateAsync({ items: checked.items, invoiceDate });
@@ -117,14 +116,12 @@ export function ExpenseCompleteModal({ proposal, onClose, onImageError }: Expens
         <ExpenseItemsEditor rows={rows} onChange={setRows} />
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <div className={`flex flex-col gap-1 rounded-lg px-3 py-2 ${overBudget ? "bg-red-50" : "bg-slate-50"}`}>
+          <div className={`flex flex-col gap-1 rounded-lg px-3 py-2 ${overBudget ? "bg-amber-50" : "bg-slate-50"}`}>
             <span className="text-sm text-slate-500">Tổng tiền đã chi</span>
-            <span className={`text-lg font-semibold ${overBudget ? "text-red-700" : "text-slate-800"}`}>{formatCurrency(total)}</span>
+            <span className={`text-lg font-semibold ${overBudget ? "text-amber-800" : "text-slate-800"}`}>{formatCurrency(total)}</span>
             <span className="text-xs text-slate-500">Tổng dự kiến đã duyệt: {formatCurrency(budget)}</span>
             {overBudget && (
-              <span className="text-xs font-medium text-red-700">
-                Vượt dự kiến {formatCurrency(total - budget)} — hãy dùng &quot;Thêm hạng mục chi dự kiến&quot; để duyệt bổ sung trước.
-              </span>
+              <span className="text-xs font-medium text-amber-800">Vượt dự kiến {formatCurrency(total - budget)}.</span>
             )}
           </div>
           <div className="flex flex-col gap-1">
@@ -171,7 +168,7 @@ export function ExpenseCompleteModal({ proposal, onClose, onImageError }: Expens
           <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>
             Huỷ
           </Button>
-          <Button type="button" onClick={handleSubmit} disabled={busy || overBudget}>
+          <Button type="button" onClick={handleSubmit} disabled={busy}>
             {complete.isPending ? "Đang lưu..." : uploading ? "Đang tải ảnh..." : "Hoàn thành"}
           </Button>
         </div>

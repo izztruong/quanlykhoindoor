@@ -56,14 +56,14 @@ export const NOTIFICATION_CATALOG: Record<NotificationType, CatalogEntry> = {
   EXPENSE_PROPOSAL_CREATED: {
     group: "Đề xuất chi",
     label: "Phiếu cần bạn duyệt",
-    description: "Khi có phiếu đề xuất chi chọn bạn làm người duyệt, hoặc gửi bảng hạng mục dự kiến mới cần duyệt bổ sung",
+    description: "Khi có phiếu đề xuất chi chọn bạn làm người duyệt",
     // Người xác nhận bắt buộc là tài khoản không phải quán (assertParties trong expenseProposals.service.ts).
     appliesTo: ({ isShop }) => !isShop,
   },
   EXPENSE_PROPOSAL_DECIDED: {
     group: "Đề xuất chi",
     label: "Phiếu được duyệt hoặc bị từ chối",
-    description: "Khi phiếu bạn lập (hoặc bảng hạng mục dự kiến bạn gửi bổ sung) được duyệt hoặc bị từ chối",
+    description: "Khi phiếu bạn lập được duyệt hoặc bị từ chối",
     appliesTo: ({ user }) => can(user, "EXPENSE_PROPOSALS", "ADD"),
   },
   EXPENSE_PROPOSAL_PAID: {
@@ -225,10 +225,8 @@ interface ProposalRef {
   approverId: string | null;
   purpose: string;
   totalAmount: unknown;
-  pendingTotal?: unknown;
   spentAmount?: unknown;
   rejectReason?: string | null;
-  revisionRejectReason?: string | null;
 }
 
 const proposalHref = (proposal: ProposalRef) => `/expense-proposals/${proposal.id}`;
@@ -267,33 +265,6 @@ export const expenseProposalNotifications = {
       actorId: actor.id,
       title: "Phiếu đề xuất chi được tạm ứng",
       body: `Phiếu ${proposal.code} được tạm ứng ${moneyFormat.format(amount)}đ.`,
-      href: proposalHref(proposal),
-    });
-  },
-
-  /** Bảng hạng mục dự kiến mới chờ duyệt bổ sung — cùng loại với "phiếu cần bạn duyệt". */
-  revisionSubmitted(proposal: ProposalRef, actor: AuthUser) {
-    notifyInBackground({
-      type: "EXPENSE_PROPOSAL_CREATED",
-      recipientIds: [proposal.approverId],
-      actorId: actor.id,
-      title: "Phiếu đề xuất chi cần duyệt bổ sung",
-      body: `${actor.name} đề nghị tổng dự kiến mới ${moneyFormat.format(Number(proposal.pendingTotal ?? proposal.totalAmount))}đ cho phiếu ${proposal.code}.`,
-      href: proposalHref(proposal),
-    });
-  },
-
-  revisionDecided(proposal: ProposalRef, actor: AuthUser, outcome: "APPROVED" | "REJECTED") {
-    notifyInBackground({
-      type: "EXPENSE_PROPOSAL_DECIDED",
-      recipientIds: [proposal.createdById],
-      actorId: actor.id,
-      title:
-        outcome === "APPROVED" ? "Hạng mục chi dự kiến bổ sung đã được duyệt" : "Hạng mục chi dự kiến bổ sung bị từ chối",
-      body:
-        outcome === "APPROVED"
-          ? `Phiếu ${proposal.code}: tổng dự kiến mới ${moneyFormat.format(Number(proposal.totalAmount))}đ đã được duyệt.`
-          : `Phiếu ${proposal.code}: bảng bổ sung bị từ chối — ${truncate(proposal.revisionRejectReason ?? "không ghi lý do")}`,
       href: proposalHref(proposal),
     });
   },

@@ -6,15 +6,11 @@ import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Modal } from "@/components/ui/Modal";
 import { useDecideExpenseProposal, useDeleteExpenseProposal, useExpenseProposal } from "@/hooks/useExpenseProposals";
 import { ApiError } from "@/lib/api-client";
-import {
-  EXPENSE_PAYER_LABEL,
-  EXPENSE_PROPOSAL_STATUS_LABEL,
-  EXPENSE_PROPOSAL_STATUS_TONE,
-} from "@/lib/expenseProposal";
+import { EXPENSE_PROPOSAL_STATUS_LABEL, EXPENSE_PROPOSAL_STATUS_TONE } from "@/lib/expenseProposal";
 import { formatCurrency, formatDateOnly, formatDateTime } from "@/lib/format";
 import { useCan } from "@/lib/permissions";
 import type { ExpenseProposal } from "@/types";
-import { Check, CheckCheck, ListPlus, Pencil, Trash2, Wallet, X } from "lucide-react";
+import { Check, CheckCheck, Pencil, Trash2, Wallet, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
@@ -23,16 +19,10 @@ import { ExpenseAdvanceModal } from "./ExpenseAdvanceModal";
 import { ExpenseCompleteModal } from "./ExpenseCompleteModal";
 import { ExpenseItemsTable } from "./ExpenseItemsTable";
 import { ExpenseProposalImagesCard } from "./ExpenseProposalImagesCard";
-import { ExpenseRevisionModal } from "./ExpenseRevisionModal";
 
 const cell = "border border-slate-200 px-3 py-2";
 
-type Dialog =
-  | { kind: "reject"; scope: "proposal" | "revision" }
-  | { kind: "advance" }
-  | { kind: "revision" }
-  | { kind: "complete" }
-  | null;
+type Dialog = { kind: "reject" } | { kind: "advance" } | { kind: "complete" } | null;
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -61,6 +51,7 @@ function historyOf(p: ExpenseProposal) {
       at: a.createdAt,
     }),
   );
+  // Bước "duyệt bổ sung hạng mục" đã bỏ — phiếu cũ vẫn giữ dòng lịch sử này.
   if (p.revisionDecidedAt) {
     steps.push({
       key: "revision",
@@ -92,7 +83,7 @@ export function ExpenseProposalDetailClient({ id }: { id: string }) {
     );
   }
 
-  const { status, payer } = proposal;
+  const { status } = proposal;
   const total = Number(proposal.totalAmount);
   const advanced = sumAdvances(proposal);
   const remaining = Math.max(total - advanced, 0);
@@ -102,27 +93,24 @@ export function ExpenseProposalDetailClient({ id }: { id: string }) {
   const isApproverHere = Boolean(user?.isSystem || (user && user.id === proposal.approverId));
   const canDecide = can("EXPENSE_PROPOSALS", "APPROVE") && isApproverHere;
   const canApprove = status === "PENDING" && canDecide;
-  const canDecideRevision = status === "REAPPROVAL" && canDecide;
   const canFirstAdvance = status === "APPROVED" && proposal.advanceAmount != null && can("EXPENSE_PROPOSALS", "ADVANCE");
   const canAdvanceMore = status === "ADVANCED" && remaining > 0 && can("EXPENSE_PROPOSALS", "ADVANCE");
-  const canRevise = (status === "APPROVED" || status === "ADVANCED") && can("EXPENSE_PROPOSALS", "EDIT");
   const canComplete =
     ((status === "APPROVED" && proposal.advanceAmount == null) || status === "ADVANCED") && can("EXPENSE_PROPOSALS", "COMPLETE");
   const busy = decide.isPending || deleteProposal.isPending;
   const onError = (fallback: string) => (err: unknown) => setError(err instanceof ApiError ? err.message : fallback);
 
-  function handleApprove(scope: "proposal" | "revision") {
-    const question = scope === "revision" ? "Duyệt bảng hạng mục chi dự kiến bổ sung?" : "Duyệt phiếu đề xuất chi này?";
-    if (!confirm(question)) return;
+  function handleApprove() {
+    if (!confirm("Duyệt phiếu đề xuất chi này?")) return;
     setError(null);
-    decide.mutate({ scope, outcome: "approve" }, { onError: onError("Duyệt thất bại") });
+    decide.mutate({ outcome: "approve" }, { onError: onError("Duyệt thất bại") });
   }
 
-  function handleReject(scope: "proposal" | "revision") {
+  function handleReject() {
     if (!reason.trim()) return setError("Vui lòng nhập lý do từ chối.");
     setError(null);
     decide.mutate(
-      { scope, outcome: "reject", reason: reason.trim() },
+      { outcome: "reject", reason: reason.trim() },
       {
         onSuccess: () => {
           setDialog(null);
@@ -139,7 +127,6 @@ export function ExpenseProposalDetailClient({ id }: { id: string }) {
     deleteProposal.mutate(id, { onSuccess: () => router.push("/expense-proposals"), onError: onError("Xoá phiếu thất bại") });
   }
 
-  const pendingItems = proposal.pendingItems ?? [];
   const spent = proposal.spentAmount != null ? Number(proposal.spentAmount) : null;
   // Chênh lệch chỉ có nghĩa khi đã tạm ứng: dương = người lập phải hoàn lại, âm = công ty chi bù.
   const settlement = spent !== null && advanced > 0 ? advanced - spent : null;
@@ -173,29 +160,17 @@ export function ExpenseProposalDetailClient({ id }: { id: string }) {
               Xoá
             </Button>
           )}
-          {(canApprove || canDecideRevision) && (
+          {canApprove && (
             <>
-              <Button
-                type="button"
-                variant="danger"
-                size="sm"
-                onClick={() => setDialog({ kind: "reject", scope: canDecideRevision ? "revision" : "proposal" })}
-                disabled={busy}
-              >
+              <Button type="button" variant="danger" size="sm" onClick={() => setDialog({ kind: "reject" })} disabled={busy}>
                 <X size={14} />
-                {canDecideRevision ? "Từ chối bổ sung" : "Từ chối"}
+                Từ chối
               </Button>
-              <Button type="button" size="sm" onClick={() => handleApprove(canDecideRevision ? "revision" : "proposal")} disabled={busy}>
+              <Button type="button" size="sm" onClick={handleApprove} disabled={busy}>
                 <Check size={14} />
-                {canDecideRevision ? "Duyệt bổ sung" : "Duyệt"}
+                Duyệt
               </Button>
             </>
-          )}
-          {canRevise && (
-            <Button type="button" variant="secondary" size="sm" onClick={() => setDialog({ kind: "revision" })} disabled={busy}>
-              <ListPlus size={14} />
-              Thêm hạng mục chi dự kiến
-            </Button>
           )}
           {(canFirstAdvance || canAdvanceMore) && (
             <Button type="button" size="sm" onClick={() => setDialog({ kind: "advance" })} disabled={busy}>
@@ -219,11 +194,6 @@ export function ExpenseProposalDetailClient({ id }: { id: string }) {
           <span className="font-medium">Lý do từ chối:</span> {proposal.rejectReason}
         </div>
       )}
-      {status !== "REAPPROVAL" && proposal.revisionRejectReason && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          <span className="font-medium">Bảng hạng mục bổ sung bị từ chối:</span> {proposal.revisionRejectReason}
-        </div>
-      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">
         <div className="flex min-w-0 flex-col gap-4">
@@ -234,7 +204,6 @@ export function ExpenseProposalDetailClient({ id }: { id: string }) {
             <CardBody className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <Field label="Ngày tạo phiếu">{formatDateOnly(proposal.proposalDate)}</Field>
               <Field label="Người lập phiếu">{proposal.createdBy?.name ?? "-"}</Field>
-              <Field label="Người chi">{EXPENSE_PAYER_LABEL[payer]}</Field>
               <Field label="Quán chi">{proposal.shop?.name ?? "-"}</Field>
               <Field label="Người duyệt">{proposal.approver?.name ?? "-"}</Field>
               <div className="md:col-span-2">
@@ -245,21 +214,6 @@ export function ExpenseProposalDetailClient({ id }: { id: string }) {
             </CardBody>
           </Card>
 
-          {status === "REAPPROVAL" && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Hạng mục chi dự kiến đề nghị bổ sung — chờ duyệt</CardTitle>
-              </CardHeader>
-              <CardBody className="flex flex-col gap-2">
-                <p className="text-sm text-slate-500">
-                  Tổng hiện tại {formatCurrency(total)} → tổng đề nghị{" "}
-                  <span className="font-semibold text-slate-800">{formatCurrency(proposal.pendingTotal ?? 0)}</span>. Bảng dưới đây
-                  chỉ thay bảng hiện tại khi được duyệt.
-                </p>
-                <ExpenseItemsTable items={pendingItems} total={proposal.pendingTotal ?? 0} totalLabel="Tổng dự kiến đề nghị" />
-              </CardBody>
-            </Card>
-          )}
 
           <Card>
             <CardHeader>
@@ -399,7 +353,7 @@ export function ExpenseProposalDetailClient({ id }: { id: string }) {
 
       {dialog?.kind === "reject" && (
         <Modal
-          title={dialog.scope === "revision" ? `Từ chối bảng bổ sung — phiếu ${proposal.code}` : `Từ chối phiếu ${proposal.code}`}
+          title={`Từ chối phiếu ${proposal.code}`}
           onClose={() => setDialog(null)}
         >
           <div className="flex flex-col gap-3">
@@ -411,14 +365,11 @@ export function ExpenseProposalDetailClient({ id }: { id: string }) {
               onChange={(e) => setReason(e.target.value)}
               className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
             />
-            {dialog.scope === "revision" && (
-              <p className="text-xs text-slate-500">Bảng hạng mục hiện tại được giữ nguyên, phiếu quay về trạng thái trước.</p>
-            )}
             <div className="flex justify-end gap-2">
               <Button type="button" variant="secondary" onClick={() => setDialog(null)}>
                 Huỷ
               </Button>
-              <Button type="button" variant="danger" onClick={() => handleReject(dialog.scope)} disabled={decide.isPending || !reason.trim()}>
+              <Button type="button" variant="danger" onClick={handleReject} disabled={decide.isPending || !reason.trim()}>
                 {decide.isPending ? "Đang lưu..." : "Từ chối"}
               </Button>
             </div>
@@ -437,10 +388,6 @@ export function ExpenseProposalDetailClient({ id }: { id: string }) {
           onClose={() => setDialog(null)}
           onImageError={setError}
         />
-      )}
-
-      {dialog?.kind === "revision" && (
-        <ExpenseRevisionModal proposal={proposal} advanced={advanced} onClose={() => setDialog(null)} />
       )}
 
       {dialog?.kind === "complete" && (

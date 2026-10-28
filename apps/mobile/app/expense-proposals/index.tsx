@@ -15,31 +15,33 @@ import { useFilterSheet } from "@/hooks/useFilterSheet";
 import { LIST_PAGE_SIZE } from "@/hooks/useInfiniteList";
 import { useUserOptions } from "@/hooks/useUsers";
 import { api } from "@/lib/apiClient";
-import {
-  EXPENSE_PAYER_LABEL,
-  EXPENSE_PROPOSAL_STATUS_LABEL,
-  EXPENSE_PROPOSAL_STATUS_TONE,
-} from "@/lib/expenseProposal";
+import { EXPENSE_PROPOSAL_STATUS_LABEL, EXPENSE_PROPOSAL_STATUS_TONE } from "@/lib/expenseProposal";
 import { formatCurrency, formatDateOnly } from "@/lib/format";
 import { useCan } from "@/lib/permissions";
 import { colors, fontSize, radius, spacing } from "@/lib/theme";
 
-const STATUS_OPTIONS = Object.entries(EXPENSE_PROPOSAL_STATUS_LABEL).map(([value, label]) => ({ value, label }));
+// REAPPROVAL không còn phiếu nào mang (bước duyệt bổ sung đã bỏ) nên không đưa vào bộ lọc.
+const STATUS_OPTIONS = Object.entries(EXPENSE_PROPOSAL_STATUS_LABEL)
+  .filter(([value]) => value !== "REAPPROVAL")
+  .map(([value, label]) => ({ value, label }));
 
 export default function ExpenseProposalsScreen() {
   const router = useRouter();
   const { can, scopeAll } = useCan();
-  const filter = useFilterSheet(() => ({ range: currentMonthRange(), status: "", createdById: "" }));
+  const filter = useFilterSheet(() => ({ range: currentMonthRange(), status: "", createdById: "", shopId: "" }));
   const { applied, draft } = filter;
 
   // Lọc "Người lập" thấy mọi tài khoản, không chỉ quán — giống bên web.
   const { data: users = [] } = useUserOptions({ enabled: scopeAll, scope: "all" });
+  // Quán chi: chỉ tài khoản "là quán" (scope mặc định của /users/options).
+  const { data: shops = [] } = useUserOptions({ enabled: scopeAll });
 
   const params = {
     from: applied.range.from,
     to: applied.range.to,
     status: applied.status || undefined,
     createdById: applied.createdById || undefined,
+    shopId: applied.shopId || undefined,
   };
 
   // Không dùng useInfiniteList được: endpoint này trả thêm paidOutTotal (tổng của CẢ bộ lọc, không
@@ -62,6 +64,8 @@ export default function ExpenseProposalsScreen() {
   if (statusLabel) summary.push(statusLabel);
   const creatorName = users.find((u) => u.id === applied.createdById)?.name;
   if (creatorName) summary.push(creatorName);
+  const shopName = shops.find((s) => s.id === applied.shopId)?.name;
+  if (shopName) summary.push(shopName);
 
   const header = (
     <View style={styles.header}>
@@ -116,7 +120,6 @@ export default function ExpenseProposalsScreen() {
                 { label: "Người lập", value: item.createdBy?.name ?? "—" },
                 { label: "Quán chi", value: item.shop?.name ?? "—" },
                 { label: "Người duyệt", value: item.approver?.name ?? "—" },
-                { label: "Người chi", value: EXPENSE_PAYER_LABEL[item.payer] },
                 { label: "Tổng tiền", value: formatCurrency(item.totalAmount) },
               ]}
             />
@@ -141,6 +144,15 @@ export default function ExpenseProposalsScreen() {
             onChange={(createdById) => filter.patchDraft({ createdById })}
             emptyLabel="Tất cả người lập"
             options={users.map((u) => ({ value: u.id, label: u.name, sublabel: u.email }))}
+          />
+        ) : null}
+        {scopeAll ? (
+          <Select
+            label="Quán chi"
+            value={draft.shopId}
+            onChange={(shopId) => filter.patchDraft({ shopId })}
+            emptyLabel="Tất cả quán"
+            options={shops.map((s) => ({ value: s.id, label: s.name, sublabel: s.email }))}
           />
         ) : null}
       </FilterSheet>

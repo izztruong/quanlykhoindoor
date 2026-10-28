@@ -15,31 +15,28 @@ import {
   expenseProposalCompleteSchema,
   expenseProposalImageUploadSchema,
   expenseProposalRejectSchema,
-  expenseProposalRevisionSchema,
   expenseProposalSchema,
 } from "./expenseProposals.schemas";
 import {
   assertParties,
   completeProposal,
   decideProposal,
-  decideRevision,
   expenseProposalDetailInclude,
   expenseProposalListInclude,
   findOwnedProposal,
   NOT_FOUND_MESSAGE,
   recordAdvance,
-  submitRevision,
   sumPaidOut,
   toProposalData,
 } from "./expenseProposals.service";
 
 export const expenseProposalsRouter = Router();
 
-const STATUSES = ["PENDING", "APPROVED", "REJECTED", "ADVANCED", "REAPPROVAL", "SPENT"] as const;
+const STATUSES = ["PENDING", "APPROVED", "REJECTED", "ADVANCED", "SPENT"] as const;
 
 expenseProposalsRouter.get("/", requirePermission("EXPENSE_PROPOSALS"), async (req, res) => {
   const { from, to } = parseDateRange(req);
-  const { status, createdById } = req.query as Record<string, string>;
+  const { status, createdById, shopId } = req.query as Record<string, string>;
   const { skip, take, page, pageSize } = parsePagination(req, 20);
 
   const where: Prisma.ExpenseProposalWhereInput = {
@@ -48,6 +45,8 @@ expenseProposalsRouter.get("/", requirePermission("EXPENSE_PROPOSALS"), async (r
     status: STATUSES.find((s) => s === status),
     // Phạm vi SELF chỉ thấy phiếu của mình; ALL thấy hết, lọc theo quán qua ?createdById=.
     createdById: ownerWhere(req.user, createdById),
+    // Lọc theo quán chi. Chỉ THU HẸP thêm: phạm vi SELF vẫn bị ép theo người lập ở dòng trên.
+    shopId: shopId || undefined,
   };
 
   const [items, total, paidOutTotal] = await Promise.all([
@@ -154,30 +153,7 @@ expenseProposalsRouter.post("/:id/advance", requirePermission("EXPENSE_PROPOSALS
   res.json(item);
 });
 
-// --- Duyệt bổ sung bảng hạng mục dự kiến ---
-
-// Gửi bảng mới = sửa phiếu, nên cần EDIT (vai trò Quán có sẵn); findOwnedProposal chặn phiếu ngoài phạm vi.
-expenseProposalsRouter.post("/:id/revision", requirePermission("EXPENSE_PROPOSALS", "EDIT"), async (req, res) => {
-  const { items } = expenseProposalRevisionSchema.parse(req.body);
-  const item = await submitRevision(req.params.id as string, req.user, items);
-  if (req.user) expenseProposalNotifications.revisionSubmitted(item, req.user);
-  res.json(item);
-});
-
-expenseProposalsRouter.post("/:id/revision/approve", requirePermission("EXPENSE_PROPOSALS", "APPROVE"), async (req, res) => {
-  const item = await decideRevision(req.params.id as string, req.user, "APPROVED");
-  if (req.user) expenseProposalNotifications.revisionDecided(item, req.user, "APPROVED");
-  res.json(item);
-});
-
-expenseProposalsRouter.post("/:id/revision/reject", requirePermission("EXPENSE_PROPOSALS", "APPROVE"), async (req, res) => {
-  const { reason } = expenseProposalRejectSchema.parse(req.body);
-  const item = await decideRevision(req.params.id as string, req.user, "REJECTED", reason);
-  if (req.user) expenseProposalNotifications.revisionDecided(item, req.user, "REJECTED");
-  res.json(item);
-});
-
-// --- Hoàn thành: hạng mục thực chi + ngày nộp hoá đơn; ảnh chứng từ đính riêng ngay sau đó (Tạm ứng cũng vậy) ---
+// --- Hoàn thành: hạng mục thực chi (được vượt tổng dự kiến) + ngày nộp hoá đơn; ảnh chứng từ đính riêng ngay sau đó (Tạm ứng cũng vậy) ---
 
 expenseProposalsRouter.post("/:id/complete", requirePermission("EXPENSE_PROPOSALS", "COMPLETE"), async (req, res) => {
   const { items, invoiceDate } = expenseProposalCompleteSchema.parse(req.body);

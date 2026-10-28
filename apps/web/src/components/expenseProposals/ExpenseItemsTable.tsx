@@ -9,7 +9,7 @@ interface ExpenseItemsTableProps {
   totalLabel: string;
 }
 
-/** Bảng hạng mục chỉ đọc — dùng cho hạng mục dự kiến, bảng chờ duyệt bổ sung và hạng mục thực chi. */
+/** Bảng hạng mục chỉ đọc — dùng cho hạng mục dự kiến và hạng mục thực chi. */
 export function ExpenseItemsTable({ items, total, totalLabel }: ExpenseItemsTableProps) {
   return (
     <div className="overflow-x-auto">
