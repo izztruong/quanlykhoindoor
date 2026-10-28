@@ -10,11 +10,7 @@ import { Select } from "@/components/ui/Select";
 import { useExpenseProposals } from "@/hooks/useExpenseProposals";
 import { useUserOptions } from "@/hooks/useUsers";
 import { clampDateRange } from "@/lib/dateRange";
-import {
-  EXPENSE_PAYER_LABEL,
-  EXPENSE_PROPOSAL_STATUS_LABEL,
-  EXPENSE_PROPOSAL_STATUS_TONE,
-} from "@/lib/expenseProposal";
+import { EXPENSE_PROPOSAL_STATUS_LABEL, EXPENSE_PROPOSAL_STATUS_TONE } from "@/lib/expenseProposal";
 import { formatCurrency, formatDateOnly } from "@/lib/format";
 import { hasScopeAll, useCan } from "@/lib/permissions";
 import type { ExpenseProposal, ExpenseProposalStatus } from "@/types";
@@ -29,12 +25,15 @@ export default function ExpenseProposalsPage() {
   // Lấy mọi tài khoản chứ không chỉ quán: người lập có thể là tài khoản chỉ dùng chức năng đề xuất chi.
   const scopeAll = hasScopeAll(user);
   const { data: users = [] } = useUserOptions({ enabled: scopeAll, scope: "all" });
+  // Quán chi: chỉ tài khoản "là quán" (scope mặc định của /users/options).
+  const { data: shops = [] } = useUserOptions({ enabled: scopeAll });
 
   const emptyFilter = {
     from: "",
     to: "",
     status: "" as ExpenseProposalStatus | "",
     createdById: "",
+    shopId: "",
   };
   const [filter, setFilter] = useState(emptyFilter);
   const [appliedFilter, setAppliedFilter] = useState(emptyFilter);
@@ -45,6 +44,7 @@ export default function ExpenseProposalsPage() {
     to: appliedFilter.to || undefined,
     status: appliedFilter.status || undefined,
     createdById: appliedFilter.createdById || undefined,
+    shopId: appliedFilter.shopId || undefined,
     page,
     pageSize,
   });
@@ -64,7 +64,6 @@ export default function ExpenseProposalsPage() {
           </span>
         ),
       },
-      { header: "Người chi", accessorFn: (row) => EXPENSE_PAYER_LABEL[row.payer], id: "payer" },
       { header: "Người duyệt", accessorFn: (row) => row.approver?.name ?? "-", id: "approver" },
       {
         header: "Tổng tiền",
@@ -133,7 +132,7 @@ export default function ExpenseProposalsPage() {
               onChange={(e) => setFilter((f) => ({ ...f, status: e.target.value as ExpenseProposalStatus | "" }))}
             >
               <option value="">Tất cả</option>
-              {Object.entries(EXPENSE_PROPOSAL_STATUS_LABEL).map(([value, label]) => (
+              {Object.entries(EXPENSE_PROPOSAL_STATUS_LABEL).filter(([value]) => value !== "REAPPROVAL").map(([value, label]) => (
                 <option key={value} value={value}>
                   {label}
                 </option>
@@ -148,6 +147,19 @@ export default function ExpenseProposalsPage() {
                 {users.map((u) => (
                   <option key={u.id} value={u.id}>
                     {u.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          )}
+          {scopeAll && (
+            <div className="w-48">
+              <label className="mb-1 block text-xs font-medium text-slate-500">Quán chi</label>
+              <Select value={filter.shopId} onChange={(e) => setFilter((f) => ({ ...f, shopId: e.target.value }))}>
+                <option value="">Tất cả quán</option>
+                {shops.map((shop) => (
+                  <option key={shop.id} value={shop.id}>
+                    {shop.name}
                   </option>
                 ))}
               </Select>

@@ -221,7 +221,7 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
 - SL lẻ ở `stockChecks`, `materialWaste`, `materialTransfers` luôn đi qua `utils/tareWeight`.
 - `utils/deadlines` được gọi lúc tạo đơn (`salesOrders`) và lúc tạo/sửa phiếu (`stockChecks`).
 - **Thông báo đẩy** gắn ở route của `salesOrders` (tạo, tick "Đã xử lý" lần đầu, huỷ) và
-  `expenseProposals` (tạo, duyệt/từ chối, tạm ứng/tạm ứng thêm, gửi và duyệt bổ sung hạng mục, hoàn thành)
+  `expenseProposals` (tạo, duyệt/từ chối, tạm ứng/tạm ứng thêm, hoàn thành)
   qua `modules/notifications`. Sửa các luồng
   đó phải giữ lời gọi, và luôn gọi **sau** khi ghi DB/commit, **không await** — xem chú thích
   `notifyInBackground`. Thêm loại mới = enum `NotificationType` + một dòng `NOTIFICATION_CATALOG`.

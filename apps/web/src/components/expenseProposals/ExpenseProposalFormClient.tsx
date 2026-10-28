@@ -8,9 +8,9 @@ import { useCreateExpenseProposal, useUpdateExpenseProposal } from "@/hooks/useE
 import { useUserOptions } from "@/hooks/useUsers";
 import { ApiError } from "@/lib/api-client";
 import { useCurrentUser } from "@/lib/auth";
-import { EXPENSE_PAYER_LABEL, todayForDateInput } from "@/lib/expenseProposal";
+import { todayForDateInput } from "@/lib/expenseProposal";
 import { formatCurrency, toDateInput } from "@/lib/format";
-import type { ExpensePayer, ExpenseProposal } from "@/types";
+import type { ExpenseProposal } from "@/types";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -24,7 +24,6 @@ export function ExpenseProposalFormClient({ existing }: { existing?: ExpenseProp
   const updateProposal = useUpdateExpenseProposal(existing?.id ?? "");
 
   const [proposalDate, setProposalDate] = useState(() => (existing ? toDateInput(existing.proposalDate) : todayForDateInput()));
-  const [payer, setPayer] = useState<ExpensePayer>(existing?.payer ?? "CREATOR");
   // Chỉ tài khoản thuộc vai trò "là quán" (mặc định của /users/options).
   const { data: shops = [] } = useUserOptions();
   // Người lập là quán thì quán chi chính là họ, không chọn quán khác (server cũng chặn trong
@@ -45,7 +44,6 @@ export function ExpenseProposalFormClient({ existing }: { existing?: ExpenseProp
   const [invoiceDueDate, setInvoiceDueDate] = useState(existing?.invoiceDueDate ? toDateInput(existing.invoiceDueDate) : "");
   const [error, setError] = useState<string | null>(null);
 
-  const isCreator = payer === "CREATOR";
   const { total } = totalsOf(rows);
   const advance = advanceAmount.trim() === "" ? null : Number(advanceAmount);
 
@@ -60,21 +58,18 @@ export function ExpenseProposalFormClient({ existing }: { existing?: ExpenseProp
     const checked = validateRows(rows);
     if ("error" in checked) return setError(checked.error);
 
-    if (isCreator) {
-      if (advance === null || !(advance > 0)) return setError("Số tiền đề nghị tạm ứng phải lớn hơn 0.");
-      if (advance > total) return setError("Số tiền đề nghị tạm ứng không được vượt tổng dự kiến.");
-      if (!invoiceDueDate) return setError("Vui lòng chọn ngày trả hoá đơn dự kiến.");
-    }
+    if (advance === null || !(advance > 0)) return setError("Số tiền đề nghị tạm ứng phải lớn hơn 0.");
+    if (advance > total) return setError("Số tiền đề nghị tạm ứng không được vượt tổng dự kiến.");
+    if (!invoiceDueDate) return setError("Vui lòng chọn ngày trả hoá đơn dự kiến.");
 
     const payload = {
       proposalDate,
-      payer,
       shopId,
       approverId,
       purpose: purpose.trim(),
       items: checked.items,
-      advanceAmount: isCreator ? (advance ?? undefined) : undefined,
-      invoiceDueDate: isCreator ? invoiceDueDate : undefined,
+      advanceAmount: advance,
+      invoiceDueDate,
     };
 
     const onError = (err: unknown) => setError(err instanceof ApiError ? err.message : "Lưu phiếu thất bại");
@@ -112,16 +107,6 @@ export function ExpenseProposalFormClient({ existing }: { existing?: ExpenseProp
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-slate-600">Người lập phiếu</label>
             <Input value={creatorName} disabled className="bg-slate-50 text-slate-600" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-sm font-medium text-slate-600">Người chi</label>
-            <Select value={payer} onChange={(e) => setPayer(e.target.value as ExpensePayer)}>
-              {Object.entries(EXPENSE_PAYER_LABEL).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </Select>
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-slate-600">Quán chi</label>
@@ -173,33 +158,29 @@ export function ExpenseProposalFormClient({ existing }: { existing?: ExpenseProp
 
       <Card>
         <CardHeader>
-          <CardTitle>Tổng tiền{isCreator ? " & tạm ứng" : ""}</CardTitle>
+          <CardTitle>Tổng tiền & tạm ứng</CardTitle>
         </CardHeader>
         <CardBody className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div className="flex flex-col gap-1 md:col-span-2">
             <label className="text-sm font-medium text-slate-600">Tổng tiền đề xuất chi (dự kiến)</label>
             <p className="text-lg font-semibold text-slate-800">{formatCurrency(total)}</p>
           </div>
-          {isCreator && (
-            <>
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-medium text-slate-600">Số tiền đề nghị tạm ứng</label>
-                <Input
-                  type="number"
-                  min="0"
-                  step="any"
-                  value={advanceAmount}
-                  onChange={(e) => setAdvanceAmount(e.target.value)}
-                  placeholder="VD: 500000"
-                />
-                <span className="text-xs text-slate-400">Không vượt tổng dự kiến. Kế toán có thể sửa khi tạm ứng.</span>
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-medium text-slate-600">Ngày trả hoá đơn dự kiến</label>
-                <Input type="date" value={invoiceDueDate} onChange={(e) => setInvoiceDueDate(e.target.value)} />
-              </div>
-            </>
-          )}
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-slate-600">Số tiền đề nghị tạm ứng</label>
+            <Input
+              type="number"
+              min="0"
+              step="any"
+              value={advanceAmount}
+              onChange={(e) => setAdvanceAmount(e.target.value)}
+              placeholder="VD: 500000"
+            />
+            <span className="text-xs text-slate-400">Không vượt tổng dự kiến. Kế toán có thể sửa khi tạm ứng.</span>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-slate-600">Ngày trả hoá đơn dự kiến</label>
+            <Input type="date" value={invoiceDueDate} onChange={(e) => setInvoiceDueDate(e.target.value)} />
+          </div>
         </CardBody>
       </Card>
 

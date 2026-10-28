@@ -20,19 +20,18 @@ const itemsSchema = z.array(expenseProposalItemSchema).min(1, "Phải có ít nh
 export const expenseProposalSchema = z
   .object({
     proposalDate: dateOnly("Ngày tạo phiếu không hợp lệ"),
-    payer: z.enum(["CREATOR", "ACCOUNTANT"], { message: "Người chi phải là người lập phiếu hoặc kế toán" }),
     shopId: z.string({ message: "Vui lòng chọn quán chi" }).trim().min(1, "Vui lòng chọn quán chi"),
     approverId: z.string({ message: "Vui lòng chọn người duyệt" }).trim().min(1, "Vui lòng chọn người duyệt"),
     purpose: z.string().trim().min(1, "Mục đích sử dụng không được để trống"),
     items: itemsSchema,
-    // Số tiền đề nghị tạm ứng lần đầu. Chỉ lưu khi payer = CREATOR; kế toán chi thì bỏ qua dù client có
-    // gửi. Ô trống ("") coi như không gửi, để form ẩn các ô này không làm hỏng cả phiếu. Trần = tổng
-    // dự kiến, kiểm ở toProposalData vì tổng do server tính.
+    // Số tiền đề nghị tạm ứng lần đầu — bắt buộc với mọi phiếu (đã bỏ ô "Người chi", mọi phiếu đi luồng
+    // người lập chi). Ô trống ("") coi như không gửi để rơi vào câu lỗi tiếng Việt ở superRefine thay vì
+    // lỗi ép kiểu. Trần = tổng dự kiến, kiểm ở toProposalData vì tổng do server tính.
+    // App cũ còn gửi `payer` thì Zod tự bỏ trường thừa.
     advanceAmount: z.preprocess(emptyToUndefined, z.coerce.number().optional()),
     invoiceDueDate: z.preprocess(emptyToUndefined, dateOnly("Ngày trả hoá đơn dự kiến không hợp lệ").optional()),
   })
   .superRefine((data, ctx) => {
-    if (data.payer !== "CREATOR") return;
     if (data.advanceAmount === undefined || !(data.advanceAmount > 0)) {
       ctx.addIssue({ code: "custom", message: "Số tiền đề nghị tạm ứng phải lớn hơn 0", path: ["advanceAmount"] });
     }
@@ -49,9 +48,6 @@ export const expenseProposalAdvanceSchema = z.object({
   amount: z.coerce.number({ message: "Số tiền tạm ứng không hợp lệ" }).positive("Số tiền tạm ứng phải lớn hơn 0"),
   note: z.string().trim().optional(),
 });
-
-/** Bảng hạng mục dự kiến mới gửi đi duyệt bổ sung — thay cả bảng, không chỉ thêm dòng. */
-export const expenseProposalRevisionSchema = z.object({ items: itemsSchema });
 
 export const expenseProposalCompleteSchema = z.object({
   items: itemsSchema,

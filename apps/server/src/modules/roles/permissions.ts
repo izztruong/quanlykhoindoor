@@ -38,8 +38,7 @@ const CRUD: PermissionAction[] = ["VIEW", "ADD", "EDIT", "DELETE"];
 
 export const PERMISSION_RESOURCES = [
 
-  // EDIT/DELETE sửa/xoá phiếu còn Chờ duyệt; EDIT còn dùng để gửi bảng hạng mục dự kiến mới đi duyệt
-  // bổ sung · APPROVE = duyệt/từ chối (chỉ khi là người duyệt của phiếu, hoặc vai trò hệ thống) ·
+  // EDIT/DELETE sửa/xoá phiếu còn Chờ duyệt · APPROVE = duyệt/từ chối (chỉ khi là người duyệt của phiếu, hoặc vai trò hệ thống) ·
   // ADVANCE = tạm ứng và tạm ứng thêm · COMPLETE = khai thực chi, bấm Hoàn thành, đính chứng từ.
   {
     resource: "EXPENSE_PROPOSALS",

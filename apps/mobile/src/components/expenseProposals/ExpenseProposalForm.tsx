@@ -11,13 +11,11 @@ import { useCreateExpenseProposal, useUpdateExpenseProposal } from "@/hooks/useE
 import { useUserOptions } from "@/hooks/useUsers";
 import { useCurrentUser } from "@/lib/auth";
 import { dateOnlyToDate, dateToDateOnly } from "@/lib/dateOnly";
-import { EXPENSE_PAYER_LABEL, todayForDateInput } from "@/lib/expenseProposal";
+import { todayForDateInput } from "@/lib/expenseProposal";
 import { formatCurrency, toDateInput } from "@/lib/format";
 import { colors, fontSize, radius, spacing } from "@/lib/theme";
-import type { ExpensePayer, ExpenseProposal } from "@/types";
+import type { ExpenseProposal } from "@/types";
 import { ExpenseItemsEditor, rowsFromItems, totalsOf, validateRows, type ItemRow } from "./ExpenseItemsEditor";
-
-const PAYER_OPTIONS = Object.entries(EXPENSE_PAYER_LABEL).map(([value, label]) => ({ value, label }));
 
 /**
  * Tạo và sửa phiếu đề xuất chi — cùng luật với ExpenseProposalFormClient bên web. Tiền chỉ tính trước
@@ -34,7 +32,6 @@ export function ExpenseProposalForm({ existing }: { existing?: ExpenseProposal }
   const [proposalDate, setProposalDate] = useState(() =>
     existing ? toDateInput(existing.proposalDate) : todayForDateInput(),
   );
-  const [payer, setPayer] = useState<ExpensePayer>(existing?.payer ?? "CREATOR");
 
   const { data: shops = [] } = useUserOptions({ scope: "shop" });
   // Người lập là quán thì quán chi chính là họ, không chọn quán khác (server cũng chặn trong
@@ -61,7 +58,6 @@ export function ExpenseProposalForm({ existing }: { existing?: ExpenseProposal }
   );
   const [error, setError] = useState<string | null>(null);
 
-  const isCreator = payer === "CREATOR";
   const { total } = totalsOf(rows);
   const advance = advanceAmount.trim() === "" ? null : Number(advanceAmount);
 
@@ -73,24 +69,20 @@ export function ExpenseProposalForm({ existing }: { existing?: ExpenseProposal }
 
     const checked = validateRows(rows);
     if ("error" in checked) return setError(checked.error);
-    if (isCreator) {
-      if (advance === null || Number.isNaN(advance) || !(advance > 0)) {
-        return setError("Số tiền đề nghị tạm ứng phải lớn hơn 0.");
-      }
-      if (advance > total) return setError("Số tiền đề nghị tạm ứng không được vượt tổng dự kiến.");
-      if (!invoiceDueDate) return setError("Vui lòng chọn ngày trả hoá đơn dự kiến.");
+    if (advance === null || Number.isNaN(advance) || !(advance > 0)) {
+      return setError("Số tiền đề nghị tạm ứng phải lớn hơn 0.");
     }
+    if (advance > total) return setError("Số tiền đề nghị tạm ứng không được vượt tổng dự kiến.");
+    if (!invoiceDueDate) return setError("Vui lòng chọn ngày trả hoá đơn dự kiến.");
 
     const payload = {
       proposalDate,
-      payer,
       shopId,
       approverId,
       purpose: purpose.trim(),
       items: checked.items,
-      // Kế toán chi thì KHÔNG gửi hai trường tạm ứng — server cũng bỏ qua.
-      advanceAmount: isCreator ? (advance ?? undefined) : undefined,
-      invoiceDueDate: isCreator ? invoiceDueDate : undefined,
+      advanceAmount: advance,
+      invoiceDueDate,
     };
 
     if (isEdit && existing) {
@@ -118,14 +110,6 @@ export function ExpenseProposalForm({ existing }: { existing?: ExpenseProposal }
             onChange={(date) => setProposalDate(dateToDateOnly(date))}
           />
           <Input label="Người lập phiếu" value={creatorName} editable={false} />
-          <Select
-            label="Người chi"
-            required
-            value={payer}
-            onChange={(value) => setPayer(value as ExpensePayer)}
-            options={PAYER_OPTIONS}
-            searchable={false}
-          />
           {creatorShop ? (
             <Input label="Quán chi" value={creatorShop.name} editable={false} />
           ) : (
@@ -158,30 +142,28 @@ export function ExpenseProposalForm({ existing }: { existing?: ExpenseProposal }
         <Text style={styles.totalValue}>{formatCurrency(total)}</Text>
       </View>
 
-      {isCreator ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Tạm ứng</CardTitle>
-          </CardHeader>
-          <CardBody style={styles.fields}>
-            <Input
-              label="Số tiền đề nghị tạm ứng"
-              required
-              value={advanceAmount}
-              onChangeText={setAdvanceAmount}
-              keyboardType="numeric"
-              hint="Không vượt tổng dự kiến. Kế toán có thể sửa khi tạm ứng."
-            />
-            <DateTimeField
-              label="Ngày trả hoá đơn dự kiến"
-              required
-              dateOnly
-              value={dateOnlyToDate(invoiceDueDate)}
-              onChange={(date) => setInvoiceDueDate(dateToDateOnly(date))}
-            />
-          </CardBody>
-        </Card>
-      ) : null}
+      <Card>
+        <CardHeader>
+          <CardTitle>Tạm ứng</CardTitle>
+        </CardHeader>
+        <CardBody style={styles.fields}>
+          <Input
+            label="Số tiền đề nghị tạm ứng"
+            required
+            value={advanceAmount}
+            onChangeText={setAdvanceAmount}
+            keyboardType="numeric"
+            hint="Không vượt tổng dự kiến. Kế toán có thể sửa khi tạm ứng."
+          />
+          <DateTimeField
+            label="Ngày trả hoá đơn dự kiến"
+            required
+            dateOnly
+            value={dateOnlyToDate(invoiceDueDate)}
+            onChange={(date) => setInvoiceDueDate(dateToDateOnly(date))}
+          />
+        </CardBody>
+      </Card>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 

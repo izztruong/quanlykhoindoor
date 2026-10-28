@@ -25,7 +25,7 @@ const newKey = () => rowKeySeed++;
 
 export const blankRow = (): ItemRow => ({ key: newKey(), content: "", unitPrice: "", unit: "", quantity: "", note: "" });
 
-/** Hạng mục đã lưu → dòng để sửa (dùng cho form sửa phiếu, sao chép từ dự kiến, bảng duyệt bổ sung). */
+/** Hạng mục đã lưu → dòng để sửa (dùng cho form sửa phiếu, sao chép từ dự kiến). */
 export function rowsFromItems(items: (ExpenseProposalItem | ExpenseProposalPendingItem)[] | null | undefined): ItemRow[] {
   if (!items?.length) return [blankRow()];
   return items.map((it) => ({

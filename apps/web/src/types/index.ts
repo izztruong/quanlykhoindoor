@@ -645,11 +645,8 @@ export interface DashboardCostSummary {
   sameMonthLastYear: DashboardCostMonth;
 }
 
-/** SPENT hiển thị là "Hoàn thành". REAPPROVAL = bảng hạng mục dự kiến mới đang chờ duyệt bổ sung. */
+/** SPENT hiển thị là "Hoàn thành". REAPPROVAL không còn dùng (bước duyệt bổ sung đã bỏ), giữ cho khớp enum DB. */
 export type ExpenseProposalStatus = "PENDING" | "APPROVED" | "REJECTED" | "ADVANCED" | "REAPPROVAL" | "SPENT";
-
-/** CREATOR = người lập phiếu chi (phiếu mới có tạm ứng), ACCOUNTANT = kế toán chi. */
-export type ExpensePayer = "CREATOR" | "ACCOUNTANT";
 
 export interface ExpenseProposalItem {
   id: string;
@@ -691,7 +688,6 @@ export interface ExpenseProposal {
   status: ExpenseProposalStatus;
   /** Chỉ có ngày (cột DATE), đọc bằng formatDateOnly. */
   proposalDate: string;
-  payer: ExpensePayer;
   /** Quán chi. Null ở phiếu cũ lưu tên quán dạng chữ không khớp tài khoản nào. */
   shopId: string | null;
   shop?: UserRef;
@@ -709,7 +705,7 @@ export interface ExpenseProposal {
   invoiceDate?: string | null;
   /** Tổng thực chi, có khi đã Hoàn thành. */
   spentAmount?: string | number | null;
-  /** Bảng dự kiến mới đang chờ duyệt bổ sung (status = REAPPROVAL). */
+  /** Cột lịch sử của bước duyệt bổ sung đã bỏ — không đường nào ghi nữa. */
   pendingItems?: ExpenseProposalPendingItem[] | null;
   pendingTotal?: string | number | null;
   revisionRejectReason?: string | null;
