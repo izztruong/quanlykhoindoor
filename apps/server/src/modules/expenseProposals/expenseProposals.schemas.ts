@@ -58,8 +58,8 @@ export const expenseProposalCompleteSchema = z.object({
   invoiceDate: z.string({ message: "Vui lòng chọn ngày nộp hoá đơn" }).pipe(dateOnly("Ngày nộp hoá đơn không hợp lệ")),
 });
 
-/** Tối đa 5 ảnh chứng từ mỗi phiếu — cùng mức với Chi chốt ca. */
-export const MAX_IMAGES_PER_PROPOSAL = 5;
+/** Tối đa 10 ảnh chứng từ mỗi phiếu — chung cho mọi lần tạm ứng lẫn lúc Hoàn thành. */
+export const MAX_IMAGES_PER_PROPOSAL = 10;
 
 /** Trình duyệt đã nén xuống ~200 KB trước khi gửi, 1,5 MB là trần rộng rãi cho ảnh lọt lưới nén. */
 export const MAX_IMAGE_BYTES = 1_500_000;

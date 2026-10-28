@@ -327,11 +327,11 @@ export function ExpenseProposalDetailClient({ id }: { id: string }) {
             </Card>
           )}
 
-          {status === "SPENT" && (
+          {(status === "ADVANCED" || status === "SPENT") && (
             <ExpenseProposalImagesCard
               proposalId={proposal.id}
               imageCount={proposal._count?.images ?? 0}
-              canManage={can("EXPENSE_PROPOSALS", "COMPLETE")}
+              canManage={can("EXPENSE_PROPOSALS", "COMPLETE") || can("EXPENSE_PROPOSALS", "ADVANCE")}
             />
           )}
         </div>
@@ -433,7 +433,9 @@ export function ExpenseProposalDetailClient({ id }: { id: string }) {
           isFirst={canFirstAdvance}
           initialAmount={canFirstAdvance && proposal.advanceAmount != null ? Math.min(Number(proposal.advanceAmount), remaining) : null}
           remaining={remaining}
+          existingImageCount={proposal._count?.images ?? 0}
           onClose={() => setDialog(null)}
+          onImageError={setError}
         />
       )}
 

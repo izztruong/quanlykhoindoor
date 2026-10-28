@@ -15,11 +15,11 @@ import { useState } from "react";
 interface ExpenseProposalImagesCardProps {
   proposalId: string;
   imageCount: number;
-  /** Có quyền Hoàn thành thì đính thêm / xoá được ảnh. */
+  /** Có quyền Tạm ứng hoặc Hoàn thành thì đính thêm / xoá được ảnh. */
   canManage: boolean;
 }
 
-/** Ảnh chứng từ của phiếu đã hoàn thành. URL ký có hạn chỉ tải khi phiếu có ảnh hoặc người xem được quản lý. */
+/** Ảnh chứng từ của phiếu đã tạm ứng / đã hoàn thành. URL ký có hạn chỉ tải khi phiếu có ảnh. */
 export function ExpenseProposalImagesCard({ proposalId, imageCount, canManage }: ExpenseProposalImagesCardProps) {
   const { data: images = [], isLoading } = useExpenseProposalImages(proposalId, imageCount > 0);
   const upload = useUploadExpenseProposalImages(proposalId);

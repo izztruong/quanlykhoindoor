@@ -1,6 +1,6 @@
 # Tiến độ dự án
 
-Cập nhật: 2026-10-15
+Cập nhật: 2026-10-28
 
 Ghi **đúng những gì git không tự trả lời được**. Lý do thiết kế đã nằm trong commit message, đừng
 chép lại vào đây. Mỗi mục "Đang dở" tối đa 3–4 dòng, và dòng quan trọng nhất luôn là: *đã kiểm thử
@@ -45,6 +45,11 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 ---
 
 ## Đang dở
+
+### Đính ảnh chứng từ ngay lúc Tạm ứng (đề xuất chi) — ĐÃ lên `main` (web + API), CHƯA bấm thử; mobile CHƯA đẩy OTA
+Hộp Tạm ứng có ô ảnh; ảnh vào chung mục Chứng từ, mục này hiện từ lúc Đã tạm ứng. Trần 5 → 10 ảnh/phiếu.
+Đã kiểm typecheck 3 app, lint web, `expo export`; curl trên `kho_dev_copy` chỉ qua được tới cổng R2
+(`dev:copy` tắt R2) — **vòng tải ảnh thật chưa thử, thử trên staging trước**.
 
 ### Xuất Excel phiếu nhập kho có thêm cột "Tên NCC" — ĐÃ lên `main`, CHƯA bấm thử trên trình duyệt
 Thêm ở **cả hai sheet**, nối sau khối cột mẫu nên phần nhập vẫn bỏ qua như "Người tạo"/"Tên hàng hoá" —

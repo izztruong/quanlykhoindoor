@@ -24,7 +24,7 @@ export const EXPENSE_PAYER_LABEL: Record<ExpensePayer, string> = {
 };
 
 /** Khớp MAX_IMAGES_PER_PROPOSAL ở server — server vẫn là nơi chốt, đây chỉ để báo sớm. */
-export const MAX_PROPOSAL_IMAGES = 5;
+export const MAX_PROPOSAL_IMAGES = 10;
 
 const roundMoney = (value: number) => Math.round(value * 100) / 100;
 

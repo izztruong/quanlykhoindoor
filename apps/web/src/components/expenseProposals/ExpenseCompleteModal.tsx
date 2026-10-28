@@ -48,6 +48,9 @@ export function ExpenseCompleteModal({ proposal, onClose, onImageError }: Expens
   const budget = Number(proposal.totalAmount);
   const overBudget = total > budget;
   const busy = complete.isPending || uploading;
+  // Ảnh đính lúc tạm ứng đã chiếm chỗ — trần tính chung cho cả phiếu.
+  const existingImageCount = proposal._count?.images ?? 0;
+  const imageRoom = MAX_PROPOSAL_IMAGES - existingImageCount - pendingFiles.length;
 
   function copyEstimated() {
     const hasInput = rows.some((row) => !isRowEmpty(row));
@@ -59,10 +62,9 @@ export function ExpenseCompleteModal({ proposal, onClose, onImageError }: Expens
     const picked = Array.from(e.target.files ?? []);
     e.target.value = "";
     if (picked.length === 0) return;
-    const room = MAX_PROPOSAL_IMAGES - pendingFiles.length;
-    if (room <= 0) return setError(`Mỗi phiếu tối đa ${MAX_PROPOSAL_IMAGES} ảnh chứng từ`);
-    setError(picked.length > room ? `Chỉ nhận thêm ${room} ảnh nữa (tối đa ${MAX_PROPOSAL_IMAGES})` : null);
-    setPendingFiles((prev) => [...prev, ...picked.slice(0, room).map((file) => ({ file, previewUrl: URL.createObjectURL(file) }))]);
+    if (imageRoom <= 0) return setError(`Mỗi phiếu tối đa ${MAX_PROPOSAL_IMAGES} ảnh chứng từ`);
+    setError(picked.length > imageRoom ? `Chỉ nhận thêm ${imageRoom} ảnh nữa (tối đa ${MAX_PROPOSAL_IMAGES})` : null);
+    setPendingFiles((prev) => [...prev, ...picked.slice(0, imageRoom).map((file) => ({ file, previewUrl: URL.createObjectURL(file) }))]);
   }
 
   function removePendingFile(previewUrl: string) {
@@ -133,7 +135,7 @@ export function ExpenseCompleteModal({ proposal, onClose, onImageError }: Expens
 
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-600">
-            Chứng từ ({pendingFiles.length}/{MAX_PROPOSAL_IMAGES}) <span className="font-normal text-slate-400">— không bắt buộc</span>
+            Chứng từ ({existingImageCount + pendingFiles.length}/{MAX_PROPOSAL_IMAGES}) <span className="font-normal text-slate-400">— không bắt buộc</span>
           </label>
           {pendingFiles.length > 0 && (
             <div className="mb-2 flex flex-wrap gap-2">
@@ -158,7 +160,7 @@ export function ExpenseCompleteModal({ proposal, onClose, onImageError }: Expens
             accept="image/*"
             multiple
             onChange={handlePickFiles}
-            disabled={busy || pendingFiles.length >= MAX_PROPOSAL_IMAGES}
+            disabled={busy || imageRoom <= 0}
             className="text-sm"
           />
           <p className="mt-1 text-xs text-slate-400">Ảnh được nén trước khi gửi nên chụp bằng điện thoại thoải mái.</p>

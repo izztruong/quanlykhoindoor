@@ -15,12 +15,12 @@ import { colors, fontSize, radius, spacing } from "@/lib/theme";
 interface ExpenseProposalImagesCardProps {
   proposalId: string;
   imageCount: number;
-  /** Có quyền Hoàn thành thì chụp/chọn thêm và xoá được ảnh. */
+  /** Có quyền Tạm ứng hoặc Hoàn thành thì chụp/chọn thêm và xoá được ảnh. */
   canManage: boolean;
 }
 
 /**
- * Ảnh chứng từ của phiếu đã hoàn thành. Phiếu đã có id nên chụp/chọn xong là tải lên ngay. URL ký có
+ * Ảnh chứng từ của phiếu đã tạm ứng / đã hoàn thành. Phiếu đã có id nên chụp/chọn xong là tải lên ngay. URL ký có
  * hạn chỉ tải khi phiếu có ảnh. Lỗi tải lên đã có toast chung của MutationCache.
  */
 export function ExpenseProposalImagesCard({ proposalId, imageCount, canManage }: ExpenseProposalImagesCardProps) {
