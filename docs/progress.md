@@ -46,6 +46,14 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
+### Màn Hoàn thành trên app hết treo khi chọn ảnh — CHƯA thử trên máy thật, CHƯA lên `main`
+Bước nén ảnh có trần 30 giây (`imagePicker.ts`, chỉ tính từ lúc bộ chọn ảnh trả về — thời gian lướt
+thư viện vẫn vô hạn), và nút Hoàn thành không còn khoá theo cờ nén ảnh; bấm lúc ảnh đang nén thì hỏi
+lại. Timeout nằm ở helper dùng chung nên Tạm ứng, Chi chốt ca, Chi ngoài cũng hết treo.
+Đã kiểm: typecheck, `expo export`, và script tạm chạy thử 6 ca của helper (xong trước hạn, treo quá
+hạn, lỗi thật, lỗi về muộn không sinh unhandled rejection, dọn hẹn giờ). Script đã xoá.
+**Chưa biết chặng nào treo thật**: phần ghi log từng chặng đã đề xuất nhưng chưa làm.
+
 ### Đề xuất chi: bỏ ô "Người chi" + lọc theo Quán chi — ĐÃ lên `main`, CHƯA bấm thử trên trình duyệt
 Mọi phiếu đi luồng người lập chi (bắt buộc số tạm ứng + ngày trả hoá đơn); migration xoá cột `payer`.
 Đã kiểm: typecheck 3 app, lint web, `expo export`; migrate trên DB trắng + `kho_db` + `kho_dev_copy`,
