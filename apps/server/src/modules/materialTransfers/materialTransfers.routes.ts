@@ -210,8 +210,8 @@ materialTransfersRouter.post("/bulk-import", requirePermission("MATERIAL_TRANSFE
   }
 
   // 3. Trừ vỏ MỘT LƯỢT cho cả file: hàm nhận mảng và chỉ chạy một query. Phải gọi dù file Excel chưa
-  //    có cột SL lẻ — CLAUDE.md đặt nó thành luật cho cả ba module, và đường form đang gọi ở cả POST
-  //    lẫn PUT; bỏ sót ở đây là hai đường ghi cho hai kết quả khác nhau khi về sau có SL lẻ.
+  //    có cột SL lẻ — CLAUDE.md đặt nó thành luật cho mọi đường TẠO của cả ba module, và đường form gọi ở POST
+  //    — bỏ sót ở đây là hai đường tạo cho hai kết quả khác nhau khi về sau có SL lẻ.
   const flatLines = transfers.flatMap((t, index) => t.items.map((it) => ({ ...it, _transfer: index })));
   const adjusted = await subtractTareWeight(flatLines);
 
@@ -328,7 +328,8 @@ materialTransfersRouter.post("/bulk-import", requirePermission("MATERIAL_TRANSFE
 materialTransfersRouter.put("/:id", requirePermission("MATERIAL_TRANSFERS"), async (req, res) => {
   const id = req.params.id as string;
   const data = materialTransferCreateSchema.parse(req.body);
-  const items = await subtractTareWeight(data.items);
+  // KHÔNG trừ vỏ ở PUT — xem `subtractTareWeight`: form sửa nạp lượng TỊNH đã lưu.
+  const items = data.items;
 
   const existing = await prisma.materialTransfer.findUnique({
     where: { id },

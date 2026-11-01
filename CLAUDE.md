@@ -218,7 +218,9 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
   Gắn nghiệp vụ vào nó là dựng lại bước "xử lý đơn" cũ dưới một cái tên khác.
   Dấu "đã báo quán một lần" là `processedById`, nên **bỏ tích cố ý KHÔNG xoá cột đó** — xoá thì bỏ
   tích rồi tick lại là bắn thông báo lần hai.
-- SL lẻ ở `stockChecks`, `materialWaste`, `materialTransfers` luôn đi qua `utils/tareWeight`.
+- SL lẻ ở `stockChecks`, `materialWaste`, `materialTransfers` đi qua `utils/tareWeight` ở **đường TẠO
+  (POST, Excel) — không bao giờ ở PUT**: DB lưu lượng tịnh, form sửa nạp nguyên số đó, trừ lại là mỗi
+  lần lưu số teo đi một tare (đã xảy ra thật). Đừng chữa bằng cách cộng bù tare ở form sửa.
 - **Menu món và danh sách nguyên liệu theo quán nằm ở `utils/shopMenu.ts`** — quy ước duy nhất:
   **chưa gán quán nào = MỌI quán đều thấy** (`FinishedGoodItemShop`, `ProductShop` rỗng). Đừng viết
   lại mảnh `where` đó ở chỗ khác. Đường ĐỌC thu hẹp qua `resolveMenuShopId` (ép theo tài khoản, bỏ
