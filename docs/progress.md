@@ -46,6 +46,11 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
+### Sửa phiếu không còn trừ vỏ lần hai — ĐÃ lên `main`, CHƯA bấm thử trên trình duyệt
+Bỏ `subtractTareWeight` ở PUT của kiểm kê quán, phiếu huỷ, điều chuyển; mobile điều chuyển bỏ cộng bù vỏ.
+Đã kiểm: typecheck server + mobile. **Chưa thử curl** (Docker tắt lúc làm).
+Phiếu đã bị trừ lố trước bản sửa **không tự khôi phục** — phải soát tay.
+
 ### Đề xuất chi: bỏ ô "Người chi" + lọc theo Quán chi — ĐÃ lên `main`, CHƯA bấm thử trên trình duyệt
 Mọi phiếu đi luồng người lập chi (bắt buộc số tạm ứng + ngày trả hoá đơn); migration xoá cột `payer`.
 Đã kiểm: typecheck 3 app, lint web, `expo export`; migrate trên DB trắng + `kho_db` + `kho_dev_copy`,
@@ -99,12 +104,10 @@ vào `CLAUDE.md`; sửa script để dành cho đợt có build native mới.
 ## Còn lại
 
 ### Vết sẵn có, đã biết mà chủ động gác lại
-- **Sửa phiếu trên web trừ vỏ lần hai**: `subtractTareWeight` chạy ở cả POST lẫn PUT nên DB lưu lượng
-  tịnh; mobile cộng vỏ ngược khi mở form sửa, web thì không. Dính cả 3 module dùng `tareWeight`.
 - **`parseDateRange` lệch 7 tiếng**: `setHours` theo giờ máy chủ mà Render chạy UTC. Ảnh hưởng mọi ô
   lọc khoảng ngày, trong đó có phần xuất Excel theo bộ lọc.
-- **Chưa làm Xuất Excel cho phiếu điều chuyển**: file bỏ cột SL lẻ, cộng với vết trừ vỏ ở trên thì xuất
-  ra rồi nhập lại là sai số liệu im lặng.
+- **Chưa làm Xuất Excel cho phiếu điều chuyển**: file bỏ cột SL lẻ; thêm cột thì xuất ra lượng
+  TỊNH mà nhập lại bị trừ vỏ lần nữa — sai số liệu im lặng.
 - **Sửa/xoá phiếu nhập kho và ảnh chứng từ chỉ có trên web**, app mobile chỉ xem và tạo.
 - **Vòng ảnh R2 thật chưa kiểm được**: `dev:copy` cố ý làm rỗng 4 biến `R2_*` để không xoá file thật.
 - **`expo-doctor` báo 3 lỗi sẵn có**: `newArchEnabled` ngoài schema SDK 57, thiếu peer `expo-font` +

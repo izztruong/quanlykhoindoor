@@ -111,7 +111,8 @@ stockChecksRouter.post("/", requirePermission("STOCK_CHECKS"), async (req, res) 
 stockChecksRouter.put("/:id", requirePermission("STOCK_CHECKS"), async (req, res) => {
   const id = req.params.id as string;
   const data = stockCheckCreateSchema.parse(req.body);
-  const items = await subtractTareWeight(data.items);
+  // KHÔNG trừ vỏ ở PUT — xem `subtractTareWeight`: form sửa nạp lượng TỊNH đã lưu.
+  const items = data.items;
 
   const existing = await prisma.stockCheck.findUnique({ where: { id } });
   if (!existing) throw new HttpError(404, "Không tìm thấy phiếu kiểm");

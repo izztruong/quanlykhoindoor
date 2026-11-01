@@ -4,6 +4,10 @@ import { prisma } from "../config/db";
  * SL lẻ nhập vào lúc kiểm kê/huỷ/điều chuyển được coi là cân cả vỏ — với mỗi hàng hoá có khai
  * báo tareWeight, trừ số đó đi (không cho âm) trước khi lưu. Hàng hoá không khai báo tareWeight
  * giữ nguyên như cũ.
+ *
+ * CHỈ gọi ở đường TẠO (POST, nhập Excel) — KHÔNG BAO GIỜ ở PUT. DB lưu lượng TỊNH và form sửa nạp
+ * nguyên số đó, nên trừ lại ở PUT là mỗi lần mở–lưu số teo đi một tare (tới 0 thì dừng, mất dữ liệu
+ * không báo lỗi). Cộng bù tare ở form sửa cũng không chữa được: tare đổi về sau là phiếu cũ lệch.
  */
 export async function subtractTareWeight<T extends { productId: string; looseQuantity?: number }>(items: T[]): Promise<T[]> {
   const productIds = [...new Set(items.map((it) => it.productId))];

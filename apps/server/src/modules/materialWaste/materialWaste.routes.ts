@@ -103,7 +103,8 @@ materialWasteRouter.post("/", requirePermission("MATERIAL_WASTE"), async (req, r
 materialWasteRouter.put("/:id", requirePermission("MATERIAL_WASTE"), async (req, res) => {
   const id = req.params.id as string;
   const data = materialWasteCreateSchema.parse(req.body);
-  const items = await subtractTareWeight(data.items);
+  // KHÔNG trừ vỏ ở PUT — xem `subtractTareWeight`: form sửa nạp lượng TỊNH đã lưu.
+  const items = data.items;
 
   const existing = await prisma.materialWaste.findUnique({
     where: { id },

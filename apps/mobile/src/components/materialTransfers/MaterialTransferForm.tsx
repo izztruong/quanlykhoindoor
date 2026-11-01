@@ -13,7 +13,6 @@ import { useUserOptions } from "@/hooks/useUsers";
 import { useProductSupplierPrices } from "@/hooks/useProductSupplierPrices";
 import { useCreateMaterialTransfer, useUpdateMaterialTransfer } from "@/hooks/useMaterialTransfers";
 import { useCan } from "@/lib/permissions";
-import { looseQuantityForEditing } from "@/lib/materialTransfer";
 import { colors, spacing } from "@/lib/theme";
 import type { MaterialTransfer, Product } from "@/types";
 
@@ -34,8 +33,7 @@ export function MaterialTransferForm({ existing }: { existing?: MaterialTransfer
   const [note, setNote] = useState(existing?.note ?? "");
   const [rows, setRows] = useState<Row[]>(() => (existing?.items ?? []).map((item) => ({
     product: item.product, wholeQuantity: item.wholeQuantity == null ? "" : String(Number(item.wholeQuantity)),
-    // API lưu lượng đã trừ vỏ; đổi về cân cả vỏ để PUT không trừ thêm lần nữa khi chỉ sửa ghi chú.
-    looseQuantity: looseQuantityForEditing(item.looseQuantity, item.product.tareWeight),
+    looseQuantity: item.looseQuantity == null ? "" : String(Number(item.looseQuantity)),
     supplierId: item.supplierId ?? "", supplierName: item.supplier?.name,
     costPrice: item.costPrice == null ? "" : String(Number(item.costPrice)), note: item.note ?? "",
   })));
