@@ -10,7 +10,7 @@ import {
   assertProductsInShopList,
   grantProductsToShop,
 } from "../../utils/shopMenu";
-import { subtractTareWeight } from "../../utils/tareWeight";
+import { subtractTareWeight, subtractTareWeightOnChanged } from "../../utils/tareWeight";
 import { materialTransferBulkSchema, materialTransferCreateSchema } from "./materialTransfers.schemas";
 
 /**
@@ -328,18 +328,18 @@ materialTransfersRouter.post("/bulk-import", requirePermission("MATERIAL_TRANSFE
 materialTransfersRouter.put("/:id", requirePermission("MATERIAL_TRANSFERS"), async (req, res) => {
   const id = req.params.id as string;
   const data = materialTransferCreateSchema.parse(req.body);
-  // KHÔNG trừ vỏ ở PUT — xem `subtractTareWeight`: form sửa nạp lượng TỊNH đã lưu.
-  const items = data.items;
 
   const existing = await prisma.materialTransfer.findUnique({
     where: { id },
-    include: { items: { select: { productId: true } } },
+    include: { items: { select: { productId: true, looseQuantity: true } } },
   });
   if (!existing) throw new HttpError(404, NOT_FOUND_MESSAGE);
   // Chốt cả phiếu CŨ lẫn dữ liệu MỚI: chỉ chốt phiếu cũ thì quán sửa phiếu của mình thành phiếu giữa
   // hai quán khác được, và sau đó chính nó cũng không còn thấy phiếu đó nữa.
   assertInScope([existing.fromUserId, existing.toUserId], req.user, NOT_FOUND_MESSAGE);
   assertTransferWritable(data.fromUserId, data.toUserId, req.user);
+
+  const items = await subtractTareWeightOnChanged(data.items, existing.items);
 
   // Theo QUÁN GỬI như ở POST, và chỉ hàng MỚI thêm — xem chú thích `assertAddedItemsInShopMenu`.
   await assertAddedProductsInShopList(

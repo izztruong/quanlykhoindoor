@@ -13,7 +13,7 @@ import {
   assertProductsInShopList,
   resolveMenuShopId,
 } from "../../utils/shopMenu";
-import { subtractTareWeight } from "../../utils/tareWeight";
+import { subtractTareWeight, subtractTareWeightOnChanged } from "../../utils/tareWeight";
 import { stockCheckCreateSchema } from "./stockChecks.schemas";
 
 export const stockChecksRouter = Router();
@@ -127,18 +127,18 @@ stockChecksRouter.post("/", requirePermission("STOCK_CHECKS"), async (req, res) 
 stockChecksRouter.put("/:id", requirePermission("STOCK_CHECKS"), async (req, res) => {
   const id = req.params.id as string;
   const data = stockCheckCreateSchema.parse(req.body);
-  // KHÔNG trừ vỏ ở PUT — xem `subtractTareWeight`: form sửa nạp lượng TỊNH đã lưu.
-  const items = data.items;
 
   const existing = await prisma.stockCheck.findUnique({
     where: { id },
     include: {
-      items: { select: { productId: true } },
+      items: { select: { productId: true, looseQuantity: true } },
       finishedItems: { select: { finishedGoodItemId: true } },
     },
   });
   if (!existing) throw new HttpError(404, "Không tìm thấy phiếu kiểm");
   assertOwner(existing, req.user, "Không tìm thấy phiếu kiểm");
+
+  const items = await subtractTareWeightOnChanged(data.items, existing.items);
 
   // Chỉ dòng MỚI thêm phải nằm trong menu/danh sách — xem chú thích `assertAddedItemsInShopMenu`.
   const menuShopId = resolveMenuShopId(req.user);

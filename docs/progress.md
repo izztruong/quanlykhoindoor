@@ -46,9 +46,10 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
-### Sửa phiếu không còn trừ vỏ lần hai — ĐÃ lên `main`, CHƯA bấm thử trên trình duyệt
-Bỏ `subtractTareWeight` ở PUT của kiểm kê quán, phiếu huỷ, điều chuyển; mobile điều chuyển bỏ cộng bù vỏ.
-Đã kiểm: typecheck server + mobile. **Chưa thử curl** (Docker tắt lúc làm).
+### Sửa phiếu chỉ trừ vỏ dòng có SL lẻ đổi — CHƯA lên `main`, CHƯA bấm thử trên trình duyệt
+`main` đang có bản bỏ hẳn trừ vỏ ở PUT; bản này trừ lại cho dòng đổi, dòng không đụng tới giữ nguyên.
+App cũ (cộng bù vỏ ở form sửa điều chuyển) nhờ vậy cũng ra đúng số — không cần OTA gấp.
+Đã kiểm: typecheck server + web; 10 ca curl trên `kho_db` cho cả 3 loại phiếu (dữ liệu thử đã dọn).
 Phiếu đã bị trừ lố trước bản sửa **không tự khôi phục** — phải soát tay.
 
 ### Màn Hoàn thành trên app hết treo khi chọn ảnh — CHƯA thử trên máy thật, CHƯA lên `main`
