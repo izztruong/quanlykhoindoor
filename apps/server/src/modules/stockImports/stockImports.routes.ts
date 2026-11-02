@@ -344,8 +344,8 @@ stockImportsRouter.delete("/:id", requirePermission("STOCK_IMPORTS"), async (req
   await prisma.stockImport.delete({ where: { id } });
   await deleteImages(images.map((image) => image.objectKey));
 
-  // Trả 200 + body chứ không 204: đây là route DELETE duy nhất trong dự án cần trả cảnh báo
-  // "tạo lại phiếu Check Cost" cho người dùng.
+  // Trả 200 + body chứ không 204: route DELETE cần trả cảnh báo "tạo lại phiếu Check Cost" cho người
+  // dùng (cùng khuôn với DELETE /material-waste/:id).
   res.json({ affectedCostChecks: affected });
 });
 

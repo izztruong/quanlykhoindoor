@@ -1,6 +1,6 @@
 # Tiến độ dự án
 
-Cập nhật: 2026-10-28
+Cập nhật: 2026-11-02
 
 Ghi **đúng những gì git không tự trả lời được**. Lý do thiết kế đã nằm trong commit message, đừng
 chép lại vào đây. Mỗi mục "Đang dở" tối đa 3–4 dòng, và dòng quan trọng nhất luôn là: *đã kiểm thử
@@ -59,6 +59,11 @@ lại. Timeout nằm ở helper dùng chung nên Tạm ứng, Chi chốt ca, Chi
 Đã kiểm: typecheck, `expo export`, và script tạm chạy thử 6 ca của helper (xong trước hạn, treo quá
 hạn, lỗi thật, lỗi về muộn không sinh unhandled rejection, dọn hẹn giờ). Script đã xoá.
 **Chưa biết chặng nào treo thật**: phần ghi log từng chặng đã đề xuất nhưng chưa làm.
+
+### Xoá phiếu huỷ nguyên liệu (server + web + mobile) — CHƯA thử trên trình duyệt/app, CHƯA lên `main`
+Nút Xoá ở trang chi tiết, quyền mới `MATERIAL_WASTE.DELETE`; trả danh sách phiếu Check Cost bị ảnh hưởng như xoá phiếu nhập.
+Đã kiểm typecheck 3 app, lint web, bundle Android, 5 ca curl (403 thiếu quyền, 200 + affectedCostChecks, dòng xoá theo, 404 xoá lại).
+**Sau khi deploy phải tick "Xoá" ở mục Phiếu huỷ nguyên liệu** — không tick thì ngoài admin không ai thấy nút.
 
 ### Đề xuất chi: bỏ ô "Người chi" + lọc theo Quán chi — ĐÃ lên `main`, CHƯA bấm thử trên trình duyệt
 Mọi phiếu đi luồng người lập chi (bắt buộc số tạm ứng + ngày trả hoá đơn); migration xoá cột `payer`.

@@ -73,7 +73,7 @@ export const PERMISSION_RESOURCES = [
 
   { resource: "STOCK_CHECKS", label: "Phiếu kiểm kê quán", group: "Kiểm kê quán", actions: ["VIEW", "ADD", "EDIT"] },
   // DEDUCT: bỏ tích dòng huỷ để Check Cost không trừ phần đó (tính như hàng đã dùng).
-  { resource: "MATERIAL_WASTE", label: "Phiếu huỷ nguyên liệu", group: "Kiểm kê quán", actions: ["VIEW", "ADD", "EDIT", "DEDUCT"] },
+  { resource: "MATERIAL_WASTE", label: "Phiếu huỷ nguyên liệu", group: "Kiểm kê quán", actions: ["VIEW", "ADD", "EDIT", "DELETE", "DEDUCT"] },
 
   { resource: "PRODUCTS", label: "Hàng hoá", group: "Danh mục", actions: CRUD },
   { resource: "PRODUCT_GROUPS", label: "Nhóm hàng hoá", group: "Danh mục", actions: CRUD },

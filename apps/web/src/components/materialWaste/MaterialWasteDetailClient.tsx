@@ -2,19 +2,44 @@
 
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
-import { useMaterialWaste, useUpdateMaterialWasteDeductions, type MaterialWasteDeductionsInput } from "@/hooks/useMaterialWaste";
+import {
+  useDeleteMaterialWaste,
+  useMaterialWaste,
+  useUpdateMaterialWasteDeductions,
+  type MaterialWasteDeductionsInput,
+} from "@/hooks/useMaterialWaste";
 import { ApiError } from "@/lib/api-client";
 import { useCurrentUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { formatDateTime, formatNumber } from "@/lib/format";
-import { Pencil } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 export function MaterialWasteDetailClient({ id }: { id: string }) {
   const { data: currentUser } = useCurrentUser();
   const { data: waste, isLoading } = useMaterialWaste(id);
   const updateDeductions = useUpdateMaterialWasteDeductions(id);
   const canDeduct = can(currentUser, "MATERIAL_WASTE", "DEDUCT");
+  const router = useRouter();
+  const deleteWaste = useDeleteMaterialWaste();
+
+  function handleDelete() {
+    if (!waste) return;
+    if (!window.confirm(`Xoá phiếu huỷ ${waste.code}? Số liệu Check Cost của kỳ liên quan sẽ phải tạo lại.`)) return;
+    deleteWaste.mutate(waste.id, {
+      onSuccess: (result) => {
+        if (result.affectedCostChecks.length > 0) {
+          alert(
+            `Phiếu vừa xoá nằm trong kỳ của ${result.affectedCostChecks.length} phiếu Check Cost đã chốt ` +
+              `(${result.affectedCostChecks.map((cc) => cc.code).join(", ")}). Hãy tạo lại những phiếu đó.`,
+          );
+        }
+        router.replace("/material-waste");
+      },
+      onError: (err) => alert(err instanceof ApiError ? err.message : "Xoá phiếu thất bại"),
+    });
+  }
 
   function toggleDeduct(data: MaterialWasteDeductionsInput) {
     updateDeductions.mutate(data, {
@@ -45,14 +70,22 @@ export function MaterialWasteDetailClient({ id }: { id: string }) {
           <h1 className="text-xl font-semibold text-slate-800">Phiếu huỷ {waste.code}</h1>
           <p className="text-sm text-slate-500">Thời gian huỷ: {formatDateTime(waste.wasteAt)}</p>
         </div>
-        {can(currentUser, "MATERIAL_WASTE", "EDIT") && (
-          <Link href={`/material-waste/${waste.id}/edit`}>
-            <Button type="button" variant="secondary" size="sm">
-              <Pencil size={14} />
-              Sửa
+        <div className="flex items-center gap-2">
+          {can(currentUser, "MATERIAL_WASTE", "EDIT") && (
+            <Link href={`/material-waste/${waste.id}/edit`}>
+              <Button type="button" variant="secondary" size="sm">
+                <Pencil size={14} />
+                Sửa
+              </Button>
+            </Link>
+          )}
+          {can(currentUser, "MATERIAL_WASTE", "DELETE") && (
+            <Button type="button" variant="danger" size="sm" disabled={deleteWaste.isPending} onClick={handleDelete}>
+              <Trash2 size={14} />
+              Xoá
             </Button>
-          </Link>
-        )}
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">

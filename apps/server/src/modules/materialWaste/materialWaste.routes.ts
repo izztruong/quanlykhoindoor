@@ -192,6 +192,21 @@ materialWasteRouter.put("/:id", requirePermission("MATERIAL_WASTE"), async (req,
   res.json({ ...item, affectedCostChecks });
 });
 
+// Cần MATERIAL_WASTE.DELETE. Cùng khuôn với DELETE /stock-imports/:id: tìm phiếu Check Cost bị ảnh
+// hưởng TRƯỚC khi xoá (phiếu huỷ gộp vào kỳ theo quán + wasteAt), trả 200 + danh sách để báo admin tạo
+// lại — số liệu các phiếu đó đã chốt cứng. Dòng hàng xoá theo cascade.
+materialWasteRouter.delete("/:id", requirePermission("MATERIAL_WASTE"), async (req, res) => {
+  const id = req.params.id as string;
+  const existing = await prisma.materialWaste.findUnique({ where: { id } });
+  if (!existing) throw new HttpError(404, "Không tìm thấy phiếu huỷ");
+  assertOwner(existing, req.user, "Không tìm thấy phiếu huỷ");
+
+  const affectedCostChecks = await findCostChecksUsingPeriodRecord([existing.createdById], existing.wasteAt);
+  await prisma.materialWaste.delete({ where: { id } });
+
+  res.json({ affectedCostChecks });
+});
+
 // Chỉ đổi ô tích "trừ trong Check Cost" — route riêng vì người duyệt (kế toán) thường không có quyền
 // sửa phiếu. Quyền truyền TƯỜNG MINH: suy theo method thì PATCH → EDIT. Id dòng không thuộc phiếu này
 // bị bỏ qua (lọc theo materialWasteId), không cho đổi chéo sang phiếu khác.

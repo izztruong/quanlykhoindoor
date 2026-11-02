@@ -4,7 +4,12 @@ import { Alert, StyleSheet, Switch, Text, View } from "react-native";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { ErrorState, LoadingState, Screen } from "@/components/ui/Screen";
-import { useMaterialWaste, useUpdateMaterialWasteDeductions, type MaterialWasteDeductionsInput } from "@/hooks/useMaterialWaste";
+import {
+  useDeleteMaterialWaste,
+  useMaterialWaste,
+  useUpdateMaterialWasteDeductions,
+  type MaterialWasteDeductionsInput,
+} from "@/hooks/useMaterialWaste";
 import { ApiError } from "@/lib/apiClient";
 import { formatDateVN, formatNumber } from "@/lib/format";
 import { useCan } from "@/lib/permissions";
@@ -17,6 +22,30 @@ export default function MaterialWasteDetailScreen() {
   const waste = useMaterialWaste(id ?? "");
   const updateDeductions = useUpdateMaterialWasteDeductions(id ?? "");
   const canDeduct = can("MATERIAL_WASTE", "DEDUCT");
+  const deleteWaste = useDeleteMaterialWaste();
+
+  function handleDelete(wasteId: string, code: string) {
+    Alert.alert("Xoá phiếu huỷ", `Xoá phiếu ${code}? Số liệu Check Cost của kỳ liên quan sẽ phải tạo lại.`, [
+      { text: "Không", style: "cancel" },
+      {
+        text: "Xoá",
+        style: "destructive",
+        onPress: () =>
+          deleteWaste.mutate(wasteId, {
+            onSuccess: (result) => {
+              router.replace("/material-waste");
+              if (result.affectedCostChecks.length > 0) {
+                Alert.alert(
+                  "Đã xoá phiếu",
+                  `Phiếu vừa xoá nằm trong kỳ của các phiếu Check Cost đã chốt: ${result.affectedCostChecks.map((cc) => cc.code).join(", ")}. Hãy tạo lại những phiếu đó.`,
+                );
+              }
+            },
+            onError: (err) => Alert.alert("Lỗi", err instanceof ApiError ? err.message : "Xoá phiếu thất bại"),
+          }),
+      },
+    ]);
+  }
 
   function toggleDeduct(input: MaterialWasteDeductionsInput) {
     updateDeductions.mutate(input, {
@@ -149,6 +178,15 @@ export default function MaterialWasteDetailScreen() {
             ))
           )}
         </Card>
+        {can("MATERIAL_WASTE", "DELETE") ? (
+          <Button
+            title="Xoá phiếu"
+            variant="danger"
+            fullWidth
+            loading={deleteWaste.isPending}
+            onPress={() => handleDelete(data.id, data.code)}
+          />
+        ) : null}
       </Screen>
     </>
   );
