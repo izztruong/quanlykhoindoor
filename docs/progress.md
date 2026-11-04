@@ -46,6 +46,11 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
+### Lịch chọn ngày trên iOS bị cắt mất Thứ 6–CN — CHƯA thử trên máy thật, CHƯA lên `main`
+Lịch inline của iOS mở ngay dưới ô nên chỉ rộng bằng ô; ở bộ lọc khoảng ngày (8 màn) mỗi ô nửa màn hình
+nên ngày Thứ 6–CN không chạm được. Giờ mở trong tấm trượt rộng cả màn hình (`ui/DateTimeField.tsx`).
+Đã kiểm: typecheck, `expo export --platform ios`. Android không đổi.
+
 ### Sửa phiếu chỉ trừ vỏ dòng có SL lẻ đổi — CHƯA lên `main`, CHƯA bấm thử trên trình duyệt
 `main` đang có bản bỏ hẳn trừ vỏ ở PUT; bản này trừ lại cho dòng đổi, dòng không đụng tới giữ nguyên.
 App cũ (cộng bù vỏ ở form sửa điều chuyển) nhờ vậy cũng ra đúng số — không cần OTA gấp.

@@ -2,9 +2,11 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Button } from "./Button";
 import { Field, inputStyles } from "./Input";
+import { Modal } from "./Modal";
 import { formatDateVN } from "@/lib/format";
-import { colors, fontSize, radius, spacing } from "@/lib/theme";
+import { colors, fontSize, spacing } from "@/lib/theme";
 
 interface DateTimeFieldProps {
   label?: string;
@@ -47,7 +49,7 @@ export function DateTimeField({ label, value, onChange, error, required, dateOnl
       return;
     }
     onChange(selected);
-    // iOS hiển thị lịch ngay trong trang, đóng lại ngay sau lần chạm đầu thì không chỉnh được giờ.
+    // iOS giữ lịch trong tấm trượt tới khi bấm Xong: đóng ngay sau lần chạm đầu thì không chỉnh được giờ.
     if (Platform.OS !== "ios") setMode(null);
   }
 
@@ -64,22 +66,39 @@ export function DateTimeField({ label, value, onChange, error, required, dateOnl
         <Ionicons name="calendar-outline" size={18} color={colors.textFaint} />
       </Pressable>
 
-      {mode ? (
-        <View style={Platform.OS === "ios" ? styles.iosPicker : undefined}>
-          <DateTimePicker
-            value={value}
-            mode={Platform.OS === "ios" && !dateOnly ? "datetime" : mode}
-            display={Platform.OS === "ios" ? "inline" : "default"}
-            maximumDate={maximumDate}
-            onValueChange={(_event, selected) => handleValueChange(selected)}
-            onDismiss={() => setMode(null)}
-          />
-          {Platform.OS === "ios" ? (
-            <Pressable onPress={() => setMode(null)} style={styles.iosDone} accessibilityRole="button">
-              <Text style={styles.iosDoneText}>Xong</Text>
-            </Pressable>
-          ) : null}
-        </View>
+      {Platform.OS === "ios" ? (
+        /*
+          Lịch inline của iOS là lịch của Apple, cần ~320pt mới đủ 7 cột. Mở ngay dưới ô thì nó chỉ
+          rộng bằng ô — ở bộ lọc khoảng ngày hai ô đứng cạnh nhau, mỗi ô nửa màn hình, nên lịch bị cắt
+          còn cột Thứ 2–Thứ 5 và mọi ngày Thứ 6–CN không chạm được. Mở trong tấm trượt thì lịch luôn
+          rộng bằng màn hình, ô hẹp cỡ nào cũng vậy. Lồng trong FilterSheet (cũng là một Modal) vẫn
+          được: iOS trình bày Modal con từ Modal đang mở, miễn là nó nằm trong cây con của Modal đó.
+        */
+        <Modal
+          visible={mode !== null}
+          title={label ?? (dateOnly ? "Chọn ngày" : "Chọn ngày giờ")}
+          onClose={() => setMode(null)}
+          footer={<Button title="Xong" fullWidth onPress={() => setMode(null)} />}
+        >
+          <View style={styles.iosPicker}>
+            <DateTimePicker
+              value={value}
+              mode={dateOnly ? "date" : "datetime"}
+              display="inline"
+              maximumDate={maximumDate}
+              onValueChange={(_event, selected) => handleValueChange(selected)}
+            />
+          </View>
+        </Modal>
+      ) : mode ? (
+        <DateTimePicker
+          value={value}
+          mode={mode}
+          display="default"
+          maximumDate={maximumDate}
+          onValueChange={(_event, selected) => handleValueChange(selected)}
+          onDismiss={() => setMode(null)}
+        />
       ) : null}
     </Field>
   );
@@ -90,18 +109,5 @@ const styles = StyleSheet.create({
   controlError: { borderColor: colors.danger },
   pressed: { opacity: 0.7 },
   value: { flex: 1, fontSize: fontSize.md, color: colors.text },
-  iosPicker: {
-    marginTop: spacing.sm,
-    borderRadius: radius.md,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: "hidden",
-  },
-  iosDone: {
-    paddingVertical: spacing.md,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
-  },
-  iosDoneText: { textAlign: "center", fontSize: fontSize.md, fontWeight: "700", color: colors.primary },
+  iosPicker: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
 });
