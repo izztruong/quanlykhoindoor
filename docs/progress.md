@@ -46,6 +46,11 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
+### Lịch chọn ngày trên iOS bị cắt mất Thứ 6–CN — ĐÃ lên `main` + OTA iOS, CHƯA thử trên máy thật
+Lịch inline của iOS mở ngay dưới ô nên chỉ rộng bằng ô; ở bộ lọc khoảng ngày (8 màn) mỗi ô nửa màn hình
+nên ngày Thứ 6–CN không chạm được. Giờ mở trong tấm trượt rộng cả màn hình (`ui/DateTimeField.tsx`).
+OTA iOS này chở theo phần mobile của `8c62b79` (bỏ cộng bù vỏ ở form sửa điều chuyển). **Android chưa đẩy.**
+
 ### Sửa phiếu không còn trừ vỏ lần hai — ĐÃ lên `main`, CHƯA bấm thử trên trình duyệt
 Bỏ `subtractTareWeight` ở PUT của kiểm kê quán, phiếu huỷ, điều chuyển; mobile điều chuyển bỏ cộng bù vỏ.
 Đã kiểm: typecheck server + mobile. **Chưa thử curl** (Docker tắt lúc làm).
