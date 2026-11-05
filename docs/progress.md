@@ -46,6 +46,11 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
+### Đề xuất chi: hoàn thành thẳng từ "Đã duyệt", đề nghị tạm ứng được 0 — ĐÃ lên `main` + OTA Android/iOS, CHƯA bấm thử
+Tạm ứng không còn bắt buộc trước Hoàn thành (server + web + mobile); ô đề nghị tạm ứng nhận 0, lần tạm ứng
+thật vẫn phải > 0. **Server phải lên trước app/web** — server cũ trả 409 cho nút Hoàn thành ở phiếu Đã duyệt.
+Đã kiểm: typecheck 3 app, lint web, `expo export`, 13 ca curl trên `kho_db`. Dữ liệu thử đã dọn.
+
 ### Lịch chọn ngày trên iOS bị cắt mất Thứ 6–CN — ĐÃ lên `main` + OTA iOS, CHƯA thử trên máy thật
 Lịch inline của iOS mở ngay dưới ô nên chỉ rộng bằng ô; ở bộ lọc khoảng ngày (8 màn) mỗi ô nửa màn hình
 nên ngày Thứ 6–CN không chạm được. Giờ mở trong tấm trượt rộng cả màn hình (`ui/DateTimeField.tsx`).

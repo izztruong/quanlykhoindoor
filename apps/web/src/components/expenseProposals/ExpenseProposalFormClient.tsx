@@ -58,7 +58,9 @@ export function ExpenseProposalFormClient({ existing }: { existing?: ExpenseProp
     const checked = validateRows(rows);
     if ("error" in checked) return setError(checked.error);
 
-    if (advance === null || !(advance > 0)) return setError("Số tiền đề nghị tạm ứng phải lớn hơn 0.");
+    // Được là 0 — có khoản chi không cần ứng trước. Cùng luật với server.
+    if (advance === null || Number.isNaN(advance)) return setError("Vui lòng nhập số tiền đề nghị tạm ứng (có thể là 0).");
+    if (advance < 0) return setError("Số tiền đề nghị tạm ứng không được âm.");
     if (advance > total) return setError("Số tiền đề nghị tạm ứng không được vượt tổng dự kiến.");
     if (!invoiceDueDate) return setError("Vui lòng chọn ngày trả hoá đơn dự kiến.");
 
@@ -175,7 +177,9 @@ export function ExpenseProposalFormClient({ existing }: { existing?: ExpenseProp
               onChange={(e) => setAdvanceAmount(e.target.value)}
               placeholder="VD: 500000"
             />
-            <span className="text-xs text-slate-400">Không vượt tổng dự kiến. Kế toán có thể sửa khi tạm ứng.</span>
+            <span className="text-xs text-slate-400">
+              Không vượt tổng dự kiến; nhập 0 nếu không cần tạm ứng. Kế toán có thể sửa khi tạm ứng.
+            </span>
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-slate-600">Ngày trả hoá đơn dự kiến</label>

@@ -24,16 +24,23 @@ export const expenseProposalSchema = z
     approverId: z.string({ message: "Vui lòng chọn người duyệt" }).trim().min(1, "Vui lòng chọn người duyệt"),
     purpose: z.string().trim().min(1, "Mục đích sử dụng không được để trống"),
     items: itemsSchema,
-    // Số tiền đề nghị tạm ứng lần đầu — bắt buộc với mọi phiếu (đã bỏ ô "Người chi", mọi phiếu đi luồng
-    // người lập chi). Ô trống ("") coi như không gửi để rơi vào câu lỗi tiếng Việt ở superRefine thay vì
-    // lỗi ép kiểu. Trần = tổng dự kiến, kiểm ở toProposalData vì tổng do server tính.
+    // Số tiền đề nghị tạm ứng lần đầu — bắt buộc NHẬP với mọi phiếu nhưng được là 0: có khoản chi
+    // không cần ứng trước, và phiếu "Đã duyệt" hoàn thành thẳng được mà không qua bước tạm ứng.
+    // Ô trống ("") coi như không gửi để rơi vào câu lỗi tiếng Việt ở superRefine thay vì lỗi ép kiểu.
+    // Trần = tổng dự kiến, kiểm ở toProposalData vì tổng do server tính.
     // App cũ còn gửi `payer` thì Zod tự bỏ trường thừa.
     advanceAmount: z.preprocess(emptyToUndefined, z.coerce.number().optional()),
     invoiceDueDate: z.preprocess(emptyToUndefined, dateOnly("Ngày trả hoá đơn dự kiến không hợp lệ").optional()),
   })
   .superRefine((data, ctx) => {
-    if (data.advanceAmount === undefined || !(data.advanceAmount > 0)) {
-      ctx.addIssue({ code: "custom", message: "Số tiền đề nghị tạm ứng phải lớn hơn 0", path: ["advanceAmount"] });
+    if (data.advanceAmount === undefined || Number.isNaN(data.advanceAmount)) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Vui lòng nhập số tiền đề nghị tạm ứng (có thể là 0)",
+        path: ["advanceAmount"],
+      });
+    } else if (data.advanceAmount < 0) {
+      ctx.addIssue({ code: "custom", message: "Số tiền đề nghị tạm ứng không được âm", path: ["advanceAmount"] });
     }
     if (!data.invoiceDueDate) {
       ctx.addIssue({ code: "custom", message: "Vui lòng chọn ngày trả hoá đơn dự kiến", path: ["invoiceDueDate"] });
