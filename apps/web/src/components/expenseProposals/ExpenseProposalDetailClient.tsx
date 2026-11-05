@@ -95,8 +95,8 @@ export function ExpenseProposalDetailClient({ id }: { id: string }) {
   const canApprove = status === "PENDING" && canDecide;
   const canFirstAdvance = status === "APPROVED" && proposal.advanceAmount != null && can("EXPENSE_PROPOSALS", "ADVANCE");
   const canAdvanceMore = status === "ADVANCED" && remaining > 0 && can("EXPENSE_PROPOSALS", "ADVANCE");
-  const canComplete =
-    ((status === "APPROVED" && proposal.advanceAmount == null) || status === "ADVANCED") && can("EXPENSE_PROPOSALS", "COMPLETE");
+  // Tạm ứng không bắt buộc: phiếu Đã duyệt hoàn thành thẳng được, kể cả khi có số đề nghị tạm ứng.
+  const canComplete = (status === "APPROVED" || status === "ADVANCED") && can("EXPENSE_PROPOSALS", "COMPLETE");
   const busy = decide.isPending || deleteProposal.isPending;
   const onError = (fallback: string) => (err: unknown) => setError(err instanceof ApiError ? err.message : fallback);
 

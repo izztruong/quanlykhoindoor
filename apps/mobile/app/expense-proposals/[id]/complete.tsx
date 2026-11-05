@@ -31,8 +31,8 @@ export default function ExpenseProposalCompleteScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const proposal = useExpenseProposal(id ?? "");
   const data = proposal.data;
-  // Cùng điều kiện với server: Đã duyệt mà không có tạm ứng (kế toán chi), hoặc Đã tạm ứng.
-  const completable = data && ((data.status === "APPROVED" && data.advanceAmount == null) || data.status === "ADVANCED");
+  // Cùng điều kiện với server: Đã duyệt hoặc Đã tạm ứng — tạm ứng không bắt buộc.
+  const completable = data && (data.status === "APPROVED" || data.status === "ADVANCED");
 
   return (
     <>

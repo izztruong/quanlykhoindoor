@@ -210,8 +210,9 @@ export async function recordAdvance(id: string, user: AuthUser | undefined, amou
 }
 
 /**
- * Hoàn thành: khai hạng mục thực chi + ngày nộp hoá đơn. Đi từ Đã duyệt (phiếu không có tạm ứng) hoặc
- * Đã tạm ứng. Thực chi được phép vượt tổng dự kiến đã duyệt — không còn bước duyệt bổ sung hạng mục.
+ * Hoàn thành: khai hạng mục thực chi + ngày nộp hoá đơn. Đi từ Đã duyệt hoặc Đã tạm ứng — tạm ứng KHÔNG
+ * bắt buộc, kể cả phiếu có số đề nghị tạm ứng > 0 (khoản chi có thể xong trước khi kịp ứng). Thực chi
+ * được phép vượt tổng dự kiến đã duyệt — không còn bước duyệt bổ sung hạng mục.
  */
 export async function completeProposal(
   id: string,
@@ -220,8 +221,7 @@ export async function completeProposal(
   invoiceDate: Date,
 ) {
   const proposal = await findOwnedProposal(id, user);
-  const fromApproved = proposal.status === "APPROVED" && proposal.advanceAmount === null;
-  if (!fromApproved && proposal.status !== "ADVANCED") throw new HttpError(409, WRONG_STATUS_MESSAGE);
+  if (proposal.status !== "APPROVED" && proposal.status !== "ADVANCED") throw new HttpError(409, WRONG_STATUS_MESSAGE);
 
   const { rows, total } = toItemRows(items);
 
