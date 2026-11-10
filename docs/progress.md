@@ -1,6 +1,6 @@
 # Tiến độ dự án
 
-Cập nhật: 2026-11-02
+Cập nhật: 2026-11-10
 
 Ghi **đúng những gì git không tự trả lời được**. Lý do thiết kế đã nằm trong commit message, đừng
 chép lại vào đây. Mỗi mục "Đang dở" tối đa 3–4 dòng, và dòng quan trọng nhất luôn là: *đã kiểm thử
@@ -45,6 +45,10 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 ---
 
 ## Đang dở
+
+### Ảnh chứng minh cho phiếu huỷ (server + web + mobile) — CHƯA thử trên trình duyệt/app, CHƯA lên `main`
+Tối đa 5 ảnh/phiếu, đính ngay lúc tạo (quyền Thêm là đủ) hoặc lúc sửa; gỡ ảnh đã lưu cần quyền Sửa; xem ở trang chi tiết. Xoá phiếu dọn cả file trên R2.
+Đã kiểm typecheck 3 app, lint web, bundle Android, `migrate deploy` DB trắng + `kho_db` + `kho_dev_copy`, 9 ca curl với R2 thật.
 
 ### Đề xuất chi: hoàn thành thẳng từ "Đã duyệt", đề nghị tạm ứng được 0 — ĐÃ lên `main` + OTA Android/iOS, CHƯA bấm thử
 Tạm ứng không còn bắt buộc trước Hoàn thành (server + web + mobile); ô đề nghị tạm ứng nhận 0, lần tạm ứng

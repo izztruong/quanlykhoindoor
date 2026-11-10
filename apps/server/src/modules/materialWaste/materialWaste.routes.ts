@@ -1,9 +1,11 @@
+import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import { prisma } from "../../config/db";
 import { assertOwner, can, ownerWhere, requirePermission } from "../../middleware/auth";
 import { generateCode } from "../../utils/codeGenerator";
 import { findCostChecksUsingPeriodRecord } from "../../utils/costCheckImpact";
 import { HttpError } from "../../utils/httpError";
+import { deleteImages, isStorageConfigured, putImage, signedImageUrl } from "../../utils/objectStorage";
 import { parseDateRange, parsePagination } from "../../utils/pagination";
 import {
   assertAddedItemsInShopMenu,
@@ -13,7 +15,13 @@ import {
   resolveMenuShopId,
 } from "../../utils/shopMenu";
 import { subtractTareWeight, subtractTareWeightOnChanged } from "../../utils/tareWeight";
-import { materialWasteCreateSchema, materialWasteDeductionsSchema } from "./materialWaste.schemas";
+import {
+  MAX_IMAGE_BYTES,
+  MAX_IMAGES_PER_WASTE,
+  materialWasteCreateSchema,
+  materialWasteDeductionsSchema,
+  materialWasteImageUploadSchema,
+} from "./materialWaste.schemas";
 
 export const materialWasteRouter = Router();
 
@@ -194,7 +202,8 @@ materialWasteRouter.put("/:id", requirePermission("MATERIAL_WASTE"), async (req,
 
 // Cần MATERIAL_WASTE.DELETE. Cùng khuôn với DELETE /stock-imports/:id: tìm phiếu Check Cost bị ảnh
 // hưởng TRƯỚC khi xoá (phiếu huỷ gộp vào kỳ theo quán + wasteAt), trả 200 + danh sách để báo admin tạo
-// lại — số liệu các phiếu đó đã chốt cứng. Dòng hàng xoá theo cascade.
+// lại — số liệu các phiếu đó đã chốt cứng. Dòng hàng và dòng ảnh xoá theo cascade; file ảnh trên R2
+// thì cascade không đụng tới nên phải tự xoá.
 materialWasteRouter.delete("/:id", requirePermission("MATERIAL_WASTE"), async (req, res) => {
   const id = req.params.id as string;
   const existing = await prisma.materialWaste.findUnique({ where: { id } });
@@ -202,7 +211,10 @@ materialWasteRouter.delete("/:id", requirePermission("MATERIAL_WASTE"), async (r
   assertOwner(existing, req.user, "Không tìm thấy phiếu huỷ");
 
   const affectedCostChecks = await findCostChecksUsingPeriodRecord([existing.createdById], existing.wasteAt);
+  // Đọc khoá ảnh TRƯỚC khi xoá: cascade dọn dòng DB nhưng không đụng file trên R2.
+  const images = await prisma.materialWasteImage.findMany({ where: { materialWasteId: id }, select: { objectKey: true } });
   await prisma.materialWaste.delete({ where: { id } });
+  await deleteImages(images.map((image) => image.objectKey));
 
   res.json({ affectedCostChecks });
 });
@@ -242,4 +254,114 @@ materialWasteRouter.patch("/:id/deductions", requirePermission("MATERIAL_WASTE",
   });
 
   res.json({ ...item, affectedCostChecks });
+});
+
+// ---- Ảnh chứng minh hàng huỷ — cùng khuôn với ảnh khoản chi ngoài (otherExpenses.routes.ts) ----
+
+/** Nạp phiếu và chặn ngoài phạm vi (404), y như GET /:id. */
+async function findOwnedWaste(id: string, user: Parameters<typeof assertOwner>[1]) {
+  const waste = await prisma.materialWaste.findUnique({ where: { id } });
+  if (!waste) throw new HttpError(404, "Không tìm thấy phiếu huỷ");
+  assertOwner(waste, user, "Không tìm thấy phiếu huỷ");
+  return waste;
+}
+
+const EXTENSION_BY_TYPE: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
+
+// Chỗ DUY NHẤT ký URL xem ảnh — gọi khi mở chi tiết/sửa phiếu, không phải mỗi lần tải danh sách.
+materialWasteRouter.get("/:id/images", requirePermission("MATERIAL_WASTE"), async (req, res) => {
+  const id = req.params.id as string;
+  await findOwnedWaste(id, req.user);
+
+  const images = await prisma.materialWasteImage.findMany({
+    where: { materialWasteId: id },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+
+  res.json(
+    await Promise.all(
+      images.map(async (image) => ({
+        id: image.id,
+        contentType: image.contentType,
+        size: image.size,
+        url: await signedImageUrl(image.objectKey),
+      })),
+    ),
+  );
+});
+
+// Quyền suy theo method nên POST ảnh = MATERIAL_WASTE.ADD, cố ý: quán chỉ có quyền Thêm phải đính được
+// ảnh cho phiếu mình vừa tạo (ảnh gửi SAU khi phiếu đã có id). Đòi EDIT là chặn đứng luồng tạo mới.
+materialWasteRouter.post("/:id/images", requirePermission("MATERIAL_WASTE"), async (req, res) => {
+  if (!isStorageConfigured()) {
+    throw new HttpError(503, "Chưa cấu hình kho ảnh (Cloudflare R2) nên không đính được ảnh");
+  }
+
+  const id = req.params.id as string;
+  await findOwnedWaste(id, req.user);
+  const { images } = materialWasteImageUploadSchema.parse(req.body);
+
+  const existingCount = await prisma.materialWasteImage.count({ where: { materialWasteId: id } });
+  if (existingCount + images.length > MAX_IMAGES_PER_WASTE) {
+    throw new HttpError(
+      400,
+      `Mỗi phiếu huỷ tối đa ${MAX_IMAGES_PER_WASTE} ảnh (đang có ${existingCount}, chọn thêm ${images.length})`,
+    );
+  }
+
+  // Giải base64 và kiểm kích thước THẬT (chuỗi base64 dài hơn dữ liệu gốc ~33%), kiểm hết mọi ảnh
+  // trước khi đẩy ảnh đầu tiên lên để file lỗi không kịp sinh rác.
+  const decoded = images.map((image, index) => {
+    const buffer = Buffer.from(image.dataBase64, "base64");
+    if (buffer.length === 0) throw new HttpError(400, `Ảnh ${index + 1} không đọc được`);
+    if (buffer.length > MAX_IMAGE_BYTES) {
+      throw new HttpError(400, `Ảnh ${index + 1} nặng quá ${Math.round(MAX_IMAGE_BYTES / 1000)} KB`);
+    }
+    return { buffer, contentType: image.contentType };
+  });
+
+  const uploaded: string[] = [];
+  try {
+    for (const image of decoded) {
+      const key = `material-waste/${id}/${randomUUID()}.${EXTENSION_BY_TYPE[image.contentType]}`;
+      await putImage(key, image.buffer, image.contentType);
+      uploaded.push(key);
+    }
+  } catch (error) {
+    // Lỗi giữa chừng: dọn những file vừa đẩy lên rồi mới ném, không để lại file mồ côi.
+    await deleteImages(uploaded);
+    throw error;
+  }
+
+  await prisma.materialWasteImage.createMany({
+    data: uploaded.map((objectKey, index) => ({
+      materialWasteId: id,
+      objectKey,
+      contentType: decoded[index]!.contentType,
+      size: decoded[index]!.buffer.length,
+      sortOrder: existingCount + index,
+    })),
+  });
+
+  res.status(201).json({ created: uploaded.length });
+});
+
+// Quyền truyền TƯỜNG MINH "EDIT": suy theo method thì DELETE → MATERIAL_WASTE.DELETE, tức quyền xoá cả
+// phiếu — gỡ một tấm ảnh chỉ là sửa phiếu. Ảnh mới chọn mà chưa lưu thì bỏ ở phía client, không cần quyền.
+materialWasteRouter.delete("/:id/images/:imageId", requirePermission("MATERIAL_WASTE", "EDIT"), async (req, res) => {
+  const id = req.params.id as string;
+  await findOwnedWaste(id, req.user);
+
+  const image = await prisma.materialWasteImage.findUnique({ where: { id: req.params.imageId as string } });
+  // Kiểm cả materialWasteId: id ảnh của phiếu khác thì coi như không tồn tại.
+  if (!image || image.materialWasteId !== id) throw new HttpError(404, "Không tìm thấy ảnh");
+
+  await prisma.materialWasteImage.delete({ where: { id: image.id } });
+  await deleteImages([image.objectKey]);
+
+  res.status(204).end();
 });

@@ -346,6 +346,14 @@ export interface MaterialWasteFinishedItemRow {
   deductInCostCheck: boolean;
 }
 
+/** Ảnh chứng minh hàng huỷ — url là URL ký có hạn 1 giờ. */
+export interface MaterialWasteImage {
+  id: string;
+  url: string;
+  contentType: string;
+  size: number;
+}
+
 export interface MaterialWaste {
   id: string;
   code: string;

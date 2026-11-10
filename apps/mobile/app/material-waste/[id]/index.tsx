@@ -10,6 +10,7 @@ import {
   useUpdateMaterialWasteDeductions,
   type MaterialWasteDeductionsInput,
 } from "@/hooks/useMaterialWaste";
+import { MaterialWasteImagesSection } from "@/components/materialWaste/MaterialWasteImagesSection";
 import { ApiError } from "@/lib/apiClient";
 import { formatDateVN, formatNumber } from "@/lib/format";
 import { useCan } from "@/lib/permissions";
@@ -178,6 +179,8 @@ export default function MaterialWasteDetailScreen() {
             ))
           )}
         </Card>
+        <MaterialWasteImagesSection wasteId={data.id} />
+
         {can("MATERIAL_WASTE", "DELETE") ? (
           <Button
             title="Xoá phiếu"

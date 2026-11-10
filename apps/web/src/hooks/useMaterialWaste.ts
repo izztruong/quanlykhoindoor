@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
-import type { AffectedCostCheck, MaterialWaste, PagedResult } from "@/types";
+import type { AffectedCostCheck, MaterialWaste, MaterialWasteImage, PagedResult } from "@/types";
 
 export interface MaterialWasteItemInput {
   productId: string;
@@ -87,5 +87,38 @@ export function useDeleteMaterialWaste() {
       // Ô "Huỷ hàng 7 ngày" ở Trang chủ đếm phiếu huỷ.
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     },
+  });
+}
+
+/** URL ảnh là URL ký có hạn 1 giờ — chỉ tải khi mở chi tiết hoặc form sửa phiếu. */
+export function useMaterialWasteImages(id: string) {
+  return useQuery({
+    queryKey: ["material-waste", id, "images"],
+    queryFn: () => api.get<MaterialWasteImage[]>(`/material-waste/${id}/images`),
+    enabled: Boolean(id),
+  });
+}
+
+export interface MaterialWasteImageInput {
+  contentType: string;
+  dataBase64: string;
+}
+
+/** Nhận id lúc gọi chứ không lúc tạo hook: phiếu mới chưa có id cho tới khi server trả về. */
+export function useUploadMaterialWasteImages() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, images }: { id: string; images: MaterialWasteImageInput[] }) =>
+      api.post<{ created: number }>(`/material-waste/${id}/images`, { images }),
+    onSuccess: (_data, { id }) => queryClient.invalidateQueries({ queryKey: ["material-waste", id, "images"] }),
+  });
+}
+
+/** Cần MATERIAL_WASTE.EDIT — gỡ ảnh đã lưu là sửa phiếu. */
+export function useDeleteMaterialWasteImage(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (imageId: string) => api.delete<void>(`/material-waste/${id}/images/${imageId}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["material-waste", id, "images"] }),
   });
 }

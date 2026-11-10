@@ -4,17 +4,25 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { useFinishedGoodItems, useProducts } from "@/hooks/useCatalog";
-import { useCreateMaterialWaste, useUpdateMaterialWaste } from "@/hooks/useMaterialWaste";
+import {
+  useCreateMaterialWaste,
+  useDeleteMaterialWasteImage,
+  useMaterialWasteImages,
+  useUpdateMaterialWaste,
+  useUploadMaterialWasteImages,
+} from "@/hooks/useMaterialWaste";
 import { ApiError } from "@/lib/api-client";
 import { useCurrentUser } from "@/lib/auth";
 import { nowForDatetimeLocal, toDatetimeLocal } from "@/lib/dateRange";
+import { compressImage } from "@/lib/imageCompress";
 import { can } from "@/lib/permissions";
 import { filterSuggestions } from "@/lib/searchSuggestions";
 import type { FinishedGoodItem, MaterialWaste, Product } from "@/types";
 import { Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { MAX_WASTE_IMAGES, MaterialWasteImagePicker, type PendingWasteImage } from "./MaterialWasteImagePicker";
 
 interface MaterialRow {
   productId: string;
@@ -80,6 +88,39 @@ export function MaterialWasteFormClient({ existing }: MaterialWasteFormClientPro
   const [finishedSearch, setFinishedSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  // Ảnh mới chọn, chưa gửi lên. URL xem trước phải tự thu hồi, không thì rò bộ nhớ.
+  const [pendingImages, setPendingImages] = useState<PendingWasteImage[]>([]);
+  const [uploading, setUploading] = useState(false);
+  // Id phiếu MỚI đã lưu ở lần bấm trước mà ảnh tải hỏng — lần bấm sau chỉ gửi lại ảnh.
+  const [createdId, setCreatedId] = useState<string | null>(null);
+  const uploadImages = useUploadMaterialWasteImages();
+  const deleteImage = useDeleteMaterialWasteImage(existing?.id ?? "");
+  const { data: savedImages = [] } = useMaterialWasteImages(existing?.id ?? "");
+  const canEditImages = can(currentUser, "MATERIAL_WASTE", "EDIT");
+
+  // Thu hồi URL xem trước lúc rời trang. Đọc qua ref: effect phụ thuộc pendingImages sẽ thu hồi cả
+  // ảnh còn đang hiện mỗi lần chọn thêm.
+  const pendingRef = useRef(pendingImages);
+  useEffect(() => {
+    pendingRef.current = pendingImages;
+  }, [pendingImages]);
+  useEffect(() => () => pendingRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl)), []);
+
+  function pickImages(files: File[]) {
+    const room = MAX_WASTE_IMAGES - savedImages.length - pendingImages.length;
+    if (room <= 0) {
+      setError(`Mỗi phiếu huỷ tối đa ${MAX_WASTE_IMAGES} ảnh`);
+      return;
+    }
+    setError(files.length > room ? `Chỉ nhận thêm ${room} ảnh nữa (tối đa ${MAX_WASTE_IMAGES})` : null);
+    setPendingImages((prev) => [...prev, ...files.slice(0, room).map((file) => ({ file, previewUrl: URL.createObjectURL(file) }))]);
+  }
+
+  function removePendingImage(previewUrl: string) {
+    URL.revokeObjectURL(previewUrl);
+    setPendingImages((prev) => prev.filter((item) => item.previewUrl !== previewUrl));
+  }
+
   const rowIds = useMemo(() => new Set(rows.map((r) => r.productId)), [rows]);
   const suggestions = useMemo(() => filterSuggestions(products, rowIds, search), [search, products, rowIds]);
 
@@ -119,8 +160,41 @@ export function MaterialWasteFormClient({ existing }: MaterialWasteFormClientPro
     setFinishedRows((prev) => prev.filter((r) => r.finishedGoodItemId !== finishedGoodItemId));
   }
 
-  function handleSubmit() {
+  /**
+   * Gửi ảnh sau khi phiếu đã có id. Trả câu lỗi nếu hỏng, `null` nếu xong — cố ý KHÔNG ném: phiếu đã
+   * lưu rồi, người dùng cần biết điều đó thay vì tưởng mất trắng.
+   */
+  async function uploadPendingImages(wasteId: string): Promise<string | null> {
+    if (pendingImages.length === 0) return null;
+    try {
+      const images = await Promise.all(pendingImages.map((item) => compressImage(item.file)));
+      await uploadImages.mutateAsync({ id: wasteId, images });
+      for (const item of pendingImages) URL.revokeObjectURL(item.previewUrl);
+      setPendingImages([]);
+      return null;
+    } catch (err) {
+      if (err instanceof ApiError) return err.message;
+      return err instanceof Error ? err.message : "Tải ảnh thất bại";
+    }
+  }
+
+  async function handleSubmit() {
     setError(null);
+
+    // Phiếu mới đã lưu ở lần bấm trước, chỉ hỏng phần ảnh: lần này CHỈ gửi lại ảnh. Gọi lại POST là
+    // sinh phiếu trùng, còn PUT thì quán (chỉ có quyền Thêm) không được gọi.
+    if (createdId) {
+      setUploading(true);
+      const uploadError = await uploadPendingImages(createdId);
+      setUploading(false);
+      if (uploadError) {
+        setError(`Phiếu đã lưu nhưng tải ảnh vẫn thất bại: ${uploadError}`);
+        return;
+      }
+      router.push(`/material-waste/${createdId}`);
+      return;
+    }
+
     const items = rows
       .filter((r) => r.wholeQuantity !== "" || r.looseQuantity !== "")
       .map((r) => ({
@@ -146,31 +220,42 @@ export function MaterialWasteFormClient({ existing }: MaterialWasteFormClientPro
 
     const payload = { wasteAt: wasteAt ? new Date(wasteAt).toISOString() : undefined, note: note || undefined, items, finishedItems };
 
-    if (isEdit && existing) {
-      updateWaste.mutate(payload, {
-        onSuccess: (updated) => {
-          if (updated.affectedCostChecks.length > 0) {
-            const codes = updated.affectedCostChecks.map((c) => c.code).join(", ");
-            router.push(`/material-waste/${existing.id}`);
-            alert(
-              `Đã lưu phiếu. Phiếu này đã được dùng để tính các phiếu Check Cost sau — số liệu các phiếu đó CHƯA được cập nhật, vui lòng tạo lại nếu cần: ${codes}`,
-            );
-            return;
-          }
-          router.push(`/material-waste/${existing.id}`);
-        },
-        onError: (err) => setError(err instanceof ApiError ? err.message : "Lưu phiếu huỷ thất bại"),
-      });
+    // Hai bước, vì phiếu mới chưa có id cho tới khi server trả về: lưu phiếu trước, rồi mới đẩy ảnh.
+    let wasteId: string;
+    let affectedCodes: string[] = [];
+    try {
+      if (isEdit && existing) {
+        const updated = await updateWaste.mutateAsync(payload);
+        wasteId = existing.id;
+        affectedCodes = updated.affectedCostChecks.map((c) => c.code);
+      } else {
+        const created = await createWaste.mutateAsync(payload);
+        wasteId = created.id;
+        setCreatedId(created.id);
+      }
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Lưu phiếu huỷ thất bại");
       return;
     }
 
-    createWaste.mutate(payload, {
-      onSuccess: () => router.push("/material-waste"),
-      onError: (err) => setError(err instanceof ApiError ? err.message : "Lưu phiếu huỷ thất bại"),
-    });
+    setUploading(true);
+    const uploadError = await uploadPendingImages(wasteId);
+    setUploading(false);
+    if (uploadError) {
+      // Không rời trang: ảnh còn nguyên trong danh sách chờ để bấm lưu lại, phiếu thì đã an toàn.
+      setError(`Đã lưu phiếu nhưng tải ảnh thất bại: ${uploadError}. Bấm lưu lại để gửi lại ảnh.`);
+      return;
+    }
+
+    router.push(`/material-waste/${wasteId}`);
+    if (affectedCodes.length > 0) {
+      alert(
+        `Đã lưu phiếu. Phiếu này đã được dùng để tính các phiếu Check Cost sau — số liệu các phiếu đó CHƯA được cập nhật, vui lòng tạo lại nếu cần: ${affectedCodes.join(", ")}`,
+      );
+    }
   }
 
-  const isPending = isEdit ? updateWaste.isPending : createWaste.isPending;
+  const isPending = (isEdit ? updateWaste.isPending : createWaste.isPending) || uploading;
   const backHref = isEdit && existing ? `/material-waste/${existing.id}` : "/material-waste";
 
   return (
@@ -195,6 +280,15 @@ export function MaterialWasteFormClient({ existing }: MaterialWasteFormClientPro
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-slate-600">Ghi chú</label>
             <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ghi chú (không bắt buộc)" />
+          </div>
+          <div className="md:col-span-2">
+            <MaterialWasteImagePicker
+              savedImages={savedImages}
+              pendingImages={pendingImages}
+              onPick={pickImages}
+              onRemovePending={removePendingImage}
+              onDeleteSaved={canEditImages ? (imageId) => deleteImage.mutate(imageId) : undefined}
+            />
           </div>
         </CardBody>
       </Card>
@@ -397,7 +491,7 @@ export function MaterialWasteFormClient({ existing }: MaterialWasteFormClientPro
 
       <div className="flex justify-end gap-2">
         <Button onClick={handleSubmit} disabled={isPending}>
-          {isPending ? "Đang lưu..." : isEdit ? "Lưu thay đổi" : "Lưu phiếu huỷ"}
+          {uploading ? "Đang tải ảnh..." : isPending ? "Đang lưu..." : createdId ? "Gửi lại ảnh" : isEdit ? "Lưu thay đổi" : "Lưu phiếu huỷ"}
         </Button>
       </div>
     </div>
