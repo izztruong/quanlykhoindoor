@@ -9,6 +9,7 @@ import { can } from "@/lib/permissions";
 import { formatDateTime, formatNumber } from "@/lib/format";
 import { Pencil } from "lucide-react";
 import Link from "next/link";
+import { MaterialWasteImagesCard } from "./MaterialWasteImagesCard";
 
 export function MaterialWasteDetailClient({ id }: { id: string }) {
   const { data: currentUser } = useCurrentUser();
@@ -158,27 +159,31 @@ export function MaterialWasteDetailClient({ id }: { id: string }) {
           </Card>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Thông tin chung</CardTitle>
-          </CardHeader>
-          <CardBody className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-slate-600">Thời gian huỷ</label>
-              <p className="text-sm font-medium text-slate-800">{formatDateTime(waste.wasteAt)}</p>
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-slate-600">Ghi chú</label>
-              <p className="text-sm text-slate-800">{waste.note || "-"}</p>
-            </div>
-            {waste.createdBy && (
+        {/* Cột phải: thông tin chung + ảnh chứng minh xếp chồng. */}
+        <div className="flex flex-col gap-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Thông tin chung</CardTitle>
+            </CardHeader>
+            <CardBody className="flex flex-col gap-4">
               <div className="flex flex-col gap-1">
-                <label className="text-sm font-medium text-slate-600">Người tạo</label>
-                <p className="text-sm text-slate-800">{waste.createdBy.name}</p>
+                <label className="text-sm font-medium text-slate-600">Thời gian huỷ</label>
+                <p className="text-sm font-medium text-slate-800">{formatDateTime(waste.wasteAt)}</p>
               </div>
-            )}
-          </CardBody>
-        </Card>
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-slate-600">Ghi chú</label>
+                <p className="text-sm text-slate-800">{waste.note || "-"}</p>
+              </div>
+              {waste.createdBy && (
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-medium text-slate-600">Người tạo</label>
+                  <p className="text-sm text-slate-800">{waste.createdBy.name}</p>
+                </div>
+              )}
+            </CardBody>
+          </Card>
+          <MaterialWasteImagesCard wasteId={waste.id} />
+        </div>
       </div>
     </div>
   );

@@ -9,10 +9,18 @@ import { Input } from "@/components/ui/Input";
 import { Screen } from "@/components/ui/Screen";
 import { SearchBar } from "@/components/ui/SearchBar";
 import { useFinishedGoodItems, useProducts } from "@/hooks/useCatalog";
-import { useCreateMaterialWaste, useUpdateMaterialWaste } from "@/hooks/useMaterialWaste";
+import {
+  useCreateMaterialWaste,
+  useDeleteMaterialWasteImage,
+  useMaterialWasteImages,
+  useUpdateMaterialWaste,
+  useUploadMaterialWasteImages,
+} from "@/hooks/useMaterialWaste";
+import type { CompressedImage } from "@/lib/imagePicker";
 import { useCan } from "@/lib/permissions";
 import { colors, fontSize, spacing } from "@/lib/theme";
 import type { MaterialWaste, Product, ProductType } from "@/types";
+import { MaterialWasteImagePicker } from "./MaterialWasteImagePicker";
 
 interface MaterialEntry {
   wholeQuantity: string;
@@ -99,6 +107,13 @@ export function MaterialWasteForm({ existing }: { existing?: MaterialWaste }) {
   const { data: finishedGoodItems = [] } = useFinishedGoodItems();
   const createWaste = useCreateMaterialWaste();
   const updateWaste = useUpdateMaterialWaste(existing?.id ?? "");
+  const uploadImages = useUploadMaterialWasteImages();
+  const deleteImage = useDeleteMaterialWasteImage(existing?.id ?? "");
+  const savedImages = useMaterialWasteImages(existing?.id ?? "");
+  /** Ảnh vừa chụp/chọn, chưa gửi lên — phiếu mới chưa có id để đính kèm. */
+  const [pendingImages, setPendingImages] = useState<CompressedImage[]>([]);
+  /** Id phiếu MỚI đã lưu ở lần bấm trước mà ảnh tải hỏng — lần bấm sau chỉ gửi lại ảnh. */
+  const [createdId, setCreatedId] = useState<string | null>(null);
 
   const [wasteAt, setWasteAt] = useState(() => (existing ? new Date(existing.wasteAt) : new Date()));
   const [note, setNote] = useState(existing?.note ?? "");
@@ -143,7 +158,14 @@ export function MaterialWasteForm({ existing }: { existing?: MaterialWaste }) {
     }).length;
   }
 
-  function submit() {
+  async function submit() {
+    if (createdId) {
+      // Phiếu đã lưu ở lần bấm trước: chỉ gửi lại ảnh. Gọi lại POST là sinh phiếu trùng, còn PUT thì
+      // quán (chỉ có quyền Thêm) không được gọi.
+      if (await uploadPendingImages(createdId)) router.replace(`/material-waste/${createdId}`);
+      return;
+    }
+
     const items = Object.entries(materialEntries)
       .filter(([, entry]) => entry.wholeQuantity !== "" || entry.looseQuantity !== "")
       .map(([productId, entry]) => ({
@@ -169,28 +191,57 @@ export function MaterialWasteForm({ existing }: { existing?: MaterialWaste }) {
 
     const payload = { wasteAt: wasteAt.toISOString(), note: note || undefined, items, finishedItems };
 
-    if (isEdit && existing) {
-      updateWaste.mutate(payload, {
-        onSuccess: (updated) => {
-          if (updated.affectedCostChecks.length > 0) {
-            const codes = updated.affectedCostChecks.map((c) => c.code).join(", ");
-            Alert.alert(
-              "Đã lưu phiếu",
-              `Phiếu này đã được dùng để tính các phiếu Check Cost sau — số liệu các phiếu đó CHƯA được cập nhật, vui lòng tạo lại nếu cần: ${codes}`,
-              [{ text: "Đã hiểu", onPress: () => router.replace(`/material-waste/${existing.id}`) }],
-            );
-            return;
-          }
-          router.replace(`/material-waste/${existing.id}`);
-        },
-      });
+    // Hai bước, vì phiếu mới chưa có id cho tới khi server trả về: lưu phiếu trước, rồi mới đẩy ảnh.
+    let wasteId: string;
+    let affectedCodes: string[] = [];
+    try {
+      if (isEdit && existing) {
+        const updated = await updateWaste.mutateAsync(payload);
+        wasteId = existing.id;
+        affectedCodes = updated.affectedCostChecks.map((c) => c.code);
+      } else {
+        const created = await createWaste.mutateAsync(payload);
+        wasteId = created.id;
+        setCreatedId(created.id);
+      }
+    } catch {
+      // Toast lỗi đã bắn ở mutationCache; ở lại form để sửa, không mất dữ liệu đã nhập.
       return;
     }
 
-    createWaste.mutate(payload, { onSuccess: (created) => router.replace(`/material-waste/${created.id}`) });
+    if (!(await uploadPendingImages(wasteId))) return;
+
+    if (affectedCodes.length > 0) {
+      Alert.alert(
+        "Đã lưu phiếu",
+        `Phiếu này đã được dùng để tính các phiếu Check Cost sau — số liệu các phiếu đó CHƯA được cập nhật, vui lòng tạo lại nếu cần: ${affectedCodes.join(", ")}`,
+        [{ text: "Đã hiểu", onPress: () => router.replace(`/material-waste/${wasteId}`) }],
+      );
+      return;
+    }
+    router.replace(`/material-waste/${wasteId}`);
   }
 
-  const saving = createWaste.isPending || updateWaste.isPending;
+  /**
+   * Đẩy ảnh đang chờ lên phiếu đã có id. Trả `true` nếu xong (hoặc không có ảnh). Hỏng thì báo rõ là
+   * PHIẾU ĐÃ LƯU — người dùng cần biết điều đó thay vì tưởng mất trắng — và giữ ảnh lại để gửi lại.
+   */
+  async function uploadPendingImages(wasteId: string): Promise<boolean> {
+    if (pendingImages.length === 0) return true;
+    try {
+      await uploadImages.mutateAsync({
+        id: wasteId,
+        images: pendingImages.map((img) => ({ contentType: img.contentType, dataBase64: img.dataBase64 })),
+      });
+      setPendingImages([]);
+      return true;
+    } catch {
+      Alert.alert("Phiếu đã lưu, ảnh chưa tải được", "Bấm \"Gửi lại ảnh\" để thử lại.");
+      return false;
+    }
+  }
+
+  const saving = createWaste.isPending || updateWaste.isPending || uploadImages.isPending;
 
   return (
     <Screen>
@@ -198,6 +249,12 @@ export function MaterialWasteForm({ existing }: { existing?: MaterialWaste }) {
         <CardBody style={styles.headerCard}>
           <DateTimeField label="Thời điểm huỷ" required value={wasteAt} onChange={setWasteAt} maximumDate={new Date()} />
           <Input label="Ghi chú" value={note} onChangeText={setNote} multiline />
+          <MaterialWasteImagePicker
+            savedImages={savedImages.data ?? []}
+            pending={pendingImages}
+            onPendingChange={setPendingImages}
+            onDeleteSaved={can("MATERIAL_WASTE", "EDIT") ? (imageId) => deleteImage.mutate(imageId) : undefined}
+          />
         </CardBody>
       </Card>
 
@@ -303,7 +360,12 @@ export function MaterialWasteForm({ existing }: { existing?: MaterialWaste }) {
         )}
       </GroupSection>
 
-      <Button title={isEdit ? "Lưu thay đổi" : "Tạo phiếu huỷ"} fullWidth loading={saving} onPress={submit} />
+      <Button
+        title={createdId ? "Gửi lại ảnh" : isEdit ? "Lưu thay đổi" : "Tạo phiếu huỷ"}
+        fullWidth
+        loading={saving}
+        onPress={submit}
+      />
     </Screen>
   );
 }

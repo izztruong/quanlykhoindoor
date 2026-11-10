@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { ErrorState, LoadingState, Screen } from "@/components/ui/Screen";
 import { useMaterialWaste, useUpdateMaterialWasteDeductions, type MaterialWasteDeductionsInput } from "@/hooks/useMaterialWaste";
+import { MaterialWasteImagesSection } from "@/components/materialWaste/MaterialWasteImagesSection";
 import { ApiError } from "@/lib/apiClient";
 import { formatDateVN, formatNumber } from "@/lib/format";
 import { useCan } from "@/lib/permissions";
@@ -149,6 +150,7 @@ export default function MaterialWasteDetailScreen() {
             ))
           )}
         </Card>
+        <MaterialWasteImagesSection wasteId={data.id} />
       </Screen>
     </>
   );

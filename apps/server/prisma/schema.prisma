@@ -576,6 +576,7 @@ model MaterialWaste {
 
   items         MaterialWasteItem[]
   finishedItems MaterialWasteFinishedItem[]
+  images        MaterialWasteImage[]
 
   @@index([createdById, wasteAt])
 }
@@ -594,6 +595,21 @@ model MaterialWasteItem {
   deductInCostCheck Boolean     @default(true)
 
   @@index([productId])
+}
+
+// Ảnh chứng minh hàng huỷ (tối đa 5/phiếu), lưu trên Cloudflare R2 — cùng khuôn OtherExpenseImage.
+// DB chỉ giữ objectKey; URL xem là URL ký có hạn, chỉ ký ở GET /material-waste/:id/images.
+model MaterialWasteImage {
+  id              String        @id @default(cuid())
+  materialWasteId String
+  materialWaste   MaterialWaste @relation(fields: [materialWasteId], references: [id], onDelete: Cascade)
+  objectKey       String        @unique
+  contentType     String
+  size            Int
+  sortOrder       Int           @default(0)
+  createdAt       DateTime      @default(now())
+
+  @@index([materialWasteId])
 }
 
 // Đồ thành phẩm huỷ — cùng cấu trúc StockCheckFinishedItem (1 số lượng duy nhất, không tách chẵn/lẻ).
