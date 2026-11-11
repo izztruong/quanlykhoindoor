@@ -256,6 +256,16 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
   mới mà quên truyền quán là lặng lẽ tính bằng bản chung. `CostCheck.reportSnapshot` chốt cứng nên
   phiếu đã lập không đổi. `findCostChecksUsingEffectiveDate` nay nhận `shopUserId` — mốc riêng chỉ
   cảnh báo phiếu của chính quán đó.
+- **Đồ thành phẩm có HAI schema ghi**: `PUT /finished-good-items/:id` và `POST /bulk-import` bị
+  `finishedGoodPrices` **tiếp quản** (mount trước trên cùng path, để giữ lịch sử giá đồng bộ) và parse
+  bằng `finishedGoodItemSchema` trong `finishedGoodPrices.schemas.ts`, không phải schema ở
+  `finishedGoodItems.routes.ts` (schema đó chỉ còn lo POST đơn lẻ). Thêm trường mới vào `FinishedGoodItem`
+  thì **phải thêm ở cả hai** — thiếu bên `finishedGoodPrices` là Zod gạt lặng lẽ, API trả 200 mà không
+  lưu, form sửa lẫn nhập Excel đều trông như thành công (đã xảy ra với `vatPercent`). Chỉ curl thật mới
+  bắt được. `/api/products` thì `productMenuScopeRouter` chỉ tiếp quản GET.
+- **`schema.partial()` của Zod 4 vẫn điền `.default()`**: `PUT /products/:id` gửi thiếu trường là reset
+  `costPrice` = 0, `type` = NVL, `active` = true. Form web/app gửi đủ trường nên không dính; script hay
+  client mới gửi một phần là hỏng dữ liệu (đã hỏng 133 hàng trên `kho_dev_copy` lúc thử). Chưa sửa.
 - **TIỆM BÁNH là một "quán" bật thêm cờ `Role.isBakery`** — nó dùng lại nguyên kho, phiếu nhập, phiếu
   kiểm, phiếu huỷ, điều chuyển, menu, chấm muộn. Chỉ **trục bán ra** là khác: `BakerySale`
   (ngày × người mua × bánh, `shopUserId = null` = **bán ngoài**) thay cho `PosSaleHour`. Bánh về quán
