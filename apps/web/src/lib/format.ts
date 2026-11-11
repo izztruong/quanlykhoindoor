@@ -61,6 +61,14 @@ const salesOrderStatusLabel: Record<string, string> = {
   CANCELLED: "Đã huỷ",
 };
 
+const bakeryOrderStatusLabel: Record<string, string> = {
+  ORDERED: "Chờ tiệm bánh xác nhận",
+  CONFIRMED: "Chờ vận chuyển lấy",
+  IN_TRANSIT: "Đang giao",
+  COMPLETED: "Hoàn thành",
+  CANCELLED: "Đã huỷ",
+};
+
 const productTypeLabel: Record<string, string> = {
   NVL: "Nguyên vật liệu",
   COC_TAKE: "Cốc & ống hút",
@@ -85,6 +93,7 @@ export const labels = {
   transactionStatus: (v: string) => transactionStatusLabel[v] ?? v,
   stockImportType: (v: string) => stockImportTypeLabel[v] ?? v,
   salesOrderStatus: (v: string) => salesOrderStatusLabel[v] ?? v,
+  bakeryOrderStatus: (v: string) => bakeryOrderStatusLabel[v] ?? v,
   productType: (v: string) => productTypeLabel[v] ?? v,
   finishedGoodCategory: (v: string) => finishedGoodCategoryLabel[v] ?? v,
   shiftExpenseType: (v: string) => shiftExpenseTypeLabel[v] ?? v,
@@ -93,6 +102,7 @@ export const labels = {
 /** Derived from the label maps above so the dropdown/Excel option lists and display labels never drift apart. */
 export const PRODUCT_TYPE_OPTIONS = Object.entries(productTypeLabel).map(([value, label]) => ({ value, label }));
 export const FINISHED_GOOD_CATEGORY_OPTIONS = Object.entries(finishedGoodCategoryLabel).map(([value, label]) => ({ value, label }));
+export const BAKERY_ORDER_STATUS_OPTIONS = Object.entries(bakeryOrderStatusLabel).map(([value, label]) => ({ value, label }));
 export const SHIFT_EXPENSE_TYPE_OPTIONS = Object.entries(shiftExpenseTypeLabel).map(([value, label]) => ({ value, label }));
 
 /**

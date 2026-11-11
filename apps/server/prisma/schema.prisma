@@ -88,6 +88,13 @@ model User {
   shopWarehouse             Warehouse?                  @relation("WarehouseShop")
   finishedGoodMenu          FinishedGoodItemShop[]
   productShops              ProductShop[]
+  bakerySupplier            Supplier?                   @relation("SupplierBakery")
+  bakeryOrdersShop          BakeryOrder[]               @relation("BakeryOrderShop")
+  bakeryOrdersCreated       BakeryOrder[]               @relation("BakeryOrderCreatedBy")
+  bakeryOrdersConfirmed     BakeryOrder[]               @relation("BakeryOrderConfirmedBy")
+  bakeryOrdersPickedUp      BakeryOrder[]               @relation("BakeryOrderPickedUpBy")
+  bakeryOrdersReceived      BakeryOrder[]               @relation("BakeryOrderReceivedBy")
+  bakeryOrdersCancelled     BakeryOrder[]               @relation("BakeryOrderCancelledBy")
 }
 
 enum DeadlineKind {
@@ -348,6 +355,7 @@ model Product {
   tareWeight Decimal? @db.Decimal(18, 4)
 
   stockImportItems      StockImportItem[]
+  bakeryOrderItems      BakeryOrderItem[]
   salesOrderItems       SalesOrderItem[]
   reorderThresholds     ProductReorderThreshold[]
   stockCheckItems       StockCheckItem[]
@@ -425,13 +433,18 @@ model ProductReorderThreshold {
 }
 
 model Supplier {
-  id      String  @id @default(cuid())
-  code    String  @unique
-  name    String
-  phone   String?
-  address String?
+  id           String  @id @default(cuid())
+  code         String  @unique
+  name         String
+  phone        String?
+  address      String?
+  /// Tài khoản tiệm bánh ứng với NCC này — đơn bánh gửi tới NCC này thì tài khoản đó xác nhận, và
+  /// phiếu nhập kho tự sinh ghi NCC này. NULL = NCC thường. Một tiệm bánh đúng một NCC.
+  bakeryUserId String? @unique
+  bakeryUser   User?   @relation("SupplierBakery", fields: [bakeryUserId], references: [id], onDelete: SetNull)
 
   stockImports          StockImport[]
+  bakeryOrders          BakeryOrder[]
   productPrices         ProductSupplierPrice[]
   materialTransferItems MaterialTransferItem[]
 }
@@ -482,6 +495,10 @@ model StockImport {
   createdBy     User?                  @relation("StockImportCreatedBy", fields: [createdById], references: [id])
   createdAt     DateTime               @default(now())
   updatedAt     DateTime               @updatedAt
+  /// Có giá trị = phiếu TỰ SINH khi quán xác nhận nhận đơn bánh. Màn phiếu nhập không sửa/xoá được
+  /// phiếu này — số liệu chỉ đổi qua đơn bánh, để đơn và phiếu không bao giờ lệch nhau.
+  bakeryOrderId String?                @unique
+  bakeryOrder   BakeryOrder?           @relation(fields: [bakeryOrderId], references: [id])
 
   items  StockImportItem[]
   images StockImportImage[]
@@ -1254,4 +1271,75 @@ model McpToken {
   createdBy   User?     @relation("McpTokenCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   createdAt   DateTime  @default(now())
   lastUsedAt  DateTime?
+}
+
+enum BakeryOrderStatus {
+  ORDERED
+  CONFIRMED
+  IN_TRANSIT
+  COMPLETED
+  CANCELLED
+}
+
+/**
+ * Đơn bánh: quán đặt → tiệm bánh xác nhận → người vận chuyển lấy hàng → quán nhận. Mỗi bước một cột
+ * số lượng riêng ở BakeryOrderItem và không ghi đè số của bước trước, nên lệch ở đâu là thấy ở đó.
+ * Khác hẳn SalesOrder (chỉ là ĐỀ XUẤT, cố ý không dính tồn kho): bước nhận hàng TỰ SINH phiếu nhập
+ * kho cho quán, tức là đi thẳng vào cột "Nhận trong kỳ" của Check Cost. Không sinh "Bánh bán ra" —
+ * tiệm bánh tự nhập phần đó.
+ */
+model BakeryOrder {
+  id            String            @id @default(cuid())
+  code          String            @unique
+  status        BakeryOrderStatus @default(ORDERED)
+  shopUserId    String
+  shopUser      User              @relation("BakeryOrderShop", fields: [shopUserId], references: [id])
+  /// NCC tiệm bánh (Supplier.bakeryUserId có giá trị). Người xác nhận suy từ NCC này.
+  supplierId    String
+  supplier      Supplier          @relation(fields: [supplierId], references: [id])
+  /// Ngày cần giao — ngày trần, cùng lý do @db.Date như BakerySale.soldOn.
+  deliveryOn    DateTime          @db.Date
+  note          String?
+  createdById   String?
+  createdBy     User?             @relation("BakeryOrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt     DateTime          @default(now())
+  confirmedById String?
+  confirmedBy   User?             @relation("BakeryOrderConfirmedBy", fields: [confirmedById], references: [id], onDelete: SetNull)
+  confirmedAt   DateTime?
+  pickedUpById  String?
+  pickedUpBy    User?             @relation("BakeryOrderPickedUpBy", fields: [pickedUpById], references: [id], onDelete: SetNull)
+  pickedUpAt    DateTime?
+  receivedById  String?
+  receivedBy    User?             @relation("BakeryOrderReceivedBy", fields: [receivedById], references: [id], onDelete: SetNull)
+  /// Có CẢ GIỜ: thành `transactionAt` của phiếu nhập tự sinh, tức mốc kỳ Check Cost.
+  receivedAt    DateTime?
+  cancelledById String?
+  cancelledBy   User?             @relation("BakeryOrderCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+  cancelledAt   DateTime?
+
+  items       BakeryOrderItem[]
+  stockImport StockImport?
+
+  @@index([shopUserId, createdAt])
+  @@index([supplierId, status])
+  @@index([status, deliveryOn])
+}
+
+model BakeryOrderItem {
+  id            String      @id @default(cuid())
+  bakeryOrderId String
+  bakeryOrder   BakeryOrder @relation(fields: [bakeryOrderId], references: [id], onDelete: Cascade)
+  productId     String
+  product       Product     @relation(fields: [productId], references: [id])
+  orderedQty    Decimal     @db.Decimal(18, 3)
+  /// NULL = bước đó chưa tới. Hao hụt KHÔNG lưu, tính lúc hiển thị (lấy − nhận).
+  confirmedQty  Decimal?    @db.Decimal(18, 3)
+  pickedUpQty   Decimal?    @db.Decimal(18, 3)
+  receivedQty   Decimal?    @db.Decimal(18, 3)
+  /// Giá nhập NCC, chốt lúc tiệm bánh xác nhận — đổi bảng giá về sau không làm đổi đơn.
+  unitPrice     Decimal?    @db.Decimal(18, 2)
+  note          String?
+
+  @@unique([bakeryOrderId, productId])
+  @@index([productId])
 }

@@ -26,6 +26,7 @@ import { productGroupsRouter } from "./modules/productGroups/productGroups.route
 import { productsRouter } from "./modules/products/products.routes";
 import { productMenuScopeRouter, productShopsRouter } from "./modules/productShops/productShops.routes";
 import { posItemMappingsRouter } from "./modules/posItemMappings/posItemMappings.routes";
+import { bakeryOrdersRouter } from "./modules/bakeryOrders/bakeryOrders.routes";
 import { bakerySalesRouter } from "./modules/bakerySales/bakerySales.routes";
 import { posSalesRouter } from "./modules/posSales/posSales.routes";
 import { productSupplierPricesRouter } from "./modules/productSupplierPrices/productSupplierPrices.routes";
@@ -104,6 +105,7 @@ app.use("/api/units", unitsRouter);
 app.use("/api/suppliers", suppliersRouter);
 
 app.use("/api/sales-orders", salesOrdersRouter);
+app.use("/api/bakery-orders", bakeryOrdersRouter);
 app.use("/api/stock-checks", stockChecksRouter);
 app.use("/api/material-waste", materialWasteRouter);
 app.use("/api/shift-expenses", shiftExpensesRouter);

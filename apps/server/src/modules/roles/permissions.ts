@@ -19,6 +19,10 @@ export const PERMISSION_ACTIONS = [
   "COMPLETE",
   "PAY",
   "DEDUCT",
+  "CONFIRM",
+  "PICKUP",
+  "RECEIVE",
+  "CANCEL",
 ] as const;
 export type PermissionAction = (typeof PERMISSION_ACTIONS)[number];
 
@@ -32,6 +36,10 @@ export const ACTION_LABELS: Record<PermissionAction, string> = {
   COMPLETE: "Hoàn thành",
   PAY: "Đánh dấu đã chi",
   DEDUCT: "Chọn dòng trừ Check Cost",
+  CONFIRM: "Xác nhận / từ chối (tiệm bánh)",
+  PICKUP: "Xác nhận lấy hàng (vận chuyển)",
+  RECEIVE: "Xác nhận nhận hàng",
+  CANCEL: "Huỷ đơn",
 };
 
 const CRUD: PermissionAction[] = ["VIEW", "ADD", "EDIT", "DELETE"];
@@ -62,6 +70,17 @@ export const PERMISSION_RESOURCES = [
   // Đơn hàng chỉ là ĐỀ XUẤT của quán; hàng thực nhận ghi ở phiếu nhập kho (STOCK_IMPORTS).
   // ADD = tạo đơn, sửa & huỷ đơn của mình · APPROVE = tích "Đã xử lý", huỷ đơn của mọi quán.
   { resource: "ORDERS", label: "Đơn hàng", group: "Order", actions: ["VIEW", "ADD", "APPROVE"] },
+  // Đơn bánh — mỗi bước của luồng một action, để chia đúng người: ADD = quán đặt · CONFIRM = tiệm
+  // bánh xác nhận/từ chối · PICKUP = người vận chuyển xác nhận SL lấy · RECEIVE = quán xác nhận SL
+  // nhận (tự sinh phiếu nhập kho) · CANCEL = huỷ đơn chưa được xác nhận · EDIT = sửa SL nhận và ngày
+  // nhận của đơn ĐÃ HOÀN THÀNH (mặc định chỉ admin). Vai trò người vận chuyển cần thêm DATA.SCOPE_ALL
+  // để thấy đơn của mọi quán — nó không có quyền ở module nào khác nên phạm vi đó không lộ gì thêm.
+  {
+    resource: "BAKERY_ORDERS",
+    label: "Đơn bánh",
+    group: "Order",
+    actions: ["VIEW", "ADD", "CONFIRM", "PICKUP", "RECEIVE", "CANCEL", "EDIT"],
+  },
 
   // Đường ghi chính thức cho "hàng về quán" và là nguồn cột "Nhận trong kỳ" của Check Cost, nên
   // cần đủ EDIT/DELETE: gõ sai mà không sửa được thì phải gõ phiếu bù trừ số âm, rối hơn nhiều.

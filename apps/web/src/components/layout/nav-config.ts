@@ -34,6 +34,7 @@ export const navSections: NavSection[] = [
       { label: "Danh sách đơn hàng", href: "/orders", permission: "ORDERS.VIEW" },
       { label: "Tạo đơn hàng", href: "/orders/new", permission: "ORDERS.ADD" },
       { label: "Order nhanh", href: "/orders/quick", permission: "ORDERS.ADD" },
+      { label: "Đơn bánh", href: "/bakery-orders", permission: "BAKERY_ORDERS.VIEW" },
     ],
   },
   {
@@ -94,6 +95,7 @@ const extraPageRules: { pattern: RegExp; permission: string }[] = [
   { pattern: /^\/stock\/imports\/new(\/|$)/, permission: "STOCK_IMPORTS.ADD" },
   { pattern: /^\/stock\/imports\/[^/]+\/edit(\/|$)/, permission: "STOCK_IMPORTS.EDIT" },
   { pattern: /^\/cost-checks\/new(\/|$)/, permission: "COST_CHECKS.ADD" },
+  { pattern: /^\/bakery-orders\/new(\/|$)/, permission: "BAKERY_ORDERS.ADD" },
   { pattern: /^\/material-transfers\/new(\/|$)/, permission: "MATERIAL_TRANSFERS.ADD" },
   { pattern: /^\/material-transfers\/[^/]+\/edit(\/|$)/, permission: "MATERIAL_TRANSFERS.EDIT" },
   { pattern: /^\/stock-checks\/new(\/|$)/, permission: "STOCK_CHECKS.ADD" },

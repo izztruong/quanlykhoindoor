@@ -180,7 +180,7 @@ trùng lặp và file sẽ phình (đã từng lên 4.400 token, hơn cả CLAUD
 |---|---|---|---|
 | `PN` nhập kho | `DH` đơn hàng | `KT` kiểm kê quán | `PH` huỷ nguyên liệu |
 | `DC` điều chuyển | `CC` Check Cost | | |
-| `DX` đề xuất chi | | | |
+| `DX` đề xuất chi | `DB` đơn bánh | | |
 
 **Ngoại lệ: phiếu nhập kho nhận mã do NGƯỜI DÙNG đặt** khi nhập Excel — cột "Mã phiếu" trong file là
 mã thật, lưu thẳng vào DB; để trống hoặc tạo từ form thì mới tự sinh `PN…`. Mã vẫn **duy nhất toàn
@@ -218,6 +218,14 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
   Gắn nghiệp vụ vào nó là dựng lại bước "xử lý đơn" cũ dưới một cái tên khác.
   Dấu "đã báo quán một lần" là `processedById`, nên **bỏ tích cố ý KHÔNG xoá cột đó** — xoá thì bỏ
   tích rồi tick lại là bắn thông báo lần hai.
+- **Đơn bánh (`bakeryOrders`) KHÁC đơn hàng: nó TỰ SINH phiếu nhập kho** cho kho quán ở bước quán nhận
+  (`StockImport.bakeryOrderId`), tức là đi thẳng vào "Nhận trong kỳ" của Check Cost. Phiếu đó **bị
+  khoá sửa/xoá ở `stockImports`** — chỉ đổi qua `PUT /bakery-orders/:id/received` (admin), để số
+  trên đơn và trên phiếu không lệch. Không sinh "Bánh bán ra" (tiệm bánh tự nhập). Tiệm bánh nào nhận
+  đơn suy từ **`Supplier.bakeryUserId`** (một tiệm bánh một NCC); đổi nối bị chặn khi NCC còn đơn dở.
+  Lập tay phiếu nhập từ NCC tiệm bánh **chỉ cảnh báo** trên form (quán có lúc mua bánh lẻ) — lập trùng
+  đợt hàng là Check Cost tính nhận hai lần. Mỗi bước có quyền riêng **và** chốt đúng phía (tiệm bánh
+  xác nhận, quán nhận) trong service, vì quyền theo action không phân biệt được quán với tiệm bánh.
 - SL lẻ ở `stockChecks`, `materialWaste`, `materialTransfers` đi qua `utils/tareWeight`: đường TẠO
   (POST, Excel) trừ vỏ cả phiếu bằng `subtractTareWeight`; **PUT chỉ trừ dòng có SL lẻ ĐỔI**
   (`subtractTareWeightOnChanged`, so theo giá trị vì payload không có id dòng). DB lưu lượng tịnh, form

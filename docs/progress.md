@@ -1,6 +1,6 @@
 # Tiến độ dự án
 
-Cập nhật: 2026-11-10
+Cập nhật: 2026-11-11
 
 Ghi **đúng những gì git không tự trả lời được**. Lý do thiết kế đã nằm trong commit message, đừng
 chép lại vào đây. Mỗi mục "Đang dở" tối đa 3–4 dòng, và dòng quan trọng nhất luôn là: *đã kiểm thử
@@ -59,6 +59,11 @@ thật vẫn phải > 0. **Server phải lên trước app/web** — server cũ 
 Lịch inline của iOS mở ngay dưới ô nên chỉ rộng bằng ô; ở bộ lọc khoảng ngày (8 màn) mỗi ô nửa màn hình
 nên ngày Thứ 6–CN không chạm được. Giờ mở trong tấm trượt rộng cả màn hình (`ui/DateTimeField.tsx`).
 OTA chở theo phần mobile của `8c62b79` (bỏ cộng bù vỏ ở form sửa điều chuyển) — đã tới cả Android (`d43fa04`).
+
+### Đơn bánh (web) — CHƯA bấm thử trên trình duyệt, CHƯA lên `main`, chưa làm app
+Quán đặt → tiệm bánh XN → vận chuyển lấy → quán nhận (tự sinh phiếu nhập kho); admin sửa SL/ngày nhận sau hoàn thành.
+Đã kiểm: typecheck server + web, `next build`, migration trên DB trắng, 44 ca curl + route options (dữ liệu thử đã dọn).
+**Trước khi dùng**: nối NCC với tài khoản tiệm bánh, khai giá NCC cho bánh, tạo vai trò Vận chuyển (VIEW + PICKUP + DATA.SCOPE_ALL), tick quyền Đơn bánh cho vai trò quán/tiệm bánh.
 
 ### Sửa phiếu chỉ trừ vỏ dòng có SL lẻ đổi — CHƯA lên `main`, CHƯA bấm thử trên trình duyệt
 `main` đang có bản bỏ hẳn trừ vỏ ở PUT; bản này trừ lại cho dòng đổi, dòng không đụng tới giữ nguyên.

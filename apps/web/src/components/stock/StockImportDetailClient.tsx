@@ -22,10 +22,12 @@ export function StockImportDetailClient({ id }: { id: string }) {
 
   if (isLoading || !item) return <p className="text-slate-400">Đang tải...</p>;
 
-  const canEdit = can(currentUser, "STOCK_IMPORTS", "EDIT");
-  const canDelete = can(currentUser, "STOCK_IMPORTS", "DELETE");
+  // Phiếu tự sinh từ đơn bánh: server khoá sửa/xoá, số liệu chỉ đổi qua đơn bánh. Ảnh chứng từ vẫn đính được.
+  const fromBakeryOrder = item.bakeryOrder ?? null;
+  const canEdit = !fromBakeryOrder && can(currentUser, "STOCK_IMPORTS", "EDIT");
+  const canDelete = !fromBakeryOrder && can(currentUser, "STOCK_IMPORTS", "DELETE");
   // Đính ảnh chỉ cần quyền Thêm — người gõ phiếu phải đính được chứng từ cho phiếu mình vừa tạo.
-  const canManageImages = canEdit || can(currentUser, "STOCK_IMPORTS", "ADD");
+  const canManageImages = can(currentUser, "STOCK_IMPORTS", "EDIT") || can(currentUser, "STOCK_IMPORTS", "ADD");
   const total = item.items.reduce((sum, line) => sum + Number(line.costAmount), 0);
 
   function handleDelete() {
@@ -51,6 +53,15 @@ export function StockImportDetailClient({ id }: { id: string }) {
         <div>
           <h1 className="text-xl font-semibold text-slate-800">Phiếu nhập kho {item.code}</h1>
           <p className="text-sm text-slate-500">Thời gian nhập: {formatDateTime(item.transactionAt)}</p>
+          {fromBakeryOrder && (
+            <p className="text-sm text-amber-700">
+              Phiếu tự sinh từ đơn bánh{" "}
+              <Link href={`/bakery-orders/${fromBakeryOrder.id}`} className="font-medium text-indigo-600 hover:underline">
+                {fromBakeryOrder.code}
+              </Link>{" "}
+              — sửa số lượng hoặc ngày nhận ở đơn bánh đó.
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {canEdit && (
