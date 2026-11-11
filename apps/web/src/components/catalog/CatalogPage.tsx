@@ -65,7 +65,9 @@ function buildPayload(fields: CatalogFieldConfig[], values: Record<string, strin
   for (const field of fields) {
     const raw = values[field.name] ?? "";
     if (field.type === "number") {
-      payload[field.name] = raw === "" ? (field.required ? 0 : undefined) : Number(raw);
+      // `clearable` áp cho cả ô số: không có nó thì ô số để trống gửi `undefined`, Prisma hiểu là
+      // "không sửa trường này" và giá trị đã khai ở lại VĨNH VIỄN — không gỡ được bằng giao diện.
+      payload[field.name] = raw === "" ? (field.required ? 0 : field.clearable ? null : undefined) : Number(raw);
     } else if (field.type === "checkbox") {
       payload[field.name] = raw === "true";
     } else if (field.clearable) {

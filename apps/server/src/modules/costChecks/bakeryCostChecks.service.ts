@@ -4,6 +4,7 @@ import type { AuthUser } from "../../middleware/auth";
 import { generateCode } from "../../utils/codeGenerator";
 import { HttpError } from "../../utils/httpError";
 import { PriceHistory } from "../../utils/priceHistory";
+import { costPerRecipeUnit } from "../../utils/vat";
 import { toDateKey, vnDayStartMs } from "../../utils/vnTime";
 import {
   computeCostCheckReport,
@@ -76,22 +77,25 @@ function safeDiv(a: number, b: number): number {
  *
  * KHÔNG chép cái cổng `category !== "TRA" && category !== "DAV"` của khối tổng hợp bên quán: bánh có
  * `category` gì cũng phải vào doanh thu của tiệm bánh.
+ *
+ * `useVat` nhận qua THAM SỐ chứ không tự đọc lại phiếu: hàm này nhận `bakeryUserId` + `rows` chứ không
+ * nhận dòng `CostCheck`, và thêm một lượt query nữa là mở đường cho hai nửa của cùng một phiếu (bảng
+ * nguyên liệu và khối tổng hợp) đọc ra hai chế độ khác nhau. Call site truyền giá trị lấy từ DÒNG ĐÃ
+ * GHI, không lấy từ payload.
  */
 export async function computeBakerySummary(
   bakeryUserId: string,
   rows: MaterialRow[],
   sales: BakeryPeriodSales,
+  useVat: boolean,
 ): Promise<BakeryFinancialSummary> {
   const products = await prisma.product.findMany({
     where: { id: { in: rows.map((r) => r.productId) } },
-    select: { id: true, costPrice: true, recipeUnitsPerBaseUnit: true },
+    // `vatPercent` BẮT BUỘC có trong select: đây là `select` chứ không phải `include`, thiếu nó thì
+    // `costPerRecipeUnit` nhận `undefined` và lặng lẽ tính như VAT 0% dù phiếu bật cờ.
+    select: { id: true, costPrice: true, recipeUnitsPerBaseUnit: true, vatPercent: true },
   });
-  const costByProduct = new Map(
-    products.map((p) => {
-      const factor = p.recipeUnitsPerBaseUnit != null ? Number(p.recipeUnitsPerBaseUnit) : 1;
-      return [p.id, Number(p.costPrice) / (factor || 1)];
-    }),
-  );
+  const costByProduct = new Map(products.map((p) => [p.id, costPerRecipeUnit(p, useVat)]));
 
   let expectedMaterial = 0;
   let actualMaterial = 0;
@@ -104,7 +108,7 @@ export async function computeBakerySummary(
     wasteMaterial += row.wastedQty * cost;
   }
 
-  const prices = await PriceHistory.load(sales.byItem.keys(), bakeryUserId);
+  const prices = await PriceHistory.load(sales.byItem.keys(), bakeryUserId, useVat);
   const buyers = new Map<string, BakeryRevenueByBuyer>();
   let revenue = 0;
   let soldQuantity = 0;
@@ -201,6 +205,7 @@ export async function createBakeryCostCheck(data: BakeryCostCheckCreateInput, ac
         openingStockCheckId: data.openingStockCheckId,
         closingStockCheckId: data.closingStockCheckId,
         note: data.note,
+        useVat: data.useVat,
         createdById: actingUser?.id,
       },
     });
@@ -218,12 +223,20 @@ export async function createBakeryCostCheck(data: BakeryCostCheckCreateInput, ac
 
   // Phải chạy SAU khi transaction commit — computeCostCheckReport đọc lại qua prisma thường.
   const { rows } = await computeCostCheckReport(created.id, sales);
-  const summary = await computeBakerySummary(data.userId, rows, sales);
+  // Lấy cờ từ `created` (dòng đã ghi) chứ không từ `data`: `computeCostCheckReport` ở trên cũng đọc
+  // cờ từ DB, nên hai nửa của phiếu không thể lệch chế độ.
+  const summary = await computeBakerySummary(data.userId, rows, sales, created.useVat);
 
   const { reportSnapshot: _reportSnapshot, ...withSnapshot } = await prisma.costCheck.update({
     where: { id: created.id },
     data: {
-      reportSnapshot: { rows, summary, posCoverage: sales.coverage, kind: "BAKERY" } as unknown as Prisma.InputJsonValue,
+      reportSnapshot: {
+        rows,
+        summary,
+        posCoverage: sales.coverage,
+        kind: "BAKERY",
+        useVat: created.useVat,
+      } as unknown as Prisma.InputJsonValue,
     },
     include: costCheckDetailInclude,
   });

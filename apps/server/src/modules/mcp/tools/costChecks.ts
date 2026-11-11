@@ -11,7 +11,10 @@ type Snapshot = { rows: MaterialRow[]; summary: FinancialSummary } | null;
 const SUMMARY_DOC =
   "summary: doanh thu (revenue*), giảm giá (discount*), doanh thu thuần (netRevenue*), chi phí NVL dự kiến theo công thức " +
   "(expected*) và thực tế (actual*), cốc ống hút (cupsStraws), tổng giá vốn thực (actualCost*), huỷ NVL (wasteNvl*). " +
-  "Hậu tố Tra = trà, Dav = đồ ăn vặt; *Pct là tỷ lệ trên doanh thu thuần.";
+  "Hậu tố Tra = trà, Dav = đồ ăn vặt; *Pct là tỷ lệ trên doanh thu thuần. " +
+  "useVat = phiếu được lập với cờ Dùng VAT, tức mọi số TIỀN trong summary đã cộng VAT theo % khai ở " +
+  "từng hàng hoá/món (rows chỉ có số lượng nên không ảnh hưởng); false = giá chưa thuế. So hai phiếu " +
+  "khác useVat là so hai thước đo khác nhau.";
 
 const header = {
   user: { select: { name: true } },
@@ -53,6 +56,7 @@ export const listCostChecks = defineTool({
         closingStockCheck: c.closingStockCheck.code,
         createdAt: formatVnDateTime(c.createdAt),
         note: c.note,
+        useVat: c.useVat,
         summary: (c.reportSnapshot as Snapshot)?.summary ?? null,
       })),
     );
@@ -87,6 +91,7 @@ export const getCostCheck = defineTool({
       note: c.note,
       discountTra: num(c.discountTra),
       discountDav: num(c.discountDav),
+      useVat: c.useVat,
       summary: snapshot?.summary ?? null,
       rows: (snapshot?.rows ?? []).map(({ productId: _productId, ...row }) => row),
       soldItems: c.soldItems.map((s) => ({ code: s.finishedGoodItem.code, name: s.finishedGoodItem.name, quantity: num(s.quantitySold) })),

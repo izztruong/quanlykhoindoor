@@ -4,6 +4,7 @@ import type { AuthUser } from "../../middleware/auth";
 import { generateCode } from "../../utils/codeGenerator";
 import { HttpError } from "../../utils/httpError";
 import { PriceHistory } from "../../utils/priceHistory";
+import { costPerRecipeUnit } from "../../utils/vat";
 import { RecipeHistory } from "../../utils/recipeVersions";
 import { parseDateOnly, shiftDateKey, toDateKey, vnDateKeyOf, vnDayStartMs, vnHourCellMs } from "../../utils/vnTime";
 import type { z } from "zod";
@@ -188,6 +189,9 @@ export async function createCostCheck(data: CostCheckCreateInput, actingUser?: A
         note: data.note,
         discountTra: data.discountTra,
         discountDav: data.discountDav,
+        // Phải ghi TRƯỚC khi gọi computeCostCheckReport bên dưới: hàm đó đọc lại phiếu từ DB để
+        // biết tính theo chế độ nào, chứ không nhận cờ qua tham số.
+        useVat: data.useVat,
         createdById: actingUser?.id,
       },
     });
@@ -210,7 +214,11 @@ export async function createCostCheck(data: CostCheckCreateInput, actingUser?: A
   const { rows, summary } = await computeCostCheckReport(created.id, sales);
   const { reportSnapshot: _reportSnapshot, ...withSnapshot } = await prisma.costCheck.update({
     where: { id: created.id },
-    data: { reportSnapshot: { rows, summary, posCoverage: sales.coverage } as unknown as Prisma.InputJsonValue },
+    data: {
+      // `useVat` vào CẢ cột lẫn snapshot: cột để truy vấn/hiển thị, trong snapshot để khối JSON tự
+      // giải thích được chính nó (tool MCP đọc thẳng snapshot, không join sang cột).
+      reportSnapshot: { rows, summary, posCoverage: sales.coverage, useVat: created.useVat } as unknown as Prisma.InputJsonValue,
+    },
     include: costCheckDetailInclude,
   });
 
@@ -640,18 +648,18 @@ export async function computeCostCheckReport(
   for (const row of rows) {
     const product = productById.get(row.productId);
     if (!product) continue;
-    const factor = product.recipeUnitsPerBaseUnit != null ? Number(product.recipeUnitsPerBaseUnit) : 1;
-    const costPerRecipeUnit = Number(product.costPrice) / factor;
+    // `costCheck.useVat` chốt lúc tạo phiếu: bật thì giá vốn được cộng VAT theo `Product.vatPercent`.
+    const unitCost = costPerRecipeUnit(product, costCheck.useVat);
 
     if (product.type === "NVL") {
-      expectedNvlTra += row.theoretical * costPerRecipeUnit;
-      actualNvlTra += row.actualUsed * costPerRecipeUnit;
-      wasteNvlValue += row.wastedQty * costPerRecipeUnit;
+      expectedNvlTra += row.theoretical * unitCost;
+      actualNvlTra += row.actualUsed * unitCost;
+      wasteNvlValue += row.wastedQty * unitCost;
     } else if (product.type === "COC_TAKE") {
-      cupsStraws += row.actualUsed * costPerRecipeUnit;
+      cupsStraws += row.actualUsed * unitCost;
     } else if (product.type === "BANH") {
-      expectedDav += row.theoretical * costPerRecipeUnit;
-      actualDav += row.actualUsed * costPerRecipeUnit;
+      expectedDav += row.theoretical * unitCost;
+      actualDav += row.actualUsed * unitCost;
     }
   }
 
@@ -659,7 +667,7 @@ export async function computeCostCheckReport(
   // `costCheck.soldItems` × giá hiện hành: đổi giá bán giữa kỳ thì phần trước và phần sau mốc đổi phải
   // tính bằng hai giá khác nhau. `CostCheckSoldItem` từ đây chỉ còn là bảng HIỂN THỊ (tổng theo món),
   // không còn là đầu vào — sửa tay bảng đó không làm đổi báo cáo.
-  const prices = await PriceHistory.load(posSales.byItem.keys(), costCheck.userId);
+  const prices = await PriceHistory.load(posSales.byItem.keys(), costCheck.userId, costCheck.useVat);
   let revenueTra = 0;
   let revenueDav = 0;
   for (const cell of posSales.cells) {
@@ -670,6 +678,9 @@ export async function computeCostCheckReport(
     else revenueDav += value;
   }
 
+  // Khuyến mãi CỐ Ý không cộng VAT, kể cả khi phiếu bật cờ: người lập gõ vào đây một số tiền thật đã
+  // giảm cho khách, không phải một mức giá trước thuế. Hệ quả là các cột % không đổi theo đúng tỷ lệ
+  // VAT — đó là đúng, đừng "chữa" bằng cách nhân nó lên.
   const discountTra = Number(costCheck.discountTra ?? 0);
   const discountDav = Number(costCheck.discountDav ?? 0);
   const netRevenueTra = revenueTra - discountTra;

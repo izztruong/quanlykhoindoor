@@ -55,6 +55,7 @@ async function exportCostCheckToExcel(costCheck: CostCheck) {
     ["Phiếu kiểm kê cuối kỳ", `${costCheck.closingStockCheck.code} — ${formatDateTime(costCheck.closingStockCheck.checkedAt)}`],
     ["Người tạo", costCheck.createdBy?.name ?? "-"],
     ["Ngày tạo", formatDateTime(costCheck.createdAt)],
+    ["Dùng VAT", costCheck.useVat ? "Có — mọi số tiền đã cộng VAT" : "Không — giá chưa thuế"],
     ["Ghi chú", costCheck.note ?? "-"],
   ];
   infoRows.forEach((row) => infoSheet.addRow(row));
@@ -198,6 +199,7 @@ export function CostCheckDetailClient({ id }: { id: string }) {
           <div className="mt-2 flex items-center gap-2">
             <h1 className="text-xl font-semibold text-slate-800">Phiếu {costCheck.code}</h1>
             {costCheck.status === "CANCELLED" && <Badge tone="red">Đã huỷ</Badge>}
+            {costCheck.useVat && <Badge tone="blue">Có VAT</Badge>}
           </div>
           <p className="text-sm text-slate-500">Quán: {costCheck.user?.name ?? "-"}</p>
         </div>
@@ -232,6 +234,12 @@ export function CostCheckDetailClient({ id }: { id: string }) {
           <div>
             <div className="text-slate-400">Người tạo</div>
             <div className="font-medium text-slate-800">{costCheck.createdBy?.name ?? "-"}</div>
+          </div>
+          <div>
+            <div className="text-slate-400">Dùng VAT</div>
+            <div className="font-medium text-slate-800">
+              {costCheck.useVat ? "Có — mọi số tiền đã cộng VAT" : "Không — giá chưa thuế"}
+            </div>
           </div>
           {costCheck.note && (
             <div>

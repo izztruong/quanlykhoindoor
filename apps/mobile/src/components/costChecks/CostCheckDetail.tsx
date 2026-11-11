@@ -57,6 +57,7 @@ export function CostCheckDetail({ id }: { id: string }) {
             <InfoRow label="Đầu kỳ" value={`${r.openingStockCheck.code} — ${formatDateTime(r.openingStockCheck.checkedAt)}`} />
             <InfoRow label="Cuối kỳ" value={`${r.closingStockCheck.code} — ${formatDateTime(r.closingStockCheck.checkedAt)}`} />
             <InfoRow label="Người tạo" value={r.createdBy?.name ?? "—"} />
+            <InfoRow label="Dùng VAT" value={r.useVat ? "Có — mọi số tiền đã cộng VAT" : "Không — giá chưa thuế"} />
             {r.note ? <InfoRow label="Ghi chú" value={r.note} /> : null}
           </CardBody>
         </Card>

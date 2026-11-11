@@ -29,6 +29,7 @@ export default function ProductsScreen() {
         options: productGroups.map((g) => ({ value: g.id, label: g.name })),
       },
       { name: "costPrice", label: "Giá vốn", type: "number", required: true },
+      { name: "vatPercent", label: "VAT (%) — để trống coi như 0%", type: "number", clearable: true },
       { name: "type", label: "Loại hàng hoá", type: "select", required: true, options: PRODUCT_TYPE_OPTIONS },
       { name: "note", label: "Ghi chú" },
       {
@@ -90,6 +91,7 @@ export default function ProductsScreen() {
           unitId: item.unitId,
           productGroupId: item.productGroupId,
           costPrice: String(item.costPrice ?? ""),
+          vatPercent: item.vatPercent == null ? "" : String(Number(item.vatPercent)),
           type: item.type ?? "",
           note: item.note ?? "",
           recipeUnitId: item.recipeUnitId ?? "",
@@ -107,6 +109,7 @@ export default function ProductsScreen() {
             { label: "Nhóm", value: item.productGroup?.name ?? "—" },
             { label: "Loại", value: labels.productType(item.type) },
             { label: "Giá vốn", value: formatCurrency(item.costPrice) },
+            { label: "VAT", value: item.vatPercent != null ? `${Number(item.vatPercent)}%` : "—" },
           ],
         })}
       />

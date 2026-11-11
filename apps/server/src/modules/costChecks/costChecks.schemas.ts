@@ -8,6 +8,14 @@ export const costCheckCreateSchema = z.object({
   discountTra: z.coerce.number().nonnegative().optional(),
   discountDav: z.coerce.number().nonnegative().optional(),
   /**
+   * Cộng VAT vào giá vốn và giá bán khi tính phiếu, theo `vatPercent` của từng hàng hoá/món.
+   *
+   * `.default(false)` chứ không bắt buộc: app mobile bản cũ không gửi trường này, và `false` đúng
+   * bằng cách những phiếu đó vẫn luôn được tính — không có đường sai im lặng nào ở đây, khác hẳn
+   * `soldItems` bên dưới. Giá trị được chốt cứng vào `CostCheck.useVat` lúc tạo.
+   */
+  useVat: z.boolean().optional().default(false),
+  /**
    * SL món đã bán giờ lấy tự động từ doanh số POS, không còn gõ tay.
    *
    * Vẫn khai trường này để BẮT LỖI TO TIẾNG thay vì sai im lặng: app mobile không deploy cùng lúc với

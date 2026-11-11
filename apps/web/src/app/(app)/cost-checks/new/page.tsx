@@ -54,6 +54,8 @@ export default function NewCostCheckPage() {
   const [note, setNote] = useState("");
   const [discountTra, setDiscountTra] = useState("");
   const [discountDav, setDiscountDav] = useState("");
+  // Mặc định TẮT: phiếu lập từ trước giờ đều là giá chưa thuế, bật sẵn là âm thầm đổi thước đo.
+  const [useVat, setUseVat] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const periodReady = Boolean(userId && openingStockCheckId && closingStockCheckId && openingStockCheckId !== closingStockCheckId);
@@ -92,6 +94,7 @@ export default function NewCostCheckPage() {
         note: note || undefined,
         discountTra: discountTra === "" ? undefined : Number(discountTra),
         discountDav: discountDav === "" ? undefined : Number(discountDav),
+        useVat,
       },
       {
         onSuccess: (created) => router.push(`/cost-checks/${created.id}`),
@@ -178,6 +181,23 @@ export default function NewCostCheckPage() {
               onChange={(e) => setDiscountDav(e.target.value)}
               placeholder="0"
             />
+          </div>
+          <div className="flex flex-col gap-1 md:col-span-3">
+            <label className="text-sm font-medium text-slate-600">Dùng VAT</label>
+            <label className="flex items-start gap-2 text-sm text-slate-600">
+              <input
+                type="checkbox"
+                checked={useVat}
+                onChange={(e) => setUseVat(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300"
+              />
+              <span>
+                Cộng VAT vào giá vốn và giá bán khi tính phiếu, theo cột <strong>VAT</strong> của từng hàng hoá và từng
+                món (giá khai trong danh mục là giá <strong>trước thuế</strong>). Hàng chưa khai VAT giữ giá nguyên.
+                Khuyến mãi không bị cộng VAT. Lựa chọn này <strong>chốt cứng vào phiếu</strong>: sau khi lưu không đổi
+                được, muốn xem cách khác thì lập thêm một phiếu.
+              </span>
+            </label>
           </div>
           <div className="flex flex-col gap-1 md:col-span-3">
             <label className="text-sm font-medium text-slate-600">Ghi chú</label>

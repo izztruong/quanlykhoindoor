@@ -133,7 +133,9 @@ costChecksRouter.get("/:id", requirePermission("COST_CHECKS"), async (req, res) 
       })
       .sort(compareMaterialRows);
 
-    snapshot = { rows, summary: snapshot.summary, posCoverage: snapshot.posCoverage };
+    // Spread cả snapshot cũ rồi mới ghi đè `rows`: liệt kê tay từng khoá là mỗi khoá thêm về sau
+    // (vd `useVat`) bị XOÁ LẶNG LẼ khỏi phiếu ngay lần đầu ai đó mở một phiếu cũ.
+    snapshot = { ...snapshot, rows };
     await prisma.costCheck.update({
       where: { id: item.id },
       data: { reportSnapshot: snapshot as unknown as Prisma.InputJsonValue },

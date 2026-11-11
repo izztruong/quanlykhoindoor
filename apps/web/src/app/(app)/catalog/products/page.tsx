@@ -16,6 +16,11 @@ const columns: ColumnDef<Product>[] = [
   { header: "Loại hàng hoá", accessorFn: (row) => labels.productType(row.type), id: "type" },
   { header: "Giá vốn", accessorFn: (row) => formatCurrency(row.costPrice), id: "costPrice" },
   {
+    header: "VAT",
+    accessorFn: (row) => (row.vatPercent != null ? `${Number(row.vatPercent)}%` : "—"),
+    id: "vatPercent",
+  },
+  {
     header: "Trạng thái",
     id: "active",
     cell: ({ row }) =>
@@ -51,6 +56,13 @@ export default function ProductsPage() {
         options: productGroups.map((g) => ({ value: g.id, label: g.name })),
       },
       { name: "costPrice", label: "Giá vốn", type: "number" as const, required: true },
+      {
+        name: "vatPercent",
+        label: "VAT (%) — để trống coi như 0%",
+        type: "number" as const,
+        // Để trống phải GỠ được VAT đã khai, không chỉ là "không sửa" — xem buildPayload.
+        clearable: true,
+      },
       {
         name: "type",
         label: "Loại hàng hoá",

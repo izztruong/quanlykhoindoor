@@ -16,6 +16,11 @@ const columns: ColumnDef<FinishedGoodItem>[] = [
   { header: "Nhóm", accessorFn: (row) => (row.category ? labels.finishedGoodCategory(row.category) : "—"), id: "category" },
   { header: "Giá bán", accessorFn: (row) => (row.sellingPrice != null ? formatCurrency(row.sellingPrice) : "—"), id: "sellingPrice" },
   {
+    header: "VAT",
+    accessorFn: (row) => (row.vatPercent != null ? `${Number(row.vatPercent)}%` : "—"),
+    id: "vatPercent",
+  },
+  {
     header: "Công thức",
     id: "recipe",
     cell: ({ row }) => (
@@ -58,6 +63,13 @@ export default function FinishedGoodItemsPage() {
         options: FINISHED_GOOD_CATEGORY_OPTIONS,
       },
       { name: "sellingPrice", label: "Giá bán", type: "number" as const },
+      {
+        name: "vatPercent",
+        label: "VAT (%) — để trống coi như 0%",
+        type: "number" as const,
+        // Để trống phải GỠ được VAT đã khai, không chỉ là "không sửa" — xem buildPayload.
+        clearable: true,
+      },
     ],
     [units],
   );

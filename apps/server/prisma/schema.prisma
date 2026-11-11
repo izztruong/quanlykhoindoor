@@ -189,6 +189,9 @@ model FinishedGoodItem {
   unit         Unit                  @relation(fields: [unitId], references: [id])
   category     FinishedGoodCategory?
   sellingPrice Decimal?              @db.Decimal(18, 2)
+  // Thuế VAT của giá bán, theo PHẦN TRĂM (8 = 8%). NULL = chưa khai = 0%. Cùng luật như
+  // `Product.vatPercent`: chỉ dùng cho doanh thu của phiếu Check Cost bật cờ `useVat`.
+  vatPercent   Decimal?              @db.Decimal(5, 2)
   createdAt    DateTime              @default(now())
 
   stockCheckFinishedItems    StockCheckFinishedItem[]
@@ -336,6 +339,10 @@ model Product {
   productGroupId String
   productGroup   ProductGroup @relation(fields: [productGroupId], references: [id])
   costPrice      Decimal      @default(0) @db.Decimal(18, 2)
+  // Thuế VAT của giá vốn, tính theo PHẦN TRĂM (8 = 8%), KHÔNG phải hệ số. NULL = chưa khai = coi
+  // như 0% (giá giữ nguyên). Chỉ có tác dụng với phiếu Check Cost lập khi bật cờ `useVat` — xem
+  // `utils/vat.ts`. Không có lịch sử theo mốc như giá bán: phiếu đã lập được snapshot bảo vệ.
+  vatPercent     Decimal?     @db.Decimal(5, 2)
   type           ProductType  @default(NVL)
   note           String?
   createdAt      DateTime     @default(now())
@@ -861,6 +868,11 @@ model CostCheck {
   // Khuyến mãi/giảm giá trong kỳ, nhập tay theo nhóm — dùng tính doanh thu thuần.
   discountTra         Decimal?        @db.Decimal(18, 2)
   discountDav         Decimal?        @db.Decimal(18, 2)
+  // Chốt LÚC TẠO phiếu: true = mọi giá vốn và giá bán trong phiếu đã được cộng VAT theo
+  // `vatPercent` của từng hàng hoá/món (giá khai trong danh mục là giá TRƯỚC thuế).
+  // Không bao giờ sửa sau khi tạo — cùng lý do với `reportSnapshot` ngay dưới. Phiếu lập
+  // trước khi có cột này đọc ra `false`, đúng với cách chúng đã được tính.
+  useVat              Boolean         @default(false)
   // Huỷ mềm — giữ lại lịch sử thay vì xoá hẳn, vd khi phiếu kiểm kê/huỷ/điều chuyển gốc
   // bị sửa và admin muốn tạo lại phiếu Check Cost khác thay cho phiếu này.
   status              CostCheckStatus @default(ACTIVE)

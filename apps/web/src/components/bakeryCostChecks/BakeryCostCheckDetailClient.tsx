@@ -65,9 +65,11 @@ export function BakeryCostCheckDetailClient({ id }: { id: string }) {
           <div className="mt-2 flex items-center gap-2">
             <h1 className="text-xl font-semibold text-slate-800">Phiếu {item.code}</h1>
             {item.status === "CANCELLED" && <Badge tone="red">Đã huỷ</Badge>}
+            {item.useVat && <Badge tone="blue">Có VAT</Badge>}
           </div>
           <p className="text-sm text-slate-500">
-            {item.user?.name} · {item.openingStockCheck.code} → {item.closingStockCheck.code}
+            {item.user?.name} · {item.openingStockCheck.code} → {item.closingStockCheck.code} ·{" "}
+            {item.useVat ? "đã cộng VAT" : "giá chưa thuế"}
           </p>
         </div>
         <Button variant="secondary" onClick={toggleStatus} disabled={updateStatus.isPending}>

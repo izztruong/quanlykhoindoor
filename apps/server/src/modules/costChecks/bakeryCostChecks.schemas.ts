@@ -9,4 +9,12 @@ export const bakeryCostCheckCreateSchema = z.object({
   openingStockCheckId: z.string().min(1),
   closingStockCheckId: z.string().min(1),
   note: z.string().optional(),
+  /**
+   * Cộng VAT vào giá vốn và giá bán khi tính phiếu, theo `vatPercent` của từng hàng hoá/món.
+   *
+   * `.default(false)` chứ không bắt buộc: app mobile bản cũ không gửi trường này, và `false` đúng
+   * bằng cách những phiếu đó vẫn luôn được tính — không có đường sai im lặng nào ở đây.
+   * Giá trị được chốt cứng vào `CostCheck.useVat` lúc tạo.
+   */
+  useVat: z.boolean().optional().default(false),
 });

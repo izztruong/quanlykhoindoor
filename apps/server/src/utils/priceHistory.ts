@@ -1,5 +1,6 @@
 import { prisma } from "../config/db";
 import type { FinishedGoodCategory } from "../generated/prisma/client";
+import { vatMultiplier } from "./vat";
 import { vnDayStartMs } from "./vnTime";
 
 interface Milestone {
@@ -16,6 +17,8 @@ interface ItemPrices {
   milestones: Milestone[];
   /** Giá hiện hành trên danh mục, dùng khi không mốc nào phủ được thời điểm cần tra. */
   fallback: number;
+  /** Hệ số VAT đã quy sẵn (1 = không cộng gì). Tính MỘT LẦN lúc load, xem chú thích `applyVat` ở `load`. */
+  vat: number;
 }
 
 /**
@@ -56,8 +59,19 @@ export class PriceHistory {
    *
    * Quán gắn ở `load`, không phải ở từng lời gọi — nhờ vậy `priceAt`/`priceOnDay`/`category`/
    * `itemsWithoutMilestone` không đổi một chữ nào, cả tính năng gói trong hàm này.
+   *
+   * `applyVat` đi theo đúng khuôn đó: cờ của PHIẾU Check Cost (`CostCheck.useVat`), gắn một lần ở
+   * `load` nên mọi giá lấy ra từ instance này đều cùng một chế độ. Đặt ở đây chứ không ở call site vì
+   * class này là chỗ ĐỌC GIÁ DUY NHẤT của cả hai loại phiếu (quán và tiệm bánh, hai file service khác
+   * nhau) — ép phép nhân ở ngoài là chép nó ra hai chỗ và để chúng trôi khỏi nhau.
+   *
+   * Mặc định `false` để mọi call site khác (vd `dashboard`) không đổi hành vi.
    */
-  static async load(finishedGoodItemIds: Iterable<string>, shopUserId?: string | null): Promise<PriceHistory> {
+  static async load(
+    finishedGoodItemIds: Iterable<string>,
+    shopUserId?: string | null,
+    applyVat = false,
+  ): Promise<PriceHistory> {
     const ids = [...new Set(finishedGoodItemIds)];
     if (ids.length === 0) return new PriceHistory(new Map());
 
@@ -67,6 +81,7 @@ export class PriceHistory {
         id: true,
         category: true,
         sellingPrice: true,
+        vatPercent: true,
         prices: {
           // Lấy cả mốc chung lẫn mốc của đúng quán này trong một query; phân giải ở dưới.
           where: shopUserId ? { OR: [{ shopUserId: null }, { shopUserId }] } : { shopUserId: null },
@@ -89,6 +104,7 @@ export class PriceHistory {
             })),
           ),
           fallback: Number(item.sellingPrice ?? 0),
+          vat: vatMultiplier(item.vatPercent, applyVat),
         },
       ]),
     );
@@ -107,11 +123,17 @@ export class PriceHistory {
   priceAt(itemId: string, atMs: number): number {
     const entry = this.byItem.get(itemId);
     if (!entry) return 0;
-    for (const m of entry.milestones) if (m.fromMs <= atMs) return m.sellingPrice;
-    return entry.fallback;
+    for (const m of entry.milestones) if (m.fromMs <= atMs) return m.sellingPrice * entry.vat;
+    return entry.fallback * entry.vat;
   }
 
-  /** Bản có đệm cho ô giờ POS: mốc giá mịn theo NGÀY nên mọi ô giờ cùng ngày ra cùng một giá. */
+  /**
+   * Bản có đệm cho ô giờ POS: mốc giá mịn theo NGÀY nên mọi ô giờ cùng ngày ra cùng một giá.
+   *
+   * Khoá đệm KHÔNG mang VAT và không cần mang: hệ số VAT gắn vào instance ở `load`, không đổi trong
+   * suốt đời nó. Đừng đổi VAT thành tham số của từng lời gọi — làm vậy là đệm này trả về giá của chế
+   * độ gọi trước đó.
+   */
   priceOnDay(itemId: string, dayKey: string, dayStartMs: number): number {
     const key = `${itemId}|${dayKey}`;
     const cached = this.dayCache.get(key);

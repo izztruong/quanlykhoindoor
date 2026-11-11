@@ -112,6 +112,8 @@ export interface Product {
   productGroupId: string;
   productGroup: ProductGroup;
   costPrice: string | number;
+  /** VAT theo PHẦN TRĂM (8 = 8%). null = chưa khai = Check Cost coi như 0%. */
+  vatPercent?: string | number | null;
   note?: string | null;
   recipeUnitId?: string | null;
   recipeUnit?: Unit | null;
@@ -339,6 +341,8 @@ export interface FinishedGoodItem {
   unit: Unit;
   category?: FinishedGoodCategory | null;
   sellingPrice?: string | number | null;
+  /** VAT theo PHẦN TRĂM (8 = 8%). null = chưa khai = Check Cost coi như 0%. */
+  vatPercent?: string | number | null;
   /**
    * Quán nào có món này. MẢNG RỖNG = chưa gán quán nào = MỌI quán đều thấy (quy ước ghi ở
    * utils/shopMenu.ts bên server). Chỉ có ở GET danh sách, không có ở GET chi tiết.
@@ -526,6 +530,11 @@ export interface CostCheck {
   note?: string | null;
   discountTra?: string | number | null;
   discountDav?: string | number | null;
+  /**
+   * Phiếu được lập với cờ "Dùng VAT": mọi số tiền trong `financialSummary` đã được cộng VAT theo
+   * `vatPercent` của từng hàng hoá/món. Chốt lúc tạo, không sửa được.
+   */
+  useVat?: boolean;
   status: CostCheckStatus;
   createdBy?: { id: string; name: string } | null;
   createdAt: string;

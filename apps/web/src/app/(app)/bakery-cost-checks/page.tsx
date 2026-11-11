@@ -34,6 +34,9 @@ export default function BakeryCostChecksPage() {
   const [openingStockCheckId, setOpeningStockCheckId] = useState("");
   const [closingStockCheckId, setClosingStockCheckId] = useState("");
   const [note, setNote] = useState("");
+  // Mặc định TẮT, và CỐ Ý không reset sau khi lập xong (xem `onSuccess`): người lập thường chạy
+  // một loạt phiếu cùng chế độ, tự tắt về là âm thầm đổi thước đo giữa loạt.
+  const [useVat, setUseVat] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const { data: stockChecksResult } = useStockChecks({ createdById: userId || undefined, pageSize: 500 });
@@ -53,7 +56,7 @@ export default function BakeryCostChecksPage() {
       return;
     }
     createCheck.mutate(
-      { userId, openingStockCheckId, closingStockCheckId, note: note || undefined },
+      { userId, openingStockCheckId, closingStockCheckId, note: note || undefined, useVat },
       {
         onSuccess: () => {
           setOpeningStockCheckId("");
@@ -135,6 +138,21 @@ export default function BakeryCostChecksPage() {
           <div>
             <label className="mb-1 block text-xs font-medium uppercase text-slate-500">Ghi chú</label>
             <Input className="w-56" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Không bắt buộc" />
+          </div>
+          <div className="w-full">
+            <label className="flex items-start gap-2 text-sm text-slate-600">
+              <input
+                type="checkbox"
+                checked={useVat}
+                onChange={(e) => setUseVat(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300"
+              />
+              <span>
+                <strong>Dùng VAT</strong> — cộng VAT vào giá vốn nguyên liệu và giá xuất bánh theo cột VAT của từng
+                hàng hoá và từng bánh (giá khai trong danh mục là giá trước thuế). Hàng chưa khai VAT giữ giá nguyên.
+                Chốt cứng vào phiếu, sau khi lưu không đổi được.
+              </span>
+            </label>
           </div>
           <Button onClick={submit} disabled={createCheck.isPending}>
             {createCheck.isPending ? "Đang lập..." : "Lập phiếu"}

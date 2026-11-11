@@ -1,6 +1,6 @@
 import { Stack, useRouter } from "expo-router";
 import { useState } from "react";
-import { StyleSheet, Text } from "react-native";
+import { StyleSheet, Switch, Text, View } from "react-native";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { InfoRow } from "@/components/ui/InfoRow";
@@ -40,6 +40,8 @@ function FormContent() {
   const [discountTra, setDiscountTra] = useState("");
   const [discountDav, setDiscountDav] = useState("");
   const [note, setNote] = useState("");
+  // Mặc định TẮT: mọi phiếu từ trước tới nay đều tính theo giá chưa thuế.
+  const [useVat, setUseVat] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const stockChecks = useStockChecks({ createdById: userId, pageSize: 500 }, { enabled: Boolean(userId) });
   const stockOptions = (stockChecks.data?.items ?? []).map((r) => ({
@@ -59,7 +61,9 @@ function FormContent() {
     if (create.isPending) return;
     setError(null);
     try {
-      const data = buildCostCheckInput({ userId, openingStockCheckId, closingStockCheckId, note, discountTra, discountDav });
+      const data = buildCostCheckInput({
+        userId, openingStockCheckId, closingStockCheckId, note, discountTra, discountDav, useVat,
+      });
       create.mutate(data, {
         onSuccess: (created) => router.replace(`/cost-checks/${created.id}`),
         // Kỳ không có doanh số POS thì server trả 409 kèm hướng dẫn — hiện nguyên văn, đừng rút gọn.
@@ -85,6 +89,19 @@ function FormContent() {
         {userId && stockChecks.isSuccess && !stockOptions.length && <Text style={styles.muted}>Quán chưa có phiếu kiểm kê để chọn.</Text>}
         <Input label="Khuyến mãi Trà" keyboardType="decimal-pad" value={discountTra} onChangeText={setDiscountTra} editable={!create.isPending} />
         <Input label="Khuyến mãi ĐAV" keyboardType="decimal-pad" value={discountDav} onChangeText={setDiscountDav} editable={!create.isPending} />
+        <View style={styles.switchRow}>
+          <Text style={styles.switchLabel}>Dùng VAT</Text>
+          <Switch
+            value={useVat}
+            disabled={create.isPending}
+            onValueChange={setUseVat}
+            trackColor={{ true: colors.primary, false: colors.borderStrong }}
+          />
+        </View>
+        <Text style={styles.muted}>
+          Bật thì giá vốn và giá bán được cộng VAT theo % khai ở từng hàng hoá và từng món (giá trong danh mục là giá
+          trước thuế). Hàng chưa khai VAT giữ giá nguyên. Lựa chọn này chốt cứng vào phiếu.
+        </Text>
         <Input label="Ghi chú" multiline value={note} onChangeText={setNote} editable={!create.isPending} />
       </CardBody>
     </Card>
@@ -145,6 +162,8 @@ function FormContent() {
 
 const styles = StyleSheet.create({
   fields: { gap: spacing.md },
+  switchRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  switchLabel: { fontSize: fontSize.sm, fontWeight: "500", color: colors.textMuted },
   muted: { fontSize: fontSize.sm, color: colors.textMuted },
   faint: { fontSize: fontSize.sm, color: colors.textFaint },
   warning: { fontSize: fontSize.sm, color: colors.warning },

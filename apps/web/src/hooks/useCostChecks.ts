@@ -13,6 +13,8 @@ export interface CostCheckCreateInput {
   note?: string;
   discountTra?: number;
   discountDav?: number;
+  /** Cộng VAT vào giá vốn và giá bán khi tính phiếu. Server chốt cứng vào phiếu, mặc định false. */
+  useVat?: boolean;
 }
 
 export function useCostCheckList(filter: { from?: string; to?: string; page?: number; pageSize?: number } = {}) {

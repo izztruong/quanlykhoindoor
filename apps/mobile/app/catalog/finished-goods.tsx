@@ -22,6 +22,7 @@ export default function FinishedGoodsScreen() {
       },
       { name: "category", label: "Nhóm (Trà / Đồ ăn vặt)", type: "select", options: FINISHED_GOOD_CATEGORY_OPTIONS },
       { name: "sellingPrice", label: "Giá bán", type: "number" },
+      { name: "vatPercent", label: "VAT (%) — để trống coi như 0%", type: "number", clearable: true },
     ],
     [units],
   );
@@ -41,6 +42,7 @@ export default function FinishedGoodsScreen() {
           unitId: item.unitId,
           category: item.category ?? "",
           sellingPrice: item.sellingPrice == null ? "" : String(item.sellingPrice),
+          vatPercent: item.vatPercent == null ? "" : String(Number(item.vatPercent)),
         })}
         onRowPress={(item) => router.push(`/catalog/finished-goods/${item.id}/recipe`)}
         renderRow={(item) => ({
@@ -50,6 +52,7 @@ export default function FinishedGoodsScreen() {
             { label: "Đơn vị", value: item.unit?.name ?? "—" },
             { label: "Nhóm", value: item.category ? labels.finishedGoodCategory(item.category) : "—" },
             { label: "Giá bán", value: item.sellingPrice != null ? formatCurrency(item.sellingPrice) : "—" },
+            { label: "VAT", value: item.vatPercent != null ? `${Number(item.vatPercent)}%` : "—" },
             // Màn công thức có sẵn nút sang Giá bán theo thời gian, nên không cần lối vào thứ hai ở đây.
             { label: "Công thức & giá", value: "Chạm để khai báo →" },
           ],

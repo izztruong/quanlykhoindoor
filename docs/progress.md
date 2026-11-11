@@ -46,6 +46,12 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
+### Cột VAT (%) cho hàng hoá / đồ thành phẩm + nút "Dùng VAT" ở Check Cost — ĐÃ lên `main` (server + web), mobile CHƯA OTA, CHƯA bấm thử
+Bật thì phiếu tính bằng giá × (1 + VAT%), chốt cứng vào `CostCheck.useVat`; cả phiếu quán, tiệm bánh, web, app, Excel danh mục.
+Đã kiểm: typecheck 3 app, lint + build web, `expo export`; migration trên DB trắng + `kho_db` + `kho_dev_copy`, drift rỗng; 47 ca curl
+trên `kho_dev_copy` (cờ tắt trùng khít phiếu cũ, ×1,10/×1,08 đúng, VAT lẫn lộn khớp tính tay từng dòng, tiệm bánh, bulk-import). Đã dọn.
+Mobile cần OTA. **Phần nhập/xuất Excel danh mục chưa chạy thử thật** — mới qua typecheck.
+
 ### Ảnh chứng minh cho phiếu huỷ (server + web + mobile) — ĐÃ lên `main` (server + web), mobile CHƯA OTA, CHƯA bấm thử
 Tối đa 5 ảnh/phiếu, đính ngay lúc tạo (quyền Thêm là đủ) hoặc lúc sửa; gỡ ảnh đã lưu cần quyền Sửa; xem ở trang chi tiết. Xoá phiếu dọn cả file trên R2.
 Đã kiểm typecheck 3 app, lint web, bundle Android, `migrate deploy` DB trắng + `kho_db` + `kho_dev_copy`, 9 ca curl với R2 thật.
@@ -176,6 +182,10 @@ vào `CLAUDE.md`; sửa script để dành cho đợt có build native mới.
 ## Còn lại
 
 ### Vết sẵn có, đã biết mà chủ động gác lại
+- **`PUT /products/:id` gửi THIẾU trường là reset `costPrice` = 0, `type` = NVL, `active` = true**: `schema.partial()`
+  của Zod 4 vẫn điền `.default()`. Web/app không dính vì form luôn gửi đủ; client nào gửi một phần là hỏng dữ liệu.
+- **`kho_dev_copy`: 133 hàng hoá có `costPrice`/`type`/`active` đắp tạm từ `kho_prod_copy`** (bị vết trên làm hỏng lúc
+  thử VAT, không đọc được production để khôi phục chính xác) — nên nạp lại bản copy trước khi dùng số liệu của nó.
 - **`parseDateRange` lệch 7 tiếng**: `setHours` theo giờ máy chủ mà Render chạy UTC. Ảnh hưởng mọi ô
   lọc khoảng ngày, trong đó có phần xuất Excel theo bộ lọc.
 - **Chưa làm Xuất Excel cho phiếu điều chuyển**: file bỏ cột SL lẻ; thêm cột thì xuất ra lượng

@@ -46,6 +46,7 @@ export interface CostCheckDraft {
   note: string;
   discountTra: string;
   discountDav: string;
+  useVat: boolean;
 }
 
 /**
@@ -68,6 +69,7 @@ export function buildCostCheckInput(draft: CostCheckDraft): CostCheckCreateInput
     note: draft.note.trim() || undefined,
     discountTra: draft.discountTra.trim() ? parseNonnegative(draft.discountTra, "Khuyến mãi Trà") : undefined,
     discountDav: draft.discountDav.trim() ? parseNonnegative(draft.discountDav, "Khuyến mãi ĐAV") : undefined,
+    useVat: draft.useVat,
   };
 }
 

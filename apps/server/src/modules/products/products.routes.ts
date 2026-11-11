@@ -8,6 +8,10 @@ const schema = z.object({
   unitId: z.string().min(1),
   productGroupId: z.string().min(1),
   costPrice: z.coerce.number().nonnegative().default(0),
+  // VAT tính theo PHẦN TRĂM (8 = 8%), không phải hệ số. Để trống = chưa khai = Check Cost coi như 0%.
+  // Chỉ có tác dụng với phiếu Check Cost lập khi bật cờ "Dùng VAT".
+  // `.nullish()` chứ không `.optional()`: giao diện gửi `null` để GỠ VAT đã khai về chưa khai.
+  vatPercent: z.coerce.number().min(0).max(999.99).nullish(),
   note: z.string().optional(),
   // Quy đổi cho công thức Check Cost: 1 đơn vị chính = recipeUnitsPerBaseUnit recipeUnit (vd 1 Hộp = 1000 Gram).
   recipeUnitId: z.string().optional(),

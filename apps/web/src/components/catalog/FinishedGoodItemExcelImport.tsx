@@ -5,6 +5,7 @@ import { Modal } from "@/components/ui/Modal";
 import { useUnits } from "@/hooks/useCatalog";
 import { ApiError, api } from "@/lib/api-client";
 import { sanitizeExcelRow } from "@/lib/excelExport";
+import { parseNumber } from "@/lib/excelParse";
 import { FINISHED_GOOD_CATEGORY_OPTIONS, labels } from "@/lib/format";
 import type { FinishedGoodItem } from "@/types";
 import { useQueryClient } from "@tanstack/react-query";
@@ -18,6 +19,7 @@ interface ParsedItem {
   unitId: string;
   category?: string;
   sellingPrice?: number;
+  vatPercent?: number | null;
 }
 
 interface ImportResult {
@@ -26,7 +28,24 @@ interface ImportResult {
   errors: string[];
 }
 
-const TEMPLATE_HEADER = ["Mã*", "Tên đồ thành phẩm*", "Đơn vị tính*", "Nhóm", "Giá bán"];
+/**
+ * MỘT nguồn duy nhất cho thứ tự cột — mẫu trắng, file xuất và phần đọc đều suy ra từ đây.
+ *
+ * **Cột mới phải thêm vào CUỐI**: phần nhập này không kiểm hàng tiêu đề, nên chèn vào giữa là file
+ * người dùng đã xuất trước đó bị đọc lệch cột mà không báo gì.
+ */
+const COLUMNS = [
+  { key: "code", label: "Mã*" },
+  { key: "name", label: "Tên đồ thành phẩm*" },
+  { key: "unit", label: "Đơn vị tính*" },
+  { key: "category", label: "Nhóm" },
+  { key: "sellingPrice", label: "Giá bán" },
+  { key: "vatPercent", label: "VAT (%)" },
+] as const;
+
+const TEMPLATE_HEADER = COLUMNS.map((c) => c.label);
+/** Số thứ tự cột trong sheet (1-based) theo khoá. */
+const COL = Object.fromEntries(COLUMNS.map((c, i) => [c.key, i + 1])) as Record<(typeof COLUMNS)[number]["key"], number>;
 
 const categoryValueByLabel = new Map(FINISHED_GOOD_CATEGORY_OPTIONS.map((o) => [o.label.toLowerCase(), o.value]));
 
@@ -75,7 +94,7 @@ export function FinishedGoodItemExcelImport({ items, search }: FinishedGoodItemE
     const sheet = workbook.addWorksheet("Đồ thành phẩm");
     sheet.columns = TEMPLATE_HEADER.map((header) => ({ header, width: 26 }));
     sheet.getRow(1).font = { bold: true };
-    sheet.addRow(["TP001", "Cà phê ủ", units[0]?.name ?? "Gam", "Trà", 25000]);
+    sheet.addRow(sanitizeExcelRow(["TP001", "Cà phê ủ", units[0]?.name ?? "Gam", "Trà", 25000, 8]));
     await downloadWorkbook(workbook, "mau-do-thanh-pham.xlsx");
   }
 
@@ -99,6 +118,7 @@ export function FinishedGoodItemExcelImport({ items, search }: FinishedGoodItemE
           item.unit?.name ?? "-",
           item.category ? labels.finishedGoodCategory(item.category) : "",
           item.sellingPrice != null ? Number(item.sellingPrice) : "",
+          item.vatPercent != null ? Number(item.vatPercent) : "",
         ]),
       );
     await downloadWorkbook(workbook, "do-thanh-pham.xlsx");
@@ -137,11 +157,13 @@ export function FinishedGoodItemExcelImport({ items, search }: FinishedGoodItemE
       sheet.eachRow((row, rowNumber) => {
         if (rowNumber === 1) return;
         const cell = (col: number) => String(row.getCell(col).value ?? "").trim();
-        const code = cell(1);
-        const name = cell(2);
-        const unitName = cell(3);
-        const categoryLabel = cell(4);
-        const sellingPriceRaw = row.getCell(5).value;
+        const code = cell(COL.code);
+        const name = cell(COL.name);
+        const unitName = cell(COL.unit);
+        const categoryLabel = cell(COL.category);
+        const sellingPriceRaw = row.getCell(COL.sellingPrice).value;
+        const vatCell = row.getCell(COL.vatPercent);
+        const vatText = cell(COL.vatPercent);
 
         if (!code && !name) return;
         if (!code || !name) {
@@ -164,11 +186,24 @@ export function FinishedGoodItemExcelImport({ items, search }: FinishedGoodItemE
           }
         }
 
+        // Ô trống gửi `null` (gỡ VAT về chưa khai), không phải `undefined` (không sửa) — file xuất
+        // từ bản cũ không có cột này nên ô trống là trạng thái bình thường.
+        let vatPercent: number | null = null;
+        if (vatText !== "") {
+          const parsed = parseNumber(vatCell.value, vatText);
+          if (parsed === null || parsed < 0 || parsed > 999.99) {
+            errors.push(`Dòng ${rowNumber}: VAT (%) không đọc được hoặc ngoài khoảng 0–999,99 ("${vatText}")`);
+            return;
+          }
+          vatPercent = parsed;
+        }
+
         parsedItems.push({
           code,
           name,
           unitId,
           category,
+          vatPercent,
           sellingPrice: sellingPriceRaw !== null && sellingPriceRaw !== undefined && sellingPriceRaw !== "" ? Number(sellingPriceRaw) : undefined,
         });
       });
@@ -222,9 +257,20 @@ export function FinishedGoodItemExcelImport({ items, search }: FinishedGoodItemE
         <Modal title="Nhập đồ thành phẩm từ Excel" onClose={() => setImportOpen(false)}>
           <div className="flex flex-col gap-3">
             <p className="text-sm text-slate-600">
-              Chọn file Excel theo đúng thứ tự cột trong file mẫu: Mã*, Tên đồ thành phẩm*, Đơn vị tính*, Nhóm, Giá bán (cột có
-              dấu * là bắt buộc phải điền). Mã đã tồn tại sẽ được cập nhật đè; dòng có đơn vị tính chưa khai báo hoặc nhóm
-              không nhận ra trong hệ thống sẽ bị bỏ qua và báo lỗi.
+              Chọn file Excel theo đúng thứ tự cột trong file mẫu: {TEMPLATE_HEADER.join(", ")} (cột có dấu * là bắt buộc
+              phải điền). Mã đã tồn tại sẽ được cập nhật đè; dòng có đơn vị tính chưa khai báo hoặc nhóm không nhận ra
+              trong hệ thống sẽ bị bỏ qua và báo lỗi.
+            </p>
+            <p className="text-sm text-slate-600">
+              <strong>VAT (%)</strong> điền số phần trăm, ví dụ <code>8</code> hoặc <code>10</code> — không điền
+              <code> 0,08</code>. Để trống nghĩa là chưa khai và Check Cost coi như 0%; cột này chỉ có tác dụng với phiếu
+              Check Cost lập khi bật &quot;Dùng VAT&quot;. File xuất từ bản cũ chưa có cột này vẫn nhập được bình thường.
+            </p>
+            <p className="text-sm text-slate-600">
+              <strong>Cách ghi số</strong>: ô số thật thì điền thẳng. Ô dạng chữ đọc theo kiểu máy — dấu chấm là thập
+              phân và không có phân cách nghìn, nên <code>1.5</code> là 1,5 còn <code>8.000</code> là 8. Dấu phẩy cũng
+              được nhận (<code>0,5</code>). Ô nhập nhằng như <code>8.000.000</code> hay <code>1.234,5</code> sẽ báo lỗi
+              đúng dòng thay vì đoán.
             </p>
             <Button type="button" variant="secondary" size="sm" className="self-start" onClick={downloadTemplate}>
               <Download size={14} />

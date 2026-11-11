@@ -52,7 +52,14 @@ export function useBakeryCostCheck(id: string) {
 export function useCreateBakeryCostCheck() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: { userId: string; openingStockCheckId: string; closingStockCheckId: string; note?: string }) =>
+    mutationFn: (data: {
+      userId: string;
+      openingStockCheckId: string;
+      closingStockCheckId: string;
+      note?: string;
+      /** Cộng VAT vào giá vốn và giá xuất khi tính phiếu. Server chốt cứng vào phiếu, mặc định false. */
+      useVat?: boolean;
+    }) =>
       api.post<BakeryCostCheck>("/bakery-cost-checks", data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["bakery-cost-checks"] }),
   });
