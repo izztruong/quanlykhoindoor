@@ -6,6 +6,8 @@ export interface PriceMilestoneInput {
   /** "YYYY-MM-DD" */
   effectiveFrom: string;
   sellingPrice: number;
+  /** Quán được khai giá riêng; bỏ trống/null = mốc giá CHUNG cho mọi quán. */
+  shopUserId?: string | null;
 }
 
 export interface PriceSaveResult {
@@ -13,10 +15,17 @@ export interface PriceSaveResult {
   affectedCostChecks: AffectedCostCheck[];
 }
 
-export function useFinishedGoodPrices(finishedGoodItemId: string) {
+export interface PriceListResult {
+  items: FinishedGoodPrice[];
+  /** Số mốc của bản CHUNG — để nói "quán này chưa có giá riêng, đang dùng giá Chung (N mốc)". */
+  sharedCount: number;
+}
+
+/** `shopUserId` rỗng = phạm vi CHUNG. Phạm vi vào query key để đổi ô chọn là tải lại đúng bộ mốc. */
+export function useFinishedGoodPrices(finishedGoodItemId: string, shopUserId?: string) {
   return useQuery({
-    queryKey: ["finished-good-prices", finishedGoodItemId],
-    queryFn: () => api.get<{ items: FinishedGoodPrice[] }>(`/finished-good-prices/${finishedGoodItemId}`).then((r) => r.items),
+    queryKey: ["finished-good-prices", finishedGoodItemId, shopUserId ?? "shared"],
+    queryFn: () => api.get<PriceListResult>(`/finished-good-prices/${finishedGoodItemId}`, { shopUserId }),
     enabled: Boolean(finishedGoodItemId),
   });
 }

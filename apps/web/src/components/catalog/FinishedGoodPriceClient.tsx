@@ -3,7 +3,10 @@
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
 import { useFinishedGoodItems } from "@/hooks/useCatalog";
+import { useUserOptions } from "@/hooks/useUsers";
+import { useCan } from "@/lib/permissions";
 import { useDeleteFinishedGoodPrice, useFinishedGoodPrices, useSaveFinishedGoodPrice } from "@/hooks/useFinishedGoodPrices";
 import { ApiError } from "@/lib/api-client";
 import { formatDateOnly, toDateInput, todayForDateInput } from "@/lib/dateRange";
@@ -21,7 +24,13 @@ import { useState } from "react";
  */
 export function FinishedGoodPriceClient({ id }: { id: string }) {
   const { data: finishedGoodItems = [] } = useFinishedGoodItems();
-  const { data: prices = [], isLoading } = useFinishedGoodPrices(id);
+  const { scopeAll } = useCan();
+  const { data: shops = [] } = useUserOptions({ enabled: scopeAll });
+  /** "" = phạm vi CHUNG (mọi quán). Vào query key nên đổi ô là tải lại đúng bộ mốc. */
+  const [shopUserId, setShopUserId] = useState("");
+  const { data, isLoading } = useFinishedGoodPrices(id, shopUserId || undefined);
+  const prices = data?.items ?? [];
+  const sharedCount = data?.sharedCount ?? 0;
   const savePrice = useSaveFinishedGoodPrice(id);
   const deletePrice = useDeleteFinishedGoodPrice(id);
 
@@ -45,7 +54,7 @@ export function FinishedGoodPriceClient({ id }: { id: string }) {
     }
 
     savePrice.mutate(
-      { effectiveFrom, sellingPrice: Number(sellingPrice) },
+      { effectiveFrom, sellingPrice: Number(sellingPrice), shopUserId: shopUserId || null },
       {
         onSuccess: (result) => {
           setSaved(`Đã lưu giá bán áp dụng từ ${formatDateOnly(effectiveFrom)}.`);
@@ -91,6 +100,29 @@ export function FinishedGoodPriceClient({ id }: { id: string }) {
           <CardTitle>Thêm mốc giá</CardTitle>
         </CardHeader>
         <CardBody className="flex flex-wrap items-end gap-3">
+          {scopeAll && (
+            <div>
+              <label className="mb-1 block text-xs font-medium uppercase text-slate-500">Phạm vi</label>
+              <Select
+                className="w-56"
+                value={shopUserId}
+                onChange={(e) => {
+                  setShopUserId(e.target.value);
+                  setSellingPrice("");
+                  setSaved(null);
+                  setError(null);
+                  setAffected([]);
+                }}
+              >
+                <option value="">Chung (mọi quán)</option>
+                {shops.map((shop) => (
+                  <option key={shop.id} value={shop.id}>
+                    {shop.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          )}
           <div>
             <label className="mb-1 block text-xs font-medium uppercase text-slate-500">Có hiệu lực từ</label>
             <Input type="date" className="w-44" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} />
@@ -120,11 +152,20 @@ export function FinishedGoodPriceClient({ id }: { id: string }) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Các mốc giá</CardTitle>
+          <CardTitle>{shopUserId ? "Mốc giá riêng của quán" : "Các mốc giá chung"}</CardTitle>
         </CardHeader>
         <CardBody className="p-0">
+          {shopUserId && (
+            <p className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              {prices.length === 0
+                ? `Quán này chưa có giá riêng — đang dùng giá Chung (${sharedCount} mốc). Lưu một mốc ở đây sẽ tạo giá riêng cho quán, áp dụng TỪ NGÀY HIỆU LỰC TRỞ ĐI; phần trước đó vẫn dùng giá chung.`
+                : `Quán này có giá riêng. Từ mốc riêng đầu tiên trở đi, đổi giá Chung KHÔNG còn ảnh hưởng quán này nữa. Giá Chung đang có ${sharedCount} mốc.`}
+            </p>
+          )}
           {prices.length === 0 ? (
-            <p className="px-4 py-6 text-center text-sm text-slate-400">Chưa có mốc giá nào</p>
+            <p className="px-4 py-6 text-center text-sm text-slate-400">
+              {shopUserId ? "Chưa có mốc giá riêng nào" : "Chưa có mốc giá nào"}
+            </p>
           ) : (
             <table className="w-full border-collapse text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">

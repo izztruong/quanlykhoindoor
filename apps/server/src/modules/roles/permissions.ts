@@ -19,6 +19,10 @@ export const PERMISSION_ACTIONS = [
   "COMPLETE",
   "PAY",
   "DEDUCT",
+  "CONFIRM",
+  "PICKUP",
+  "RECEIVE",
+  "CANCEL",
 ] as const;
 export type PermissionAction = (typeof PERMISSION_ACTIONS)[number];
 
@@ -32,6 +36,10 @@ export const ACTION_LABELS: Record<PermissionAction, string> = {
   COMPLETE: "Hoàn thành",
   PAY: "Đánh dấu đã chi",
   DEDUCT: "Chọn dòng trừ Check Cost",
+  CONFIRM: "Xác nhận / từ chối (tiệm bánh)",
+  PICKUP: "Xác nhận lấy hàng (vận chuyển)",
+  RECEIVE: "Xác nhận nhận hàng",
+  CANCEL: "Huỷ đơn",
 };
 
 const CRUD: PermissionAction[] = ["VIEW", "ADD", "EDIT", "DELETE"];
@@ -62,6 +70,17 @@ export const PERMISSION_RESOURCES = [
   // Đơn hàng chỉ là ĐỀ XUẤT của quán; hàng thực nhận ghi ở phiếu nhập kho (STOCK_IMPORTS).
   // ADD = tạo đơn, sửa & huỷ đơn của mình · APPROVE = tích "Đã xử lý", huỷ đơn của mọi quán.
   { resource: "ORDERS", label: "Đơn hàng", group: "Order", actions: ["VIEW", "ADD", "APPROVE"] },
+  // Đơn bánh — mỗi bước của luồng một action, để chia đúng người: ADD = quán đặt · CONFIRM = tiệm
+  // bánh xác nhận/từ chối · PICKUP = người vận chuyển xác nhận SL lấy · RECEIVE = quán xác nhận SL
+  // nhận (tự sinh phiếu nhập kho) · CANCEL = huỷ đơn chưa được xác nhận · EDIT = sửa SL nhận và ngày
+  // nhận của đơn ĐÃ HOÀN THÀNH (mặc định chỉ admin). Vai trò người vận chuyển cần thêm DATA.SCOPE_ALL
+  // để thấy đơn của mọi quán — nó không có quyền ở module nào khác nên phạm vi đó không lộ gì thêm.
+  {
+    resource: "BAKERY_ORDERS",
+    label: "Đơn bánh",
+    group: "Order",
+    actions: ["VIEW", "ADD", "CONFIRM", "PICKUP", "RECEIVE", "CANCEL", "EDIT"],
+  },
 
   // Đường ghi chính thức cho "hàng về quán" và là nguồn cột "Nhận trong kỳ" của Check Cost, nên
   // cần đủ EDIT/DELETE: gõ sai mà không sửa được thì phải gõ phiếu bù trừ số âm, rối hơn nhiều.
@@ -73,7 +92,7 @@ export const PERMISSION_RESOURCES = [
 
   { resource: "STOCK_CHECKS", label: "Phiếu kiểm kê quán", group: "Kiểm kê quán", actions: ["VIEW", "ADD", "EDIT"] },
   // DEDUCT: bỏ tích dòng huỷ để Check Cost không trừ phần đó (tính như hàng đã dùng).
-  { resource: "MATERIAL_WASTE", label: "Phiếu huỷ nguyên liệu", group: "Kiểm kê quán", actions: ["VIEW", "ADD", "EDIT", "DEDUCT"] },
+  { resource: "MATERIAL_WASTE", label: "Phiếu huỷ nguyên liệu", group: "Kiểm kê quán", actions: ["VIEW", "ADD", "EDIT", "DELETE", "DEDUCT"] },
 
   { resource: "PRODUCTS", label: "Hàng hoá", group: "Danh mục", actions: CRUD },
   { resource: "PRODUCT_GROUPS", label: "Nhóm hàng hoá", group: "Danh mục", actions: CRUD },
@@ -97,6 +116,11 @@ export const PERMISSION_RESOURCES = [
   { resource: "POS_SALES", label: "Doanh số POS", group: "Quản trị", actions: ["VIEW", "ADD", "DELETE"] },
   { resource: "POS_ITEM_MAPPING", label: "Ánh xạ món POS", group: "Quản trị", actions: ["VIEW", "EDIT"] },
   { resource: "SHIFT_DEFINITIONS", label: "Khung giờ ca", group: "Quản trị", actions: ["VIEW", "EDIT"] },
+
+  // Trục BÁN RA của tiệm bánh, tương đương POS_SALES của quán — nên cũng không có EDIT: nhập lại
+  // cùng ô (ngày, người mua, bánh) là GHI ĐÈ.
+  { resource: "BAKERY_SALES", label: "Bánh bán ra", group: "Quản trị", actions: ["VIEW", "ADD", "DELETE"] },
+  { resource: "BAKERY_COST_CHECKS", label: "Check Cost tiệm bánh", group: "Kho", actions: ["VIEW", "ADD", "EDIT"] },
 ] as const satisfies readonly { resource: string; label: string; group: string; actions: readonly PermissionAction[] }[];
 
 export type PermissionResource = (typeof PERMISSION_RESOURCES)[number]["resource"];

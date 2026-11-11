@@ -38,8 +38,12 @@ export function useUsers(options?: { enabled?: boolean }) {
   });
 }
 
-/** "shop" = tài khoản quán · "other" = tài khoản không phải quán (vd người duyệt) · "all" = tất cả. */
-export type UserOptionScope = "shop" | "other" | "all";
+/**
+ * "shop" = tài khoản quán, **gồm cả tiệm bánh** vì tiệm bánh cũng bật `isShop` · "other" = không
+ * phải quán (vd người duyệt) · "all" = tất cả · "bakery" = chỉ tiệm bánh · "shopOnly" = quán thật,
+ * **bỏ tiệm bánh ra** — dùng cho ô "quán mua" ở trang Bánh bán ra.
+ */
+export type UserOptionScope = "shop" | "other" | "all" | "bakery" | "shopOnly";
 
 /**
  * Chỉ id, tên, email — cho ô chọn/lọc tài khoản ở các trang nghiệp vụ — mọi tài khoản đăng nhập đều

@@ -31,31 +31,62 @@ export class RecipeHistory {
 
   private constructor(private readonly byItem: Map<string, Version[]>) {}
 
-  /** `byItem` giữ danh sách version theo thứ tự GIẢM DẦN (mới nhất trước). */
-  static async load(finishedGoodItemIds: Iterable<string>): Promise<RecipeHistory> {
+  /**
+   * `byItem` giữ danh sách version theo thứ tự GIẢM DẦN (mới nhất trước).
+   *
+   * `shopUserId` = phân giải theo công thức RIÊNG của quán đó, lùi về công thức CHUNG ở phần trước
+   * version riêng đầu tiên. Bỏ trống = chỉ dùng công thức chung.
+   *
+   * **Luật trộn: thay cả dòng thời gian, có đắp bù phần trước version riêng đầu tiên.** Từ version
+   * riêng đầu tiên trở đi quán đi đường riêng và KHÔNG tự nhận version chung mới nữa — đổi công thức
+   * chung không được phép lặng lẽ đè công thức riêng của quán. Hai luật ngây thơ đều sai, xem chú
+   * thích `mergeTimeline` ở `priceHistory.ts`.
+   *
+   * Vì danh sách ghép VẪN GIẢM DẦN, `resolve`/`linesAt`/`quantityAt`/`quantityOnDay` và nhất là
+   * `productIdsInWindow` dùng lại nguyên vẹn. Đó là lý do phải trộn ở đây chứ không hợp hai danh
+   * sách rời nhau ở call-site: hợp rời nhau sẽ làm nguyên liệu mà bản riêng của quán đã bỏ SỐNG LẠI
+   * từ bản chung, đúng cái lỗi mà chú thích `productIdsInWindow` cảnh báo.
+   */
+  static async load(finishedGoodItemIds: Iterable<string>, shopUserId?: string | null): Promise<RecipeHistory> {
     const ids = [...new Set(finishedGoodItemIds)];
     if (ids.length === 0) return new RecipeHistory(new Map());
 
     const rows = await prisma.finishedGoodRecipeVersion.findMany({
-      where: { finishedGoodItemId: { in: ids } },
+      where: {
+        finishedGoodItemId: { in: ids },
+        ...(shopUserId ? { OR: [{ shopUserId: null }, { shopUserId }] } : { shopUserId: null }),
+      },
       orderBy: { effectiveFrom: "desc" },
       select: {
         finishedGoodItemId: true,
         effectiveFrom: true,
+        shopUserId: true,
         items: { select: { productId: true, quantityPerUnit: true } },
       },
     });
 
-    const byItem = new Map<string, Version[]>();
+    const raw = new Map<string, (Version & { own: boolean })[]>();
     for (const row of rows) {
       const lines = row.items.map((it) => ({ productId: it.productId, quantityPerUnit: Number(it.quantityPerUnit) }));
-      const list = byItem.get(row.finishedGoodItemId) ?? [];
+      const list = raw.get(row.finishedGoodItemId) ?? [];
       list.push({
         fromMs: vnDayStartMs(row.effectiveFrom),
         lines,
         byProduct: new Map(lines.map((l) => [l.productId, l.quantityPerUnit])),
+        own: row.shopUserId != null,
       });
-      byItem.set(row.finishedGoodItemId, list);
+      raw.set(row.finishedGoodItemId, list);
+    }
+
+    const byItem = new Map<string, Version[]>();
+    for (const [itemId, list] of raw) {
+      const ownRows = list.filter((v) => v.own);
+      if (ownRows.length === 0) {
+        byItem.set(itemId, list);
+        continue;
+      }
+      const earliestOwnMs = Math.min(...ownRows.map((v) => v.fromMs));
+      byItem.set(itemId, [...ownRows, ...list.filter((v) => !v.own && v.fromMs < earliestOwnMs)]);
     }
     return new RecipeHistory(byItem);
   }

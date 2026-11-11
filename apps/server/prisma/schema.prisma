@@ -23,6 +23,14 @@ model Role {
   // Tài khoản thuộc vai trò này là một quán: chỉ những tài khoản đó hiện trong các ô chọn/lọc quán
   // (GET /api/users/options). Vai trò chỉ để dùng một chức năng (vd đề xuất chi) để false.
   isShop      Boolean  @default(false)
+  /// Là TIỆM BÁNH: làm bánh rồi bán cho các quán và bán ra ngoài, không bán qua POS.
+  ///
+  /// Hai cờ này KHÁC nhau và tiệm bánh bật CẢ HAI. `isShop` nghĩa thực là "một cơ sở có kho và có
+  /// kiểm kê" — nhờ bật nó mà tiệm bánh dùng ngay được kho, phiếu kiểm, phiếu huỷ, điều chuyển,
+  /// menu và chấm muộn, không phải soát lại ~11 chỗ đang đọc `isShop`. `isBakery` chỉ dùng ở những
+  /// chỗ BẮT BUỘC phải khác: trục bán ra (bảng `BakerySale` thay cho `PosSaleHour`) và phiếu Check
+  /// Cost (module `bakeryCostChecks`, vì Check Cost của quán chặn 409 khi không có doanh số POS).
+  isBakery    Boolean  @default(false)
   permissions String[] @default([])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -44,35 +52,49 @@ model User {
   updatedAt    DateTime @updatedAt
 
   salesOrders               SalesOrder[]
-  salesOrdersProcessed      SalesOrder[]              @relation("SalesOrderProcessedBy")
-  stockImports              StockImport[]             @relation("StockImportCreatedBy")
+  salesOrdersProcessed      SalesOrder[]                @relation("SalesOrderProcessedBy")
+  stockImports              StockImport[]               @relation("StockImportCreatedBy")
   reorderThresholds         ProductReorderThreshold[]
   stockChecks               StockCheck[]
   materialWastes            MaterialWaste[]
-  shiftExpenses             ShiftExpense[]            @relation("ShiftExpenseCreatedBy")
-  shiftExpensesPaid         ShiftExpense[]            @relation("ShiftExpensePaidBy")
-  otherExpenses             OtherExpense[]            @relation("OtherExpenseCreatedBy")
-  otherExpensesShop         OtherExpense[]            @relation("OtherExpenseShop")
-  costChecks                CostCheck[]               @relation("CostCheckShop")
-  costChecksCreated         CostCheck[]               @relation("CostCheckCreatedBy")
-  materialTransfersFrom     MaterialTransfer[]        @relation("MaterialTransferFrom")
-  materialTransfersTo       MaterialTransfer[]        @relation("MaterialTransferTo")
-  materialTransfersCreated  MaterialTransfer[]        @relation("MaterialTransferCreatedBy")
-  expenseProposals          ExpenseProposal[]         @relation("ExpenseProposalCreatedBy")
-  expenseProposalsApproved  ExpenseProposal[]         @relation("ExpenseProposalApprovedBy")
+  shiftExpenses             ShiftExpense[]              @relation("ShiftExpenseCreatedBy")
+  shiftExpensesPaid         ShiftExpense[]              @relation("ShiftExpensePaidBy")
+  otherExpenses             OtherExpense[]              @relation("OtherExpenseCreatedBy")
+  otherExpensesShop         OtherExpense[]              @relation("OtherExpenseShop")
+  costChecks                CostCheck[]                 @relation("CostCheckShop")
+  costChecksCreated         CostCheck[]                 @relation("CostCheckCreatedBy")
+  materialTransfersFrom     MaterialTransfer[]          @relation("MaterialTransferFrom")
+  materialTransfersTo       MaterialTransfer[]          @relation("MaterialTransferTo")
+  materialTransfersCreated  MaterialTransfer[]          @relation("MaterialTransferCreatedBy")
+  expenseProposals          ExpenseProposal[]           @relation("ExpenseProposalCreatedBy")
+  expenseProposalsApproved  ExpenseProposal[]           @relation("ExpenseProposalApprovedBy")
   expenseProposalAdvances   ExpenseProposalAdvance[]
-  expenseProposalsRevised   ExpenseProposal[]         @relation("ExpenseProposalRevisionDecidedBy")
-  expenseProposalsSpent     ExpenseProposal[]         @relation("ExpenseProposalSpentBy")
-  expenseProposalsShop      ExpenseProposal[]         @relation("ExpenseProposalShop")
-  expenseProposalsToApprove ExpenseProposal[]         @relation("ExpenseProposalApprover")
+  expenseProposalsRevised   ExpenseProposal[]           @relation("ExpenseProposalRevisionDecidedBy")
+  expenseProposalsSpent     ExpenseProposal[]           @relation("ExpenseProposalSpentBy")
+  expenseProposalsShop      ExpenseProposal[]           @relation("ExpenseProposalShop")
+  expenseProposalsToApprove ExpenseProposal[]           @relation("ExpenseProposalApprover")
   notifications             Notification[]
   pushTokens                PushToken[]
   notificationPreferences   NotificationPreference[]
   recipeVersionsCreated     FinishedGoodRecipeVersion[]
   finishedGoodPricesCreated FinishedGoodPrice[]
+  finishedGoodPricesShop    FinishedGoodPrice[]         @relation("FinishedGoodPriceShop")
+  recipeVersionsShop        FinishedGoodRecipeVersion[] @relation("FinishedGoodRecipeVersionShop")
   posSaleHours              PosSaleHour[]
-  mcpTokens                 McpToken[]                @relation("McpTokenCreatedBy")
-  shopWarehouse             Warehouse?                @relation("WarehouseShop")
+  bakerySales               BakerySale[]                @relation("BakerySaleBakery")
+  bakerySalesBought         BakerySale[]                @relation("BakerySaleShop")
+  bakerySalesCreated        BakerySale[]                @relation("BakerySaleCreatedBy")
+  mcpTokens                 McpToken[]                  @relation("McpTokenCreatedBy")
+  shopWarehouse             Warehouse?                  @relation("WarehouseShop")
+  finishedGoodMenu          FinishedGoodItemShop[]
+  productShops              ProductShop[]
+  bakerySupplier            Supplier?                   @relation("SupplierBakery")
+  bakeryOrdersShop          BakeryOrder[]               @relation("BakeryOrderShop")
+  bakeryOrdersCreated       BakeryOrder[]               @relation("BakeryOrderCreatedBy")
+  bakeryOrdersConfirmed     BakeryOrder[]               @relation("BakeryOrderConfirmedBy")
+  bakeryOrdersPickedUp      BakeryOrder[]               @relation("BakeryOrderPickedUpBy")
+  bakeryOrdersReceived      BakeryOrder[]               @relation("BakeryOrderReceivedBy")
+  bakeryOrdersCancelled     BakeryOrder[]               @relation("BakeryOrderCancelledBy")
 }
 
 enum DeadlineKind {
@@ -124,7 +146,7 @@ model Warehouse {
   shopUserId String? @unique
   shopUser   User?   @relation("WarehouseShop", fields: [shopUserId], references: [id], onDelete: SetNull)
 
-  stockImports    StockImport[]
+  stockImports StockImport[]
 }
 
 model ProductGroup {
@@ -176,13 +198,38 @@ model FinishedGoodItem {
   prices                     FinishedGoodPrice[]
   costCheckSoldItems         CostCheckSoldItem[]
   posSaleHours               PosSaleHour[]
+  bakerySales                BakerySale[]
   posItemMappings            PosItemMapping[]
+  shops                      FinishedGoodItemShop[]
+}
+
+/**
+ * Menu của quán: món/đồ thành phẩm này có ở quán nào.
+ * KHÔNG CÓ DÒNG NÀO cho một món = món đó hiện ở MỌI quán. Nhờ quy ước này dữ liệu cũ chạy nguyên
+ * vẹn (không cần migration gán menu cho mấy trăm món), và quán mới mở thấy ngay toàn bộ danh mục
+ * chung thay vì một trang trắng. Quy tắc đó viết đúng một chỗ: `menuWhere` trong
+ * modules/finishedGoodMenus/finishedGoodMenus.service.ts.
+ * MẶT TỐI của quy ước, phải cảnh báo ở đường ghi: bỏ tích quán CUỐI CÙNG của một món làm món đó
+ * nhảy từ "chỉ quán A" sang "mọi quán" — RỘNG hơn chứ không hẹp hơn. Xoá một tài khoản quán cũng
+ * vậy, vì `onDelete: Cascade` dọn luôn dòng gán của quán đó.
+ * Cascade cả hai phía là đúng: đây là bảng GÁN, không phải bảng lịch sử — khác hẳn
+ * `FinishedGoodRecipeItem` (Restrict có chủ ý, xem chú thích ở model đó).
+ */
+model FinishedGoodItemShop {
+  id                 String           @id @default(cuid())
+  finishedGoodItemId String
+  finishedGoodItem   FinishedGoodItem @relation(fields: [finishedGoodItemId], references: [id], onDelete: Cascade)
+  shopUserId         String
+  shopUser           User             @relation(fields: [shopUserId], references: [id], onDelete: Cascade)
+  createdAt          DateTime         @default(now())
+
+  @@unique([finishedGoodItemId, shopUserId])
+  @@index([shopUserId])
 }
 
 /**
  * Phiên bản công thức (BOM) theo ngày hiệu lực. Quán đổi công thức giữa kỳ thì Check Cost phải tính
  * theo công thức CÓ HIỆU LỰC tại từng mốc, không phải công thức hiện hành — xem utils/recipeVersions.ts.
- *
  * Chọn bảng header (một version mang trọn bộ dòng) thay vì đặt effectiveFrom lên từng dòng: bỏ bớt một
  * nguyên liệu khi đó không cần dòng mộ (tombstone quantityPerUnit = 0), và đường ghi vốn đã là "thay cả
  * bộ" nên map 1-1 sang "tạo version mới với trọn bộ dòng".
@@ -202,7 +249,18 @@ model FinishedGoodRecipeVersion {
 
   items FinishedGoodRecipeItem[]
 
-  @@unique([finishedGoodItemId, effectiveFrom])
+  /// NULL = phiên bản công thức CHUNG (áp cho mọi quán chưa khai công thức riêng); có giá trị = bản
+  /// riêng của quán đó. Phép phân giải riêng→chung nằm gọn trong utils/recipeVersions.ts.
+  shopUserId String?
+  shopUser   User?   @relation("FinishedGoodRecipeVersionShop", fields: [shopUserId], references: [id], onDelete: Cascade)
+
+  /// CẨN TRỌNG, y như FinishedGoodPrice: PostgreSQL coi NULL là KHÁC NHAU trong UNIQUE nên ràng buộc
+  /// này KHÔNG chặn được hai version CHUNG cùng ngày. Nửa còn lại là index UNIQUE MỘT PHẦN viết tay
+  /// "FinishedGoodRecipeVersion_shared_effective_key" trong migration
+  /// 20261016000400_finished_good_shop_recipe. Prisma 7.8 không đòi xoá nó (đã đo), nhưng cũng không
+  /// biết nó tồn tại — mỗi lần sinh migration vẫn phải soi (xem CLAUDE.md).
+  @@unique([finishedGoodItemId, shopUserId, effectiveFrom])
+  @@index([shopUserId])
 }
 
 // Công thức (BOM): 1 đơn vị của 1 đồ thành phẩm/món cần bao nhiêu nguyên liệu — định lượng luôn tính theo
@@ -226,7 +284,6 @@ model FinishedGoodRecipeItem {
  * Lịch sử giá bán của đồ thành phẩm/món. Doanh thu Check Cost = SL bán từng ô giờ POS × giá CÓ HIỆU LỰC
  * tại mốc đó, nên đổi giá bán giữa kỳ không còn làm lệch doanh thu cả kỳ — và doanh thu là mẫu số của
  * mọi tỷ lệ % trong Check Cost.
- *
  * `FinishedGoodItem.sellingPrice` được GIỮ LẠI làm bản sao giá hiện hành: nó còn là giá mặc định của
  * phiếu kiểm kê quán. Mọi đường ghi giá phải cập nhật cả hai trong cùng transaction — xem
  * modules/finishedGoodPrices.
@@ -238,11 +295,24 @@ model FinishedGoodPrice {
   /// Cùng lý do @db.Date như FinishedGoodRecipeVersion.effectiveFrom.
   effectiveFrom      DateTime         @db.Date
   sellingPrice       Decimal          @db.Decimal(18, 2)
+  /// NULL = mốc giá CHUNG (áp cho mọi quán chưa khai giá riêng); có giá trị = mốc riêng của quán đó.
+  /// Phép phân giải riêng→chung nằm gọn trong utils/priceHistory.ts, KHÔNG rải ra call site.
+  shopUserId         String?
+  shopUser           User?            @relation("FinishedGoodPriceShop", fields: [shopUserId], references: [id], onDelete: Cascade)
   createdById        String?
   createdBy          User?            @relation(fields: [createdById], references: [id], onDelete: SetNull)
   createdAt          DateTime         @default(now())
 
-  @@unique([finishedGoodItemId, effectiveFrom])
+  /// CẨN TRỌNG: PostgreSQL coi NULL là KHÁC NHAU trong UNIQUE, nên ràng buộc này KHÔNG chặn được hai
+  /// mốc CHUNG cùng ngày cho một món — đúng cái "version rác" mà chú thích trên `effectiveFrom` của
+  /// FinishedGoodRecipeVersion nói tới. Prisma 7 không khai báo được `NULLS NOT DISTINCT`, nên nửa
+  /// còn lại là một index UNIQUE MỘT PHẦN viết tay trong migration
+  /// 20261016000300_finished_good_shop_price: "FinishedGoodPrice_shared_effective_key".
+  /// ĐÃ ĐO trên Prisma 7.8: `migrate dev --create-only` KHÔNG đòi xoá index này (nó bỏ qua index mà
+  /// PSL không diễn tả được). Nhưng Prisma không biết index đó tồn tại, nên mỗi lần sinh migration vẫn
+  /// phải soi xem có câu DROP nào cho nó không — xem mục "Index viết tay" trong CLAUDE.md.
+  @@unique([finishedGoodItemId, shopUserId, effectiveFrom])
+  @@index([shopUserId])
 }
 
 // Loại hàng hoá — 5 giá trị cố định trong code, dùng để gộp chi phí cho Check Cost
@@ -285,6 +355,7 @@ model Product {
   tareWeight Decimal? @db.Decimal(18, 4)
 
   stockImportItems      StockImportItem[]
+  bakeryOrderItems      BakeryOrderItem[]
   salesOrderItems       SalesOrderItem[]
   reorderThresholds     ProductReorderThreshold[]
   stockCheckItems       StockCheckItem[]
@@ -292,6 +363,29 @@ model Product {
   recipeLines           FinishedGoodRecipeItem[]
   materialWasteItems    MaterialWasteItem[]
   materialTransferItems MaterialTransferItem[]
+  shops                 ProductShop[]
+}
+
+/**
+ * Hàng hoá nào có ở quán nào — song sinh với `FinishedGoodItemShop`, cùng quy ước và cùng mặt tối.
+ * KHÔNG CÓ DÒNG NÀO cho một hàng hoá = hàng đó hiện ở MỌI quán. Đo trên dữ liệu thật: 121/134 hàng
+ * hoá được CẢ BA quán dùng, chỉ 10 hàng là đặc thù của 1–2 quán — nên quy ước này làm hết việc
+ * nặng, admin chỉ phải gán đúng mấy hàng đặc thù thay vì nhân bản danh sách cho từng quán.
+ * NGUY HIỂM RIÊNG của bảng này, không có ở menu đồ thành phẩm: ẩn một hàng hoá khỏi quán KHÔNG phải
+ * là "bỏ qua" — Check Cost đọc không thấy dòng kiểm kê thì tính tồn đầu/cuối kỳ bằng 0
+ * (costChecks.service.ts), nên `actualUsed` phồng lên bằng cả lượng tồn và cột chênh lệch ra số
+ * dương lớn vô cớ. Vì vậy đường ghi phải cảnh báo riêng với hàng mà quán đó ĐÃ TỪNG kiểm khác 0.
+ */
+model ProductShop {
+  id         String   @id @default(cuid())
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  shopUserId String
+  shopUser   User     @relation(fields: [shopUserId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([productId, shopUserId])
+  @@index([shopUserId])
 }
 
 // Per-supplier price list: the same product can be sourced from more than
@@ -339,13 +433,18 @@ model ProductReorderThreshold {
 }
 
 model Supplier {
-  id      String  @id @default(cuid())
-  code    String  @unique
-  name    String
-  phone   String?
-  address String?
+  id           String  @id @default(cuid())
+  code         String  @unique
+  name         String
+  phone        String?
+  address      String?
+  /// Tài khoản tiệm bánh ứng với NCC này — đơn bánh gửi tới NCC này thì tài khoản đó xác nhận, và
+  /// phiếu nhập kho tự sinh ghi NCC này. NULL = NCC thường. Một tiệm bánh đúng một NCC.
+  bakeryUserId String? @unique
+  bakeryUser   User?   @relation("SupplierBakery", fields: [bakeryUserId], references: [id], onDelete: SetNull)
 
   stockImports          StockImport[]
+  bakeryOrders          BakeryOrder[]
   productPrices         ProductSupplierPrice[]
   materialTransferItems MaterialTransferItem[]
 }
@@ -396,6 +495,10 @@ model StockImport {
   createdBy     User?                  @relation("StockImportCreatedBy", fields: [createdById], references: [id])
   createdAt     DateTime               @default(now())
   updatedAt     DateTime               @updatedAt
+  /// Có giá trị = phiếu TỰ SINH khi quán xác nhận nhận đơn bánh. Màn phiếu nhập không sửa/xoá được
+  /// phiếu này — số liệu chỉ đổi qua đơn bánh, để đơn và phiếu không bao giờ lệch nhau.
+  bakeryOrderId String?                @unique
+  bakeryOrder   BakeryOrder?           @relation(fields: [bakeryOrderId], references: [id])
 
   items  StockImportItem[]
   images StockImportImage[]
@@ -466,7 +569,7 @@ model SalesOrder {
   dueAt  DateTime?
   isLate Boolean   @default(false)
 
-  items       SalesOrderItem[]
+  items SalesOrderItem[]
 
   @@index([createdById, processedAt])
 }
@@ -582,17 +685,17 @@ model MaterialWaste {
 }
 
 model MaterialWasteItem {
-  id              String        @id @default(cuid())
-  materialWasteId String
-  materialWaste   MaterialWaste @relation(fields: [materialWasteId], references: [id], onDelete: Cascade)
-  productId       String
-  product         Product       @relation(fields: [productId], references: [id])
-  wholeQuantity   Decimal?      @db.Decimal(18, 3)
-  looseQuantity   Decimal?      @db.Decimal(18, 3)
-  note            String?
+  id                String        @id @default(cuid())
+  materialWasteId   String
+  materialWaste     MaterialWaste @relation(fields: [materialWasteId], references: [id], onDelete: Cascade)
+  productId         String
+  product           Product       @relation(fields: [productId], references: [id])
+  wholeQuantity     Decimal?      @db.Decimal(18, 3)
+  looseQuantity     Decimal?      @db.Decimal(18, 3)
+  note              String?
   // Bỏ tích = phần huỷ này KHÔNG trừ trong Check Cost, tức tính như hàng đã dùng. Chỉ người có
   // MATERIAL_WASTE.DEDUCT đổi được; mặc định true để dữ liệu cũ giữ nguyên số liệu Check Cost.
-  deductInCostCheck Boolean     @default(true)
+  deductInCostCheck Boolean       @default(true)
 
   @@index([productId])
 }
@@ -661,9 +764,9 @@ model ShiftExpense {
   // null = chưa chi. DateTime thật (khác spentAt là @db.Date): đây là mốc hệ thống đóng dấu lúc
   // bấm nút, không phải ngày người dùng khai — nên hiển thị phải đi qua giờ địa phương, đừng đọc
   // theo getUTC* như spentAt. Khác null thì KHOÁ bản ghi: quán hết sửa/xoá cho tới khi được gỡ dấu.
-  paidAt      DateTime?
-  paidById    String?
-  paidBy      User?            @relation("ShiftExpensePaidBy", fields: [paidById], references: [id])
+  paidAt   DateTime?
+  paidById String?
+  paidBy   User?     @relation("ShiftExpensePaidBy", fields: [paidById], references: [id])
 
   images ShiftExpenseImage[]
 
@@ -1043,7 +1146,6 @@ model ShiftDefinition {
 
 /**
  * Doanh số nhập ở mức GIỜ, không ở mức ca.
- *
  * Ca chỉ là cấu hình (ShiftDefinition), nên lưu theo giờ thì đổi mốc chia ca về sau là TÍNH LẠI chứ
  * không phải nhập lại. Lưu sẵn theo ca thì một lần đổi khung giờ là mất cả kho lịch sử.
  */
@@ -1075,7 +1177,47 @@ model PosSaleHour {
   @@index([finishedGoodItemId])
 }
 
-/** Dòng doanh số này do ai đặt vào. Cả hai đường đều khai giờ thật, nên đây là xuất xứ chứ không phải độ tin. */
+/**
+ * Bánh tiệm bánh bán ra — bản tương đương `PosSaleHour` của tiệm bánh, và là đầu vào `theoretical`
+ * cùng doanh thu cho Check Cost tiệm bánh.
+ * Độ mịn (ngày, người mua, bánh): KHÔNG có trục giờ vì tiệm bánh giao theo ngày, và THÊM trục người
+ * mua vì mục tiêu đầu tiên là biết phát cho quán nào bao nhiêu — cũng để đối chiếu được với phiếu
+ * nhập kho mà quán tự lập (bánh về quán đi đường phiếu nhập từ NCC "Tiệm bánh", không qua điều chuyển).
+ * KHÔNG lưu giá: giá lấy theo đồ thành phẩm, cụ thể là mốc giá RIÊNG của tiệm bánh trên chính món đó
+ * (`PriceHistory.load(ids, bakeryUserId)`) — một giá cho mọi người mua, kể cả bán ngoài.
+ */
+model BakerySale {
+  id                 String           @id @default(cuid())
+  bakeryUserId       String
+  bakeryUser         User             @relation("BakerySaleBakery", fields: [bakeryUserId], references: [id], onDelete: Cascade)
+  /// NULL = BÁN NGOÀI, gộp chung một mục và cố ý KHÔNG theo dõi người mua (repo không có thực thể
+  /// khách hàng — CUSTOMER_RETURN đã bị bỏ khỏi phiếu nhập trước đây). Có giá trị = bán cho quán đó.
+  shopUserId         String?
+  shopUser           User?            @relation("BakerySaleShop", fields: [shopUserId], references: [id], onDelete: Cascade)
+  /// Cùng lý do @db.Date như PosSaleHour.soldOn: ngày trần không dính lệch múi giờ.
+  soldOn             DateTime         @db.Date
+  finishedGoodItemId String
+  finishedGoodItem   FinishedGoodItem @relation(fields: [finishedGoodItemId], references: [id], onDelete: Cascade)
+  quantity           Decimal          @db.Decimal(18, 3)
+  createdById        String?
+  createdBy          User?            @relation("BakerySaleCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt          DateTime         @default(now())
+
+  /// CHỈ chặn được các dòng bán cho QUÁN: PostgreSQL coi NULL là khác nhau trong UNIQUE nên hai dòng
+  /// "bán ngoài" cùng (ngày, bánh) vẫn lọt. Nhánh đó bịt bằng index UNIQUE MỘT PHẦN viết tay
+  /// "BakerySale_external_key" — xem mục "Index viết tay" trong CLAUDE.md.
+  ///
+  /// Đường ghi KHÔNG bị bẫy này: `saveBakerySales` dùng deleteMany + createMany chứ không `upsert`
+  /// theo compound unique, và deleteMany sinh `shopUserId IS NULL` đúng. ĐỪNG đổi sang `upsert`.
+  @@unique([bakeryUserId, shopUserId, soldOn, finishedGoodItemId])
+  @@index([bakeryUserId, soldOn])
+  @@index([shopUserId, soldOn])
+  @@index([finishedGoodItemId])
+}
+
+/**
+ * Dòng doanh số này do ai đặt vào. Cả hai đường đều khai giờ thật, nên đây là xuất xứ chứ không phải độ tin.
+ */
 enum PosSaleSource {
   /// Nhập từ file Excel của POS.
   EXCEL
@@ -1085,7 +1227,6 @@ enum PosSaleSource {
 
 /**
  * Ánh xạ TÊN MÓN TRÊN POS sang đồ thành phẩm trong danh mục.
- *
  * Tên POS lệch nhiều so với danh mục (viết tắt, size, dấu, thứ tự từ), nên phải khai một lần rồi dùng mãi.
  */
 model PosItemMapping {
@@ -1114,11 +1255,9 @@ model PosItemMapping {
  * Token cho MCP connector (Claude trên web đọc dữ liệu qua /mcp). Mỗi token chỉ dùng được đúng
  * những tool có tên trong `tools` — tên khớp `MCP_TOOLS` (src/modules/mcp/tools/index.ts). Token
  * KHÔNG tự có tool mới thêm vào code: phải tick thêm trên trang Token MCP.
- *
  * Chỉ lưu SHA-256 của token, bản rõ hiện đúng một lần lúc tạo. Không cần bcrypt: token là 32 byte
  * ngẫu nhiên chứ không phải mật khẩu người đặt, nên không dò được bằng từ điển — và băm nhanh thì
  * tra được thẳng bằng @unique ở mỗi request.
- *
  * Token đứng NGOÀI hệ vai trò: nắm token là đọc được mọi quán trong các tool được cấp.
  */
 model McpToken {
@@ -1132,4 +1271,75 @@ model McpToken {
   createdBy   User?     @relation("McpTokenCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   createdAt   DateTime  @default(now())
   lastUsedAt  DateTime?
+}
+
+enum BakeryOrderStatus {
+  ORDERED
+  CONFIRMED
+  IN_TRANSIT
+  COMPLETED
+  CANCELLED
+}
+
+/**
+ * Đơn bánh: quán đặt → tiệm bánh xác nhận → người vận chuyển lấy hàng → quán nhận. Mỗi bước một cột
+ * số lượng riêng ở BakeryOrderItem và không ghi đè số của bước trước, nên lệch ở đâu là thấy ở đó.
+ * Khác hẳn SalesOrder (chỉ là ĐỀ XUẤT, cố ý không dính tồn kho): bước nhận hàng TỰ SINH phiếu nhập
+ * kho cho quán, tức là đi thẳng vào cột "Nhận trong kỳ" của Check Cost. Không sinh "Bánh bán ra" —
+ * tiệm bánh tự nhập phần đó.
+ */
+model BakeryOrder {
+  id            String            @id @default(cuid())
+  code          String            @unique
+  status        BakeryOrderStatus @default(ORDERED)
+  shopUserId    String
+  shopUser      User              @relation("BakeryOrderShop", fields: [shopUserId], references: [id])
+  /// NCC tiệm bánh (Supplier.bakeryUserId có giá trị). Người xác nhận suy từ NCC này.
+  supplierId    String
+  supplier      Supplier          @relation(fields: [supplierId], references: [id])
+  /// Ngày cần giao — ngày trần, cùng lý do @db.Date như BakerySale.soldOn.
+  deliveryOn    DateTime          @db.Date
+  note          String?
+  createdById   String?
+  createdBy     User?             @relation("BakeryOrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt     DateTime          @default(now())
+  confirmedById String?
+  confirmedBy   User?             @relation("BakeryOrderConfirmedBy", fields: [confirmedById], references: [id], onDelete: SetNull)
+  confirmedAt   DateTime?
+  pickedUpById  String?
+  pickedUpBy    User?             @relation("BakeryOrderPickedUpBy", fields: [pickedUpById], references: [id], onDelete: SetNull)
+  pickedUpAt    DateTime?
+  receivedById  String?
+  receivedBy    User?             @relation("BakeryOrderReceivedBy", fields: [receivedById], references: [id], onDelete: SetNull)
+  /// Có CẢ GIỜ: thành `transactionAt` của phiếu nhập tự sinh, tức mốc kỳ Check Cost.
+  receivedAt    DateTime?
+  cancelledById String?
+  cancelledBy   User?             @relation("BakeryOrderCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+  cancelledAt   DateTime?
+
+  items       BakeryOrderItem[]
+  stockImport StockImport?
+
+  @@index([shopUserId, createdAt])
+  @@index([supplierId, status])
+  @@index([status, deliveryOn])
+}
+
+model BakeryOrderItem {
+  id            String      @id @default(cuid())
+  bakeryOrderId String
+  bakeryOrder   BakeryOrder @relation(fields: [bakeryOrderId], references: [id], onDelete: Cascade)
+  productId     String
+  product       Product     @relation(fields: [productId], references: [id])
+  orderedQty    Decimal     @db.Decimal(18, 3)
+  /// NULL = bước đó chưa tới. Hao hụt KHÔNG lưu, tính lúc hiển thị (lấy − nhận).
+  confirmedQty  Decimal?    @db.Decimal(18, 3)
+  pickedUpQty   Decimal?    @db.Decimal(18, 3)
+  receivedQty   Decimal?    @db.Decimal(18, 3)
+  /// Giá nhập NCC, chốt lúc tiệm bánh xác nhận — đổi bảng giá về sau không làm đổi đơn.
+  unitPrice     Decimal?    @db.Decimal(18, 2)
+  note          String?
+
+  @@unique([bakeryOrderId, productId])
+  @@index([productId])
 }

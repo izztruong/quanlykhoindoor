@@ -3,7 +3,10 @@
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
 import { useFinishedGoodItems, useProducts } from "@/hooks/useCatalog";
+import { useUserOptions } from "@/hooks/useUsers";
+import { useCan } from "@/lib/permissions";
 import {
   useDeleteFinishedGoodRecipeVersion,
   useFinishedGoodRecipe,
@@ -27,8 +30,14 @@ interface RecipeRow {
 export function FinishedGoodRecipeClient({ id }: { id: string }) {
   const { data: finishedGoodItems = [] } = useFinishedGoodItems();
   const { data: products = [] } = useProducts();
-  const { data: recipeItems, isLoading } = useFinishedGoodRecipe(id);
-  const { data: versions = [] } = useFinishedGoodRecipeVersions(id);
+  const { scopeAll } = useCan();
+  const { data: shops = [] } = useUserOptions({ enabled: scopeAll });
+  /** "" = phạm vi CHUNG (mọi quán). Vào query key nên đổi ô là tải lại đúng bộ phiên bản. */
+  const [shopUserId, setShopUserId] = useState("");
+  const { data: recipeItems, isLoading } = useFinishedGoodRecipe(id, shopUserId || undefined);
+  const { data: versionsData } = useFinishedGoodRecipeVersions(id, shopUserId || undefined);
+  const versions = versionsData?.items ?? [];
+  const sharedCount = versionsData?.sharedCount ?? 0;
   const updateRecipe = useUpdateFinishedGoodRecipe(id);
   const deleteVersion = useDeleteFinishedGoodRecipeVersion(id);
 
@@ -113,8 +122,11 @@ export function FinishedGoodRecipeClient({ id }: { id: string }) {
         items,
         // Công thức ĐẦU TIÊN của món thì không gửi ngày: server tự đặt mốc gốc để nó áp cho cả quá khứ
         // (gửi hôm nay sẽ làm phiếu Check Cost kỳ trước ra định mức 0).
-        effectiveFrom: isFirstVersion ? undefined : effectiveFrom,
+        // Phạm vi QUÁN thì KHÔNG để server tự đặt mốc gốc cho bản riêng đầu tiên: luật đắp bù đã
+        // phủ quá khứ bằng bản chung, lấy mốc gốc là xoá sạch lịch sử chung khỏi quá khứ của quán.
+        effectiveFrom: isFirstVersion && !shopUserId ? undefined : effectiveFrom,
         overwrite: Boolean(matchedVersion),
+        shopUserId: shopUserId || null,
       },
       {
         onSuccess: (result) => {
@@ -172,7 +184,37 @@ export function FinishedGoodRecipeClient({ id }: { id: string }) {
           <CardTitle>Mốc hiệu lực</CardTitle>
         </CardHeader>
         <CardBody className="flex flex-col gap-3">
-          {isFirstVersion ? (
+          {scopeAll && (
+            <div>
+              <label className="mb-1 block text-xs font-medium uppercase text-slate-500">Phạm vi</label>
+              <Select
+                className="w-56"
+                value={shopUserId}
+                onChange={(e) => {
+                  setShopUserId(e.target.value);
+                  setEdited(null);
+                  setError(null);
+                  setSaved(null);
+                  setAffected([]);
+                }}
+              >
+                <option value="">Chung (mọi quán)</option>
+                {shops.map((shop) => (
+                  <option key={shop.id} value={shop.id}>
+                    {shop.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          )}
+          {shopUserId && (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              {versions.length === 0
+                ? `Quán này chưa có công thức riêng — đang dùng công thức Chung (${sharedCount} mốc). Lưu ở đây sẽ tạo công thức riêng, áp dụng TỪ NGÀY HIỆU LỰC TRỞ ĐI; phần trước đó vẫn dùng công thức chung.`
+                : `Quán này có công thức riêng. Từ mốc riêng đầu tiên trở đi, đổi công thức Chung KHÔNG còn ảnh hưởng quán này nữa.`}
+            </p>
+          )}
+          {isFirstVersion && !shopUserId ? (
             <p className="text-sm text-slate-600">
               Đây là công thức đầu tiên của món này nên sẽ <strong>áp dụng cho cả dữ liệu trước đây</strong>. Lần sửa sau mới
               cần chọn ngày hiệu lực.

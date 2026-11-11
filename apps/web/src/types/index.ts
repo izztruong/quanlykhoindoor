@@ -10,9 +10,26 @@ export interface AuthUser {
   permissions: string[];
   /** "ALL" = dữ liệu mọi quán, "SELF" = chỉ dữ liệu của chính mình. */
   scope: "ALL" | "SELF";
+  /** Tài khoản này là một quán (Role.isShop) — KHÁC scope: kế toán cũng là SELF mà không có quán. */
+  isShop: boolean;
+  /** Là tiệm bánh (Role.isBakery). Tiệm bánh bật CẢ isShop lẫn cờ này. */
+  isBakery: boolean;
 }
 
-export type PermissionAction = "VIEW" | "ADD" | "EDIT" | "DELETE" | "APPROVE" | "ADVANCE" | "COMPLETE";
+export type PermissionAction =
+  | "VIEW"
+  | "ADD"
+  | "EDIT"
+  | "DELETE"
+  | "APPROVE"
+  | "ADVANCE"
+  | "COMPLETE"
+  | "PAY"
+  | "DEDUCT"
+  | "CONFIRM"
+  | "PICKUP"
+  | "RECEIVE"
+  | "CANCEL";
 
 export interface PermissionCatalog {
   resources: { resource: string; label: string; group: string; actions: PermissionAction[] }[];
@@ -26,6 +43,8 @@ export interface Role {
   isSystem: boolean;
   /** Tài khoản thuộc vai trò này hiện trong các ô chọn/lọc quán. */
   isShop: boolean;
+  /** Vai trò tiệm bánh — bán cho quán và bán ngoài, không qua POS. */
+  isBakery: boolean;
   permissions: string[];
   createdAt: string;
   _count: { users: number };
@@ -100,6 +119,8 @@ export interface Product {
   type: ProductType;
   tareWeight?: string | number | null;
   active?: boolean;
+  /** Quán nào có hàng này. MẢNG RỖNG = chưa gán quán nào = MỌI quán đều thấy. */
+  shops?: { shopUserId: string }[];
 }
 
 export interface ReorderThreshold {
@@ -117,6 +138,9 @@ export interface Supplier {
   name: string;
   phone?: string | null;
   address?: string | null;
+  /** Tài khoản tiệm bánh ứng với NCC này (đơn bánh). null = NCC thường. */
+  bakeryUserId?: string | null;
+  bakeryUser?: { id: string; name: string } | null;
 }
 
 export interface ProductSupplierPrice {
@@ -218,6 +242,8 @@ export interface StockImport {
   items: StockImportLine[];
   /** Số ảnh chứng từ đã đính. URL ảnh tải riêng khi mở (URL ký hạn 1 giờ). */
   imageCount: number;
+  /** Có giá trị = phiếu tự sinh từ đơn bánh: server khoá sửa/xoá, chỉ sửa qua đơn bánh. */
+  bakeryOrder?: { id: string; code: string } | null;
 }
 
 export interface StockImportImage {
@@ -313,6 +339,11 @@ export interface FinishedGoodItem {
   unit: Unit;
   category?: FinishedGoodCategory | null;
   sellingPrice?: string | number | null;
+  /**
+   * Quán nào có món này. MẢNG RỖNG = chưa gán quán nào = MỌI quán đều thấy (quy ước ghi ở
+   * utils/shopMenu.ts bên server). Chỉ có ở GET danh sách, không có ở GET chi tiết.
+   */
+  shops?: { shopUserId: string }[];
 }
 
 export interface StockCheckItemRow {
@@ -731,4 +762,50 @@ export interface ExpenseProposal {
   /** Hạng mục thực chi, khai lúc Hoàn thành. */
   spentItems?: ExpenseProposalItem[];
   _count?: { images: number };
+}
+
+/** Đơn bánh: ĐÃ ĐẶT → BÁNH ĐÃ XÁC NHẬN → ĐANG GIAO → HOÀN THÀNH; huỷ/từ chối được ở bước đầu. */
+export type BakeryOrderStatus = "ORDERED" | "CONFIRMED" | "IN_TRANSIT" | "COMPLETED" | "CANCELLED";
+
+export interface BakeryOrderItem {
+  id: string;
+  productId: string;
+  product: { id: string; code: string; name: string; unit?: { name: string } | null };
+  orderedQty: string | number;
+  /** null = bước đó chưa tới. */
+  confirmedQty: string | number | null;
+  pickedUpQty: string | number | null;
+  receivedQty: string | number | null;
+  /** Chốt lúc tiệm bánh xác nhận. */
+  unitPrice: string | number | null;
+  note?: string | null;
+}
+
+export interface BakeryOrder {
+  id: string;
+  code: string;
+  status: BakeryOrderStatus;
+  shopUserId: string;
+  shopUser: { id: string; name: string };
+  supplierId: string;
+  supplier: { id: string; code: string; name: string; bakeryUserId?: string | null };
+  /** Ngày trần "YYYY-MM-DD…" — đọc bằng formatDateOnly, không đổi múi giờ. */
+  deliveryOn: string;
+  note?: string | null;
+  createdAt: string;
+  createdBy?: { id: string; name: string } | null;
+  confirmedBy?: { id: string; name: string } | null;
+  confirmedAt?: string | null;
+  pickedUpBy?: { id: string; name: string } | null;
+  pickedUpAt?: string | null;
+  receivedBy?: { id: string; name: string } | null;
+  /** Có cả giờ — thành mốc kỳ Check Cost của phiếu nhập tự sinh. */
+  receivedAt?: string | null;
+  cancelledBy?: { id: string; name: string } | null;
+  cancelledAt?: string | null;
+  /** Chỉ có ở chi tiết. */
+  items?: BakeryOrderItem[];
+  stockImport?: { id: string; code: string } | null;
+  /** Chỉ có ở danh sách. */
+  _count?: { items: number };
 }

@@ -5,6 +5,27 @@ import * as ImagePicker from "expo-image-picker";
 const MAX_EDGE = 1600;
 const JPEG_QUALITY = 0.7;
 
+/**
+ * Trần cho bước NÉN, không phải cho cả lượt chọn ảnh: thời gian người dùng lướt thư viện là vô hạn
+ * một cách chính đáng, đặt hạn ở đó là báo lỗi oan rồi vứt ảnh họ vừa chọn.
+ *
+ * Có trần vì `renderAsync`/`saveAsync` từng treo im (ảnh đã chọn xong mà vòng xoay quay mãi, màn
+ * Hoàn thành khoá cứng). Hết hạn thì ném lỗi để chỗ gọi gỡ vòng xoay — lời gọi native vẫn chạy tiếp
+ * vì không huỷ được, nhưng kết quả về muộn sẽ bị bỏ qua.
+ */
+const COMPRESS_TIMEOUT_MS = 30_000;
+
+function withTimeout<T>(work: Promise<T>, ms: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const limit = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms);
+  });
+  // Hết hạn rồi `work` mới ném thì cuộc đua đã xong, lỗi đó không còn ai nghe và React Native kêu
+  // "unhandled promise rejection" — nuốt riêng ở đây, không ảnh hưởng nhánh thắng cuộc.
+  work.catch(() => undefined);
+  return Promise.race([work, limit]).finally(() => clearTimeout(timer)) as Promise<T>;
+}
+
 export interface CompressedImage {
   /** Chỉ phần dữ liệu base64, không kèm tiền tố "data:image/jpeg;base64," — khớp payload API. */
   dataBase64: string;
@@ -51,7 +72,11 @@ async function pick(
     quality: 1,
   });
   if (result.canceled) return [];
-  return Promise.all(result.assets.map(compress));
+  return withTimeout(
+    Promise.all(result.assets.map(compress)),
+    COMPRESS_TIMEOUT_MS,
+    "Xử lý ảnh quá lâu, vui lòng thử lại với ảnh nhỏ hơn",
+  );
 }
 
 /** Chụp mới bằng camera. Trả mảng rỗng nếu người dùng bấm huỷ hoặc từ chối quyền. */

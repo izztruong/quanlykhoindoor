@@ -25,6 +25,8 @@ const detailInclude = {
   items: { include: { product: { include: { unit: true, productGroup: true } } } },
   // Chỉ đếm ảnh, không ký URL — URL chỉ ký ở GET /:id/images khi người dùng mở ảnh.
   _count: { select: { images: true } },
+  // Có giá trị = phiếu tự sinh từ đơn bánh, bị khoá sửa/xoá ở đây (xem assertNotFromBakeryOrder).
+  bakeryOrder: { select: { id: true, code: true } },
 };
 
 /** Phẳng hoá `_count.images` thành `imageCount` để payload không lộ hình dạng truy vấn Prisma. */
@@ -54,6 +56,17 @@ async function findScopedImport(id: string, user: AuthUser | undefined) {
   });
   if (!item) throw new HttpError(404, "Không tìm thấy phiếu nhập kho");
   return item;
+}
+
+/**
+ * Phiếu tự sinh khi quán nhận đơn bánh chỉ sửa được qua chính đơn bánh đó (admin sửa SL nhận/ngày
+ * nhận). Cho sửa ở đây là số trên phiếu và số trên đơn lệch nhau mà không bên nào biết. Đính ảnh
+ * chứng từ thì vẫn cho — ảnh không đổi số liệu.
+ */
+function assertNotFromBakeryOrder(item: { bakeryOrder: { code: string } | null }) {
+  if (item.bakeryOrder) {
+    throw new HttpError(409, `Phiếu này tự sinh từ đơn bánh ${item.bakeryOrder.code} — sửa số lượng hoặc ngày nhận ở đơn bánh đó`);
+  }
 }
 
 /**
@@ -288,6 +301,7 @@ stockImportsRouter.post("/by-codes", requirePermission("STOCK_IMPORTS", "VIEW"),
 stockImportsRouter.put("/:id", requirePermission("STOCK_IMPORTS"), async (req, res) => {
   const id = req.params.id as string;
   const existing = await findScopedImport(id, req.user);
+  assertNotFromBakeryOrder(existing);
   const data = stockImportCreateSchema.parse(req.body);
 
   // Không cho chuyển phiếu sang kho khác: làm vậy là chuyển hàng của quán này sang Check Cost của
@@ -336,6 +350,7 @@ stockImportsRouter.put("/:id", requirePermission("STOCK_IMPORTS"), async (req, r
 stockImportsRouter.delete("/:id", requirePermission("STOCK_IMPORTS"), async (req, res) => {
   const id = req.params.id as string;
   const existing = await findScopedImport(id, req.user);
+  assertNotFromBakeryOrder(existing);
 
   const affected = await affectedCostChecks(existing.warehouse.shopUser?.id ?? null, existing.transactionAt);
 
@@ -344,8 +359,8 @@ stockImportsRouter.delete("/:id", requirePermission("STOCK_IMPORTS"), async (req
   await prisma.stockImport.delete({ where: { id } });
   await deleteImages(images.map((image) => image.objectKey));
 
-  // Trả 200 + body chứ không 204: đây là route DELETE duy nhất trong dự án cần trả cảnh báo
-  // "tạo lại phiếu Check Cost" cho người dùng.
+  // Trả 200 + body chứ không 204: route DELETE cần trả cảnh báo "tạo lại phiếu Check Cost" cho người
+  // dùng (cùng khuôn với DELETE /material-waste/:id).
   res.json({ affectedCostChecks: affected });
 });
 

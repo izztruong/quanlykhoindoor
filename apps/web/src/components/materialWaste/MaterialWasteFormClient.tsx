@@ -74,6 +74,8 @@ export function MaterialWasteFormClient({ existing }: MaterialWasteFormClientPro
   // Không có quyền thì vẫn thấy ô tích nhưng không bấm được; server cũng tự bỏ qua giá trị gửi lên.
   const canDeduct = can(currentUser, "MATERIAL_WASTE", "DEDUCT");
   const { data: products = [] } = useProducts({ activeOnly: true });
+  // KHÔNG truyền quán: phiếu này luôn thuộc tài khoản đang đăng nhập, và server đã tự ép
+  // phạm vi theo menu của quán đó (resolveMenuShopId). Truyền thêm chỉ sinh một lượt tải lại.
   const { data: finishedGoodItems = [] } = useFinishedGoodItems();
   const createWaste = useCreateMaterialWaste();
   const updateWaste = useUpdateMaterialWaste(existing?.id ?? "");
@@ -482,7 +484,7 @@ export function MaterialWasteFormClient({ existing }: MaterialWasteFormClientPro
       {/* Gom lời nhắc cân cả vỏ thành MỘT dòng ở cuối phiếu thay vì lặp ở từng dòng hàng
           hoá có vỏ. Người nhập chỉ cần biết quy tắc chung, còn trừ bao nhiêu gam thì server tự
           xử lý (subtractTareWeight), không phải thứ họ cần nhớ lúc đang cân. */}
-      <p className="text-sm text-amber-600">Cân cả vỏ</p>
+      <p className="text-sm text-amber-600">{isEdit ? "SL lẻ đang hiện đã trừ vỏ. Dòng nào sửa SL lẻ thì gõ số cân cả vỏ." : "Cân cả vỏ"}</p>
       <p className="text-sm text-slate-500">Ô “Trừ CC”: dòng bỏ tích sẽ không được trừ trong Check Cost (tính như hàng đã dùng).</p>
 
       {error && <p className="text-sm text-red-600">{error}</p>}

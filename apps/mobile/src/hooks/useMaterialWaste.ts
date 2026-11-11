@@ -77,6 +77,19 @@ export function useUpdateMaterialWasteDeductions(id: string) {
   });
 }
 
+/** Cần MATERIAL_WASTE.DELETE. Trả 200 + affectedCostChecks chứ không 204 — xem materialWaste.routes.ts. */
+export function useDeleteMaterialWaste() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete<{ affectedCostChecks: AffectedCostCheck[] }>(`/material-waste/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["material-waste"] });
+      // Ô "Huỷ hàng 7 ngày" ở Trang chủ đếm phiếu huỷ.
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
+}
+
 /** URL ảnh là URL ký có hạn 1 giờ — chỉ tải khi mở chi tiết hoặc form sửa phiếu. */
 export function useMaterialWasteImages(id: string) {
   return useQuery({

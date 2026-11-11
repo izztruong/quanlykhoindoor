@@ -154,6 +154,10 @@ export default function RecipeScreen() {
         <Card>
           <CardHeader><CardTitle>Mốc hiệu lực</CardTitle></CardHeader>
           <CardBody style={styles.fields}>
+            <Text style={styles.faint}>
+              Đây là công thức CHUNG, áp cho mọi quán chưa khai công thức riêng. Công thức riêng theo quán chỉ khai được
+              trên web.
+            </Text>
             {isFirstVersion ? (
               <Text style={styles.muted}>
                 Đây là công thức đầu tiên của món này nên sẽ áp dụng cho cả dữ liệu trước đây. Lần sửa sau mới cần chọn ngày.

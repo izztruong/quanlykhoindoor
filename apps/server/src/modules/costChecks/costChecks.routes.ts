@@ -37,6 +37,10 @@ costChecksRouter.get("/", requirePermission("COST_CHECKS"), async (req, res) => 
   const where = {
     createdAt: from || to ? { gte: from, lte: to } : undefined,
     userId: ownerWhere(req.user, userId),
+    // Phiếu của TIỆM BÁNH cũng là một dòng CostCheck nhưng thuộc danh sách riêng
+    // (/api/bakery-cost-checks): khối tổng hợp tài chính của nó khác hẳn, lẫn vào đây là người dùng
+    // mở ra thấy số liệu không khớp nhãn.
+    user: { role: { isBakery: false } },
   };
 
   const [items, total] = await Promise.all([

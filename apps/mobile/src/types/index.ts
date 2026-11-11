@@ -10,6 +10,10 @@ export interface AuthUser {
   permissions: string[];
   /** "ALL" = dữ liệu mọi quán, "SELF" = chỉ dữ liệu của chính mình. */
   scope: "ALL" | "SELF";
+  /** Tài khoản này là một quán (Role.isShop) — KHÁC scope: kế toán cũng là SELF mà không có quán. */
+  isShop: boolean;
+  /** Là tiệm bánh (Role.isBakery). Tiệm bánh bật CẢ isShop lẫn cờ này. */
+  isBakery: boolean;
 }
 
 export type PermissionAction = "VIEW" | "ADD" | "EDIT" | "DELETE" | "APPROVE" | "ADVANCE" | "COMPLETE";
@@ -26,6 +30,8 @@ export interface Role {
   isSystem: boolean;
   /** Tài khoản thuộc vai trò này hiện trong các ô chọn/lọc quán. */
   isShop: boolean;
+  /** Vai trò tiệm bánh — bán cho quán và bán ngoài, không qua POS. */
+  isBakery: boolean;
   permissions: string[];
   createdAt: string;
   _count: { users: number };
@@ -71,6 +77,8 @@ export interface Product {
   type: ProductType;
   tareWeight?: string | number | null;
   active?: boolean;
+  /** Quán nào có hàng này. MẢNG RỖNG = chưa gán quán nào = MỌI quán đều thấy. */
+  shops?: { shopUserId: string }[];
 }
 
 export interface ReorderThreshold {
@@ -234,6 +242,11 @@ export interface FinishedGoodItem {
   unit: Unit;
   category?: FinishedGoodCategory | null;
   sellingPrice?: string | number | null;
+  /**
+   * Quán nào có món này. MẢNG RỖNG = chưa gán quán nào = MỌI quán đều thấy (quy ước ghi ở
+   * utils/shopMenu.ts bên server). Chỉ có ở GET danh sách, không có ở GET chi tiết.
+   */
+  shops?: { shopUserId: string }[];
 }
 
 export interface StockCheckItemRow {

@@ -30,6 +30,7 @@ export function RoleFormClient({ catalog, currentUser, existing, onDone }: RoleF
   const updateRole = useUpdateRole();
   const [name, setName] = useState(existing?.name ?? "");
   const [isShop, setIsShop] = useState(existing?.isShop ?? false);
+  const [isBakery, setIsBakery] = useState(existing?.isBakery ?? false);
   const [selected, setSelected] = useState<Set<string>>(() => new Set(existing?.permissions ?? []));
   const [openResource, setOpenResource] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -89,7 +90,7 @@ export function RoleFormClient({ catalog, currentUser, existing, onDone }: RoleF
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    const payload = { name: name.trim(), isShop, permissions: Array.from(selected) };
+    const payload = { name: name.trim(), isShop, isBakery, permissions: Array.from(selected) };
     const onError = (err: unknown) => setError(err instanceof ApiError ? err.message : "Lưu vai trò thất bại");
     if (existing) updateRole.mutate({ id: existing.id, ...payload }, { onSuccess: onDone, onError });
     else createRole.mutate(payload, { onSuccess: onDone, onError });
@@ -111,6 +112,18 @@ export function RoleFormClient({ catalog, currentUser, existing, onDone }: RoleF
           <span className="block text-xs text-slate-500">
             Chỉ tài khoản là quán mới hiện trong các ô chọn/lọc quán (đơn hàng, điều chuyển, Check Cost…). Bỏ tick với vai trò
             chỉ dùng một chức năng, vd tài khoản chỉ lập phiếu đề xuất chi.
+          </span>
+        </span>
+      </label>
+
+      <label className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+        <input type="checkbox" className="mt-0.5" checked={isBakery} onChange={(e) => setIsBakery(e.target.checked)} />
+        <span>
+          <span className="font-medium text-slate-700">Tài khoản thuộc vai trò này là tiệm bánh</span>
+          <span className="block text-xs text-slate-500">
+            Tiệm bánh làm bánh rồi bán cho các quán và bán ra ngoài, không bán qua POS. <strong>Tick CẢ ô &quot;là
+            quán&quot; ở trên</strong> — nhờ đó tiệm bánh dùng được kho, phiếu kiểm kê, phiếu huỷ và điều chuyển y như
+            quán; ô này chỉ đổi trục bán ra (trang &quot;Bánh bán ra&quot;) và phiếu Check Cost riêng.
           </span>
         </span>
       </label>

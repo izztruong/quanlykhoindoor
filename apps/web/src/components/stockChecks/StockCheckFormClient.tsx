@@ -287,6 +287,8 @@ export function StockCheckFormClient({ existing }: StockCheckFormClientProps) {
   const isEdit = Boolean(existing);
   const router = useRouter();
   const { data: products = [] } = useProducts({ activeOnly: true });
+  // KHÔNG truyền quán: phiếu này luôn thuộc tài khoản đang đăng nhập, và server đã tự ép
+  // phạm vi theo menu của quán đó (resolveMenuShopId). Truyền thêm chỉ sinh một lượt tải lại.
   const { data: finishedGoodItems = [] } = useFinishedGoodItems();
   const createCheck = useCreateStockCheck();
   const updateCheck = useUpdateStockCheck(existing?.id ?? "");
@@ -680,7 +682,7 @@ export function StockCheckFormClient({ existing }: StockCheckFormClientProps) {
           nhiều lần trên một bảng dài. Gom thành một dòng duy nhất ở cuối phiếu: người kiểm chỉ
           cần biết quy tắc chung là cân cả vỏ, phần trừ bao nhiêu hệ thống tự lo (subtractTareWeight
           ở server), không phải thông tin họ cần nhớ lúc đang cân. */}
-      <p className="text-sm text-amber-600">Cân cả vỏ</p>
+      <p className="text-sm text-amber-600">{isEdit ? "SL lẻ đang hiện đã trừ vỏ. Dòng nào sửa SL lẻ thì gõ số cân cả vỏ." : "Cân cả vỏ"}</p>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
       {warning && <p className="text-sm text-amber-600">{warning}</p>}

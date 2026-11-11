@@ -329,7 +329,7 @@ export function MaterialTransferFormClient({ existing }: MaterialTransferFormCli
       {/* Gom lời nhắc cân cả vỏ thành MỘT dòng ở cuối phiếu thay vì lặp ở từng dòng hàng
           hoá có vỏ. Người nhập chỉ cần biết quy tắc chung, còn trừ bao nhiêu gam thì server tự
           xử lý (subtractTareWeight), không phải thứ họ cần nhớ lúc đang cân. */}
-      <p className="text-sm text-amber-600">Cân cả vỏ</p>
+      <p className="text-sm text-amber-600">{isEdit ? "SL lẻ đang hiện đã trừ vỏ. Dòng nào sửa SL lẻ thì gõ số cân cả vỏ." : "Cân cả vỏ"}</p>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 

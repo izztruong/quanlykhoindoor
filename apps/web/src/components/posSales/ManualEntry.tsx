@@ -66,7 +66,6 @@ interface DraftRow {
 export function ManualEntry() {
   const { data: users = [] } = useUserOptions();
   const { data: shifts = [] } = useShiftDefinitions();
-  const { data: allItems = [] } = useFinishedGoodItems();
   const save = useSaveManualRows();
 
   const [from, setFrom] = useState(todayVn);
@@ -84,6 +83,10 @@ export function ManualEntry() {
 
   const { data, isLoading } = usePosSaleRows({ userId: userId || undefined, from, to, page, pageSize });
   const rows = data?.items ?? [];
+
+  // Ô "Món" theo MENU CỦA QUÁN đang chọn: màn này có ô chọn quán nên admin gõ hộ quán nào thì chỉ
+  // thấy món của quán đó. Bỏ trống ("Của tôi") thì server tự ép theo tài khoản đăng nhập.
+  const { data: allItems = [] } = useFinishedGoodItems({ shopUserId: userId || undefined });
 
   // Chỉ món BÁN QUA POS. THANH_PHAM là đồ pha sẵn đếm ở phiếu kiểm kê — server cũng chặn, đây là lớp
   // hiển thị. Dữ liệu thật đã có 12 dòng Check Cost ghi nhầm vì hai tên chỉ khác chữ hoa.

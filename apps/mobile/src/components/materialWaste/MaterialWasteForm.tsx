@@ -46,7 +46,8 @@ const PRODUCT_TYPE_GROUPS: { key: ProductType; label: string }[] = [
   { key: "KHAC", label: "Khác" },
 ];
 
-const FINISHED_GROUP_KEY = "THANH_PHAM";
+/** Khoá nhận dạng khu "Đồ thành phẩm" cho state mở/đóng — KHÔNG phải một giá trị category. */
+const FINISHED_GROUP_KEY = "FINISHED";
 
 function matchesQuery(name: string, code: string, query: string): boolean {
   if (!query.trim()) return true;
@@ -104,6 +105,8 @@ export function MaterialWasteForm({ existing }: { existing?: MaterialWaste }) {
   const { can } = useCan();
   const canDeduct = can("MATERIAL_WASTE", "DEDUCT");
   const { data: products = [] } = useProducts({ activeOnly: true });
+  // KHÔNG truyền quán: phiếu này luôn thuộc tài khoản đang đăng nhập, và server đã tự ép
+  // phạm vi theo menu của quán đó (resolveMenuShopId). Truyền thêm chỉ sinh một lượt tải lại.
   const { data: finishedGoodItems = [] } = useFinishedGoodItems();
   const createWaste = useCreateMaterialWaste();
   const updateWaste = useUpdateMaterialWaste(existing?.id ?? "");
@@ -138,8 +141,19 @@ export function MaterialWasteForm({ existing }: { existing?: MaterialWaste }) {
     return map;
   }, [products]);
 
-  const thanhPhamItems = useMemo(
-    () => finishedGoodItems.filter((f) => f.category === "THANH_PHAM").sort((a, b) => a.name.localeCompare(b.name)),
+  /**
+   * MỌI đồ thành phẩm, không lọc theo category — khớp với bản web.
+   *
+   * Trước đây chỉ hiện `THANH_PHAM`, nhưng huỷ một món ĐÃ PHA (`TRA`/`DAV`) là chuyện thật và đáng
+   * khai: nguyên liệu đã rời kho mà không có doanh thu, nên không khai thì nó nằm im trong
+   * `actualUsed` và hiện ra thành chênh lệch dương không ai giải thích được. Khai vào đây thì Check
+   * Cost quy ngược về nguyên liệu qua công thức và dồn sang cột "Giá trị NVL huỷ".
+   *
+   * Không có nguy cơ đếm hai lần: món `TRA`/`DAV` không được đếm ở phiếu kiểm kê quán (form kiểm chỉ
+   * liệt kê `THANH_PHAM`), và món bị bỏ cũng không có trong doanh số POS nên không vào `theoretical`.
+   */
+  const finishedGoodOptions = useMemo(
+    () => [...finishedGoodItems].sort((a, b) => a.name.localeCompare(b.name)),
     [finishedGoodItems],
   );
 
@@ -321,15 +335,15 @@ export function MaterialWasteForm({ existing }: { existing?: MaterialWaste }) {
 
       <GroupSection
         label="Đồ thành phẩm"
-        count={thanhPhamItems.length}
-        filledCount={thanhPhamItems.filter((i) => finishedEntries[i.id]?.quantity).length}
+        count={finishedGoodOptions.length}
+        filledCount={finishedGoodOptions.filter((i) => finishedEntries[i.id]?.quantity).length}
         open={openGroup === FINISHED_GROUP_KEY}
         onToggle={() => setOpenGroup(openGroup === FINISHED_GROUP_KEY ? null : FINISHED_GROUP_KEY)}
       >
-        {thanhPhamItems.filter((i) => matchesQuery(i.name, i.code, search)).length === 0 ? (
+        {finishedGoodOptions.filter((i) => matchesQuery(i.name, i.code, search)).length === 0 ? (
           <Text style={styles.emptyRow}>Không tìm thấy đồ thành phẩm khớp bộ lọc.</Text>
         ) : (
-          thanhPhamItems
+          finishedGoodOptions
             .filter((i) => matchesQuery(i.name, i.code, search))
             .map((item) => {
               const entry = finishedEntries[item.id] ?? EMPTY_FINISHED;

@@ -80,7 +80,9 @@ export async function getWasteSummary(createdById: string | undefined, now = new
   }
 
   if (finishedItems.length > 0) {
-    const recipes = await RecipeHistory.load(finishedItems.map((it) => it.finishedGoodItemId));
+    // Quán nào thì công thức của quán đó: `createdById` rỗng nghĩa là admin đang xem MỌI quán,
+    // lúc đó rơi về công thức chung — hàm này vốn đã tự khai là hệ LAI, cố ý.
+    const recipes = await RecipeHistory.load(finishedItems.map((it) => it.finishedGoodItemId), createdById);
     const productIds = new Set<string>();
     for (const item of finishedItems) {
       for (const line of recipes.linesAt(item.finishedGoodItemId, item.materialWaste.wasteAt.getTime())) {

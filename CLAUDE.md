@@ -180,7 +180,7 @@ trùng lặp và file sẽ phình (đã từng lên 4.400 token, hơn cả CLAUD
 |---|---|---|---|
 | `PN` nhập kho | `DH` đơn hàng | `KT` kiểm kê quán | `PH` huỷ nguyên liệu |
 | `DC` điều chuyển | `CC` Check Cost | | |
-| `DX` đề xuất chi | | | |
+| `DX` đề xuất chi | `DB` đơn bánh | | |
 
 **Ngoại lệ: phiếu nhập kho nhận mã do NGƯỜI DÙNG đặt** khi nhập Excel — cột "Mã phiếu" trong file là
 mã thật, lưu thẳng vào DB; để trống hoặc tạo từ form thì mới tự sinh `PN…`. Mã vẫn **duy nhất toàn
@@ -218,9 +218,58 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
   Gắn nghiệp vụ vào nó là dựng lại bước "xử lý đơn" cũ dưới một cái tên khác.
   Dấu "đã báo quán một lần" là `processedById`, nên **bỏ tích cố ý KHÔNG xoá cột đó** — xoá thì bỏ
   tích rồi tick lại là bắn thông báo lần hai.
-- SL lẻ ở `stockChecks`, `materialWaste`, `materialTransfers` đi qua `utils/tareWeight` ở **đường TẠO
-  (POST, Excel) — không bao giờ ở PUT**: DB lưu lượng tịnh, form sửa nạp nguyên số đó, trừ lại là mỗi
-  lần lưu số teo đi một tare (đã xảy ra thật). Đừng chữa bằng cách cộng bù tare ở form sửa.
+- **Đơn bánh (`bakeryOrders`) KHÁC đơn hàng: nó TỰ SINH phiếu nhập kho** cho kho quán ở bước quán nhận
+  (`StockImport.bakeryOrderId`), tức là đi thẳng vào "Nhận trong kỳ" của Check Cost. Phiếu đó **bị
+  khoá sửa/xoá ở `stockImports`** — chỉ đổi qua `PUT /bakery-orders/:id/received` (admin), để số
+  trên đơn và trên phiếu không lệch. Không sinh "Bánh bán ra" (tiệm bánh tự nhập). Tiệm bánh nào nhận
+  đơn suy từ **`Supplier.bakeryUserId`** (một tiệm bánh một NCC); đổi nối bị chặn khi NCC còn đơn dở.
+  Lập tay phiếu nhập từ NCC tiệm bánh **chỉ cảnh báo** trên form (quán có lúc mua bánh lẻ) — lập trùng
+  đợt hàng là Check Cost tính nhận hai lần. Mỗi bước có quyền riêng **và** chốt đúng phía (tiệm bánh
+  xác nhận, quán nhận) trong service, vì quyền theo action không phân biệt được quán với tiệm bánh.
+- SL lẻ ở `stockChecks`, `materialWaste`, `materialTransfers` đi qua `utils/tareWeight`: đường TẠO
+  (POST, Excel) trừ vỏ cả phiếu bằng `subtractTareWeight`; **PUT chỉ trừ dòng có SL lẻ ĐỔI**
+  (`subtractTareWeightOnChanged`, so theo giá trị vì payload không có id dòng). DB lưu lượng tịnh, form
+  sửa nạp nguyên số đó — trừ cả phiếu ở PUT là mỗi lần lưu số teo đi một tare (đã xảy ra thật). Đừng
+  chữa bằng cách cộng bù tare ở form sửa.
+- **Menu món và danh sách nguyên liệu theo quán nằm ở `utils/shopMenu.ts`** — quy ước duy nhất:
+  **chưa gán quán nào = MỌI quán đều thấy** (`FinishedGoodItemShop`, `ProductShop` rỗng). Đừng viết
+  lại mảnh `where` đó ở chỗ khác. Đường ĐỌC thu hẹp qua `resolveMenuShopId` (ép theo tài khoản, bỏ
+  qua tham số của client khi `scope = SELF`; trả rỗng cho tài khoản **không phải quán** — "SELF"
+  không đồng nghĩa "là quán"). Đường GHI phải gọi `assertItemsInShopMenu`/`assertProductsInShopList`
+  ở `stockChecks`, `materialWaste`, `materialTransfers` (cả đường Excel) và `posSales`; ở **PUT chỉ
+  kiểm dòng MỚI thêm** (`assertAdded*`) — kiểm cả phiếu là sửa phiếu cũ không nổi sau khi đổi menu.
+  Thêm bề mặt mới = thêm lời gọi, grep không chỉ ra được.
+- **Điều chuyển neo theo QUÁN GỬI, và tự gán hàng cho QUÁN NHẬN.** Không gửi được thứ mình không
+  có là ràng buộc của dữ liệu, không phụ thuộc ai gõ phiếu — neo theo người lập thì cùng một phiếu
+  A→B lại được khi A gõ và bị chặn khi B gõ. Và phải gọi `grantProductsToShop` cho `toUserId` trong
+  cùng transaction ở **cả ba** đường ghi (POST, PUT, Excel): thiếu nó là quán giữ hàng thật mà phiếu
+  kiểm không hiện dòng, nên Check Cost tính tồn cuối kỳ bằng 0. Hàm đó **chỉ gán cho hàng ĐÃ có danh
+  sách quán** — hàng chưa gán quán nào vốn đã hiện ở mọi quán, thêm một dòng gán là THU HẸP nó về
+  đúng quán nhận và làm mọi quán khác mất hàng.
+- **Ẩn một hàng hoá khỏi quán KHÔNG phải "bỏ qua"**: Check Cost không thấy dòng kiểm kê thì tính tồn
+  đầu/cuối kỳ bằng **0**, nên `actualUsed` phồng lên bằng cả lượng tồn. Đường ghi `ProductShop` vì
+  vậy trả 409 kèm `hasHistory` (hàng quán đó đã từng kiểm khác 0) ngoài `willBecomeGlobal`.
+- **Công thức và giá bán có bản RIÊNG theo quán** (`shopUserId` nullable, NULL = chung). Phân giải
+  nằm trong `utils/recipeVersions.ts` + `utils/priceHistory.ts`, **luật: thay cả dòng thời gian, đắp
+  bù phần trước mốc riêng đầu tiên** — chú thích trong file giải thích vì sao hai luật ngây thơ khác
+  đều sai. Gọi `load(ids, shopUserId)` ở `costChecks` (cả hai loader) và `dashboard`; thêm call site
+  mới mà quên truyền quán là lặng lẽ tính bằng bản chung. `CostCheck.reportSnapshot` chốt cứng nên
+  phiếu đã lập không đổi. `findCostChecksUsingEffectiveDate` nay nhận `shopUserId` — mốc riêng chỉ
+  cảnh báo phiếu của chính quán đó.
+- **TIỆM BÁNH là một "quán" bật thêm cờ `Role.isBakery`** — nó dùng lại nguyên kho, phiếu nhập, phiếu
+  kiểm, phiếu huỷ, điều chuyển, menu, chấm muộn. Chỉ **trục bán ra** là khác: `BakerySale`
+  (ngày × người mua × bánh, `shopUserId = null` = **bán ngoài**) thay cho `PosSaleHour`. Bánh về quán
+  đi đường **phiếu nhập kho từ NCC "Tiệm bánh"**, nên `costChecks` của quán không phải biết gì về
+  tiệm bánh. Công thức nguyên liệu và giá xuất của bánh là **bản RIÊNG theo quán** trên chính món
+  quán đang bán — không tạo bản ghi bánh mới.
+- **Phiếu Check Cost tiệm bánh LÀ một dòng `CostCheck`**, phân biệt bằng `user.role.isBakery` (không
+  có cột riêng). Nên `GET /api/cost-checks` phải lọc `isBakery: false` và `/api/bakery-cost-checks`
+  lọc `true` — bỏ bộ lọc là hai loại phiếu lẫn vào nhau với hai khối tổng hợp khác nghĩa. Code nằm
+  **trong module `costChecks`** (`bakeryCostChecks.*`) chứ không tách module: tách thì phải chép ~400
+  dòng `computeCostCheckReport` hoặc gọi service module khác.
+- **`computeCostCheckReport` tự chọn nguồn bán ra khi không được truyền `sales`** — phiếu tiệm bánh đi
+  đọc `PosSaleHour` sẽ được tập RỖNG và ra `theoretical = 0` cho mọi nguyên liệu: một báo cáo trông
+  bình thường nhưng sai sạch, **im lặng**. Chốt đó nằm TRONG hàm, đừng dời ra call site.
 - `utils/deadlines` được gọi lúc tạo đơn (`salesOrders`) và lúc tạo/sửa phiếu (`stockChecks`).
 - **Thông báo đẩy** gắn ở route của `salesOrders` (tạo, tick "Đã xử lý" lần đầu, huỷ) và
   `expenseProposals` (tạo, duyệt/từ chối, tạm ứng/tạm ứng thêm, hoàn thành)
@@ -276,6 +325,12 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
   từng dòng — **cùng độ mịn**: người gõ tay tự khai giờ thật. `PosSaleHour.source` vì vậy chỉ mang nghĩa
   **xuất xứ** (`EXCEL` = POS xuất ra, `MANUAL` = người gõ), không phải độ tin; nó dùng khi một con số
   trông lạ, để biết nên soát lại file hay soát lại người nhập.
+- **Ô chọn món ở phiếu huỷ KHÔNG lọc theo category** — web và mobile đều hiện cả `TRA`/`DAV`/
+  `THANH_PHAM`. Huỷ một món ĐÃ PHA là chuyện thật: nguyên liệu đã rời kho mà không có doanh thu, nên
+  không khai thì nó nằm im trong `actualUsed` và hiện thành chênh lệch dương không ai giải thích
+  được; khai thì Check Cost quy ngược về nguyên liệu qua công thức (`wastedFg`) và dồn sang cột
+  "Giá trị NVL huỷ". Không đếm hai lần vì món `TRA`/`DAV` không có trong phiếu kiểm kê quán lẫn
+  doanh số POS. (Mobile từng lọc chỉ `THANH_PHAM`, lệch với web — đã gộp về một bên.)
 - **POS chỉ bán món `TRA`/`DAV`.** `THANH_PHAM` là đồ pha sẵn đếm ở phiếu kiểm kê quán, không có doanh thu.
   Chặn ở **server** trong `saveShiftSales`, không chỉ lọc trên giao diện — dữ liệu thật đã có 12 dòng
   `CostCheckSoldItem` ghi nhầm đồ thành phẩm thành món đã bán, vì hai tên chỉ khác nhau chữ hoa
@@ -299,6 +354,39 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
 - Migration nào **chèn hoặc sửa dữ liệu** thì bắt buộc thử `migrate deploy` trên một **database trắng** trước khi push. Máy dev áp migration theo thứ tự viết ra nên che mất lỗi này.
 - **Không sửa file migration đã áp** — Prisma lưu checksum, deploy sẽ hỏng ở nơi migration đó đã chạy. Muốn chữa thì thêm migration mới.
 - Dữ liệu khởi tạo bắt buộc phải nằm trong **migration**, không phải `prisma/seed.ts`: Render chỉ chạy `migrate deploy` lúc khởi động, không chạy seed.
+- **`prisma migrate dev` không chạy được** ở chế độ không tương tác (nó là lệnh tương tác). Cách đang
+  dùng để sinh SQL: dựng một DB shadow, `migrate deploy` lên đó, rồi
+  `npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script` với
+  `DATABASE_URL` trỏ vào shadow. Prisma 7 đã bỏ `--from-url` và đổi `--to-schema-datamodel` thành
+  `--to-schema` — gõ cờ cũ thì nó **in ra trang help** thay vì báo lỗi, rất dễ tưởng là lệnh chạy xong.
+- **Kiểm drift** bằng `npx prisma migrate dev --create-only --name drift_check`: ra migration **rỗng**
+  là SQL viết tay khớp đúng schema. Nhớ xoá thư mục migration tạm đó.
+
+### Index viết tay (Prisma không khai báo được)
+
+**Ba** index **UNIQUE một phần** được tạo bằng SQL thô, không có trong `schema.prisma`:
+
+| Index | Bảng | Dùng để |
+|---|---|---|
+| `FinishedGoodPrice_shared_effective_key` | `FinishedGoodPrice` | chặn hai mốc giá **CHUNG** cùng ngày |
+| `FinishedGoodRecipeVersion_shared_effective_key` | `FinishedGoodRecipeVersion` | chặn hai version công thức **CHUNG** cùng ngày |
+| `BakerySale_external_key` | `BakerySale` | chặn hai dòng **BÁN NGOÀI** cùng (ngày, bánh) |
+
+Lý do: ba bảng đó có một cột **nullable trong khoá unique** (`shopUserId`: NULL = bản chung, hoặc
+NULL = bán ngoài), mà PostgreSQL coi `NULL` là **khác nhau** trong UNIQUE — nên `@@unique` khai trong
+PSL chỉ chặn được các dòng có giá trị. Prisma 7.8 không khai báo được `NULLS NOT DISTINCT` lẫn index
+một phần.
+
+**Đã đo trên Prisma 7.8: `migrate dev --create-only` KHÔNG đòi xoá mấy index này** (nó bỏ qua index mà
+PSL không diễn tả được). Nhưng Prisma cũng không biết chúng tồn tại, nên **mỗi lần sinh migration vẫn
+phải grep `_shared_effective_key` và `_external_key` trong file mới** rồi xoá câu `DROP INDEX` nếu có.
+
+Hệ quả thứ hai, đã cắn **hai** lần (một lần ở code, một lần ở script seed): **`upsert`/`findUnique`
+theo compound unique có cột nullable không dùng được** — Prisma từ chối thẳng với
+*"Argument `shopUserId` must not be null"*, và nếu lách được thì SQL cũng không khớp `NULL = NULL` nên
+cứ tạo dòng mới. Ba đường ghi đã đổi sang `findFirst` + `create`/`update`: `recordPriceChange`,
+`PUT /finished-good-prices/:id`, `PUT /finished-good-recipes/:id`. `BakerySale` thì dùng
+`deleteMany` + `createMany` nên không dính — **đừng đổi nó sang `upsert`**.
 
 ### Prisma client trên Windows
 

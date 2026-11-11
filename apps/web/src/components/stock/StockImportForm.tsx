@@ -210,6 +210,15 @@ export function StockImportForm({ existing }: { existing?: StockImport }) {
                 ))}
               </Select>
               {errors.supplierId && <p className="text-xs text-red-600">{errors.supplierId.message}</p>}
+              {/* CHỈ cảnh báo, không chặn: quán vẫn có lúc mua bánh lẻ mà không qua Đơn bánh. Nhưng nếu đợt
+                  hàng này đã đi qua Đơn bánh thì phiếu nhập đã tự sinh — lập tay nữa là Check Cost tính
+                  nhận hai lần, mà không có gì khác báo ra sai số đó. */}
+              {suppliers.find((s) => s.id === supplierId)?.bakeryUserId && (
+                <p className="text-xs text-amber-600">
+                  NCC này là tiệm bánh: bánh đặt qua Đơn bánh đã tự sinh phiếu nhập khi quán nhận hàng. Chỉ lập tay cho bánh mua ngoài
+                  Đơn bánh, nếu không Check Cost sẽ tính nhận hai lần.
+                </p>
+              )}
             </div>
 
             <div className="flex flex-col gap-1">

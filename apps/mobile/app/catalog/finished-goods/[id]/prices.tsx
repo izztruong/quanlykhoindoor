@@ -100,6 +100,9 @@ export default function FinishedGoodPricesScreen() {
         <Card>
           <CardBody>
             <Text style={styles.muted}>
+              Đây là giá CHUNG, áp cho mọi quán chưa khai giá riêng. Giá riêng theo quán chỉ khai được trên web.
+            </Text>
+            <Text style={styles.muted}>
               Doanh thu trong phiếu Check Cost tính theo giá có hiệu lực tại từng ngày bán, nên đổi giá giữa tháng không
               làm lệch doanh thu của cả kỳ. Mốc tính theo ngày.
             </Text>

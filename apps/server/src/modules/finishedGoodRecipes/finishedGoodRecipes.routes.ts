@@ -28,30 +28,49 @@ const itemInclude = { product: { include: { unit: true, recipeUnit: true } } };
  */
 const ORIGIN_DATE_KEY = "2000-01-01";
 
-async function currentVersion(finishedGoodItemId: string) {
+/**
+ * `?shopUserId=` → chỉ phiên bản RIÊNG của quán đó; bỏ trống → phiên bản CHUNG.
+ *
+ * Cố ý KHÔNG trộn mốc chung vào kết quả: bảng hiện ra phải khớp 1-1 với thứ sửa/xoá được ở phạm vi
+ * đang chọn. Giao diện biết quán đang lùi về bản chung nhờ `sharedCount` trả kèm.
+ */
+function readShopScope(value: unknown): string | null {
+  return typeof value === "string" && value ? value : null;
+}
+
+async function currentVersion(finishedGoodItemId: string, shopUserId: string | null) {
   return prisma.finishedGoodRecipeVersion.findFirst({
-    where: { finishedGoodItemId },
+    where: { finishedGoodItemId, shopUserId },
     orderBy: { effectiveFrom: "desc" },
     include: { items: { include: itemInclude, orderBy: { product: { name: "asc" } } } },
   });
 }
 
 finishedGoodRecipesRouter.get("/:finishedGoodItemId", requirePermission("FINISHED_GOODS"), async (req, res) => {
-  const version = await currentVersion(req.params.finishedGoodItemId);
+  const shopUserId = readShopScope(req.query.shopUserId);
+  const version = await currentVersion(req.params.finishedGoodItemId as string, shopUserId);
   res.json({ items: version?.items ?? [], version: version ? { id: version.id, effectiveFrom: version.effectiveFrom } : null });
 });
 
 /** Danh sách mốc công thức của một món, mới nhất trước — cho trang công thức bên web. */
 finishedGoodRecipesRouter.get("/:finishedGoodItemId/versions", requirePermission("FINISHED_GOODS"), async (req, res) => {
-  const items = await prisma.finishedGoodRecipeVersion.findMany({
-    where: { finishedGoodItemId: req.params.finishedGoodItemId },
-    orderBy: { effectiveFrom: "desc" },
-    include: {
-      createdBy: { select: { id: true, name: true } },
-      items: { include: itemInclude, orderBy: { product: { name: "asc" } } },
-    },
-  });
-  res.json({ items });
+  const finishedGoodItemId = req.params.finishedGoodItemId as string;
+  const shopUserId = readShopScope(req.query.shopUserId);
+
+  const [items, sharedCount] = await Promise.all([
+    prisma.finishedGoodRecipeVersion.findMany({
+      where: { finishedGoodItemId, shopUserId },
+      orderBy: { effectiveFrom: "desc" },
+      include: {
+        createdBy: { select: { id: true, name: true } },
+        items: { include: itemInclude, orderBy: { product: { name: "asc" } } },
+      },
+    }),
+    shopUserId
+      ? prisma.finishedGoodRecipeVersion.count({ where: { finishedGoodItemId, shopUserId: null } })
+      : Promise.resolve(0),
+  ]);
+  res.json({ items, sharedCount });
 });
 
 finishedGoodRecipesRouter.put("/:finishedGoodItemId", requirePermission("FINISHED_GOODS"), async (req, res) => {
@@ -61,14 +80,28 @@ finishedGoodRecipesRouter.put("/:finishedGoodItemId", requirePermission("FINISHE
   const finishedGoodItem = await prisma.finishedGoodItem.findUnique({ where: { id: finishedGoodItemId } });
   if (!finishedGoodItem) throw new HttpError(404, "Không tìm thấy đồ thành phẩm");
 
-  const existingCount = await prisma.finishedGoodRecipeVersion.count({ where: { finishedGoodItemId } });
+  const shopUserId = data.shopUserId ?? null;
+  if (shopUserId) {
+    const shop = await prisma.user.findUnique({ where: { id: shopUserId }, select: { role: { select: { isShop: true } } } });
+    if (!shop) throw new HttpError(404, "Không tìm thấy quán");
+    if (!shop.role.isShop) throw new HttpError(400, "Chỉ khai công thức riêng được cho tài khoản thuộc vai trò là quán");
+  }
+
+  const existingCount = await prisma.finishedGoodRecipeVersion.count({ where: { finishedGoodItemId, shopUserId } });
   // Phiên bản đầu tiên áp cho cả quá khứ; từ phiên bản thứ hai thì mặc định hôm nay (giờ VN, không
   // phải giờ máy chủ — Render chạy UTC nên sau 17h giờ VN là đã sang ngày hôm sau theo UTC).
-  const effectiveFromKey = data.effectiveFrom ?? (existingCount === 0 ? ORIGIN_DATE_KEY : vnDateKeyOf(new Date()));
+  //
+  // NGOẠI LỆ cho phạm vi QUÁN: bản riêng đầu tiên mặc định HÔM NAY, không phải mốc gốc. Luật đắp bù
+  // của `RecipeHistory` đã phủ quá khứ bằng bản CHUNG rồi, nên lấy mốc gốc ở đây là xoá sạch lịch sử
+  // chung khỏi quá khứ của quán — đúng thứ `ORIGIN_DATE_KEY` được dựng ra để tránh, nhưng ngược dấu.
+  const effectiveFromKey =
+    data.effectiveFrom ?? (existingCount === 0 && !shopUserId ? ORIGIN_DATE_KEY : vnDateKeyOf(new Date()));
   const effectiveFrom = parseDateOnly(effectiveFromKey);
 
-  const existingAtDate = await prisma.finishedGoodRecipeVersion.findUnique({
-    where: { finishedGoodItemId_effectiveFrom: { finishedGoodItemId, effectiveFrom } },
+  // `findUnique` theo compound unique không dùng được nữa vì khoá có `shopUserId` nullable, mà SQL
+  // không khớp được NULL = NULL — xem chú thích ở `recordPriceChange`.
+  const existingAtDate = await prisma.finishedGoodRecipeVersion.findFirst({
+    where: { finishedGoodItemId, shopUserId, effectiveFrom },
     select: { id: true },
   });
   if (existingAtDate && !data.overwrite) {
@@ -85,7 +118,7 @@ finishedGoodRecipesRouter.put("/:finishedGoodItemId", requirePermission("FINISHE
       existingAtDate?.id ??
       (
         await tx.finishedGoodRecipeVersion.create({
-          data: { finishedGoodItemId, effectiveFrom, createdById: req.user?.id },
+          data: { finishedGoodItemId, shopUserId, effectiveFrom, createdById: req.user?.id },
           select: { id: true },
         })
       ).id;
@@ -106,7 +139,7 @@ finishedGoodRecipesRouter.put("/:finishedGoodItemId", requirePermission("FINISHE
 
   // Phiếu Check Cost đã chốt số trong reportSnapshot nên KHÔNG tự đổi; cảnh báo để admin biết phiếu
   // nào nên huỷ và tạo lại. Xem utils/costCheckImpact.ts.
-  const affectedCostChecks = await findCostChecksUsingEffectiveDate(effectiveFrom);
+  const affectedCostChecks = await findCostChecksUsingEffectiveDate(effectiveFrom, shopUserId);
 
   res.json({
     items: version.items,
@@ -123,13 +156,13 @@ finishedGoodRecipesRouter.delete(
     const { finishedGoodItemId, versionId } = req.params;
     const version = await prisma.finishedGoodRecipeVersion.findUnique({
       where: { id: versionId },
-      select: { finishedGoodItemId: true, effectiveFrom: true },
+      select: { finishedGoodItemId: true, effectiveFrom: true, shopUserId: true },
     });
     if (!version || version.finishedGoodItemId !== finishedGoodItemId) {
       throw new HttpError(404, "Không tìm thấy phiên bản công thức");
     }
 
-    const affectedCostChecks = await findCostChecksUsingEffectiveDate(version.effectiveFrom);
+    const affectedCostChecks = await findCostChecksUsingEffectiveDate(version.effectiveFrom, version.shopUserId);
     await prisma.finishedGoodRecipeVersion.delete({ where: { id: versionId } });
     res.json({ affectedCostChecks });
   },

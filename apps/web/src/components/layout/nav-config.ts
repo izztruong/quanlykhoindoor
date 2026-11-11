@@ -34,6 +34,7 @@ export const navSections: NavSection[] = [
       { label: "Danh sách đơn hàng", href: "/orders", permission: "ORDERS.VIEW" },
       { label: "Tạo đơn hàng", href: "/orders/new", permission: "ORDERS.ADD" },
       { label: "Order nhanh", href: "/orders/quick", permission: "ORDERS.ADD" },
+      { label: "Đơn bánh", href: "/bakery-orders", permission: "BAKERY_ORDERS.VIEW" },
     ],
   },
   {
@@ -42,6 +43,7 @@ export const navSections: NavSection[] = [
     items: [
       { label: "Phiếu nhập kho", href: "/stock/imports", permission: "STOCK_IMPORTS.VIEW" },
       { label: "Phiếu Check Cost", href: "/cost-checks", permission: "COST_CHECKS.VIEW" },
+      { label: "Check Cost tiệm bánh", href: "/bakery-cost-checks", permission: "BAKERY_COST_CHECKS.VIEW" },
       { label: "Phiếu điều chuyển", href: "/material-transfers", permission: "MATERIAL_TRANSFERS.VIEW" },
     ],
   },
@@ -63,6 +65,7 @@ export const navSections: NavSection[] = [
       { label: "Kho hàng", href: "/catalog/warehouses", permission: "WAREHOUSES.VIEW" },
       { label: "Nhà cung cấp", href: "/catalog/suppliers", permission: "SUPPLIERS.VIEW" },
       { label: "Đồ thành phẩm", href: "/catalog/finished-goods", permission: "FINISHED_GOODS.VIEW" },
+      { label: "Menu & nguyên liệu theo quán", href: "/admin/finished-good-menus", permission: "FINISHED_GOODS.VIEW" },
     ],
   },
   {
@@ -78,6 +81,7 @@ export const navSections: NavSection[] = [
       { label: "Hạn order & kiểm kê", href: "/admin/deadlines", permission: "DEADLINES.VIEW" },
       { label: "Khung giờ ca", href: "/admin/shift-definitions", permission: "SHIFT_DEFINITIONS.VIEW" },
       { label: "Doanh số POS", href: "/admin/pos-sales", permission: "POS_SALES.VIEW" },
+      { label: "Bánh bán ra", href: "/admin/bakery-sales", permission: "BAKERY_SALES.VIEW" },
       { label: "Ánh xạ món POS", href: "/admin/pos-item-mapping", permission: "POS_ITEM_MAPPING.VIEW" },
     ],
   },
@@ -91,6 +95,7 @@ const extraPageRules: { pattern: RegExp; permission: string }[] = [
   { pattern: /^\/stock\/imports\/new(\/|$)/, permission: "STOCK_IMPORTS.ADD" },
   { pattern: /^\/stock\/imports\/[^/]+\/edit(\/|$)/, permission: "STOCK_IMPORTS.EDIT" },
   { pattern: /^\/cost-checks\/new(\/|$)/, permission: "COST_CHECKS.ADD" },
+  { pattern: /^\/bakery-orders\/new(\/|$)/, permission: "BAKERY_ORDERS.ADD" },
   { pattern: /^\/material-transfers\/new(\/|$)/, permission: "MATERIAL_TRANSFERS.ADD" },
   { pattern: /^\/material-transfers\/[^/]+\/edit(\/|$)/, permission: "MATERIAL_TRANSFERS.EDIT" },
   { pattern: /^\/stock-checks\/new(\/|$)/, permission: "STOCK_CHECKS.ADD" },

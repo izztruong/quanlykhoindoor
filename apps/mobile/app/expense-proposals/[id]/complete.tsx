@@ -50,6 +50,21 @@ export default function ExpenseProposalCompleteScreen() {
   );
 }
 
+/** Hỏi trước khi hoàn thành mà bỏ lại ảnh đang nén dở. */
+function confirmSkipPreparingPhotos() {
+  return new Promise<boolean>((resolve) => {
+    Alert.alert(
+      "Ảnh đang được xử lý",
+      "Hoàn thành ngay thì ảnh đang xử lý sẽ không được đính. Bạn vẫn đính lại được ở mục Chứng từ sau khi phiếu hoàn thành.",
+      [
+        { text: "Chờ ảnh", style: "cancel", onPress: () => resolve(false) },
+        { text: "Hoàn thành luôn", onPress: () => resolve(true) },
+      ],
+      { onDismiss: () => resolve(false) },
+    );
+  });
+}
+
 /**
  * Khai hạng mục thực chi (sao chép từ dự kiến rồi sửa được), ngày nộp hoá đơn và ảnh chứng từ không bắt
  * buộc. Thực chi được vượt tổng dự kiến — chỉ cảnh báo, không chặn. Cùng luật với web.
@@ -106,6 +121,9 @@ function CompleteForm({ proposal }: { proposal: ExpenseProposal }) {
     const checked = validateRows(rows);
     if ("error" in checked) return setError(checked.error);
     if (!invoiceDate) return setError("Vui lòng chọn ngày nộp hoá đơn.");
+    // Nút không còn khoá theo `preparing`, nên có thể bấm lúc ảnh đang nén. Ảnh nén xong sau đó
+    // không kịp vào phiếu, vì vậy hỏi rõ thay vì lặng lẽ bỏ.
+    if (preparing && !(await confirmSkipPreparingPhotos())) return;
 
     try {
       await complete.mutateAsync({ items: checked.items, invoiceDate });
@@ -221,11 +239,13 @@ function CompleteForm({ proposal }: { proposal: ExpenseProposal }) {
       </Card>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
+      {/* CỐ Ý không khoá theo `preparing`: ảnh chứng từ không bắt buộc và đính lại được sau, nên
+          bước nén ảnh treo không được phép chặn việc hoàn thành phiếu. */}
       <Button
         title={uploading ? "Đang tải ảnh..." : "Hoàn thành"}
         fullWidth
         loading={complete.isPending}
-        disabled={busy || preparing}
+        disabled={busy}
         onPress={submit}
       />
     </Screen>

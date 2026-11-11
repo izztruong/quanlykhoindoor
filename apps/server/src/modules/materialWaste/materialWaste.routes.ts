@@ -7,7 +7,14 @@ import { findCostChecksUsingPeriodRecord } from "../../utils/costCheckImpact";
 import { HttpError } from "../../utils/httpError";
 import { deleteImages, isStorageConfigured, putImage, signedImageUrl } from "../../utils/objectStorage";
 import { parseDateRange, parsePagination } from "../../utils/pagination";
-import { subtractTareWeight } from "../../utils/tareWeight";
+import {
+  assertAddedItemsInShopMenu,
+  assertAddedProductsInShopList,
+  assertItemsInShopMenu,
+  assertProductsInShopList,
+  resolveMenuShopId,
+} from "../../utils/shopMenu";
+import { subtractTareWeight, subtractTareWeightOnChanged } from "../../utils/tareWeight";
 import {
   MAX_IMAGE_BYTES,
   MAX_IMAGES_PER_WASTE,
@@ -69,6 +76,13 @@ materialWasteRouter.post("/", requirePermission("MATERIAL_WASTE"), async (req, r
   const items = await subtractTareWeight(data.items);
   const canDeduct = can(req.user, "MATERIAL_WASTE", "DEDUCT");
 
+  // Chỉ kiểm khi người lập LÀ MỘT QUÁN — xem chú thích ở stockChecks.routes.ts.
+  const menuShopId = resolveMenuShopId(req.user);
+  if (menuShopId) {
+    await assertItemsInShopMenu(menuShopId, data.finishedItems.map((it) => it.finishedGoodItemId));
+    await assertProductsInShopList(menuShopId, items.map((it) => it.productId));
+  }
+
   const item = await prisma.$transaction(async (tx) => {
     const created = await tx.materialWaste.create({
       data: { code: generateCode("PH"), wasteAt: data.wasteAt, note: data.note, createdById: req.user?.id },
@@ -111,18 +125,33 @@ materialWasteRouter.post("/", requirePermission("MATERIAL_WASTE"), async (req, r
 materialWasteRouter.put("/:id", requirePermission("MATERIAL_WASTE"), async (req, res) => {
   const id = req.params.id as string;
   const data = materialWasteCreateSchema.parse(req.body);
-  // KHÔNG trừ vỏ ở PUT — xem `subtractTareWeight`: form sửa nạp lượng TỊNH đã lưu.
-  const items = data.items;
 
   const existing = await prisma.materialWaste.findUnique({
     where: { id },
     include: {
-      items: { select: { productId: true, deductInCostCheck: true } },
+      items: { select: { productId: true, looseQuantity: true, deductInCostCheck: true } },
       finishedItems: { select: { finishedGoodItemId: true, deductInCostCheck: true } },
     },
   });
   if (!existing) throw new HttpError(404, "Không tìm thấy phiếu huỷ");
   assertOwner(existing, req.user, "Không tìm thấy phiếu huỷ");
+
+  const items = await subtractTareWeightOnChanged(data.items, existing.items);
+
+  // Chỉ dòng MỚI thêm phải nằm trong menu/danh sách — xem chú thích `assertAddedItemsInShopMenu`.
+  const menuShopId = resolveMenuShopId(req.user);
+  if (menuShopId) {
+    await assertAddedItemsInShopMenu(
+      menuShopId,
+      data.finishedItems.map((it) => it.finishedGoodItemId),
+      existing.finishedItems.map((it) => it.finishedGoodItemId),
+    );
+    await assertAddedProductsInShopList(
+      menuShopId,
+      items.map((it) => it.productId),
+      existing.items.map((it) => it.productId),
+    );
+  }
 
   const canDeduct = can(req.user, "MATERIAL_WASTE", "DEDUCT");
   const prevItemDeduct = new Map(existing.items.map((it) => [it.productId, it.deductInCostCheck]));
@@ -169,6 +198,25 @@ materialWasteRouter.put("/:id", requirePermission("MATERIAL_WASTE"), async (req,
   });
 
   res.json({ ...item, affectedCostChecks });
+});
+
+// Cần MATERIAL_WASTE.DELETE. Cùng khuôn với DELETE /stock-imports/:id: tìm phiếu Check Cost bị ảnh
+// hưởng TRƯỚC khi xoá (phiếu huỷ gộp vào kỳ theo quán + wasteAt), trả 200 + danh sách để báo admin tạo
+// lại — số liệu các phiếu đó đã chốt cứng. Dòng hàng và dòng ảnh xoá theo cascade; file ảnh trên R2
+// thì cascade không đụng tới nên phải tự xoá.
+materialWasteRouter.delete("/:id", requirePermission("MATERIAL_WASTE"), async (req, res) => {
+  const id = req.params.id as string;
+  const existing = await prisma.materialWaste.findUnique({ where: { id } });
+  if (!existing) throw new HttpError(404, "Không tìm thấy phiếu huỷ");
+  assertOwner(existing, req.user, "Không tìm thấy phiếu huỷ");
+
+  const affectedCostChecks = await findCostChecksUsingPeriodRecord([existing.createdById], existing.wasteAt);
+  // Đọc khoá ảnh TRƯỚC khi xoá: cascade dọn dòng DB nhưng không đụng file trên R2.
+  const images = await prisma.materialWasteImage.findMany({ where: { materialWasteId: id }, select: { objectKey: true } });
+  await prisma.materialWaste.delete({ where: { id } });
+  await deleteImages(images.map((image) => image.objectKey));
+
+  res.json({ affectedCostChecks });
 });
 
 // Chỉ đổi ô tích "trừ trong Check Cost" — route riêng vì người duyệt (kế toán) thường không có quyền

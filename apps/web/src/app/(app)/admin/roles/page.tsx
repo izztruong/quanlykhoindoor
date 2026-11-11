@@ -40,6 +40,7 @@ export default function RolesPage() {
             {row.original.name}
             {row.original.isSystem && <Badge tone="blue">Hệ thống</Badge>}
             {row.original.isShop && <Badge tone="green">Quán</Badge>}
+            {row.original.isBakery && <Badge tone="blue">Tiệm bánh</Badge>}
           </span>
         ),
       },
