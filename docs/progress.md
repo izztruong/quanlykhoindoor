@@ -46,7 +46,7 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
-### Làm mới giao diện web (font Be Vietnam Pro, sidebar tối, ô tìm trang Ctrl+K, trang đăng nhập) — trên `dev`, CHƯA lên `main`
+### Làm mới giao diện web (font Be Vietnam Pro, sidebar tối, ô tìm trang Ctrl+K, trang đăng nhập) — ĐÃ lên `staging` + `main`, CHƯA bấm thử hết
 Chỉ đổi lớp dùng chung (`ui/`, `layout/`, `data-table/`, trang chủ, đăng nhập), không đụng nghiệp vụ. Bỏ điền sẵn email admin ở form đăng nhập.
 Đã kiểm: `tsc`, lint, chụp headless trang chủ / phiếu nhập kho / đăng nhập / bản điện thoại. **Chưa bấm thử modal, toast, form dài trên trình duyệt thật.**
 
