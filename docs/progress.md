@@ -50,7 +50,7 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 Chỉ đổi lớp dùng chung (`ui/`, `layout/`, `data-table/`, trang chủ, đăng nhập), không đụng nghiệp vụ. Bỏ điền sẵn email admin ở form đăng nhập.
 Đã kiểm: `tsc`, lint, chụp headless trang chủ / phiếu nhập kho / đăng nhập / bản điện thoại. **Chưa bấm thử modal, toast, form dài trên trình duyệt thật.**
 
-### Danh sách phiếu giữ trang + bộ lọc khi quay lại (12 trang, qua URL) — trên `dev`, CHƯA lên `main`
+### Danh sách phiếu giữ trang + bộ lọc khi quay lại (12 trang, qua URL) — ĐÃ lên `staging` + `main`, CHƯA bấm thử hết
 `hooks/useListUrlState` + `ui/BackToListLink`; Suspense ở `(app)/layout.tsx`. Đã kiểm: `tsc`, lint, `next build`, kịch bản
 headless trên `kho_dev_copy` (sang trang 2 → chi tiết → Trở lại / link "← Danh sách" / F5; lọc nháp phiếu huỷ; Order bánh).
 Chưa thử: xoá phiếu rồi về danh sách, và 9 trang còn lại ngoài 3 trang trên.
