@@ -1,5 +1,7 @@
 "use client";
 
+import { BackToListLink } from "@/components/ui/BackToListLink";
+import { rememberedListUrl } from "@/hooks/useListUrlState";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import {
@@ -36,7 +38,7 @@ export function MaterialWasteDetailClient({ id }: { id: string }) {
               `(${result.affectedCostChecks.map((cc) => cc.code).join(", ")}). Hãy tạo lại những phiếu đó.`,
           );
         }
-        router.replace("/material-waste");
+        router.replace(rememberedListUrl("/material-waste"));
       },
       onError: (err) => alert(err instanceof ApiError ? err.message : "Xoá phiếu thất bại"),
     });
@@ -62,9 +64,9 @@ export function MaterialWasteDetailClient({ id }: { id: string }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <Link href="/material-waste" className="self-start text-sm text-indigo-600 hover:underline">
+      <BackToListLink href="/material-waste" className="self-start text-sm text-indigo-600 hover:underline">
         ← Danh sách phiếu huỷ
-      </Link>
+      </BackToListLink>
 
       <div className="flex items-center justify-between">
         <div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { BackToListLink } from "@/components/ui/BackToListLink";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -7,7 +8,6 @@ import { useBakeryCostCheck, useUpdateBakeryCostCheckStatus } from "@/hooks/useB
 import { ApiError } from "@/lib/api-client";
 import { formatCurrency, formatNumber } from "@/lib/format";
 import type { CostCheckReportRow, ProductType } from "@/types";
-import Link from "next/link";
 import { useMemo, useState } from "react";
 
 const cell = "border border-slate-200 px-3 py-2";
@@ -59,9 +59,9 @@ export function BakeryCostCheckDetailClient({ id }: { id: string }) {
     <div className="flex flex-col gap-4">
       <div className="flex items-start justify-between">
         <div>
-          <Link href="/bakery-cost-checks" className="text-sm text-indigo-600 hover:underline">
+          <BackToListLink href="/bakery-cost-checks" className="text-sm text-indigo-600 hover:underline">
             ← Check Cost tiệm bánh
-          </Link>
+          </BackToListLink>
           <div className="mt-2 flex items-center gap-2">
             <h1 className="text-xl font-semibold text-slate-800">Phiếu {item.code}</h1>
             {item.status === "CANCELLED" && <Badge tone="red">Đã huỷ</Badge>}

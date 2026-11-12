@@ -30,6 +30,7 @@ import { formatNumber } from "@/lib/format";
 import ExcelJS from "exceljs";
 import { Download, Trash2, Upload } from "lucide-react";
 import Link from "next/link";
+import { parsePage, useListUrlState } from "@/hooks/useListUrlState";
 import { useState } from "react";
 
 const cellClass = "border border-slate-200 px-3 py-2";
@@ -44,8 +45,10 @@ const COL = { soldAt: 1, posName: 2, quantity: 3 } as const;
 
 export default function PosSalesPage() {
   const { data: users = [] } = useUserOptions();
-  const [userId, setUserId] = useState("");
-  const [page, setPage] = useState(1);
+  const { values, update } = useListUrlState({ userId: "", page: "1" });
+  const userId = values.userId;
+  const page = parsePage(values.page);
+  const setPage = (p: number) => update({ page: String(p) });
   const { data, isLoading } = usePosSaleDays({ userId: userId || undefined, page });
   const importSales = useImportPosSales();
   const deleteDay = useDeletePosSaleDay();
@@ -277,10 +280,7 @@ export default function PosSalesPage() {
             <label className="text-sm font-medium text-slate-600">Quán</label>
             <Select
               value={userId}
-              onChange={(e) => {
-                setUserId(e.target.value);
-                setPage(1);
-              }}
+              onChange={(e) => update({ userId: e.target.value, page: "1" })}
             >
               <option value="">Tất cả quán</option>
               {users.map((u) => (

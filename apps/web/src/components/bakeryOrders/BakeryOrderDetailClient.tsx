@@ -1,5 +1,6 @@
 "use client";
 
+import { BackToListLink } from "@/components/ui/BackToListLink";
 import { BakeryOrderStatusBadge } from "@/components/bakeryOrders/BakeryOrderStatusBadge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -157,9 +158,9 @@ export function BakeryOrderDetailClient({ id }: { id: string }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <Link href="/bakery-orders" className="self-start text-sm text-indigo-600 hover:underline">
+      <BackToListLink href="/bakery-orders" className="self-start text-sm text-indigo-600 hover:underline">
         ← Danh sách order bánh
-      </Link>
+      </BackToListLink>
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>

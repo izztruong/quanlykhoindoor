@@ -8,7 +8,7 @@ import { useCurrentUser } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 import { Store } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -46,7 +46,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         {/* Đổi padding ở đây thì sửa cả phần bù âm ở DashboardClient (nền trời tràn sát mép). */}
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
           {allowed ? (
-            children
+            // Trang danh sách đọc useSearchParams (hooks/useListUrlState) — Next bắt buộc có Suspense
+            // bao quanh khi build, thiếu là `next build` lỗi dù dev vẫn chạy.
+            <Suspense fallback={<div className="py-10 text-center text-sm text-slate-400">Đang tải...</div>}>{children}</Suspense>
           ) : (
             <Card>
               <CardBody className="text-sm text-slate-500">Bạn không có quyền truy cập trang này.</CardBody>

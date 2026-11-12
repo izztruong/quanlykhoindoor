@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
-import { useBakeryOrderList, type BakeryOrderFilter } from "@/hooks/useBakeryOrders";
+import { useBakeryOrderList } from "@/hooks/useBakeryOrders";
 import { useUserOptions } from "@/hooks/useUsers";
 import { clampDateRange } from "@/lib/dateRange";
 import { BAKERY_ORDER_STATUS_OPTIONS, formatDateOnly } from "@/lib/format";
@@ -16,6 +16,7 @@ import type { AuthUser, BakeryOrder, BakeryOrderStatus } from "@/types";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus } from "lucide-react";
 import Link from "next/link";
+import { parsePage, parsePageSize, useListUrlState } from "@/hooks/useListUrlState";
 import { useMemo, useState } from "react";
 
 /**
@@ -33,11 +34,17 @@ export default function BakeryOrdersPage() {
   const { user, canOpen, scopeAll } = useCan();
   const { data: shops = [] } = useUserOptions({ scope: "shopOnly", enabled: scopeAll });
 
-  const initial: BakeryOrderFilter = { status: defaultStatus(user), shopUserId: "", from: "", to: "" };
-  const [filter, setFilter] = useState<BakeryOrderFilter>(initial);
-  const [appliedFilter, setAppliedFilter] = useState<BakeryOrderFilter>(initial);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  // Trạng thái mặc định theo vai trò chỉ dùng khi URL không có `status`; chọn "Tất cả" sẽ ghi `status=`
+  // nên quay lại vẫn là "Tất cả" chứ không bật về mặc định.
+  const initial = { status: defaultStatus(user), shopUserId: "", from: "", to: "" };
+  // Bộ lọc ĐÃ áp + trang nằm trên URL (hooks/useListUrlState) để mở chi tiết rồi quay lại vẫn giữ;
+  // ô nháp `filter` chỉ là state tạm, khởi tạo từ chính bộ lọc trên URL.
+  const { values: listState, update } = useListUrlState({ ...initial, page: "1", pageSize: "20" });
+  const { page: pageParam, pageSize: pageSizeParam, ...appliedFilter } = listState;
+  const page = parsePage(pageParam);
+  const pageSize = parsePageSize(pageSizeParam);
+  const setPage = (p: number) => update({ page: String(p) });
+  const [filter, setFilter] = useState(appliedFilter);
   const { data, isLoading } = useBakeryOrderList({
     status: appliedFilter.status || undefined,
     shopUserId: appliedFilter.shopUserId || undefined,
@@ -132,8 +139,7 @@ export default function BakeryOrdersPage() {
           <Button
             variant="secondary"
             onClick={() => {
-              setAppliedFilter(filter);
-              setPage(1);
+              update({ ...filter, page: "1" });
             }}
           >
             Lọc
@@ -152,10 +158,7 @@ export default function BakeryOrdersPage() {
             pageSize={pageSize}
             total={data?.total ?? 0}
             onPageChange={setPage}
-            onPageSizeChange={(size) => {
-              setPageSize(size);
-              setPage(1);
-            }}
+            onPageSizeChange={(size) => update({ pageSize: String(size), page: "1" })}
           />
         </CardBody>
       </Card>

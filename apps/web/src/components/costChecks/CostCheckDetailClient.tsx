@@ -1,5 +1,6 @@
 "use client";
 
+import { BackToListLink } from "@/components/ui/BackToListLink";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -11,7 +12,6 @@ import { formatCurrency, formatDateTime, formatNumber, formatPercent, formatSign
 import type { CostCheck, CostCheckFinancialSummary, CostCheckReportRow, ProductType } from "@/types";
 import ExcelJS from "exceljs";
 import { Ban, FileSpreadsheet, RotateCcw } from "lucide-react";
-import Link from "next/link";
 import { Fragment, useMemo, useState } from "react";
 
 interface CostRatioRow {
@@ -193,9 +193,9 @@ export function CostCheckDetailClient({ id }: { id: string }) {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <div>
-          <Link href="/cost-checks" className="self-start text-sm text-indigo-600 hover:underline">
+          <BackToListLink href="/cost-checks" className="self-start text-sm text-indigo-600 hover:underline">
             ← Danh sách Check Cost
-          </Link>
+          </BackToListLink>
           <div className="mt-2 flex items-center gap-2">
             <h1 className="text-xl font-semibold text-slate-800">Phiếu {costCheck.code}</h1>
             {costCheck.status === "CANCELLED" && <Badge tone="red">Đã huỷ</Badge>}

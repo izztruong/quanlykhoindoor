@@ -17,7 +17,8 @@ import type { SalesOrderListRow } from "@/types";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Check, Plus } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { parsePage, parsePageSize, useListUrlState } from "@/hooks/useListUrlState";
+import { useMemo } from "react";
 
 const statusTone: Record<string, "gray" | "green" | "red" | "yellow" | "blue"> = {
   DRAFT: "yellow",
@@ -57,31 +58,35 @@ export default function OrdersPage() {
   // Chỉ người có quyền xử lý đơn mới bật/tắt được ô tích; người khác chỉ thấy dấu.
   const canApprove = can(currentUser, "ORDERS", "APPROVE");
   const { data: users = [] } = useUserOptions({ enabled: scopeAll });
-  const [status, setStatus] = useState("");
-  const [processed, setProcessed] = useState("");
-  const [createdById, setCreatedById] = useState("");
-  const [dateRange, setDateRange] = useState({ from: "", to: "" });
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const { values, update } = useListUrlState({
+    status: "",
+    processed: "",
+    createdById: "",
+    from: "",
+    to: "",
+    page: "1",
+    pageSize: "20",
+  });
+  const { status, processed, createdById } = values;
+  const dateRange = { from: values.from, to: values.to };
+  const page = parsePage(values.page);
+  const pageSize = parsePageSize(values.pageSize);
+  const setPage = (p: number) => update({ page: String(p) });
 
   // Đổi bộ lọc thì về trang 1 ngay trong handler, không qua effect. Làm trong effect thì React
   // render một lượt với (bộ lọc mới, trang cũ) trước khi effect chạy — và lượt đó đã kịp gọi API
   // bằng số trang không còn đúng.
   function changeStatus(value: string) {
-    setStatus(value);
-    setPage(1);
+    update({ status: value, page: "1" });
   }
   function changeProcessed(value: string) {
-    setProcessed(value);
-    setPage(1);
+    update({ processed: value, page: "1" });
   }
   function changeCreatedById(value: string) {
-    setCreatedById(value);
-    setPage(1);
+    update({ createdById: value, page: "1" });
   }
   function changeDateRange(value: { from: string; to: string }) {
-    setDateRange(value);
-    setPage(1);
+    update({ from: value.from, to: value.to, page: "1" });
   }
 
   const { data, isLoading } = useSalesOrders({
@@ -199,10 +204,7 @@ export default function OrdersPage() {
             pageSize={pageSize}
             total={data?.total ?? 0}
             onPageChange={setPage}
-            onPageSizeChange={(size) => {
-              setPageSize(size);
-              setPage(1);
-            }}
+            onPageSizeChange={(size) => update({ pageSize: String(size), page: "1" })}
           />
         </CardBody>
       </Card>

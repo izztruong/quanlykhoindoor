@@ -14,14 +14,19 @@ import type { MaterialTransfer } from "@/types";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus } from "lucide-react";
 import Link from "next/link";
+import { parsePage, parsePageSize, useListUrlState } from "@/hooks/useListUrlState";
 import { useMemo, useState } from "react";
 
 export default function MaterialTransfersPage() {
   const { canOpen } = useCan();
-  const [filter, setFilter] = useState({ from: "", to: "" });
-  const [appliedFilter, setAppliedFilter] = useState({ from: "", to: "" });
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  // Bộ lọc ĐÃ áp + trang nằm trên URL (hooks/useListUrlState) để mở chi tiết rồi quay lại vẫn giữ;
+  // ô nháp `filter` chỉ là state tạm, khởi tạo từ chính bộ lọc trên URL.
+  const { values: listState, update } = useListUrlState({ ...{ from: "", to: "" }, page: "1", pageSize: "20" });
+  const { page: pageParam, pageSize: pageSizeParam, ...appliedFilter } = listState;
+  const page = parsePage(pageParam);
+  const pageSize = parsePageSize(pageSizeParam);
+  const setPage = (p: number) => update({ page: String(p) });
+  const [filter, setFilter] = useState(appliedFilter);
   const { data, isLoading } = useMaterialTransferList({
     from: appliedFilter.from || undefined,
     to: appliedFilter.to || undefined,
@@ -86,8 +91,7 @@ export default function MaterialTransfersPage() {
           <Button
             variant="secondary"
             onClick={() => {
-              setAppliedFilter(filter);
-              setPage(1);
+              update({ ...filter, page: "1" });
             }}
           >
             Lọc
@@ -106,10 +110,7 @@ export default function MaterialTransfersPage() {
             pageSize={pageSize}
             total={data?.total ?? 0}
             onPageChange={setPage}
-            onPageSizeChange={(size) => {
-              setPageSize(size);
-              setPage(1);
-            }}
+            onPageSizeChange={(size) => update({ pageSize: String(size), page: "1" })}
           />
         </CardBody>
       </Card>

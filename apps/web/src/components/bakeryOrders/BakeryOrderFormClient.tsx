@@ -1,5 +1,6 @@
 "use client";
 
+import { BackToListLink } from "@/components/ui/BackToListLink";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
@@ -10,7 +11,6 @@ import { ApiError } from "@/lib/api-client";
 import { todayForDateInput } from "@/lib/dateRange";
 import { useCan } from "@/lib/permissions";
 import { Trash2 } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -85,9 +85,9 @@ export function BakeryOrderFormClient() {
 
   return (
     <div className="flex flex-col gap-4">
-      <Link href="/bakery-orders" className="self-start text-sm text-indigo-600 hover:underline">
+      <BackToListLink href="/bakery-orders" className="self-start text-sm text-indigo-600 hover:underline">
         ← Danh sách order bánh
-      </Link>
+      </BackToListLink>
       <h1 className="text-xl font-semibold text-slate-800">Đặt bánh</h1>
 
       <Card>
@@ -208,11 +208,11 @@ export function BakeryOrderFormClient() {
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <div className="flex justify-end gap-2">
-        <Link href="/bakery-orders">
+        <BackToListLink href="/bakery-orders">
           <Button type="button" variant="secondary">
             Huỷ
           </Button>
-        </Link>
+        </BackToListLink>
         <Button type="button" onClick={handleSubmit} disabled={createOrder.isPending}>
           {createOrder.isPending ? "Đang lưu..." : "Đặt bánh"}
         </Button>

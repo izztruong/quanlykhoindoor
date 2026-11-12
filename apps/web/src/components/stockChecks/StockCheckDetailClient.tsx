@@ -1,5 +1,6 @@
 "use client";
 
+import { BackToListLink } from "@/components/ui/BackToListLink";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { useStockCheck } from "@/hooks/useStockChecks";
@@ -93,9 +94,9 @@ export function StockCheckDetailClient({ id }: { id: string }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <Link href="/stock-checks" className="self-start text-sm text-indigo-600 hover:underline">
+      <BackToListLink href="/stock-checks" className="self-start text-sm text-indigo-600 hover:underline">
         ← Danh sách phiếu kiểm kê
-      </Link>
+      </BackToListLink>
 
       <div className="flex items-center justify-between">
         <div>

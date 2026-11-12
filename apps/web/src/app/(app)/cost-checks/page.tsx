@@ -12,12 +12,15 @@ import type { CostCheck } from "@/types";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { parsePage, parsePageSize, useListUrlState } from "@/hooks/useListUrlState";
+import { useMemo } from "react";
 
 export default function CostChecksPage() {
   const { canOpen } = useCan();
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const { values, update } = useListUrlState({ page: "1", pageSize: "20" });
+  const page = parsePage(values.page);
+  const pageSize = parsePageSize(values.pageSize);
+  const setPage = (p: number) => update({ page: String(p) });
   const { data, isLoading } = useCostCheckList({ page, pageSize });
 
   const columns = useMemo<ColumnDef<CostCheck>[]>(
@@ -74,10 +77,7 @@ export default function CostChecksPage() {
             pageSize={pageSize}
             total={data?.total ?? 0}
             onPageChange={setPage}
-            onPageSizeChange={(size) => {
-              setPageSize(size);
-              setPage(1);
-            }}
+            onPageSizeChange={(size) => update({ pageSize: String(size), page: "1" })}
           />
         </CardBody>
       </Card>

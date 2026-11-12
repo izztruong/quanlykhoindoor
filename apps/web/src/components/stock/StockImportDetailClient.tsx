@@ -1,5 +1,7 @@
 "use client";
 
+import { BackToListLink } from "@/components/ui/BackToListLink";
+import { rememberedListUrl } from "@/hooks/useListUrlState";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { StockImportImagesCard } from "@/components/stock/StockImportImagesCard";
@@ -41,7 +43,7 @@ export function StockImportDetailClient({ id }: { id: string }) {
               `(${result.affectedCostChecks.map((cc) => cc.code).join(", ")}). Hãy tạo lại những phiếu đó.`,
           );
         }
-        router.replace("/stock/imports");
+        router.replace(rememberedListUrl("/stock/imports"));
       },
       onError: (err) => setError(err instanceof ApiError ? err.message : "Xoá phiếu thất bại"),
     });
@@ -78,9 +80,9 @@ export function StockImportDetailClient({ id }: { id: string }) {
               Xoá
             </Button>
           )}
-          <Link href="/stock/imports" className="text-sm text-indigo-600 hover:underline">
+          <BackToListLink href="/stock/imports" className="text-sm text-indigo-600 hover:underline">
             ← Danh sách phiếu nhập
-          </Link>
+          </BackToListLink>
         </div>
       </div>
 

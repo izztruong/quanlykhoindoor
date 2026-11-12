@@ -1,5 +1,6 @@
 "use client";
 
+import { BackToListLink } from "@/components/ui/BackToListLink";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
@@ -109,9 +110,9 @@ export default function NewCostCheckPage() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <Link href="/cost-checks" className="self-start text-sm text-indigo-600 hover:underline">
+        <BackToListLink href="/cost-checks" className="self-start text-sm text-indigo-600 hover:underline">
           ← Danh sách Check Cost
-        </Link>
+        </BackToListLink>
         <h1 className="mt-2 text-xl font-semibold text-slate-800">Tạo phiếu Check Cost</h1>
         <p className="text-sm text-slate-500">
           Chọn quán và 2 phiếu kiểm kê quán (đầu kỳ/cuối kỳ) đã có. SL món đã bán được lấy tự động từ{" "}

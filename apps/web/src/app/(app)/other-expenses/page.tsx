@@ -19,6 +19,7 @@ import { can, hasScopeAll } from "@/lib/permissions";
 import type { OtherExpense } from "@/types";
 import type { ColumnDef } from "@tanstack/react-table";
 import { ImageIcon, Pencil, Plus, Trash2 } from "lucide-react";
+import { parsePage, parsePageSize, useListUrlState } from "@/hooks/useListUrlState";
 import { useMemo, useState } from "react";
 
 export default function OtherExpensesPage() {
@@ -36,10 +37,14 @@ export default function OtherExpensesPage() {
   // Mọi ô lọc đều chờ bấm "Lọc" mới có hiệu lực — hai ô cạnh nhau mà một ô áp ngay, một ô chờ nút
   // thì không đoán được.
   const emptyFilter = { from: "", to: "", search: "", shopId: "" };
-  const [filter, setFilter] = useState(emptyFilter);
-  const [appliedFilter, setAppliedFilter] = useState(emptyFilter);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  // Bộ lọc ĐÃ áp + trang nằm trên URL (hooks/useListUrlState) để mở chi tiết rồi quay lại vẫn giữ;
+  // ô nháp `filter` chỉ là state tạm, khởi tạo từ chính bộ lọc trên URL.
+  const { values: listState, update } = useListUrlState({ ...emptyFilter, page: "1", pageSize: "20" });
+  const { page: pageParam, pageSize: pageSizeParam, ...appliedFilter } = listState;
+  const page = parsePage(pageParam);
+  const pageSize = parsePageSize(pageSizeParam);
+  const setPage = (p: number) => update({ page: String(p) });
+  const [filter, setFilter] = useState(appliedFilter);
   const [modalExpense, setModalExpense] = useState<OtherExpense | "new" | null>(null);
   const [imagesOf, setImagesOf] = useState<OtherExpense | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -208,8 +213,7 @@ export default function OtherExpensesPage() {
           <Button
             variant="secondary"
             onClick={() => {
-              setAppliedFilter(filter);
-              setPage(1);
+              update({ ...filter, page: "1" });
             }}
           >
             Lọc
@@ -243,10 +247,7 @@ export default function OtherExpensesPage() {
             pageSize={pageSize}
             total={data?.total ?? 0}
             onPageChange={setPage}
-            onPageSizeChange={(size) => {
-              setPageSize(size);
-              setPage(1);
-            }}
+            onPageSizeChange={(size) => update({ pageSize: String(size), page: "1" })}
           />
         </CardBody>
       </Card>

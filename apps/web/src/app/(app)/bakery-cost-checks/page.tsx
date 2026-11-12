@@ -11,6 +11,7 @@ import { useStockChecks } from "@/hooks/useStockChecks";
 import { useUserOptions } from "@/hooks/useUsers";
 import { ApiError } from "@/lib/api-client";
 import Link from "next/link";
+import { parsePage, parsePageSize, useListUrlState } from "@/hooks/useListUrlState";
 import { useMemo, useState } from "react";
 
 const cell = "border border-slate-200 px-3 py-2";
@@ -25,8 +26,10 @@ function fmt(instant: string): string {
 
 export default function BakeryCostChecksPage() {
   const { data: bakeries = [] } = useUserOptions({ scope: "bakery" });
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const { values, update } = useListUrlState({ page: "1", pageSize: "20" });
+  const page = parsePage(values.page);
+  const pageSize = parsePageSize(values.pageSize);
+  const setPage = (p: number) => update({ page: String(p) });
   const { data, isLoading } = useBakeryCostCheckList({ page, pageSize });
   const createCheck = useCreateBakeryCostCheck();
 
@@ -218,10 +221,7 @@ export default function BakeryCostChecksPage() {
             pageSize={pageSize}
             total={data?.total ?? 0}
             onPageChange={setPage}
-            onPageSizeChange={(size) => {
-              setPageSize(size);
-              setPage(1);
-            }}
+            onPageSizeChange={(size) => update({ pageSize: String(size), page: "1" })}
           />
         </CardBody>
       </Card>

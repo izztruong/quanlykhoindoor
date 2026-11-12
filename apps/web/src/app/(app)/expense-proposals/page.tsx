@@ -17,6 +17,7 @@ import type { ExpenseProposal, ExpenseProposalStatus } from "@/types";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus } from "lucide-react";
 import Link from "next/link";
+import { parsePage, parsePageSize, useListUrlState } from "@/hooks/useListUrlState";
 import { useMemo, useState } from "react";
 
 export default function ExpenseProposalsPage() {
@@ -35,10 +36,14 @@ export default function ExpenseProposalsPage() {
     createdById: "",
     shopId: "",
   };
-  const [filter, setFilter] = useState(emptyFilter);
-  const [appliedFilter, setAppliedFilter] = useState(emptyFilter);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  // Bộ lọc ĐÃ áp + trang nằm trên URL (hooks/useListUrlState) để mở chi tiết rồi quay lại vẫn giữ;
+  // ô nháp `filter` chỉ là state tạm, khởi tạo từ chính bộ lọc trên URL.
+  const { values: listState, update } = useListUrlState({ ...emptyFilter, page: "1", pageSize: "20" });
+  const { page: pageParam, pageSize: pageSizeParam, ...appliedFilter } = listState;
+  const page = parsePage(pageParam);
+  const pageSize = parsePageSize(pageSizeParam);
+  const setPage = (p: number) => update({ page: String(p) });
+  const [filter, setFilter] = useState(appliedFilter);
   const { data, isLoading } = useExpenseProposals({
     from: appliedFilter.from || undefined,
     to: appliedFilter.to || undefined,
@@ -168,8 +173,7 @@ export default function ExpenseProposalsPage() {
           <Button
             variant="secondary"
             onClick={() => {
-              setAppliedFilter(filter);
-              setPage(1);
+              update({ ...filter, page: "1" });
             }}
           >
             Lọc
@@ -197,10 +201,7 @@ export default function ExpenseProposalsPage() {
             pageSize={pageSize}
             total={data?.total ?? 0}
             onPageChange={setPage}
-            onPageSizeChange={(size) => {
-              setPageSize(size);
-              setPage(1);
-            }}
+            onPageSizeChange={(size) => update({ pageSize: String(size), page: "1" })}
           />
         </CardBody>
       </Card>

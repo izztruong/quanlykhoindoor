@@ -18,6 +18,7 @@ import type { StockCheck } from "@/types";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus } from "lucide-react";
 import Link from "next/link";
+import { parsePage, parsePageSize, useListUrlState } from "@/hooks/useListUrlState";
 import { useMemo, useState } from "react";
 
 export default function StockChecksPage() {
@@ -28,12 +29,15 @@ export default function StockChecksPage() {
   const scopeAll = hasScopeAll(currentUser);
   const { data: users = [] } = useUserOptions({ enabled: scopeAll });
 
-  const [filter, setFilter] = useState({ from: "", to: "" });
-  const [appliedFilter, setAppliedFilter] = useState({ from: "", to: "" });
-  // Áp dụng ngay khi đổi, không chờ bấm "Lọc" như khoảng ngày — chọn xong là thấy kết quả luôn.
-  const [createdById, setCreatedById] = useState("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  // Bộ lọc ĐÃ áp + trang nằm trên URL (hooks/useListUrlState) để mở chi tiết rồi quay lại vẫn giữ;
+  // ô nháp `filter` chỉ là state tạm, khởi tạo từ chính bộ lọc trên URL.
+  // `createdById` áp dụng ngay khi đổi, không chờ bấm "Lọc" như khoảng ngày — chọn xong là thấy kết quả luôn.
+  const { values: listState, update } = useListUrlState({ from: "", to: "", createdById: "", page: "1", pageSize: "20" });
+  const { page: pageParam, pageSize: pageSizeParam, createdById, ...appliedFilter } = listState;
+  const page = parsePage(pageParam);
+  const pageSize = parsePageSize(pageSizeParam);
+  const setPage = (p: number) => update({ page: String(p) });
+  const [filter, setFilter] = useState(appliedFilter);
   const { data, isLoading } = useStockChecks({
     from: appliedFilter.from || undefined,
     to: appliedFilter.to || undefined,
@@ -110,10 +114,7 @@ export default function StockChecksPage() {
               <label className="mb-1 block text-xs font-medium text-slate-500">Người tạo</label>
               <Select
                 value={createdById}
-                onChange={(e) => {
-                  setCreatedById(e.target.value);
-                  setPage(1);
-                }}
+                onChange={(e) => update({ createdById: e.target.value, page: "1" })}
               >
                 <option value="">Tất cả tài khoản</option>
                 {users.map((u) => (
@@ -127,8 +128,7 @@ export default function StockChecksPage() {
           <Button
             variant="secondary"
             onClick={() => {
-              setAppliedFilter(filter);
-              setPage(1);
+              update({ ...filter, page: "1" });
             }}
           >
             Lọc
@@ -147,10 +147,7 @@ export default function StockChecksPage() {
             pageSize={pageSize}
             total={data?.total ?? 0}
             onPageChange={setPage}
-            onPageSizeChange={(size) => {
-              setPageSize(size);
-              setPage(1);
-            }}
+            onPageSizeChange={(size) => update({ pageSize: String(size), page: "1" })}
           />
         </CardBody>
       </Card>

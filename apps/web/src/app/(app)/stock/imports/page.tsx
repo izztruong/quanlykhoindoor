@@ -17,7 +17,8 @@ import type { StockImport } from "@/types";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Camera, Plus } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { parsePage, parsePageSize, useListUrlState } from "@/hooks/useListUrlState";
+import { useMemo } from "react";
 
 export default function StockImportsPage() {
   const { canOpen } = useCan();
@@ -26,20 +27,20 @@ export default function StockImportsPage() {
   // nghĩa với tài khoản thấy dữ liệu mọi quán.
   const scopeAll = hasScopeAll(currentUser);
   const { data: warehouses = [] } = useWarehouses();
-  const [warehouseId, setWarehouseId] = useState("");
-  const [dateRange, setDateRange] = useState({ from: "", to: "" });
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const { values, update } = useListUrlState({ warehouseId: "", from: "", to: "", page: "1", pageSize: "20" });
+  const warehouseId = values.warehouseId;
+  const dateRange = { from: values.from, to: values.to };
+  const page = parsePage(values.page);
+  const pageSize = parsePageSize(values.pageSize);
+  const setPage = (p: number) => update({ page: String(p) });
 
   // Đổi bộ lọc thì về trang 1 ngay trong handler, không qua effect — effect chạy sau một lượt render
   // đã kịp gọi API bằng số trang không còn đúng.
   function changeWarehouse(value: string) {
-    setWarehouseId(value);
-    setPage(1);
+    update({ warehouseId: value, page: "1" });
   }
   function changeDateRange(value: { from: string; to: string }) {
-    setDateRange(value);
-    setPage(1);
+    update({ from: value.from, to: value.to, page: "1" });
   }
 
   const { data, isLoading } = useStockImports({
@@ -156,10 +157,7 @@ export default function StockImportsPage() {
             pageSize={pageSize}
             total={data?.total ?? 0}
             onPageChange={setPage}
-            onPageSizeChange={(size) => {
-              setPageSize(size);
-              setPage(1);
-            }}
+            onPageSizeChange={(size) => update({ pageSize: String(size), page: "1" })}
           />
         </CardBody>
       </Card>

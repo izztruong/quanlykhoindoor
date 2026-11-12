@@ -1,5 +1,7 @@
 "use client";
 
+import { BackToListLink } from "@/components/ui/BackToListLink";
+import { rememberedListUrl } from "@/hooks/useListUrlState";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -124,7 +126,7 @@ export function ExpenseProposalDetailClient({ id }: { id: string }) {
   function handleDelete() {
     if (!confirm(`Xoá phiếu ${proposal!.code}? Không thể hoàn tác.`)) return;
     setError(null);
-    deleteProposal.mutate(id, { onSuccess: () => router.push("/expense-proposals"), onError: onError("Xoá phiếu thất bại") });
+    deleteProposal.mutate(id, { onSuccess: () => router.push(rememberedListUrl("/expense-proposals")), onError: onError("Xoá phiếu thất bại") });
   }
 
   const spent = proposal.spentAmount != null ? Number(proposal.spentAmount) : null;
@@ -133,9 +135,9 @@ export function ExpenseProposalDetailClient({ id }: { id: string }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <Link href="/expense-proposals" className="self-start text-sm text-indigo-600 hover:underline">
+      <BackToListLink href="/expense-proposals" className="self-start text-sm text-indigo-600 hover:underline">
         ← Danh sách phiếu đề xuất chi
-      </Link>
+      </BackToListLink>
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>

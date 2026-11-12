@@ -1,5 +1,6 @@
 "use client";
 
+import { BackToListLink } from "@/components/ui/BackToListLink";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { useMaterialTransfer } from "@/hooks/useMaterialTransfers";
@@ -18,9 +19,9 @@ export function MaterialTransferDetailClient({ id }: { id: string }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <Link href="/material-transfers" className="self-start text-sm text-indigo-600 hover:underline">
+      <BackToListLink href="/material-transfers" className="self-start text-sm text-indigo-600 hover:underline">
         ← Danh sách phiếu điều chuyển
-      </Link>
+      </BackToListLink>
 
       <div className="flex items-center justify-between">
         <div>

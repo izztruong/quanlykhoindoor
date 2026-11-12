@@ -1,5 +1,6 @@
 "use client";
 
+import { BackToListLink } from "@/components/ui/BackToListLink";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -88,9 +89,9 @@ export function OrderDetailClient({ id }: { id: string }) {
               </Button>
             </a>
           )}
-          <Link href="/orders" className="text-sm text-indigo-600 hover:underline">
+          <BackToListLink href="/orders" className="text-sm text-indigo-600 hover:underline">
             ← Danh sách đơn hàng
-          </Link>
+          </BackToListLink>
         </div>
       </div>
 
