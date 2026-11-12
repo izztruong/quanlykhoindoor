@@ -7,7 +7,7 @@ import { useUserOptions } from "@/hooks/useUsers";
 import { formatCurrency, formatNumber, formatPercent } from "@/lib/format";
 import { useCan } from "@/lib/permissions";
 import type { DashboardCostMonth } from "@/types";
-import { TrendingDown, TrendingUp } from "lucide-react";
+import { Coffee, PackagePlus, Trash2, TrendingDown, TrendingUp } from "lucide-react";
 import { useState } from "react";
 import { MaterialCostChart } from "./MaterialCostChart";
 import { SkyBackdrop } from "./SkyBackdrop";
@@ -62,12 +62,15 @@ export function DashboardClient() {
   const nothingToShow = !canImports && !canWaste && !canCost;
 
   return (
-    // Bù lại padding p-6 của <main> để nền trời tràn sát mép vùng nội dung, rồi đặt padding lại bên trong.
-    <div className="relative -m-6 min-h-full p-6">
+    // Bù lại padding của <main> (p-4 md:p-6) để nền trời tràn sát mép vùng nội dung, rồi đặt padding lại bên trong.
+    <div className="relative -m-4 min-h-full p-4 md:-m-6 md:p-6">
       <SkyBackdrop />
       <div className="relative flex flex-col gap-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-xl font-semibold text-slate-800">Trang chủ</h1>
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-800">Trang chủ</h1>
+            {user && <p className="text-sm text-slate-600">Xin chào, {user.name}</p>}
+          </div>
           {scopeAll && !nothingToShow && (
             <div className="flex items-center gap-2">
               <label htmlFor="dashboard-user" className="text-sm font-medium text-slate-500">
@@ -91,33 +94,34 @@ export function DashboardClient() {
           <Card className="p-5 text-sm text-slate-500">Tài khoản chưa được cấp quyền xem mục nào trên trang chủ.</Card>
         ) : (
           <>
-            <h2 className="text-lg font-semibold text-slate-800">Quản trị</h2>
+            <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+              {canImports && (
+                <StatCard title="Phiếu nhập kho 7 ngày" href="/stock/imports" icon={PackagePlus} tone="indigo" isLoading={imports.isLoading}>
+                  <div className="mt-4 flex items-baseline gap-2">
+                    <span className="text-3xl font-semibold tracking-tight text-slate-800">{formatNumber(imports.data ?? 0)}</span>
+                    <span className="text-sm text-slate-500">phiếu</span>
+                  </div>
+                </StatCard>
+              )}
 
-            {canImports && (
-              <StatCard title="Phiếu nhập kho 7 ngày" href="/stock/imports" isLoading={imports.isLoading}>
-                <div className="mt-2 text-2xl font-semibold text-slate-800">{formatNumber(imports.data ?? 0)} phiếu</div>
-              </StatCard>
-            )}
+              {canWaste && (
+                <StatCard title="Huỷ hàng" href="/material-waste" icon={Trash2} tone="rose" isLoading={waste.isLoading}>
+                  {waste.data && (
+                    <>
+                      <div className="mt-4 text-3xl font-semibold tracking-tight text-slate-800">
+                        {formatCurrency(Math.round(waste.data.value))}
+                      </div>
+                      <div className="text-sm text-slate-500">Giá trị huỷ hàng (theo giá vốn hiện tại)</div>
+                      <StatRow>
+                        <StatItem value={formatNumber(waste.data.slipCount)} label={`Phiếu huỷ (${waste.data.days} ngày qua)`} />
+                        <StatItem value={formatNumber(waste.data.itemCount)} label="Hàng hoá bị huỷ" />
+                      </StatRow>
+                    </>
+                  )}
+                </StatCard>
+              )}
 
-            {canWaste && (
-              <StatCard title="Huỷ hàng" href="/material-waste" isLoading={waste.isLoading}>
-                {waste.data && (
-                  <>
-                    <div className="mt-2 flex flex-wrap items-baseline gap-x-3">
-                      <span className="text-2xl font-semibold text-slate-800">{formatCurrency(Math.round(waste.data.value))}</span>
-                      <span className="text-sm text-slate-500">Giá trị huỷ hàng (theo giá vốn hiện tại)</span>
-                    </div>
-                    <StatRow>
-                      <StatItem value={formatNumber(waste.data.slipCount)} label={`Phiếu huỷ (${waste.data.days} ngày qua)`} />
-                      <StatItem value={formatNumber(waste.data.itemCount)} label="Hàng hoá bị huỷ" />
-                    </StatRow>
-                  </>
-                )}
-              </StatCard>
-            )}
-
-            {canCost && (
-              <>
+              {canCost && (
                 <StatCard
                   title={
                     cost.data
@@ -125,19 +129,19 @@ export function DashboardClient() {
                       : "Chi phí nguyên vật liệu"
                   }
                   href="/cost-checks"
+                  icon={Coffee}
+                  tone="amber"
                   isLoading={cost.isLoading}
                 >
                   {cost.data && (
                     <>
-                      <div className="mt-2 flex flex-wrap items-baseline gap-x-3">
-                        <span className="text-2xl font-semibold text-slate-800">
-                          {formatCurrency(Math.round(cost.data.current.cost))}
-                        </span>
-                        <span className="text-sm text-slate-500">
-                          {cost.data.current.checkCount > 0
-                            ? `(${formatPercent(cost.data.current.pct)} doanh thu)`
-                            : "Chưa có phiếu Check Cost chốt kỳ trong tháng"}
-                        </span>
+                      <div className="mt-4 text-3xl font-semibold tracking-tight text-slate-800">
+                        {formatCurrency(Math.round(cost.data.current.cost))}
+                      </div>
+                      <div className="text-sm text-slate-500">
+                        {cost.data.current.checkCount > 0
+                          ? `${formatPercent(cost.data.current.pct)} doanh thu`
+                          : "Chưa có phiếu Check Cost chốt kỳ trong tháng"}
                       </div>
                       <StatRow>
                         <CostDelta
@@ -154,32 +158,34 @@ export function DashboardClient() {
                     </>
                   )}
                 </StatCard>
+              )}
+            </div>
 
-                <Card className="p-5">
-                  <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <h2 className="text-base font-medium text-slate-700">Tỷ lệ chi phí nguyên vật liệu</h2>
-                      <p className="text-xs text-slate-400">
-                        Chi phí NVL / doanh thu thuần, mỗi phiếu Check Cost tính vào tháng của ngày chốt kỳ
-                      </p>
-                    </div>
-                    <div className="w-32">
-                      <Select value={year} onChange={(e) => setYear(Number(e.target.value))} aria-label="Năm">
-                        {Array.from({ length: 5 }, (_, i) => currentYear - i).map((y) => (
-                          <option key={y} value={y}>
-                            Năm {y}
-                          </option>
-                        ))}
-                      </Select>
-                    </div>
+            {canCost && (
+              <Card className="p-5">
+                <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-[15px] font-semibold text-slate-800">Tỷ lệ chi phí nguyên vật liệu</h2>
+                    <p className="text-xs text-slate-400">
+                      Chi phí NVL / doanh thu thuần, mỗi phiếu Check Cost tính vào tháng của ngày chốt kỳ
+                    </p>
                   </div>
-                  {cost.isLoading || !cost.data ? (
-                    <p className="text-sm text-slate-400">Đang tải...</p>
-                  ) : (
-                    <MaterialCostChart months={cost.data.months} />
-                  )}
-                </Card>
-              </>
+                  <div className="w-32">
+                    <Select value={year} onChange={(e) => setYear(Number(e.target.value))} aria-label="Năm">
+                      {Array.from({ length: 5 }, (_, i) => currentYear - i).map((y) => (
+                        <option key={y} value={y}>
+                          Năm {y}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                </div>
+                {cost.isLoading || !cost.data ? (
+                  <div className="h-56 animate-pulse rounded-xl bg-slate-100" />
+                ) : (
+                  <MaterialCostChart months={cost.data.months} />
+                )}
+              </Card>
             )}
           </>
         )}

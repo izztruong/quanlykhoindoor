@@ -34,8 +34,15 @@ export function Sidebar({ user, open, onClose }: SidebarProps) {
     setOverrides({});
   }
 
-  const isActiveItem = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
-  const hasActiveItem = (section: NavSection) => section.items.some((item) => isActiveItem(item.href));
+  const matches = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
+  // Chỉ tô MỘT mục: mục có href là tiền tố dài nhất. Không thì đang ở /orders/new cả "Danh sách đơn
+  // hàng" (/orders) lẫn "Tạo đơn hàng" cùng sáng.
+  const activeHref = visibleSections
+    .flatMap((section) => section.items)
+    .filter((item) => matches(item.href))
+    .reduce<string | null>((best, item) => (!best || item.href.length > best.length ? item.href : best), null);
+
+  const hasActiveItem = (section: NavSection) => section.items.some((item) => matches(item.href));
   const isOpen = (section: NavSection) => overrides[section.label] ?? hasActiveItem(section);
 
   function toggleSection(section: NavSection) {
@@ -50,41 +57,47 @@ export function Sidebar({ user, open, onClose }: SidebarProps) {
 
   return (
     <>
-      {open && <div className="fixed inset-0 z-40 bg-slate-900/40 md:hidden" onClick={onClose} />}
+      {open && <div className="fixed inset-0 z-40 animate-fade-in bg-slate-900/50 backdrop-blur-[2px] md:hidden" onClick={onClose} />}
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-64 shrink-0 flex-col border-r border-slate-200 bg-white transition-transform duration-200 md:static md:z-auto md:translate-x-0",
+          "fixed inset-y-0 left-0 z-50 flex w-64 shrink-0 flex-col bg-slate-900 text-slate-300 transition-transform duration-200 md:static md:z-auto md:translate-x-0",
           open ? "translate-x-0" : "-translate-x-full",
         )}
       >
-        <div className="flex h-16 items-center justify-between gap-2 border-b border-slate-100 px-5">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white">
+        <div className="flex h-16 shrink-0 items-center justify-between gap-2 px-5">
+          <Link href="/" className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-linear-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-900/40">
               <Store size={18} />
             </div>
-            <span className="text-lg font-semibold text-slate-800">Quản lý kho</span>
-          </div>
-          <button type="button" onClick={onClose} className="rounded p-1 text-slate-400 hover:bg-slate-100 md:hidden">
+            <span className="text-[17px] font-semibold tracking-tight text-white">Quản lý kho</span>
+          </Link>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Đóng menu"
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white md:hidden"
+          >
             <X size={18} />
           </button>
         </div>
 
-        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-5">
+        <nav className="flex-1 space-y-1 overflow-y-auto px-3 pt-2 pb-6 [scrollbar-color:#334155_transparent]">
           {/* Đứng ngoài navSections: trang chủ không cần quyền, và nav-config còn dùng để chặn trang. */}
           <Link
             href="/"
             className={cn(
-              "flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50",
-              pathname === "/" && "bg-indigo-50 text-indigo-700",
+              "mb-3 flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+              pathname === "/" ? "bg-indigo-500/15 text-white" : "text-slate-300 hover:bg-white/5 hover:text-white",
             )}
           >
-            <Home size={16} />
+            <Home size={16} className={pathname === "/" ? "text-indigo-300" : "text-slate-400"} />
             Trang chủ
           </Link>
 
           {visibleSections.map((section) => {
             const sectionOpen = isOpen(section);
+            const sectionActive = hasActiveItem(section);
             return (
               <div key={section.label}>
                 <button
@@ -92,29 +105,35 @@ export function Sidebar({ user, open, onClose }: SidebarProps) {
                   onClick={() => toggleSection(section)}
                   aria-expanded={sectionOpen}
                   className={cn(
-                    "flex w-full items-center gap-2 rounded-lg px-2 py-2 text-xs font-semibold uppercase tracking-wide hover:bg-slate-50",
-                    hasActiveItem(section) ? "text-slate-600" : "text-slate-400",
+                    "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[11px] font-semibold tracking-wider uppercase transition-colors hover:bg-white/5",
+                    sectionActive ? "text-slate-200" : "text-slate-500 hover:text-slate-300",
                   )}
                 >
-                  <section.icon size={14} />
+                  <section.icon size={15} className={sectionActive ? "text-indigo-300" : undefined} />
                   <span className="flex-1 text-left">{section.label}</span>
-                  <ChevronDown size={14} className={cn("transition-transform", sectionOpen && "rotate-180")} />
+                  <ChevronDown size={14} className={cn("transition-transform duration-200", sectionOpen && "rotate-180")} />
                 </button>
 
                 {sectionOpen && (
-                  <div className="space-y-0.5 pb-2">
-                    {section.items.map((item) => (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        className={cn(
-                          "block rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50",
-                          isActiveItem(item.href) && "bg-indigo-50 text-indigo-700",
-                        )}
-                      >
-                        {item.label}
-                      </Link>
-                    ))}
+                  <div className="relative mt-0.5 mb-2 ml-[19px] space-y-0.5 border-l border-slate-700/70 pl-3">
+                    {section.items.map((item) => {
+                      const active = item.href === activeHref;
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          aria-current={active ? "page" : undefined}
+                          className={cn(
+                            "relative block rounded-lg px-3 py-1.5 text-[13.5px] transition-colors",
+                            active
+                              ? "bg-indigo-500/15 font-medium text-white before:absolute before:top-1/2 before:-left-[13px] before:h-5 before:w-0.5 before:-translate-y-1/2 before:rounded-full before:bg-indigo-400"
+                              : "text-slate-400 hover:bg-white/5 hover:text-slate-100",
+                          )}
+                        >
+                          {item.label}
+                        </Link>
+                      );
+                    })}
                   </div>
                 )}
               </div>

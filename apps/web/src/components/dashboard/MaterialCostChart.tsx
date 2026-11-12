@@ -80,7 +80,7 @@ export function MaterialCostChart({ months }: MaterialCostChartProps) {
                   >
                     {!noData && (
                       <div
-                        className="w-3/5 max-w-6 rounded-t bg-indigo-500"
+                        className="w-3/5 max-w-7 rounded-t-md bg-linear-to-t from-indigo-500 to-violet-400"
                         // Tỷ lệ âm (tồn cuối kỳ khai lớn hơn đầu kỳ + nhận) không có cột; số thật vẫn ở tooltip/bảng.
                         style={{ height: `${Math.min(Math.max(m.pct, 0) / max, 1) * 100}%` }}
                       />

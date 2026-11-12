@@ -13,12 +13,12 @@ function Cloud({ className }: { className?: string }) {
 }
 
 /**
- * Nền trời xanh nhạt có mây ở đầu trang chủ, nhạt dần về màu nền chung (slate-50) nên các thẻ trắng
+ * Nền trời xanh nhạt có mây ở đầu trang chủ, nhạt dần về màu nền chung (--background) nên các thẻ trắng
  * phía dưới không bị cắt ngang. Chỉ trang trí: nằm sau nội dung, không nhận chuột.
  */
 export function SkyBackdrop() {
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-0 h-72 overflow-hidden bg-linear-to-b from-sky-200 via-sky-100 to-slate-50">
+    <div className="pointer-events-none absolute inset-x-0 top-0 h-72 overflow-hidden bg-linear-to-b from-sky-200 via-sky-100 to-background">
       <Cloud className="absolute -left-6 top-6 w-48 text-white/70" />
       <Cloud className="absolute left-[38%] top-20 hidden w-32 text-white/60 sm:block" />
       <Cloud className="absolute right-[18%] top-3 w-40 text-white/60" />

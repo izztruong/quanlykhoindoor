@@ -46,6 +46,10 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
+### Làm mới giao diện web (font Be Vietnam Pro, sidebar tối, ô tìm trang Ctrl+K, trang đăng nhập) — trên `dev`, CHƯA lên `main`
+Chỉ đổi lớp dùng chung (`ui/`, `layout/`, `data-table/`, trang chủ, đăng nhập), không đụng nghiệp vụ. Bỏ điền sẵn email admin ở form đăng nhập.
+Đã kiểm: `tsc`, lint, chụp headless trang chủ / phiếu nhập kho / đăng nhập / bản điện thoại. **Chưa bấm thử modal, toast, form dài trên trình duyệt thật.**
+
 ### App mobile: Order bánh + Bánh bán ra; đổi tên Đơn bánh → Order bánh — ĐÃ lên `main` + OTA Android/iOS, CHƯA thử trên máy
 Order bánh (danh sách, đặt, chi tiết nhập SL từng bước + sửa SL nhận) ở nhóm Order; Bánh bán ra (danh sách
 xoá từng dòng, màn nhập một lô cùng ngày + người mua) ở nhóm Quản trị. Chỉ JS, dùng API sẵn có → đi OTA được.
