@@ -16,7 +16,20 @@ export interface AuthUser {
   isBakery: boolean;
 }
 
-export type PermissionAction = "VIEW" | "ADD" | "EDIT" | "DELETE" | "APPROVE" | "ADVANCE" | "COMPLETE";
+export type PermissionAction =
+  | "VIEW"
+  | "ADD"
+  | "EDIT"
+  | "DELETE"
+  | "APPROVE"
+  | "ADVANCE"
+  | "COMPLETE"
+  | "PAY"
+  | "DEDUCT"
+  | "CONFIRM"
+  | "PICKUP"
+  | "RECEIVE"
+  | "CANCEL";
 
 export interface PermissionCatalog {
   resources: { resource: string; label: string; group: string; actions: PermissionAction[] }[];
@@ -702,4 +715,65 @@ export interface NotificationPreference {
   label: string;
   description: string;
   enabled: boolean;
+}
+
+/** Đơn bánh — chép từ web (apps/web/src/types/index.ts). Đổi payload bên đó phải sửa cả đây. */
+export type BakeryOrderStatus = "ORDERED" | "CONFIRMED" | "IN_TRANSIT" | "COMPLETED" | "CANCELLED";
+
+export interface BakeryOrderItem {
+  id: string;
+  productId: string;
+  product: { id: string; code: string; name: string; unit?: { name: string } | null };
+  orderedQty: string | number;
+  /** null = bước đó chưa tới. */
+  confirmedQty: string | number | null;
+  pickedUpQty: string | number | null;
+  receivedQty: string | number | null;
+  /** Chốt lúc tiệm bánh xác nhận. */
+  unitPrice: string | number | null;
+  note?: string | null;
+}
+
+export interface BakeryOrder {
+  id: string;
+  code: string;
+  status: BakeryOrderStatus;
+  shopUserId: string;
+  shopUser: { id: string; name: string };
+  supplierId: string;
+  supplier: { id: string; code: string; name: string; bakeryUserId?: string | null };
+  /** Ngày trần "YYYY-MM-DD…" — đọc bằng formatDateOnly, không đổi múi giờ. */
+  deliveryOn: string;
+  note?: string | null;
+  createdAt: string;
+  createdBy?: { id: string; name: string } | null;
+  confirmedBy?: { id: string; name: string } | null;
+  confirmedAt?: string | null;
+  pickedUpBy?: { id: string; name: string } | null;
+  pickedUpAt?: string | null;
+  receivedBy?: { id: string; name: string } | null;
+  /** Có cả giờ — thành mốc kỳ Check Cost của phiếu nhập tự sinh. */
+  receivedAt?: string | null;
+  cancelledBy?: { id: string; name: string } | null;
+  cancelledAt?: string | null;
+  /** Chỉ có ở chi tiết. */
+  items?: BakeryOrderItem[];
+  stockImport?: { id: string; code: string } | null;
+  /** Chỉ có ở danh sách. */
+  _count?: { items: number };
+}
+
+/** Khoá một ô bánh bán ra. `shopUserId = null` nghĩa là BÁN NGOÀI. */
+export interface BakerySaleRowKey {
+  shopUserId: string | null;
+  /** "YYYY-MM-DD" */
+  soldOn: string;
+  finishedGoodItemId: string;
+}
+
+export interface BakerySaleRowItem extends BakerySaleRowKey {
+  id: string;
+  quantity: string | number;
+  shopUser?: { id: string; name: string } | null;
+  finishedGoodItem: { id: string; code: string; name: string; unit?: { name: string } | null };
 }

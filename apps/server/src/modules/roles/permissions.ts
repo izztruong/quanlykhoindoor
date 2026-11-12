@@ -77,7 +77,7 @@ export const PERMISSION_RESOURCES = [
   // để thấy đơn của mọi quán — nó không có quyền ở module nào khác nên phạm vi đó không lộ gì thêm.
   {
     resource: "BAKERY_ORDERS",
-    label: "Đơn bánh",
+    label: "Order bánh",
     group: "Order",
     actions: ["VIEW", "ADD", "CONFIRM", "PICKUP", "RECEIVE", "CANCEL", "EDIT"],
   },

@@ -15,7 +15,7 @@ import type {
   bakeryOrderStepSchema,
 } from "./bakeryOrders.schemas";
 
-const NOT_FOUND = "Không tìm thấy đơn bánh";
+const NOT_FOUND = "Không tìm thấy order bánh";
 const STALE = "Đơn vừa được người khác cập nhật — tải lại trang để xem trạng thái mới";
 /** Cùng biên như `assertCheckedAtNotInFuture`: đồng hồ máy người dùng lệch vài phút là chuyện thường. */
 const FUTURE_TOLERANCE_MS = 5 * 60 * 1000;
@@ -147,7 +147,7 @@ function createOrderImport(
       // Hàng nội bộ chuỗi, không phải mua bằng tiền mặt hay chuyển khoản.
       form: "OTHER",
       status: "COMPLETED",
-      note: `Tự sinh từ đơn bánh ${order.code}`,
+      note: `Tự sinh từ order bánh ${order.code}`,
       warehouseId,
       supplierId: order.supplierId,
       createdById,
@@ -189,7 +189,7 @@ export async function createBakeryOrder(data: z.infer<typeof bakeryOrderCreateSc
     prisma.user.findUnique({ where: { id: shopUserId }, select: { name: true, role: { select: { isShop: true } } } }),
     prisma.supplier.findUnique({ where: { id: data.supplierId }, select: { name: true, bakeryUserId: true } }),
   ]);
-  if (!shop || !shop.role.isShop) throw new HttpError(400, "Chỉ tài khoản quán mới đặt được đơn bánh");
+  if (!shop || !shop.role.isShop) throw new HttpError(400, "Chỉ tài khoản quán mới đặt được order bánh");
   if (!supplier) throw new HttpError(404, "Không tìm thấy tiệm bánh");
   if (!supplier.bakeryUserId) {
     throw new HttpError(400, `NCC "${supplier.name}" chưa nối tài khoản tiệm bánh — vào Danh mục → Nhà cung cấp để nối`);

@@ -1,6 +1,6 @@
 # Tiến độ dự án
 
-Cập nhật: 2026-11-11
+Cập nhật: 2026-11-12
 
 Ghi **đúng những gì git không tự trả lời được**. Lý do thiết kế đã nằm trong commit message, đừng
 chép lại vào đây. Mỗi mục "Đang dở" tối đa 3–4 dòng, và dòng quan trọng nhất luôn là: *đã kiểm thử
@@ -46,13 +46,19 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
-### Cột VAT (%) cho hàng hoá / đồ thành phẩm + nút "Dùng VAT" ở Check Cost — ĐÃ lên `main` (server + web), mobile CHƯA OTA, CHƯA bấm thử
+### App mobile: Order bánh + Bánh bán ra; đổi tên Đơn bánh → Order bánh — ĐÃ lên `main` + OTA Android/iOS, CHƯA thử trên máy
+Order bánh (danh sách, đặt, chi tiết nhập SL từng bước + sửa SL nhận) ở nhóm Order; Bánh bán ra (danh sách
+xoá từng dòng, màn nhập một lô cùng ngày + người mua) ở nhóm Quản trị. Chỉ JS, dùng API sẵn có → đi OTA được.
+Đổi tên phủ cả web, app và chữ server trả về (nhãn quyền, lỗi, ghi chú phiếu nhập tự sinh — phiếu cũ giữ chữ cũ).
+Đã kiểm: typecheck 3 app, `expo export` Android. Chưa curl/bấm thử.
+
+### Cột VAT (%) cho hàng hoá / đồ thành phẩm + nút "Dùng VAT" ở Check Cost — ĐÃ lên `main` + OTA, CHƯA bấm thử
 Bật thì phiếu tính bằng giá × (1 + VAT%), chốt cứng vào `CostCheck.useVat`; cả phiếu quán, tiệm bánh, web, app, Excel danh mục.
 Đã kiểm: typecheck 3 app, lint + build web, `expo export`; migration trên DB trắng + `kho_db` + `kho_dev_copy`, drift rỗng; 47 ca curl
 trên `kho_dev_copy` (cờ tắt trùng khít phiếu cũ, ×1,10/×1,08 đúng, VAT lẫn lộn khớp tính tay từng dòng, tiệm bánh, bulk-import). Đã dọn.
-Mobile cần OTA. **Phần nhập/xuất Excel danh mục chưa chạy thử thật** — mới qua typecheck.
+**Phần nhập/xuất Excel danh mục chưa chạy thử thật** — mới qua typecheck.
 
-### Ảnh chứng minh cho phiếu huỷ (server + web + mobile) — ĐÃ lên `main` (server + web), mobile CHƯA OTA, CHƯA bấm thử
+### Ảnh chứng minh cho phiếu huỷ (server + web + mobile) — ĐÃ lên `main` + OTA, CHƯA bấm thử
 Tối đa 5 ảnh/phiếu, đính ngay lúc tạo (quyền Thêm là đủ) hoặc lúc sửa; gỡ ảnh đã lưu cần quyền Sửa; xem ở trang chi tiết. Xoá phiếu dọn cả file trên R2.
 Đã kiểm typecheck 3 app, lint web, bundle Android, `migrate deploy` DB trắng + `kho_db` + `kho_dev_copy`, 9 ca curl với R2 thật.
 
@@ -73,10 +79,10 @@ nhóm Trà, công thức CHUNG mốc 2000-01-01, 394 dòng. Bán thành phẩm (
 vừa lên `main` nên giờ gán được về Việt Trì. Còn thiếu: ánh xạ món POS, giá vốn 4 hàng `VT05/VT03/VT02/VT09`,
 và bỏ bản trùng `BUOIDAXANH` (công thức dùng `buoidaxanh` theo Quả).
 
-### Đơn bánh (web) — ĐÃ lên `main`, CHƯA bấm thử trên trình duyệt, chưa làm app
+### Order bánh (web, trước gọi là Đơn bánh) — ĐÃ lên `main`, CHƯA bấm thử trên trình duyệt (app: xem mục trên)
 Quán đặt → tiệm bánh XN → vận chuyển lấy → quán nhận (tự sinh phiếu nhập kho); admin sửa SL/ngày nhận sau hoàn thành.
 Đã kiểm: typecheck server + web, `next build`, migration trên DB trắng, 44 ca curl + route options (dữ liệu thử đã dọn).
-**Trước khi dùng**: nối NCC với tài khoản tiệm bánh, khai giá NCC cho bánh, tạo vai trò Vận chuyển (VIEW + PICKUP + DATA.SCOPE_ALL), tick quyền Đơn bánh cho vai trò quán/tiệm bánh.
+**Trước khi dùng**: nối NCC với tài khoản tiệm bánh, khai giá NCC cho bánh, tạo vai trò Vận chuyển (VIEW + PICKUP + DATA.SCOPE_ALL), tick quyền Order bánh cho vai trò quán/tiệm bánh.
 
 ### Sửa phiếu chỉ trừ vỏ dòng có SL lẻ đổi — ĐÃ lên `main`, CHƯA bấm thử trên trình duyệt
 `main` đang có bản bỏ hẳn trừ vỏ ở PUT; bản này trừ lại cho dòng đổi, dòng không đụng tới giữ nguyên.
@@ -84,7 +90,7 @@ App cũ (cộng bù vỏ ở form sửa điều chuyển) nhờ vậy cũng ra �
 Đã kiểm: typecheck server + web; 10 ca curl trên `kho_db` cho cả 3 loại phiếu (dữ liệu thử đã dọn).
 Phiếu đã bị trừ lố trước bản sửa **không tự khôi phục** — phải soát tay.
 
-### Màn Hoàn thành trên app hết treo khi chọn ảnh — ĐÃ lên `main` nhưng là code mobile nên CHƯA tới máy nào (cần OTA)
+### Màn Hoàn thành trên app hết treo khi chọn ảnh — ĐÃ lên `main` + OTA, CHƯA thử trên máy
 Bước nén ảnh có trần 30 giây (`imagePicker.ts`, chỉ tính từ lúc bộ chọn ảnh trả về — thời gian lướt
 thư viện vẫn vô hạn), và nút Hoàn thành không còn khoá theo cờ nén ảnh; bấm lúc ảnh đang nén thì hỏi
 lại. Timeout nằm ở helper dùng chung nên Tạm ứng, Chi chốt ca, Chi ngoài cũng hết treo.
@@ -92,7 +98,7 @@ lại. Timeout nằm ở helper dùng chung nên Tạm ứng, Chi chốt ca, Chi
 hạn, lỗi thật, lỗi về muộn không sinh unhandled rejection, dọn hẹn giờ). Script đã xoá.
 **Chưa biết chặng nào treo thật**: phần ghi log từng chặng đã đề xuất nhưng chưa làm.
 
-### Xoá phiếu huỷ nguyên liệu (server + web + mobile) — ĐÃ lên `main` (server + web), mobile CHƯA OTA, CHƯA bấm thử
+### Xoá phiếu huỷ nguyên liệu (server + web + mobile) — ĐÃ lên `main` + OTA, CHƯA bấm thử
 Nút Xoá ở trang chi tiết, quyền mới `MATERIAL_WASTE.DELETE`; trả danh sách phiếu Check Cost bị ảnh hưởng như xoá phiếu nhập.
 Đã kiểm typecheck 3 app, lint web, bundle Android, 5 ca curl (403 thiếu quyền, 200 + affectedCostChecks, dòng xoá theo, 404 xoá lại).
 **Sau khi deploy phải tick "Xoá" ở mục Phiếu huỷ nguyên liệu** — không tick thì ngoài admin không ai thấy nút.

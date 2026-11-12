@@ -55,11 +55,11 @@ export function StockImportDetailClient({ id }: { id: string }) {
           <p className="text-sm text-slate-500">Thời gian nhập: {formatDateTime(item.transactionAt)}</p>
           {fromBakeryOrder && (
             <p className="text-sm text-amber-700">
-              Phiếu tự sinh từ đơn bánh{" "}
+              Phiếu tự sinh từ order bánh{" "}
               <Link href={`/bakery-orders/${fromBakeryOrder.id}`} className="font-medium text-indigo-600 hover:underline">
                 {fromBakeryOrder.code}
               </Link>{" "}
-              — sửa số lượng hoặc ngày nhận ở đơn bánh đó.
+              — sửa số lượng hoặc ngày nhận ở order bánh đó.
             </p>
           )}
         </div>

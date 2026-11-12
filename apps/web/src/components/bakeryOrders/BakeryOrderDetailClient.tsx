@@ -158,13 +158,13 @@ export function BakeryOrderDetailClient({ id }: { id: string }) {
   return (
     <div className="flex flex-col gap-4">
       <Link href="/bakery-orders" className="self-start text-sm text-indigo-600 hover:underline">
-        ← Danh sách đơn bánh
+        ← Danh sách order bánh
       </Link>
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-xl font-semibold text-slate-800">Đơn bánh {order.code}</h1>
+            <h1 className="text-xl font-semibold text-slate-800">Order bánh {order.code}</h1>
             <BakeryOrderStatusBadge status={order.status} />
           </div>
           <p className="text-sm text-slate-500">

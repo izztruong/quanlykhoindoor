@@ -36,7 +36,7 @@ export default function SuppliersPage() {
         { name: "address", label: "Địa chỉ" },
         {
           name: "bakeryUserId",
-          label: "Tài khoản tiệm bánh (chỉ chọn nếu NCC này là tiệm bánh nhận Đơn bánh)",
+          label: "Tài khoản tiệm bánh (chỉ chọn nếu NCC này là tiệm bánh nhận Order bánh)",
           type: "select",
           // clearable: để trống phải gửi null, nếu không thì không gỡ được nối.
           clearable: true,

@@ -86,7 +86,7 @@ export function BakeryOrderFormClient() {
   return (
     <div className="flex flex-col gap-4">
       <Link href="/bakery-orders" className="self-start text-sm text-indigo-600 hover:underline">
-        ← Danh sách đơn bánh
+        ← Danh sách order bánh
       </Link>
       <h1 className="text-xl font-semibold text-slate-800">Đặt bánh</h1>
 

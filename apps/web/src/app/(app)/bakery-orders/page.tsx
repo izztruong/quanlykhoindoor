@@ -72,7 +72,7 @@ export default function BakeryOrdersPage() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800">Đơn bánh</h1>
+          <h1 className="text-xl font-semibold text-slate-800">Order bánh</h1>
           <p className="text-sm text-slate-500">
             Quán đặt → tiệm bánh xác nhận → vận chuyển lấy hàng → quán nhận. Quán nhận xong thì phiếu nhập kho tự sinh.
           </p>
@@ -143,7 +143,7 @@ export default function BakeryOrdersPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Danh sách đơn bánh</CardTitle>
+          <CardTitle>Danh sách order bánh</CardTitle>
         </CardHeader>
         <CardBody className="p-0">
           <DataTable columns={columns} data={data?.items ?? []} isLoading={isLoading} />

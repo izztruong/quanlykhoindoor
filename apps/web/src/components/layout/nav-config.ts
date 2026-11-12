@@ -34,7 +34,7 @@ export const navSections: NavSection[] = [
       { label: "Danh sách đơn hàng", href: "/orders", permission: "ORDERS.VIEW" },
       { label: "Tạo đơn hàng", href: "/orders/new", permission: "ORDERS.ADD" },
       { label: "Order nhanh", href: "/orders/quick", permission: "ORDERS.ADD" },
-      { label: "Đơn bánh", href: "/bakery-orders", permission: "BAKERY_ORDERS.VIEW" },
+      { label: "Order bánh", href: "/bakery-orders", permission: "BAKERY_ORDERS.VIEW" },
     ],
   },
   {

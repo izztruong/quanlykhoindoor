@@ -215,8 +215,8 @@ export function StockImportForm({ existing }: { existing?: StockImport }) {
                   nhận hai lần, mà không có gì khác báo ra sai số đó. */}
               {suppliers.find((s) => s.id === supplierId)?.bakeryUserId && (
                 <p className="text-xs text-amber-600">
-                  NCC này là tiệm bánh: bánh đặt qua Đơn bánh đã tự sinh phiếu nhập khi quán nhận hàng. Chỉ lập tay cho bánh mua ngoài
-                  Đơn bánh, nếu không Check Cost sẽ tính nhận hai lần.
+                  NCC này là tiệm bánh: bánh đặt qua Order bánh đã tự sinh phiếu nhập khi quán nhận hàng. Chỉ lập tay cho bánh mua ngoài
+                  Order bánh, nếu không Check Cost sẽ tính nhận hai lần.
                 </p>
               )}
             </div>

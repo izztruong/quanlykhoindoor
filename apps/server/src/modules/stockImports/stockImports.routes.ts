@@ -65,7 +65,7 @@ async function findScopedImport(id: string, user: AuthUser | undefined) {
  */
 function assertNotFromBakeryOrder(item: { bakeryOrder: { code: string } | null }) {
   if (item.bakeryOrder) {
-    throw new HttpError(409, `Phiếu này tự sinh từ đơn bánh ${item.bakeryOrder.code} — sửa số lượng hoặc ngày nhận ở đơn bánh đó`);
+    throw new HttpError(409, `Phiếu này tự sinh từ order bánh ${item.bakeryOrder.code} — sửa số lượng hoặc ngày nhận ở order bánh đó`);
   }
 }
 

@@ -35,6 +35,7 @@ export const navSections: NavSection[] = [
       { label: "Danh sách đơn hàng", href: "/orders", permission: "ORDERS.VIEW", icon: "receipt-outline" },
       { label: "Tạo đơn hàng", href: "/orders/new", permission: "ORDERS.ADD", icon: "add-circle-outline" },
       { label: "Order nhanh", href: "/orders/quick", permission: "ORDERS.ADD", icon: "flash-outline" },
+      { label: "Order bánh", href: "/bakery-orders", permission: "BAKERY_ORDERS.VIEW", icon: "pizza-outline" },
     ],
   },
   {
@@ -81,6 +82,7 @@ export const navSections: NavSection[] = [
     items: [
       { label: "Tài khoản người dùng", href: "/admin/users", permission: "USERS.VIEW", icon: "people-circle-outline" },
       { label: "Vai trò & phân quyền", href: "/admin/roles", permission: "ROLES.VIEW", icon: "key-outline" },
+      { label: "Bánh bán ra", href: "/bakery-sales", permission: "BAKERY_SALES.VIEW", icon: "storefront-outline" },
     ],
   },
 ];

@@ -36,7 +36,7 @@ async function assertBakeryLink(bakeryUserId: string | null | undefined, supplie
     if (current && current.bakeryUserId !== bakeryUserId) {
       const open = await prisma.bakeryOrder.count({ where: { supplierId, status: { in: [...OPEN_ORDER_STATUSES] } } });
       if (open > 0) {
-        throw new HttpError(409, `NCC này còn ${open} đơn bánh chưa hoàn thành — đợi xong hết rồi mới đổi tài khoản tiệm bánh`);
+        throw new HttpError(409, `NCC này còn ${open} order bánh chưa hoàn thành — đợi xong hết rồi mới đổi tài khoản tiệm bánh`);
       }
     }
   }
@@ -67,6 +67,6 @@ export const suppliersRouter = createCrudRouter(prisma.supplier, {
   // Đơn bánh nối NCC bằng khoá ngoại không cascade — để Prisma nổ thì người dùng nhận lỗi thô.
   beforeDelete: async (id) => {
     const orders = await prisma.bakeryOrder.count({ where: { supplierId: id } });
-    if (orders > 0) throw new HttpError(409, `NCC này đã có ${orders} đơn bánh nên không xoá được`);
+    if (orders > 0) throw new HttpError(409, `NCC này đã có ${orders} order bánh nên không xoá được`);
   },
 });
