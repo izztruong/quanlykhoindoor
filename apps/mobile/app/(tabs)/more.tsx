@@ -35,7 +35,6 @@ export default function MoreTab() {
             <InfoRow label="Tên" value={user?.name ?? "—"} />
             <InfoRow label="Email" value={user?.email ?? "—"} />
             <InfoRow label="Vai trò" value={user?.roleName ?? "—"} />
-            <InfoRow label="Phạm vi dữ liệu" value={user?.scope === "ALL" ? "Tất cả quán" : "Chỉ dữ liệu của mình"} />
           </CardBody>
         </Card>
 
