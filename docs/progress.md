@@ -53,12 +53,12 @@ Từ 01/11 phiếu kiểm của 2 quán phải đếm mã `…VAT`, không thì 
 18/11: đã xoá bản VAT của nhóm Cốc thủy tinh, Đồ khô, `VT02VAT` (cùng `buoidaxanh`, `mohonglam*`) trên prod — công thức riêng
 và phiếu kiểm chuyển về mã thường, nên các NVL đó KHÔNG còn bản VAT.
 
-### Đồ thành phẩm có cờ "Đang dùng" + ẩn khỏi phiếu kiểm/huỷ, Menu theo quán — mới ở `dev`, CHƯA bấm thử, CHƯA OTA
+### Đồ thành phẩm có cờ "Đang dùng" + ẩn khỏi phiếu kiểm/huỷ, Menu theo quán — ĐÃ lên `staging` + `main`, CHƯA bấm thử, CHƯA OTA
 Cột Trạng thái ở danh mục + Excel; trang Menu theo quán ẩn cả hàng hoá ngừng dùng; lưu menu với id đã bị xoá báo rõ thay vì
 "dữ liệu đang được tham chiếu". Có migration. Đã kiểm: typecheck 3 app, lint, `expo export`, migrate DB trắng + `kho_db` +
 `kho_dev_copy`, drift rỗng, ~18 ca curl trên `kho_dev_copy`. Phần đọc file Excel và các form chưa thử trên trình duyệt/máy.
 
-### App: bỏ dòng "Phạm vi dữ liệu" ở tab Thêm — mới ở `dev`, CHƯA lên `staging`/`main`, CHƯA đẩy OTA
+### App: bỏ dòng "Phạm vi dữ liệu" ở tab Thêm — ĐÃ lên `staging` + `main`, CHƯA đẩy OTA
 
 ### Làm mới giao diện web (font Be Vietnam Pro, sidebar tối, ô tìm trang Ctrl+K, trang đăng nhập) — ĐÃ lên `staging` + `main`, CHƯA bấm thử hết
 Chỉ đổi lớp dùng chung (`ui/`, `layout/`, `data-table/`, trang chủ, đăng nhập), không đụng nghiệp vụ. Bỏ điền sẵn email admin ở form đăng nhập.
@@ -94,13 +94,6 @@ thật vẫn phải > 0. **Server phải lên trước app/web** — server cũ 
 Lịch inline của iOS mở ngay dưới ô nên chỉ rộng bằng ô; ở bộ lọc khoảng ngày (8 màn) mỗi ô nửa màn hình
 nên ngày Thứ 6–CN không chạm được. Giờ mở trong tấm trượt rộng cả màn hình (`ui/DateTimeField.tsx`).
 OTA chở theo phần mobile của `8c62b79` (bỏ cộng bù vỏ ở form sửa điều chuyển) — đã tới cả Android (`d43fa04`).
-
-### 51 món Việt Trì + công thức đã nạp vào DB production — CHƯA bấm thử trên trình duyệt
-Nạp từ bảng cost của quán Việt Trì qua API prod (bulk-import + PUT công thức), mã `MVT001`–`MVT051`,
-nhóm Trà, công thức CHUNG mốc 2000-01-01, 394 dòng. Bán thành phẩm (cốt trà, kem mặn, trân châu, thạch)
-đã quy ngược về NVL thô vì công thức chỉ nhận hàng hoá. Món đang hiện ở MỌI quán — menu riêng theo quán
-vừa lên `main` nên giờ gán được về Việt Trì. Còn thiếu: ánh xạ món POS, giá vốn 4 hàng `VT05/VT03/VT02/VT09`,
-và bỏ bản trùng `BUOIDAXANH` (công thức dùng `buoidaxanh` theo Quả).
 
 ### Order bánh (web, trước gọi là Đơn bánh) — ĐÃ lên `main`, CHƯA bấm thử trên trình duyệt (app: xem mục trên)
 Quán đặt → tiệm bánh XN → vận chuyển lấy → quán nhận (tự sinh phiếu nhập kho); admin sửa SL/ngày nhận sau hoàn thành.
@@ -211,6 +204,8 @@ vào `CLAUDE.md`; sửa script để dành cho đợt có build native mới.
 ## Còn lại
 
 ### Vết sẵn có, đã biết mà chủ động gác lại
+- **18/11 đã xoá 50 món `MVT…` (Việt Trì) trên prod** cùng công thức + giá của chúng. Hàng hoá `VT01`–`VT25` để lại —
+  chưa rà mã nào còn dùng, mã nào thành thừa.
 - **`PUT /products/:id` gửi THIẾU trường là reset `costPrice` = 0, `type` = NVL, `active` = true**: `schema.partial()`
   của Zod 4 vẫn điền `.default()`. Web/app không dính vì form luôn gửi đủ; client nào gửi một phần là hỏng dữ liệu.
 - **`kho_dev_copy`: 133 hàng hoá có `costPrice`/`type`/`active` đắp tạm từ `kho_prod_copy`** (bị vết trên làm hỏng lúc
