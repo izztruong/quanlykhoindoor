@@ -14,6 +14,10 @@ const schema = z.object({
   // Chỉ có tác dụng với phiếu Check Cost lập khi bật cờ "Dùng VAT".
   // `.nullish()` chứ không `.optional()`: giao diện gửi `null` để GỠ VAT đã khai về chưa khai.
   vatPercent: z.coerce.number().min(0).max(999.99).nullish(),
+  // KHÔNG `.default(true)`: `schema.partial()` của Zod 4 vẫn điền default, nên PUT gửi thiếu trường sẽ
+  // bật lại món đã ngừng bán (vết y hệt `PUT /products/:id`). Tạo mới thì DB tự để true.
+  // PHẢI giữ khớp `finishedGoodItemSchema` bên `finishedGoodPrices` — PUT và bulk-import đi qua schema đó.
+  active: z.boolean().optional(),
 });
 
 export const finishedGoodItemsRouter = createCrudRouter(prisma.finishedGoodItem, {

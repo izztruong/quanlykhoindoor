@@ -20,6 +20,8 @@ interface ParsedItem {
   category?: string;
   sellingPrice?: number;
   vatPercent?: number | null;
+  /** undefined = ô trống = không sửa (file cũ không có cột này); món mới thì DB tự để "đang dùng". */
+  active?: boolean;
 }
 
 interface ImportResult {
@@ -41,7 +43,11 @@ const COLUMNS = [
   { key: "category", label: "Nhóm" },
   { key: "sellingPrice", label: "Giá bán" },
   { key: "vatPercent", label: "VAT (%)" },
+  { key: "active", label: "Trạng thái" },
 ] as const;
+
+const ACTIVE_LABEL = "Đang dùng";
+const INACTIVE_LABEL = "Ngừng dùng";
 
 const TEMPLATE_HEADER = COLUMNS.map((c) => c.label);
 /** Số thứ tự cột trong sheet (1-based) theo khoá. */
@@ -94,7 +100,7 @@ export function FinishedGoodItemExcelImport({ items, search }: FinishedGoodItemE
     const sheet = workbook.addWorksheet("Đồ thành phẩm");
     sheet.columns = TEMPLATE_HEADER.map((header) => ({ header, width: 26 }));
     sheet.getRow(1).font = { bold: true };
-    sheet.addRow(sanitizeExcelRow(["TP001", "Cà phê ủ", units[0]?.name ?? "Gam", "Trà", 25000, 8]));
+    sheet.addRow(sanitizeExcelRow(["TP001", "Cà phê ủ", units[0]?.name ?? "Gam", "Trà", 25000, 8, ACTIVE_LABEL]));
     await downloadWorkbook(workbook, "mau-do-thanh-pham.xlsx");
   }
 
@@ -119,6 +125,7 @@ export function FinishedGoodItemExcelImport({ items, search }: FinishedGoodItemE
           item.category ? labels.finishedGoodCategory(item.category) : "",
           item.sellingPrice != null ? Number(item.sellingPrice) : "",
           item.vatPercent != null ? Number(item.vatPercent) : "",
+          item.active === false ? INACTIVE_LABEL : ACTIVE_LABEL,
         ]),
       );
     await downloadWorkbook(workbook, "do-thanh-pham.xlsx");
@@ -164,6 +171,7 @@ export function FinishedGoodItemExcelImport({ items, search }: FinishedGoodItemE
         const sellingPriceRaw = row.getCell(COL.sellingPrice).value;
         const vatCell = row.getCell(COL.vatPercent);
         const vatText = cell(COL.vatPercent);
+        const activeText = cell(COL.active);
 
         if (!code && !name) return;
         if (!code || !name) {
@@ -198,12 +206,26 @@ export function FinishedGoodItemExcelImport({ items, search }: FinishedGoodItemE
           vatPercent = parsed;
         }
 
+        // Ô trống = KHÔNG sửa (`undefined`), khác hẳn VAT ở trên: file xuất từ bản cũ không có cột này,
+        // mà gửi `true` cho ô trống là mỗi lần nhập file cũ bật lại mọi món đã ngừng dùng.
+        let active: boolean | undefined;
+        if (activeText !== "") {
+          const normalized = activeText.toLowerCase();
+          if (normalized === ACTIVE_LABEL.toLowerCase()) active = true;
+          else if (normalized === INACTIVE_LABEL.toLowerCase()) active = false;
+          else {
+            errors.push(`Dòng ${rowNumber}: Trạng thái chỉ nhận "${ACTIVE_LABEL}" hoặc "${INACTIVE_LABEL}" ("${activeText}")`);
+            return;
+          }
+        }
+
         parsedItems.push({
           code,
           name,
           unitId,
           category,
           vatPercent,
+          active,
           sellingPrice: sellingPriceRaw !== null && sellingPriceRaw !== undefined && sellingPriceRaw !== "" ? Number(sellingPriceRaw) : undefined,
         });
       });
@@ -265,6 +287,11 @@ export function FinishedGoodItemExcelImport({ items, search }: FinishedGoodItemE
               <strong>VAT (%)</strong> điền số phần trăm, ví dụ <code>8</code> hoặc <code>10</code> — không điền
               <code> 0,08</code>. Để trống nghĩa là chưa khai và Check Cost coi như 0%; cột này chỉ có tác dụng với phiếu
               Check Cost lập khi bật &quot;Dùng VAT&quot;. File xuất từ bản cũ chưa có cột này vẫn nhập được bình thường.
+            </p>
+            <p className="text-sm text-slate-600">
+              <strong>Trạng thái</strong> điền <code>{ACTIVE_LABEL}</code> hoặc <code>{INACTIVE_LABEL}</code>. Để trống thì
+              giữ nguyên trạng thái hiện có (món mới mặc định là đang dùng). Món ngừng dùng bị ẩn khỏi ô chọn món khi lập
+              phiếu kiểm, phiếu huỷ và khỏi trang Menu theo quán.
             </p>
             <p className="text-sm text-slate-600">
               <strong>Cách ghi số</strong>: ô số thật thì điền thẳng. Ô dạng chữ đọc theo kiểu máy — dấu chấm là thập

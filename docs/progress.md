@@ -1,6 +1,6 @@
 # Tiến độ dự án
 
-Cập nhật: 2026-11-17
+Cập nhật: 2026-11-18
 
 Ghi **đúng những gì git không tự trả lời được**. Lý do thiết kế đã nằm trong commit message, đừng
 chép lại vào đây. Mỗi mục "Đang dở" tối đa 3–4 dòng, và dòng quan trọng nhất luôn là: *đã kiểm thử
@@ -50,6 +50,13 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 77 món TRA/THANH_PHAM mã `M`/`TP`+số: giá riêng = giá chung × 1,08 làm tròn đồng; công thức riêng đổi NVL sang bản cùng tên
 mã đuôi `VAT`. 49 dòng/quán giữ NVL cũ vì chưa có bản VAT — tạo mã VAT cho 45 NVL đó thì phải sửa tay bản riêng của 2 quán.
 Từ 01/11 phiếu kiểm của 2 quán phải đếm mã `…VAT`, không thì Check Cost lệch.
+18/11: đã xoá bản VAT của nhóm Cốc thủy tinh, Đồ khô, `VT02VAT` (cùng `buoidaxanh`, `mohonglam*`) trên prod — công thức riêng
+và phiếu kiểm chuyển về mã thường, nên các NVL đó KHÔNG còn bản VAT.
+
+### Đồ thành phẩm có cờ "Đang dùng" + ẩn khỏi phiếu kiểm/huỷ, Menu theo quán — mới ở `dev`, CHƯA bấm thử, CHƯA OTA
+Cột Trạng thái ở danh mục + Excel; trang Menu theo quán ẩn cả hàng hoá ngừng dùng; lưu menu với id đã bị xoá báo rõ thay vì
+"dữ liệu đang được tham chiếu". Có migration. Đã kiểm: typecheck 3 app, lint, `expo export`, migrate DB trắng + `kho_db` +
+`kho_dev_copy`, drift rỗng, ~18 ca curl trên `kho_dev_copy`. Phần đọc file Excel và các form chưa thử trên trình duyệt/máy.
 
 ### App: bỏ dòng "Phạm vi dữ liệu" ở tab Thêm — mới ở `dev`, CHƯA lên `staging`/`main`, CHƯA đẩy OTA
 

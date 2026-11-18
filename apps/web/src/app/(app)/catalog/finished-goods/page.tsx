@@ -21,6 +21,16 @@ const columns: ColumnDef<FinishedGoodItem>[] = [
     id: "vatPercent",
   },
   {
+    header: "Trạng thái",
+    id: "active",
+    cell: ({ row }) =>
+      row.original.active === false ? (
+        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">Ngừng dùng</span>
+      ) : (
+        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-600">Đang dùng</span>
+      ),
+  },
+  {
     header: "Công thức",
     id: "recipe",
     cell: ({ row }) => (
@@ -70,8 +80,27 @@ export default function FinishedGoodItemsPage() {
         // Để trống phải GỠ được VAT đã khai, không chỉ là "không sửa" — xem buildPayload.
         clearable: true,
       },
+      {
+        name: "active",
+        label: "Đang sử dụng (bỏ tick để ẩn khỏi phiếu kiểm, phiếu huỷ và trang Menu theo quán)",
+        type: "checkbox" as const,
+      },
     ],
     [units],
+  );
+
+  const filters = useMemo(
+    () => [
+      {
+        name: "active",
+        label: "Trạng thái",
+        options: [
+          { value: "true", label: "Đang dùng" },
+          { value: "false", label: "Ngừng dùng" },
+        ],
+      },
+    ],
+    [],
   );
 
   return (
@@ -83,6 +112,7 @@ export default function FinishedGoodItemsPage() {
       queryKey="finished-good-items"
       columns={columns}
       fields={fields}
+      filters={filters}
       search={search}
       onSearchChange={setSearch}
       headerExtra={<FinishedGoodItemExcelImport items={finishedGoodItems} search={search} />}

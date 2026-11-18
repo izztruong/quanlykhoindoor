@@ -125,8 +125,10 @@ export function MaterialWasteFormClient({ existing }: MaterialWasteFormClientPro
   const suggestions = useMemo(() => filterSuggestions(products, rowIds, search), [search, products, rowIds]);
 
   const finishedRowIds = useMemo(() => new Set(finishedRows.map((r) => r.finishedGoodItemId)), [finishedRows]);
+  // Món ngừng dùng không gợi ý để thêm dòng mới. Dòng có sẵn trong phiếu đang sửa mang theo chính
+  // object món của nó (toFinishedRows) nên vẫn hiện và sửa được.
   const finishedSuggestions = useMemo(
-    () => filterSuggestions(finishedGoodItems, finishedRowIds, finishedSearch),
+    () => filterSuggestions(finishedGoodItems.filter((f) => f.active !== false), finishedRowIds, finishedSearch),
     [finishedSearch, finishedGoodItems, finishedRowIds],
   );
 

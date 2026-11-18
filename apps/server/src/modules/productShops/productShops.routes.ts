@@ -63,6 +63,16 @@ productShopsRouter.put("/", requirePermission("PRODUCTS", "EDIT"), async (req, r
   const toAssign = items.filter((it) => it.assigned).map((it) => it.productId);
   const toRemove = items.filter((it) => !it.assigned).map((it) => it.productId);
 
+  // Cùng lý do như `finishedGoodMenus`: hàng hoá xoá sau lúc mở trang vẫn tích được, và createMany
+  // vỡ khoá ngoại thành câu báo lỗi chung. Kiểm trước bước hỏi xác nhận; chỉ `toAssign` mới cần.
+  if (toAssign.length > 0) {
+    const existing = await prisma.product.count({ where: { id: { in: toAssign } } });
+    const missing = new Set(toAssign).size - existing;
+    if (missing > 0) {
+      throw new HttpError(409, `Có ${missing} hàng hoá không còn tồn tại (có thể vừa bị xoá). Hãy tải lại trang (F5) rồi lưu lại.`);
+    }
+  }
+
   if (toRemove.length > 0 && !confirmWarnings) {
     const [willBecomeGlobal, countedRows] = await Promise.all([
       prisma.product.findMany({

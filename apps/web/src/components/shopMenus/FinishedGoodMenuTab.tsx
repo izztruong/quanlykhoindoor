@@ -56,6 +56,8 @@ export function FinishedGoodMenuTab({ shopUserId, shopName }: { shopUserId: stri
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
     return items.filter((it) => {
+      // Món ngừng dùng không hiện để gán. Dòng gán cũ của nó (nếu có) vẫn nằm nguyên trong DB.
+      if (it.active === false) return false;
       if (category && (it.category ?? "") !== category) return false;
       if (!term) return true;
       return it.name.toLowerCase().includes(term) || it.code.toLowerCase().includes(term);

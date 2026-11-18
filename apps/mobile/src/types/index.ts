@@ -259,6 +259,8 @@ export interface FinishedGoodItem {
   sellingPrice?: string | number | null;
   /** VAT theo PHẦN TRĂM (8 = 8%). null = chưa khai = Check Cost coi như 0%. */
   vatPercent?: string | number | null;
+  /** false = ngừng bán — ẩn khỏi ô chọn món khi lập phiếu kiểm/huỷ mới. */
+  active?: boolean;
   /**
    * Quán nào có món này. MẢNG RỖNG = chưa gán quán nào = MỌI quán đều thấy (quy ước ghi ở
    * utils/shopMenu.ts bên server). Chỉ có ở GET danh sách, không có ở GET chi tiết.

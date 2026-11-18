@@ -143,9 +143,14 @@ export function StockCheckForm({ existing }: { existing?: StockCheck }) {
     return map;
   }, [products]);
 
+  // Món ngừng dùng bị ẩn — trừ khi chính phiếu đang sửa đã có dòng của nó (giống bản web).
+  const existingFinishedIds = useMemo(() => new Set((existing?.finishedItems ?? []).map((it) => it.finishedGoodItemId)), [existing]);
   const thanhPhamItems = useMemo(
-    () => finishedGoodItems.filter((f) => f.category === "THANH_PHAM").sort((a, b) => a.name.localeCompare(b.name)),
-    [finishedGoodItems],
+    () =>
+      finishedGoodItems
+        .filter((f) => f.category === "THANH_PHAM" && (f.active !== false || existingFinishedIds.has(f.id)))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [finishedGoodItems, existingFinishedIds],
   );
 
   const productById = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);

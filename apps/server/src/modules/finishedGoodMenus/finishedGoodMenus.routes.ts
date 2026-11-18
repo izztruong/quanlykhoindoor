@@ -46,6 +46,18 @@ finishedGoodMenusRouter.put("/", requirePermission("FINISHED_GOODS", "EDIT"), as
   const toAssign = items.filter((it) => it.assigned).map((it) => it.finishedGoodItemId);
   const toRemove = items.filter((it) => !it.assigned).map((it) => it.finishedGoodItemId);
 
+  // Trang giữ danh sách món từ lúc mở (không tự tải lại) — món bị xoá sau đó vẫn tích được, và
+  // createMany sẽ vỡ khoá ngoại thành câu "dữ liệu đang được tham chiếu" không ai hiểu. Kiểm trước,
+  // TRƯỚC cả bước hỏi xác nhận, để người dùng không xác nhận xong mới bị lỗi. Bỏ tích món đã xoá thì
+  // vô hại (dòng gán đã cascade theo) nên chỉ kiểm `toAssign`.
+  if (toAssign.length > 0) {
+    const existing = await prisma.finishedGoodItem.count({ where: { id: { in: toAssign } } });
+    const missing = new Set(toAssign).size - existing;
+    if (missing > 0) {
+      throw new HttpError(409, `Có ${missing} món không còn tồn tại (có thể vừa bị xoá). Hãy tải lại trang (F5) rồi lưu lại.`);
+    }
+  }
+
   if (toRemove.length > 0 && !confirmGlobal) {
     const willBecomeGlobal = await prisma.finishedGoodItem.findMany({
       where: {
@@ -122,7 +134,10 @@ finishedGoodItemMenuScopeRouter.get("/", async (req, res) => {
         ],
       }
     : {};
-  const where: Prisma.FinishedGoodItemWhereInput = { AND: [searchWhere, menuWhere(shopUserId)] };
+  // `active` là cột Boolean nên phải ép kiểu từ chuỗi — cùng cách `productMenuScopeRouter` làm.
+  const activeWhere: Prisma.FinishedGoodItemWhereInput =
+    req.query.active === "true" ? { active: true } : req.query.active === "false" ? { active: false } : {};
+  const where: Prisma.FinishedGoodItemWhereInput = { AND: [searchWhere, activeWhere, menuWhere(shopUserId)] };
 
   const [items, total] = await Promise.all([
     prisma.finishedGoodItem.findMany({

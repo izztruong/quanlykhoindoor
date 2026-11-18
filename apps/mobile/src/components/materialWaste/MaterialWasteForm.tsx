@@ -152,9 +152,15 @@ export function MaterialWasteForm({ existing }: { existing?: MaterialWaste }) {
    * Không có nguy cơ đếm hai lần: món `TRA`/`DAV` không được đếm ở phiếu kiểm kê quán (form kiểm chỉ
    * liệt kê `THANH_PHAM`), và món bị bỏ cũng không có trong doanh số POS nên không vào `theoretical`.
    */
+  // Món ngừng dùng bị ẩn — trừ khi chính phiếu đang sửa đã có dòng của nó: danh sách này cũng là chỗ
+  // hiện dòng đã nhập, ẩn đi thì dòng vẫn được gửi lại mà người sửa không thấy để sửa/xoá.
+  const existingFinishedIds = useMemo(() => new Set((existing?.finishedItems ?? []).map((it) => it.finishedGoodItemId)), [existing]);
   const finishedGoodOptions = useMemo(
-    () => [...finishedGoodItems].sort((a, b) => a.name.localeCompare(b.name)),
-    [finishedGoodItems],
+    () =>
+      finishedGoodItems
+        .filter((f) => f.active !== false || existingFinishedIds.has(f.id))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [finishedGoodItems, existingFinishedIds],
   );
 
   function updateMaterialEntry(productId: string, patch: Partial<MaterialEntry>) {

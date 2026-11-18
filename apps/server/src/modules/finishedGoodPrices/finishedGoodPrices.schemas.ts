@@ -25,6 +25,10 @@ export const finishedGoodItemSchema = z.object({
   // trả 200 mà không lưu (đã xảy ra với chính trường này lúc mới thêm).
   // `.nullish()`: giao diện gửi `null` để gỡ VAT đã khai về chưa khai.
   vatPercent: z.coerce.number().min(0).max(999.99).nullish(),
+  // Cùng lý do như trên: thiếu ở đây là form sửa món trả 200 mà không lưu trạng thái. Không
+  // `.default(true)` — bulk-import gửi trọn dòng từ Excel (file không có cột này), điền default là mỗi
+  // lần nhập file bật lại mọi món đã ngừng bán.
+  active: z.boolean().optional(),
 });
 
 export const finishedGoodItemBulkSchema = z.object({ items: z.array(finishedGoodItemSchema).min(1) });

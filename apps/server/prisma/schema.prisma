@@ -192,6 +192,10 @@ model FinishedGoodItem {
   // Thuế VAT của giá bán, theo PHẦN TRĂM (8 = 8%). NULL = chưa khai = 0%. Cùng luật như
   // `Product.vatPercent`: chỉ dùng cho doanh thu của phiếu Check Cost bật cờ `useVat`.
   vatPercent   Decimal?              @db.Decimal(5, 2)
+  // Món ngừng bán (active=false) vẫn giữ nguyên lịch sử — công thức, giá, phiếu cũ, Check Cost đã lập.
+  // Ẩn khỏi trang Menu theo quán và ô chọn món của phiếu kiểm / phiếu huỷ (web + app; lọc ở giao diện,
+  // phiếu đang sửa vẫn hiện món cũ của nó). Ánh xạ POS, nhập doanh số, Bánh bán ra CHƯA lọc theo cờ này.
+  active       Boolean               @default(true)
   createdAt    DateTime              @default(now())
 
   stockCheckFinishedItems    StockCheckFinishedItem[]

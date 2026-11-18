@@ -67,6 +67,8 @@ export function ProductShopTab({ shopUserId, shopName }: { shopUserId: string; s
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
     return products.filter((p) => {
+      // Hàng ngừng dùng không hiện để gán. Dòng gán cũ của nó (nếu có) vẫn nằm nguyên trong DB.
+      if (p.active === false) return false;
       if (type && p.type !== type) return false;
       if (groupId && p.productGroupId !== groupId) return false;
       if (!term) return true;
@@ -253,10 +255,7 @@ export function ProductShopTab({ shopUserId, shopName }: { shopUserId: string; s
                         />
                       </td>
                       <td className="border border-slate-200 px-3 py-2">{p.code}</td>
-                      <td className="border border-slate-200 px-3 py-2">
-                        {p.name}
-                        {!p.active && <span className="ml-2 text-xs text-slate-400">(ngừng dùng)</span>}
-                      </td>
+                      <td className="border border-slate-200 px-3 py-2">{p.name}</td>
                       <td className="border border-slate-200 px-3 py-2">{TYPE_LABELS[p.type] ?? p.type}</td>
                       <td className="border border-slate-200 px-3 py-2">{p.productGroup?.name ?? "-"}</td>
                       <td className="border border-slate-200 px-3 py-2">
