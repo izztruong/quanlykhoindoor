@@ -137,7 +137,14 @@ finishedGoodItemMenuScopeRouter.get("/", async (req, res) => {
   // `active` là cột Boolean nên phải ép kiểu từ chuỗi — cùng cách `productMenuScopeRouter` làm.
   const activeWhere: Prisma.FinishedGoodItemWhereInput =
     req.query.active === "true" ? { active: true } : req.query.active === "false" ? { active: false } : {};
-  const where: Prisma.FinishedGoodItemWhereInput = { AND: [searchWhere, activeWhere, menuWhere(shopUserId)] };
+  // Lọc theo CÔNG THỨC của quán — khác hẳn `shopUserId` ở trên (lọc theo MENU, bị ép cho tài khoản quán).
+  // Món có bản công thức riêng của quán đó, hoặc có bản chung (bản chung áp cho mọi quán). "Có" = có ít
+  // nhất một phiên bản bất kỳ, cùng cách `utils/recipeVersions.ts` phân giải riêng → chung.
+  const recipeShopUserId = typeof req.query.recipeShopUserId === "string" ? req.query.recipeShopUserId : "";
+  const recipeWhere: Prisma.FinishedGoodItemWhereInput = recipeShopUserId
+    ? { recipeVersions: { some: { OR: [{ shopUserId: recipeShopUserId }, { shopUserId: null }] } } }
+    : {};
+  const where: Prisma.FinishedGoodItemWhereInput = { AND: [searchWhere, activeWhere, recipeWhere, menuWhere(shopUserId)] };
 
   const [items, total] = await Promise.all([
     prisma.finishedGoodItem.findMany({
@@ -146,7 +153,12 @@ finishedGoodItemMenuScopeRouter.get("/", async (req, res) => {
       skip,
       take,
       // `shops` để giao diện hiện được "mọi quán" / "đang gán cho N quán" mà không phải gọi thêm.
-      include: { unit: true, shops: { select: { shopUserId: true } } },
+      // `recipeVersions` (mỗi phạm vi một dòng) cho cột "Công thức áp cho" ở trang danh mục.
+      include: {
+        unit: true,
+        shops: { select: { shopUserId: true } },
+        recipeVersions: { select: { shopUserId: true }, distinct: ["shopUserId"] },
+      },
     }),
     prisma.finishedGoodItem.count({ where }),
   ]);

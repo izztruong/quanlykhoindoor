@@ -3,13 +3,29 @@
 import { CatalogPage } from "@/components/catalog/CatalogPage";
 import { FinishedGoodItemExcelImport } from "@/components/catalog/FinishedGoodItemExcelImport";
 import { useFinishedGoodItems, useUnits } from "@/hooks/useCatalog";
+import { useUserOptions } from "@/hooks/useUsers";
 import { FINISHED_GOOD_CATEGORY_OPTIONS, formatCurrency, labels } from "@/lib/format";
+import { useCan } from "@/lib/permissions";
 import type { FinishedGoodItem } from "@/types";
 import type { ColumnDef } from "@tanstack/react-table";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
-const columns: ColumnDef<FinishedGoodItem>[] = [
+/** "Chung · Riêng: Xuân La, Vũ Ngọc Phan" — phạm vi công thức đang có của món. */
+function recipeScopeLabel(item: FinishedGoodItem, shopNameById: Map<string, string>): string {
+  const scopes = item.recipeVersions ?? [];
+  if (scopes.length === 0) return "Chưa có";
+  const parts: string[] = [];
+  if (scopes.some((s) => s.shopUserId === null)) parts.push("Chung");
+  const own = scopes
+    .filter((s): s is { shopUserId: string } => s.shopUserId !== null)
+    .map((s) => shopNameById.get(s.shopUserId) ?? "quán khác")
+    .sort((a, b) => a.localeCompare(b));
+  if (own.length > 0) parts.push(`Riêng: ${own.join(", ")}`);
+  return parts.join(" · ");
+}
+
+const baseColumns: ColumnDef<FinishedGoodItem>[] = [
   { header: "Mã", accessorKey: "code" },
   { header: "Tên đồ thành phẩm", accessorKey: "name" },
   { header: "Đơn vị", accessorFn: (row) => row.unit?.name, id: "unit" },
@@ -54,6 +70,22 @@ export default function FinishedGoodItemsPage() {
   const { data: units = [] } = useUnits();
   const { data: finishedGoodItems = [] } = useFinishedGoodItems();
   const [search, setSearch] = useState("");
+  // Ô lọc quán chỉ có nghĩa với người xem được mọi quán. Scope "shop" gồm cả Tiệm bánh — đúng, vì tiệm
+  // bánh cũng có công thức riêng.
+  const { scopeAll } = useCan();
+  const { data: shops = [] } = useUserOptions({ enabled: scopeAll });
+
+  const columns = useMemo(() => {
+    const shopNameById = new Map(shops.map((s) => [s.id, s.name]));
+    const recipeScope: ColumnDef<FinishedGoodItem> = {
+      header: "Công thức áp cho",
+      id: "recipeScope",
+      accessorFn: (row) => recipeScopeLabel(row, shopNameById),
+    };
+    // Đặt ngay trước cột link "Công thức" để hai cột cùng nghĩa nằm cạnh nhau.
+    const at = baseColumns.findIndex((c) => c.id === "recipe");
+    return [...baseColumns.slice(0, at), recipeScope, ...baseColumns.slice(at)];
+  }, [shops]);
 
   const fields = useMemo(
     () => [
@@ -91,6 +123,16 @@ export default function FinishedGoodItemsPage() {
 
   const filters = useMemo(
     () => [
+      ...(scopeAll
+        ? [
+            {
+              // Lọc theo CÔNG THỨC, không theo menu quán: món có bản riêng của quán + món có bản chung.
+              name: "recipeShopUserId",
+              label: "Quán",
+              options: shops.map((s) => ({ value: s.id, label: s.name })),
+            },
+          ]
+        : []),
       {
         name: "active",
         label: "Trạng thái",
@@ -100,7 +142,7 @@ export default function FinishedGoodItemsPage() {
         ],
       },
     ],
-    [],
+    [scopeAll, shops],
   );
 
   return (

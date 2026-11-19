@@ -345,6 +345,8 @@ export interface FinishedGoodItem {
   vatPercent?: string | number | null;
   /** false = ngừng bán — ẩn khỏi phiếu kiểm/huỷ mới và trang Menu theo quán, lịch sử vẫn giữ nguyên. */
   active?: boolean;
+  /** Mỗi phạm vi công thức đang có một dòng: `null` = bản chung, có id = bản riêng của quán đó. Chỉ có ở GET danh sách. */
+  recipeVersions?: { shopUserId: string | null }[];
   /**
    * Quán nào có món này. MẢNG RỖNG = chưa gán quán nào = MỌI quán đều thấy (quy ước ghi ở
    * utils/shopMenu.ts bên server). Chỉ có ở GET danh sách, không có ở GET chi tiết.

@@ -1,6 +1,6 @@
 # Tiến độ dự án
 
-Cập nhật: 2026-11-18
+Cập nhật: 2026-11-19
 
 Ghi **đúng những gì git không tự trả lời được**. Lý do thiết kế đã nằm trong commit message, đừng
 chép lại vào đây. Mỗi mục "Đang dở" tối đa 3–4 dòng, và dòng quan trọng nhất luôn là: *đã kiểm thử
@@ -15,8 +15,9 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 Đang chạy trên `main`, đã bấm thử và đã tick quyền trên production. Chi tiết chức năng xem
 `nav-config.ts` và `apps/server/src/modules/`.
 
-- **Danh mục** — hàng hoá (có cờ `active`), nhóm, đơn vị, kho (gắn quán sở hữu), NCC, đồ thành phẩm
-- **Kho** — phiếu nhập kho (sửa/xoá, nhập Excel nhiều phiếu với **mã phiếu tự đặt**, đính ảnh chứng
+- **Danh mục** — hàng hoá (có cờ `active`), nhóm, đơn vị, kho (gắn quán sở hữu), NCC, đồ thành phẩm (lọc
+  theo quán theo công thức riêng/chung, cột "Công thức áp cho"; bảng công thức có cột Mã NVL)
+- **Kho** — phiếu nhập kho (ô chọn hàng hiện kèm mã, sửa/xoá, nhập Excel nhiều phiếu với **mã phiếu tự đặt**, đính ảnh chứng
   từ hàng loạt theo tên file), điều chuyển (nhập Excel), Check Cost; giá theo từng NCC
 - **Order** — danh sách, tạo đơn, Order nhanh, Tổng hợp đặt NCC. Đơn chỉ là **đề xuất**: Đã đặt → Huỷ,
   cộng ô tích "Đã xử lý" để admin đánh dấu đơn đã làm

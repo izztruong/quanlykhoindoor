@@ -276,6 +276,7 @@ export function FinishedGoodRecipeClient({ id }: { id: string }) {
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="text-left text-xs font-medium uppercase text-slate-500">
+                  <th className="border border-slate-200 px-3 py-2">Mã NVL</th>
                   <th className="border border-slate-200 px-3 py-2">Nguyên liệu</th>
                   <th className="border border-slate-200 px-3 py-2">Định lượng / 1 đơn vị</th>
                   <th className="border border-slate-200 px-3 py-2">Đơn vị công thức</th>
@@ -285,6 +286,7 @@ export function FinishedGoodRecipeClient({ id }: { id: string }) {
               <tbody>
                 {rows.map((row) => (
                   <tr key={row.productId}>
+                    <td className="border border-slate-200 px-3 py-2 text-slate-500">{row.product.code}</td>
                     <td className="border border-slate-200 px-3 py-2">{row.product.name}</td>
                     <td className="border border-slate-200 px-3 py-2">
                       <Input

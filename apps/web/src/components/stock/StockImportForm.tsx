@@ -271,9 +271,11 @@ export function StockImportForm({ existing }: { existing?: StockImport }) {
                       }}
                     >
                       <option value="">Chọn hàng hoá</option>
+                      {/* Tên đứng TRƯỚC mã: <select> gốc nhảy theo chữ đầu của nhãn khi gõ phím, đưa mã lên
+                          trước thì gõ tên hàng không nhảy tới được nữa. */}
                       {products.map((p) => (
                         <option key={p.id} value={p.id}>
-                          {p.name}
+                          {p.name} ({p.code})
                         </option>
                       ))}
                     </Select>
