@@ -62,6 +62,9 @@ Quyền `COST_CHECKS.DELETE` + `BAKERY_COST_CHECKS.DELETE` chưa tick trên prod
 Từ file "công thức đổi ra gram Indoor mỹ đình": 22 món + 9 TP có sẵn nhận công thức/giá RIÊNG Mĩ Đình; 21 món mới
 `M080`–`M100` + 9 TP mới `TP0022`–`TP0030` công thức CHUNG; giá đồ uống = giá menu ÷ 1,08; giá TP = giá vốn/g từ công
 thức. Gán thêm 68 NVL cho Mĩ Đình. Giá vốn 0 ở `VT02`/`VT03`/`VT05`/`VT09` làm giá TP0010/0013/0025 thấp hơn thật.
+**Việt Trì** (file so sánh Lạc Hồng): 37 món có sẵn nhận công thức/giá RIÊNG từ 01/11, 8 món mới `M101`–`M108` công thức
+CHUNG; giá ÷ 1,08. Menu theo quán gán CHỈ món mới (54 dòng): M080–M093, M099, M100 → MĐ + VT; M094–M098, TP0022–TP0030
+→ MĐ; M101–M108 → VT. Món cũ vẫn chưa gán (mọi quán thấy).
 
 ### Giá VAT riêng cho Vũ Ngọc Phan và Xuân La từ 01/11/2026 — ĐÃ nạp vào DB production, CHƯA bấm thử
 77 món TRA/THANH_PHAM mã `M`/`TP`+số: giá bán riêng = giá chung × 1,08 làm tròn đồng (vẫn giữ).
