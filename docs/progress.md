@@ -1,6 +1,6 @@
 # Tiến độ dự án
 
-Cập nhật: 2026-11-19
+Cập nhật: 2026-11-20
 
 Ghi **đúng những gì git không tự trả lời được**. Lý do thiết kế đã nằm trong commit message, đừng
 chép lại vào đây. Mỗi mục "Đang dở" tối đa 3–4 dòng, và dòng quan trọng nhất luôn là: *đã kiểm thử
@@ -46,6 +46,11 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 ---
 
 ## Đang dở
+
+### Check Cost: bấm ô Nhận/Xuất/Đã huỷ xem phiếu gốc + xoá hẳn phiếu — ĐÃ lên `staging` + `main`, CHƯA bấm thử trên trình duyệt
+Web, quán + tiệm bánh; mobile chưa làm. Xem phiếu gốc chỉ quản trị viên (`isSystem`). Đã kiểm: typecheck + lint, refactor bộ lọc
+ra kết quả giống hệt bản cũ (12 phiếu), drill-down khớp số báo cáo 310/310 dòng, curl quyền/phạm vi/xoá trên `kho_dev_copy`.
+Quyền `COST_CHECKS.DELETE` + `BAKERY_COST_CHECKS.DELETE` chưa tick trên prod — ngoài admin chưa ai thấy nút Xoá.
 
 ### Giá + công thức VAT riêng cho Vũ Ngọc Phan và Xuân La từ 01/11/2026 — ĐÃ nạp vào DB production, CHƯA bấm thử
 77 món TRA/THANH_PHAM mã `M`/`TP`+số: giá riêng = giá chung × 1,08 làm tròn đồng; công thức riêng đổi NVL sang bản cùng tên

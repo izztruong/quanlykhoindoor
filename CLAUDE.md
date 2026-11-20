@@ -201,6 +201,9 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
 
 - Sửa hoặc xoá phiếu ở `stockChecks` | `materialWaste` | `materialTransfers` | `stockImports` →
   **phải gọi** `utils/costCheckImpact` để cảnh báo admin tạo lại phiếu Check Cost bị ảnh hưởng.
+- **Phiếu nào được cộng vào cột Nhận / Xuất / Đã huỷ của Check Cost nằm đúng một chỗ: `utils/costCheckSources.ts`**
+  — `computeCostCheckReport` và module `costCheckSources` (bấm ô số xem phiếu gốc) cùng gọi. Đổi nguồn thì sửa ở đó;
+  viết `where` tại chỗ là danh sách phiếu hiện ra lệch với số trên phiếu. Quy đổi đơn vị thì vẫn chép ở cả hai.
 - `costChecks` đọc dữ liệu của 5 module khác (`StockCheck`, `MaterialWasteItem`,
   `MaterialTransferItem`, `StockImportItem`, `FinishedGoodRecipeItem`) — đổi schema mấy bảng đó thì
   phải ngó lại Check Cost. Dòng huỷ chỉ được trừ khi `deductInCostCheck = true` (ô "Trừ CC", quyền

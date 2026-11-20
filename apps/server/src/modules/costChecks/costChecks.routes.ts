@@ -174,3 +174,22 @@ costChecksRouter.patch("/:id/status", requirePermission("COST_CHECKS"), async (r
   });
   res.json(item);
 });
+
+/**
+ * Xoá hẳn (cần COST_CHECKS.DELETE) — khác PATCH /status là huỷ mềm. Dòng `CostCheckSoldItem` xoá theo
+ * cascade; không bảng nào khác trỏ tới `CostCheck`, nên không có phiếu nào phải cảnh báo lập lại.
+ *
+ * Chặn phiếu TIỆM BÁNH ở đây (404) dù nó cùng bảng: quyền COST_CHECKS không được với sang loại phiếu
+ * mà vai trò đó có thể không được xem — đường xoá của tiệm bánh nằm ở /bakery-cost-checks/:id.
+ */
+costChecksRouter.delete("/:id", requirePermission("COST_CHECKS"), async (req, res) => {
+  const existing = await prisma.costCheck.findFirst({
+    where: { id: req.params.id, user: { role: { isBakery: false } } },
+    select: { id: true, userId: true },
+  });
+  if (!existing) throw new HttpError(404, "Không tìm thấy phiếu Check Cost");
+  assertInScope([existing.userId], req.user, "Không tìm thấy phiếu Check Cost");
+
+  await prisma.costCheck.delete({ where: { id: existing.id } });
+  res.status(204).end();
+});

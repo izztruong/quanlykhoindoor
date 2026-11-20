@@ -97,3 +97,16 @@ bakeryCostChecksRouter.patch("/:id/status", requirePermission("BAKERY_COST_CHECK
   });
   res.json(item);
 });
+
+/** Xoá hẳn (cần BAKERY_COST_CHECKS.DELETE). Cùng luật với DELETE /cost-checks/:id, chỉ khác loại phiếu. */
+bakeryCostChecksRouter.delete("/:id", requirePermission("BAKERY_COST_CHECKS"), async (req, res) => {
+  const existing = await prisma.costCheck.findFirst({
+    where: { id: req.params.id, user: BAKERY_ONLY },
+    select: { id: true, userId: true },
+  });
+  if (!existing) throw new HttpError(404, "Không tìm thấy phiếu Check Cost tiệm bánh");
+  assertInScope([existing.userId], req.user, "Không tìm thấy phiếu Check Cost tiệm bánh");
+
+  await prisma.costCheck.delete({ where: { id: existing.id } });
+  res.status(204).end();
+});

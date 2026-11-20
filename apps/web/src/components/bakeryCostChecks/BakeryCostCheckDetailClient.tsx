@@ -4,7 +4,13 @@ import { BackToListLink } from "@/components/ui/BackToListLink";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
-import { useBakeryCostCheck, useUpdateBakeryCostCheckStatus } from "@/hooks/useBakeryCostChecks";
+import { CostCheckSourcesModal, SourceQtyButton, type CostCheckSourceTab } from "@/components/costChecks/CostCheckSourcesModal";
+import { useBakeryCostCheck, useDeleteBakeryCostCheck, useUpdateBakeryCostCheckStatus } from "@/hooks/useBakeryCostChecks";
+import { rememberedListUrl } from "@/hooks/useListUrlState";
+import { useCurrentUser } from "@/lib/auth";
+import { can } from "@/lib/permissions";
+import { Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { ApiError } from "@/lib/api-client";
 import { formatCurrency, formatNumber } from "@/lib/format";
 import type { CostCheckReportRow, ProductType } from "@/types";
@@ -29,7 +35,14 @@ function pct(value: number): string {
 export function BakeryCostCheckDetailClient({ id }: { id: string }) {
   const { data: item, isLoading } = useBakeryCostCheck(id);
   const updateStatus = useUpdateBakeryCostCheckStatus(id);
+  const deleteCostCheck = useDeleteBakeryCostCheck();
+  const { data: currentUser } = useCurrentUser();
+  const router = useRouter();
+  // Bấm ô Nhận/Chuyển đi/Huỷ xem phiếu gốc: chỉ quản trị viên (server chặn cùng luật).
+  const canSeeSources = Boolean(currentUser?.isSystem);
   const [error, setError] = useState<string | null>(null);
+  // Ô Nhận / Chuyển đi / Huỷ vừa bấm — mở modal liệt kê phiếu gốc làm nên con số đó.
+  const [sources, setSources] = useState<{ productId: string; productName: string; tab: CostCheckSourceTab } | null>(null);
 
   // Server đã trả rows theo thứ tự loại → nhóm → tên, nên chỉ gộp tuần tự theo thứ tự gặp.
   const byType = useMemo(() => {
@@ -55,6 +68,17 @@ export function BakeryCostCheckDetailClient({ id }: { id: string }) {
     });
   }
 
+  function handleDelete() {
+    if (!item) return;
+    // Xoá hẳn khác "Huỷ phiếu": không còn dòng lịch sử nào, nên nói rõ ở hộp xác nhận.
+    if (!confirm(`Xoá hẳn phiếu ${item.code}? Không khôi phục được. Muốn giữ lại lịch sử thì dùng "Huỷ phiếu".`)) return;
+    setError(null);
+    deleteCostCheck.mutate(item.id, {
+      onSuccess: () => router.replace(rememberedListUrl("/bakery-cost-checks")),
+      onError: (err) => setError(err instanceof ApiError ? err.message : "Xoá phiếu thất bại"),
+    });
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-start justify-between">
@@ -72,9 +96,17 @@ export function BakeryCostCheckDetailClient({ id }: { id: string }) {
             {item.useVat ? "đã cộng VAT" : "giá chưa thuế"}
           </p>
         </div>
-        <Button variant="secondary" onClick={toggleStatus} disabled={updateStatus.isPending}>
-          {item.status === "CANCELLED" ? "Bỏ huỷ" : "Huỷ phiếu"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" onClick={toggleStatus} disabled={updateStatus.isPending}>
+            {item.status === "CANCELLED" ? "Bỏ huỷ" : "Huỷ phiếu"}
+          </Button>
+          {can(currentUser, "BAKERY_COST_CHECKS", "DELETE") && (
+            <Button type="button" variant="danger" onClick={handleDelete} disabled={deleteCostCheck.isPending}>
+              <Trash2 size={16} />
+              {deleteCostCheck.isPending ? "Đang xoá..." : "Xoá"}
+            </Button>
+          )}
+        </div>
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
@@ -179,9 +211,27 @@ export function BakeryCostCheckDetailClient({ id }: { id: string }) {
                       </td>
                       <td className={cell}>{row.unitLabel}</td>
                       <td className={num}>{formatNumber(row.openingQty)}</td>
-                      <td className={num}>{formatNumber(row.receivedQty)}</td>
-                      <td className={num}>{formatNumber(row.transferOutQty)}</td>
-                      <td className={num}>{formatNumber(row.wastedQty)}</td>
+                      <td className={num}>
+                        <SourceQtyButton
+                          enabled={canSeeSources}
+                          value={row.receivedQty}
+                          onClick={() => setSources({ productId: row.productId, productName: row.name, tab: "received" })}
+                        />
+                      </td>
+                      <td className={num}>
+                        <SourceQtyButton
+                          enabled={canSeeSources}
+                          value={row.transferOutQty}
+                          onClick={() => setSources({ productId: row.productId, productName: row.name, tab: "transferOut" })}
+                        />
+                      </td>
+                      <td className={num}>
+                        <SourceQtyButton
+                          enabled={canSeeSources}
+                          value={row.wastedQty}
+                          onClick={() => setSources({ productId: row.productId, productName: row.name, tab: "wasted" })}
+                        />
+                      </td>
                       <td className={num}>{formatNumber(row.closingQty)}</td>
                       <td className={num}>{formatNumber(row.actualUsed)}</td>
                       <td className={num}>{formatNumber(row.theoretical)}</td>
@@ -194,6 +244,16 @@ export function BakeryCostCheckDetailClient({ id }: { id: string }) {
           </table>
         </CardBody>
       </Card>
+
+      {sources && (
+        <CostCheckSourcesModal
+          costCheckId={id}
+          productId={sources.productId}
+          productName={sources.productName}
+          initialTab={sources.tab}
+          onClose={() => setSources(null)}
+        />
+      )}
     </div>
   );
 }

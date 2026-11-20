@@ -7,6 +7,7 @@ import { errorHandler, notFoundHandler } from "./middleware/error";
 import { authRouter } from "./modules/auth/auth.routes";
 import { bakeryCostChecksRouter } from "./modules/costChecks/bakeryCostChecks.routes";
 import { costChecksRouter } from "./modules/costChecks/costChecks.routes";
+import { costCheckSourcesRouter } from "./modules/costCheckSources/costCheckSources.routes";
 import { dashboardRouter } from "./modules/dashboard/dashboard.routes";
 import { deadlinesRouter } from "./modules/deadlines/deadlines.routes";
 import { expenseProposalsRouter } from "./modules/expenseProposals/expenseProposals.routes";
@@ -119,6 +120,7 @@ app.use("/api/finished-good-recipes", finishedGoodRecipesRouter);
 app.use("/api/finished-good-prices", finishedGoodPricesRouter);
 app.use("/api/cost-checks", costChecksRouter);
 app.use("/api/bakery-cost-checks", bakeryCostChecksRouter);
+app.use("/api/cost-check-sources", costCheckSourcesRouter);
 app.use("/api/material-transfers", materialTransfersRouter);
 // Đường cũ giữ nguyên để web không phải sửa — nhóm báo cáo Kiểm toán đã bỏ, chỉ còn Tổng hợp đặt NCC.
 app.use("/api/reports/purchase-summary", purchaseSummaryRouter);

@@ -87,7 +87,9 @@ export const PERMISSION_RESOURCES = [
   // Quán chỉ thấy/sửa phiếu của KHO MÌNH (lọc theo warehouse.shopUserId, không theo người tạo) —
   // vì vậy vai trò quán KHÔNG cần DATA.SCOPE_ALL.
   { resource: "STOCK_IMPORTS", label: "Phiếu nhập kho", group: "Kho", actions: CRUD },
-  { resource: "COST_CHECKS", label: "Phiếu Check Cost", group: "Kho", actions: ["VIEW", "ADD", "EDIT"] },
+  // DELETE xoá hẳn phiếu (khác EDIT = huỷ mềm). Phiếu Check Cost không là nguồn của số liệu nào khác
+  // nên xoá không phải cảnh báo gì; chỉ mất dòng lịch sử, nên tách quyền để cấp riêng.
+  { resource: "COST_CHECKS", label: "Phiếu Check Cost", group: "Kho", actions: ["VIEW", "ADD", "EDIT", "DELETE"] },
   { resource: "MATERIAL_TRANSFERS", label: "Phiếu điều chuyển", group: "Kho", actions: ["VIEW", "ADD", "EDIT"] },
 
   { resource: "STOCK_CHECKS", label: "Phiếu kiểm kê quán", group: "Kiểm kê quán", actions: ["VIEW", "ADD", "EDIT"] },
@@ -120,7 +122,7 @@ export const PERMISSION_RESOURCES = [
   // Trục BÁN RA của tiệm bánh, tương đương POS_SALES của quán — nên cũng không có EDIT: nhập lại
   // cùng ô (ngày, người mua, bánh) là GHI ĐÈ.
   { resource: "BAKERY_SALES", label: "Bánh bán ra", group: "Quản trị", actions: ["VIEW", "ADD", "DELETE"] },
-  { resource: "BAKERY_COST_CHECKS", label: "Check Cost tiệm bánh", group: "Kho", actions: ["VIEW", "ADD", "EDIT"] },
+  { resource: "BAKERY_COST_CHECKS", label: "Check Cost tiệm bánh", group: "Kho", actions: ["VIEW", "ADD", "EDIT", "DELETE"] },
 ] as const satisfies readonly { resource: string; label: string; group: string; actions: readonly PermissionAction[] }[];
 
 export type PermissionResource = (typeof PERMISSION_RESOURCES)[number]["resource"];

@@ -72,3 +72,12 @@ export function useUpdateBakeryCostCheckStatus(id: string) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["bakery-cost-checks"] }),
   });
 }
+
+/** Xoá hẳn phiếu (quyền BAKERY_COST_CHECKS.DELETE) — khác `useUpdateBakeryCostCheckStatus` là huỷ mềm. */
+export function useDeleteBakeryCostCheck() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete<void>(`/bakery-cost-checks/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["bakery-cost-checks"] }),
+  });
+}

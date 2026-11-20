@@ -4,14 +4,19 @@ import { BackToListLink } from "@/components/ui/BackToListLink";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
-import { useCostCheck, useUpdateCostCheckStatus } from "@/hooks/useCostChecks";
+import { CostCheckSourcesModal, SourceQtyButton, type CostCheckSourceTab } from "@/components/costChecks/CostCheckSourcesModal";
+import { useCostCheck, useDeleteCostCheck, useUpdateCostCheckStatus } from "@/hooks/useCostChecks";
+import { rememberedListUrl } from "@/hooks/useListUrlState";
+import { useCurrentUser } from "@/lib/auth";
+import { can } from "@/lib/permissions";
+import { useRouter } from "next/navigation";
 import { ApiError } from "@/lib/api-client";
 import { formatDateOnly } from "@/lib/dateRange";
 import { sanitizeExcelRow } from "@/lib/excelExport";
 import { formatCurrency, formatDateTime, formatNumber, formatPercent, formatSignedPercent, labels } from "@/lib/format";
 import type { CostCheck, CostCheckFinancialSummary, CostCheckReportRow, ProductType } from "@/types";
 import ExcelJS from "exceljs";
-import { Ban, FileSpreadsheet, RotateCcw } from "lucide-react";
+import { Ban, FileSpreadsheet, RotateCcw, Trash2 } from "lucide-react";
 import { Fragment, useMemo, useState } from "react";
 
 interface CostRatioRow {
@@ -143,8 +148,15 @@ async function exportCostCheckToExcel(costCheck: CostCheck) {
 export function CostCheckDetailClient({ id }: { id: string }) {
   const { data: costCheck, isLoading } = useCostCheck(id);
   const updateStatus = useUpdateCostCheckStatus(id);
+  const deleteCostCheck = useDeleteCostCheck();
+  const { data: currentUser } = useCurrentUser();
+  const router = useRouter();
+  // Bấm ô Nhận/Xuất/Đã huỷ xem phiếu gốc: chỉ quản trị viên (server chặn cùng luật).
+  const canSeeSources = Boolean(currentUser?.isSystem);
   const [exporting, setExporting] = useState(false);
   const [statusError, setStatusError] = useState<string | null>(null);
+  // Ô Nhận / Xuất / Đã huỷ vừa bấm — mở modal liệt kê phiếu gốc làm nên con số đó.
+  const [sources, setSources] = useState<{ productId: string; productName: string; tab: CostCheckSourceTab } | null>(null);
 
   // Server đã trả rows theo đúng thứ tự loại → nhóm → tên, nên chỉ cần gộp tuần tự theo thứ tự
   // gặp (Map giữ nguyên insertion order), không sắp xếp lại ở client.
@@ -176,6 +188,17 @@ export function CostCheckDetailClient({ id }: { id: string }) {
     setStatusError(null);
     updateStatus.mutate(nextStatus, {
       onError: (err) => setStatusError(err instanceof ApiError ? err.message : "Đổi trạng thái phiếu thất bại"),
+    });
+  }
+
+  function handleDelete() {
+    if (!costCheck) return;
+    // Xoá hẳn khác "Huỷ phiếu": không còn dòng lịch sử nào, nên nói rõ ở hộp xác nhận.
+    if (!confirm(`Xoá hẳn phiếu ${costCheck.code}? Không khôi phục được. Muốn giữ lại lịch sử thì dùng "Huỷ phiếu".`)) return;
+    setStatusError(null);
+    deleteCostCheck.mutate(costCheck.id, {
+      onSuccess: () => router.replace(rememberedListUrl("/cost-checks")),
+      onError: (err) => setStatusError(err instanceof ApiError ? err.message : "Xoá phiếu thất bại"),
     });
   }
 
@@ -212,6 +235,12 @@ export function CostCheckDetailClient({ id }: { id: string }) {
             <FileSpreadsheet size={16} />
             {exporting ? "Đang xuất..." : "Xuất Excel"}
           </Button>
+          {can(currentUser, "COST_CHECKS", "DELETE") && (
+            <Button type="button" variant="danger" onClick={handleDelete} disabled={deleteCostCheck.isPending}>
+              <Trash2 size={16} />
+              {deleteCostCheck.isPending ? "Đang xoá..." : "Xoá"}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -432,13 +461,25 @@ export function CostCheckDetailClient({ id }: { id: string }) {
                               {formatNumber(row.openingQty)}
                             </td>
                             <td className="whitespace-nowrap border border-slate-200 px-4 py-2 text-right">
-                              {formatNumber(row.receivedQty)}
+                              <SourceQtyButton
+                                enabled={canSeeSources}
+                                value={row.receivedQty}
+                                onClick={() => setSources({ productId: row.productId, productName: row.name, tab: "received" })}
+                              />
                             </td>
                             <td className="whitespace-nowrap border border-slate-200 px-4 py-2 text-right">
-                              {formatNumber(row.wastedQty)}
+                              <SourceQtyButton
+                                enabled={canSeeSources}
+                                value={row.wastedQty}
+                                onClick={() => setSources({ productId: row.productId, productName: row.name, tab: "wasted" })}
+                              />
                             </td>
                             <td className="whitespace-nowrap border border-slate-200 px-4 py-2 text-right">
-                              {formatNumber(row.transferOutQty)}
+                              <SourceQtyButton
+                                enabled={canSeeSources}
+                                value={row.transferOutQty}
+                                onClick={() => setSources({ productId: row.productId, productName: row.name, tab: "transferOut" })}
+                              />
                             </td>
                             <td className="whitespace-nowrap border border-slate-200 px-4 py-2 text-right">
                               {formatNumber(row.closingQty)}
@@ -473,6 +514,16 @@ export function CostCheckDetailClient({ id }: { id: string }) {
           </table>
         </CardBody>
       </Card>
+
+      {sources && (
+        <CostCheckSourcesModal
+          costCheckId={id}
+          productId={sources.productId}
+          productName={sources.productName}
+          initialTab={sources.tab}
+          onClose={() => setSources(null)}
+        />
+      )}
     </div>
   );
 }

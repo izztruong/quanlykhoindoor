@@ -64,3 +64,12 @@ export function useUpdateCostCheckStatus(id: string) {
     },
   });
 }
+
+/** Xoá hẳn phiếu (quyền COST_CHECKS.DELETE) — khác `useUpdateCostCheckStatus` là huỷ mềm. */
+export function useDeleteCostCheck() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete<void>(`/cost-checks/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["cost-checks"] }),
+  });
+}

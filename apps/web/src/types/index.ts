@@ -568,6 +568,38 @@ export interface CostCheckPosPreview {
   }[];
 }
 
+/**
+ * Phiếu gốc làm nên cột Nhận / Xuất / Đã huỷ của một nguyên liệu trên phiếu Check Cost
+ * (`GET /cost-check-sources/:costCheckId?productId=`). Đọc dữ liệu SỐNG — `snapshot` là số đã chốt
+ * trên phiếu, để so; lệch nghĩa là có phiếu nguồn đã sửa/xoá/thêm sau khi chốt.
+ * Mọi `qtyInRecipeUnit`/`total` tính bằng đơn vị công thức (cùng đơn vị cột trên phiếu).
+ */
+export interface CostCheckSourceSplitQty {
+  id: string;
+  code: string;
+  at: string;
+  wholeQuantity: number | null;
+  looseQuantity: number | null;
+  qtyInRecipeUnit: number;
+}
+
+export interface CostCheckSources {
+  costCheck: { id: string; code: string; shopName: string; isBakery: boolean; from: string; to: string; createdAt: string };
+  product: { id: string; code: string; name: string; baseUnitName: string; recipeUnitName: string; factor: number };
+  snapshot: { receivedQty: number; transferOutQty: number; wastedQty: number } | null;
+  received: {
+    imports: { id: string; code: string; at: string; supplierName: string | null; quantity: number; qtyInRecipeUnit: number }[];
+    transfersIn: (CostCheckSourceSplitQty & { shopName: string })[];
+    total: number;
+  };
+  transferOut: { items: (CostCheckSourceSplitQty & { shopName: string })[]; total: number };
+  wasted: {
+    raw: CostCheckSourceSplitQty[];
+    finished: { id: string; code: string; at: string; finishedGoodName: string; quantity: number; perUnit: number; qtyInRecipeUnit: number }[];
+    total: number;
+  };
+}
+
 export interface AffectedCostCheck {
   id: string;
   code: string;

@@ -2,6 +2,13 @@ import { prisma } from "../../config/db";
 import type { Prisma, ProductType } from "../../generated/prisma/client";
 import type { AuthUser } from "../../middleware/auth";
 import { generateCode } from "../../utils/codeGenerator";
+import {
+  stockImportItemsWhere,
+  transferInItemsWhere,
+  transferOutItemsWhere,
+  wasteFinishedItemsWhere,
+  wasteItemsWhere,
+} from "../../utils/costCheckSources";
 import { HttpError } from "../../utils/httpError";
 import { PriceHistory } from "../../utils/priceHistory";
 import { costPerRecipeUnit } from "../../utils/vat";
@@ -429,69 +436,28 @@ export async function computeCostCheckReport(
 
   const { openingStockCheck: opening, closingStockCheck: closing } = costCheck;
 
-  // "Hàng về trong kỳ" lấy từ PHIẾU NHẬP KHO của kho quán, không phải SL nhận trên đơn hàng: đơn
-  // hàng chỉ còn là đề xuất của quán, còn hàng thực nhận (kể cả hàng mua ngoài, không qua đơn) ghi ở
-  // phiếu nhập. `Warehouse.shopUserId` là chỗ nối kho với tài khoản quán mà Check Cost neo theo.
-  //
-  // KHÔNG lọc theo `type`: phiếu `OTHER` cũng là hàng về trong kỳ. Đừng thêm `type: "PURCHASE"` vào
-  // đây — làm vậy là âm thầm bỏ mất hàng nhập loại khác. (Enum chỉ còn PURCHASE/OTHER đúng vì
-  // TRANSFER_IN sẽ đếm hai lần với `transferInItems` bên dưới.)
-  //
-  // Biên đóng cả hai đầu, khớp `utils/costCheckImpact` và hai nguồn huỷ/điều chuyển bên dưới. Doanh
-  // số POS cố ý khác (trái đóng phải mở, xem `loadPosSalesForPeriod`) — đừng đồng bộ hai cái.
+  // Bộ lọc của cả 5 nguồn nằm ở `utils/costCheckSources` — module `costCheckSources` (bấm vào ô số để
+  // xem phiếu gốc) dùng đúng các hàm đó, nên danh sách phiếu hiện ra không thể lệch với số chốt ở đây.
+  const period = { shopUserId: costCheck.userId, from: opening.checkedAt, to: closing.checkedAt };
+
   const receivedGroups = await prisma.stockImportItem.groupBy({
     by: ["productId"],
-    where: {
-      stockImport: {
-        status: "COMPLETED",
-        transactionAt: { gte: opening.checkedAt, lte: closing.checkedAt },
-        warehouse: { shopUserId: costCheck.userId },
-      },
-    },
+    where: stockImportItemsWhere(period),
     _sum: { quantity: true },
   });
 
-  // Chỉ dòng huỷ được tích "trừ trong Check Cost"; dòng bỏ tích coi như hàng đã dùng (vẫn nằm trong actualUsed).
-  const wasteItems = await prisma.materialWasteItem.findMany({
-    where: {
-      deductInCostCheck: true,
-      materialWaste: {
-        createdById: costCheck.userId,
-        wasteAt: { gte: opening.checkedAt, lte: closing.checkedAt },
-      },
-    },
-  });
+  const wasteItems = await prisma.materialWasteItem.findMany({ where: wasteItemsWhere(period) });
 
   const wasteFinishedItems = await prisma.materialWasteFinishedItem.findMany({
-    where: {
-      deductInCostCheck: true,
-      materialWaste: {
-        createdById: costCheck.userId,
-        wasteAt: { gte: opening.checkedAt, lte: closing.checkedAt },
-      },
-    },
+    where: wasteFinishedItemsWhere(period),
     // Phải LẤY RA wasteAt, không chỉ lọc theo nó: đồ pha sẵn bị huỷ được quy về nguyên liệu bằng công
     // thức CÓ HIỆU LỰC LÚC HUỶ, nên cần mốc của từng phiếu.
     include: { materialWaste: { select: { wasteAt: true } } },
   });
 
-  const transferInItems = await prisma.materialTransferItem.findMany({
-    where: {
-      materialTransfer: {
-        toUserId: costCheck.userId,
-        transferAt: { gte: opening.checkedAt, lte: closing.checkedAt },
-      },
-    },
-  });
+  const transferInItems = await prisma.materialTransferItem.findMany({ where: transferInItemsWhere(period) });
 
-  const transferOutItems = await prisma.materialTransferItem.findMany({
-    where: {
-      materialTransfer: {
-        fromUserId: costCheck.userId,
-        transferAt: { gte: opening.checkedAt, lte: closing.checkedAt },
-      },
-    },
-  });
+  const transferOutItems = await prisma.materialTransferItem.findMany({ where: transferOutItemsWhere(period) });
 
   // Đường TÍNH LẠI (không truyền `sales`) phải tự chọn đúng nguồn bán ra. Chốt ở ĐÂY, không dựa vào
   // call site nhớ truyền: phiếu của tiệm bánh mà đi đọc `PosSaleHour` thì được một tập RỖNG, và hậu
