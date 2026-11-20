@@ -10,6 +10,7 @@ import { ApiError } from "@/lib/api-client";
 import { useCurrentUser } from "@/lib/auth";
 import { can } from "@/lib/permissions";
 import { formatCurrency, formatDateTime, formatNumber, labels } from "@/lib/format";
+import { formatVatPercent, withVat } from "@/lib/vat";
 import { Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -31,6 +32,8 @@ export function StockImportDetailClient({ id }: { id: string }) {
   // Đính ảnh chỉ cần quyền Thêm — người gõ phiếu phải đính được chứng từ cho phiếu mình vừa tạo.
   const canManageImages = can(currentUser, "STOCK_IMPORTS", "EDIT") || can(currentUser, "STOCK_IMPORTS", "ADD");
   const total = item.items.reduce((sum, line) => sum + Number(line.costAmount), 0);
+  // VAT% chốt trên từng dòng lúc lập phiếu — không đọc VAT hiện hành của danh mục.
+  const totalVat = item.items.reduce((sum, line) => sum + withVat(line.costAmount, line.vatPercent), 0);
 
   function handleDelete() {
     if (!window.confirm(`Xoá phiếu nhập ${item!.code}? Số liệu Check Cost của kỳ liên quan sẽ phải tạo lại.`)) return;
@@ -115,6 +118,10 @@ export function StockImportDetailClient({ id }: { id: string }) {
             <div className="text-slate-400">Tổng tiền vốn</div>
             <div className="font-semibold text-slate-800">{formatCurrency(total)}</div>
           </div>
+          <div>
+            <div className="text-slate-400">Tổng tiền có VAT</div>
+            <div className="font-semibold text-slate-800">{formatCurrency(totalVat)}</div>
+          </div>
           {item.note && (
             <div className="md:col-span-3">
               <div className="text-slate-400">Ghi chú</div>
@@ -136,7 +143,10 @@ export function StockImportDetailClient({ id }: { id: string }) {
                 <th className="border border-slate-200 px-4 py-2 text-left">Đơn vị</th>
                 <th className="border border-slate-200 px-4 py-2 text-right">Số lượng</th>
                 <th className="border border-slate-200 px-4 py-2 text-right">Giá vốn</th>
+                <th className="border border-slate-200 px-4 py-2 text-right">VAT</th>
+                <th className="border border-slate-200 px-4 py-2 text-right">Giá VAT</th>
                 <th className="border border-slate-200 px-4 py-2 text-right">Thành tiền</th>
+                <th className="border border-slate-200 px-4 py-2 text-right">Thành tiền VAT</th>
                 <th className="border border-slate-200 px-4 py-2 text-left">Ghi chú</th>
               </tr>
             </thead>
@@ -147,7 +157,10 @@ export function StockImportDetailClient({ id }: { id: string }) {
                   <td className="border border-slate-200 px-4 py-2">{line.product.unit?.name ?? "-"}</td>
                   <td className="border border-slate-200 px-4 py-2 text-right">{formatNumber(Number(line.quantity))}</td>
                   <td className="border border-slate-200 px-4 py-2 text-right">{formatCurrency(line.costPrice)}</td>
+                  <td className="border border-slate-200 px-4 py-2 text-right">{formatVatPercent(line.vatPercent)}</td>
+                  <td className="border border-slate-200 px-4 py-2 text-right">{formatCurrency(withVat(line.costPrice, line.vatPercent))}</td>
                   <td className="border border-slate-200 px-4 py-2 text-right">{formatCurrency(line.costAmount)}</td>
+                  <td className="border border-slate-200 px-4 py-2 text-right">{formatCurrency(withVat(line.costAmount, line.vatPercent))}</td>
                   <td className="border border-slate-200 px-4 py-2 text-slate-600">{line.note || "-"}</td>
                 </tr>
               ))}

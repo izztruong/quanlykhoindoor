@@ -229,6 +229,10 @@ Những điều dưới đây đều có lý do cụ thể — đổi mà không
   Lập tay phiếu nhập từ NCC tiệm bánh **chỉ cảnh báo** trên form (quán có lúc mua bánh lẻ) — lập trùng
   đợt hàng là Check Cost tính nhận hai lần. Mỗi bước có quyền riêng **và** chốt đúng phía (tiệm bánh
   xác nhận, quán nhận) trong service, vì quyền theo action không phân biệt được quán với tiệm bánh.
+- **`StockImportItem.vatPercent` CHỐT vào dòng** (chỉ để hiển thị giá/thành tiền có VAT; Check Cost không đọc).
+  Mọi đường ghi dòng phiếu nhập — POST/PUT/bulk-import ở `stockImports` **và** phiếu tự sinh ở `bakeryOrders` —
+  phải đi qua `withCatalogVat` (`utils/vat.ts`): thiếu trường thì lấy VAT danh mục, `null` = cố ý không VAT.
+  PUT tạo lại dòng nên client sửa phiếu phải gửi lại số cũ.
 - SL lẻ ở `stockChecks`, `materialWaste`, `materialTransfers` đi qua `utils/tareWeight`: đường TẠO
   (POST, Excel) trừ vỏ cả phiếu bằng `subtractTareWeight`; **PUT chỉ trừ dòng có SL lẻ ĐỔI**
   (`subtractTareWeightOnChanged`, so theo giá trị vì payload không có id dòng). DB lưu lượng tịnh, form

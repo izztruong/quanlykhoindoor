@@ -1,3 +1,5 @@
+import type { Prisma } from "../generated/prisma/client";
+
 /**
  * Cộng VAT vào giá, dùng cho phiếu Check Cost lập với cờ `useVat`.
  *
@@ -37,4 +39,27 @@ export function costPerRecipeUnit(
 ): number {
   const factor = product.recipeUnitsPerBaseUnit != null ? Number(product.recipeUnitsPerBaseUnit) : 1;
   return (Number(product.costPrice) / (factor || 1)) * vatMultiplier(product.vatPercent, useVat);
+}
+
+/**
+ * Điền VAT% cho dòng phiếu nhập kho chưa mang giá trị: dòng nào `vatPercent === undefined` thì lấy
+ * `Product.vatPercent` HIỆN HÀNH của hàng đó. `null` là người dùng cố ý xoá trống ô — giữ nguyên.
+ *
+ * Mọi đường ghi `StockImportItem` phải đi qua đây (POST, PUT, bulk-import Excel ở `stockImports`, phiếu
+ * tự sinh ở `bakeryOrders`), vì cột đó CHỐT vào dòng: thiếu một đường là phiếu từ đường đó không có VAT.
+ * Payload không gửi trường này (app bản cũ, file Excel) vì vậy vẫn ra đúng VAT danh mục.
+ */
+export async function withCatalogVat<T extends { productId: string; vatPercent?: number | null }>(
+  db: Pick<Prisma.TransactionClient, "product">,
+  items: T[],
+): Promise<(T & { vatPercent: Prisma.Decimal | number | null })[]> {
+  const missing = [...new Set(items.filter((it) => it.vatPercent === undefined).map((it) => it.productId))];
+  const products = missing.length
+    ? await db.product.findMany({ where: { id: { in: missing } }, select: { id: true, vatPercent: true } })
+    : [];
+  const catalog = new Map(products.map((p) => [p.id, p.vatPercent]));
+  return items.map((it) => ({
+    ...it,
+    vatPercent: it.vatPercent === undefined ? (catalog.get(it.productId) ?? null) : it.vatPercent,
+  }));
 }

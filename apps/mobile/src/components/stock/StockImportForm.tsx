@@ -16,12 +16,14 @@ import { useCan } from "@/lib/permissions";
 import { colors, spacing } from "@/lib/theme";
 import type { Product } from "@/types";
 import { ProductAdder } from "./ProductAdder";
-import { formOptions, typeOptions } from "./stockImport";
+import { formOptions, typeOptions, withVat } from "./stockImport";
 
 interface Row {
   product: Product;
   quantity: string;
   costPrice: string;
+  /** Chuỗi rỗng = không VAT (gửi `null`). Điền sẵn theo VAT danh mục khi thêm hàng. */
+  vatPercent: string;
   note: string;
 }
 const number = (value: string) => (value.trim() ? Number(value.replace(",", ".")) : NaN);
@@ -62,7 +64,10 @@ export function StockImportForm() {
   const queries = [warehouses, suppliers, products, prices];
   const lookupError = queries.find((q) => q.error)?.error;
   const loading = queries.some((q) => q.isLoading);
-  const total = rows.reduce((sum, row) => sum + (number(row.quantity) || 0) * (number(row.costPrice) || 0), 0);
+  const rowAmount = (row: Row) => (number(row.quantity) || 0) * (number(row.costPrice) || 0);
+  const rowVat = (row: Row) => (row.vatPercent.trim() ? number(row.vatPercent) : null);
+  const total = rows.reduce((sum, row) => sum + rowAmount(row), 0);
+  const totalVat = rows.reduce((sum, row) => sum + withVat(rowAmount(row), rowVat(row)), 0);
 
   function patch(index: number, values: Partial<Row>) {
     setRows((prev) => prev.map((r, i) => (i === index ? { ...r, ...values } : r)));
@@ -76,7 +81,16 @@ export function StockImportForm() {
     setRows((prev) =>
       prev.some((r) => r.product.id === product.id)
         ? prev
-        : [...prev, { product, quantity: "1", costPrice: price ? String(price.importPrice) : "0", note: "" }],
+        : [
+            ...prev,
+            {
+              product,
+              quantity: "1",
+              costPrice: price ? String(price.importPrice) : "0",
+              vatPercent: product.vatPercent != null ? String(Number(product.vatPercent)) : "",
+              note: "",
+            },
+          ],
     );
     setSearch("");
   }
@@ -104,6 +118,9 @@ export function StockImportForm() {
         return setError(`${row.product.name}: số lượng phải lớn hơn 0.`);
       if (!Number.isFinite(number(row.costPrice)) || number(row.costPrice) < 0)
         return setError(`${row.product.name}: giá vốn phải là số không âm.`);
+      const vat = rowVat(row);
+      if (vat != null && (!Number.isFinite(vat) || vat < 0 || vat > 100))
+        return setError(`${row.product.name}: VAT phải là số từ 0 đến 100.`);
     }
     create.mutate(
       {
@@ -117,6 +134,7 @@ export function StockImportForm() {
           productId: r.product.id,
           quantity: number(r.quantity),
           costPrice: number(r.costPrice),
+          vatPercent: rowVat(r),
           note: r.note || undefined,
         })),
       },
@@ -193,15 +211,26 @@ export function StockImportForm() {
                       value={row.costPrice}
                       onChangeText={(costPrice) => patch(i, { costPrice })}
                     />
+                    <Input
+                      containerStyle={{ width: 80 }}
+                      label="VAT (%)"
+                      keyboardType="decimal-pad"
+                      placeholder="0"
+                      value={row.vatPercent}
+                      onChangeText={(vatPercent) => patch(i, { vatPercent })}
+                    />
                   </View>
                   <Input label="Ghi chú hàng hoá" value={row.note} onChangeText={(note) => patch(i, { note })} />
-                  <InfoRow label="Tiền vốn" value={formatCurrency((number(row.quantity) || 0) * (number(row.costPrice) || 0))} />
+                  <InfoRow label="Giá VAT" value={formatCurrency(withVat(number(row.costPrice) || 0, rowVat(row)))} />
+                  <InfoRow label="Tiền vốn" value={formatCurrency(rowAmount(row))} />
+                  <InfoRow label="Tiền vốn VAT" value={formatCurrency(withVat(rowAmount(row), rowVat(row)))} />
                   <Button title="Bỏ dòng" variant="ghost" size="sm" onPress={() => setRows((prev) => prev.filter((_, j) => j !== i))} />
                 </CardBody>
               </Card>
             );
           })}
           <InfoRow label="Tổng tiền vốn" value={formatCurrency(total)} />
+          <InfoRow label="Tổng tiền có VAT" value={formatCurrency(totalVat)} />
           {error ? <Text style={{ color: colors.danger }}>{error}</Text> : null}
           <Button title="Lưu phiếu" loading={create.isPending} disabled={!!lookupError} onPress={submit} fullWidth />
         </Screen>

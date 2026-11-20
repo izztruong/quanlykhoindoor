@@ -6,7 +6,7 @@ import { useStockImport } from "@/hooks/useStockImports";
 import { formatCurrency, formatDateVN, formatNumber, labels } from "@/lib/format";
 import { useCan } from "@/lib/permissions";
 import { spacing } from "@/lib/theme";
-import { shopLabel, stockImportTotal } from "./stockImport";
+import { formatVatPercent, shopLabel, stockImportTotal, stockImportVatTotal, withVat } from "./stockImport";
 
 /**
  * Chi tiết chỉ đọc. Không có Trạng thái (phiếu luôn COMPLETED) và không có Khách hàng (phiếu nhập
@@ -40,6 +40,7 @@ export function StockImportDetail() {
               <InfoRow label="Hình thức" value={labels.transactionForm(row.form)} />
               <InfoRow label="Ghi chú" value={row.note || "—"} />
               <InfoRow label="Tổng tiền vốn" value={formatCurrency(stockImportTotal(row))} />
+              <InfoRow label="Tổng tiền có VAT" value={formatCurrency(stockImportVatTotal(row))} />
             </CardBody>
           </Card>
           {row.items.map((item) => (
@@ -49,7 +50,10 @@ export function StockImportDetail() {
                 <InfoRow label="Mã · ĐVT" value={`${item.product.code} · ${item.product.unit.name}`} />
                 <InfoRow label="Số lượng" value={formatNumber(item.quantity)} />
                 <InfoRow label="Giá vốn" value={formatCurrency(item.costPrice)} />
+                <InfoRow label="VAT" value={formatVatPercent(item.vatPercent)} />
+                <InfoRow label="Giá VAT" value={formatCurrency(withVat(item.costPrice, item.vatPercent))} />
                 <InfoRow label="Tiền vốn" value={formatCurrency(item.costAmount)} />
+                <InfoRow label="Tiền vốn VAT" value={formatCurrency(withVat(item.costAmount, item.vatPercent))} />
                 <InfoRow label="Ghi chú" value={item.note || "—"} />
               </CardBody>
             </Card>

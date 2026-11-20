@@ -11,6 +11,7 @@ import { useCreateStockImport, useUpdateStockImport, type StockImportInput } fro
 import { ApiError } from "@/lib/api-client";
 import { nowForDatetimeLocal, toDatetimeLocal } from "@/lib/dateRange";
 import { formatCurrency } from "@/lib/format";
+import { withVat } from "@/lib/vat";
 import type { AffectedCostCheck, StockImport } from "@/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, Trash2 } from "lucide-react";
@@ -44,6 +45,8 @@ const formSchema = z.object({
         productId: z.string().min(1, "Chọn hàng hoá"),
         quantity: z.number().positive("Số lượng phải > 0"),
         costPrice: z.number().nonnegative(),
+        // Ô rỗng = null (không VAT). Chốt vào dòng khi lưu — đổi VAT danh mục về sau không làm đổi phiếu này.
+        vatPercent: z.number().min(0, "VAT phải ≥ 0").max(100, "VAT tối đa 100%").nullable(),
         note: z.string().optional(),
       }),
     )
@@ -101,6 +104,8 @@ export function StockImportForm({ existing }: { existing?: StockImport }) {
             productId: it.productId,
             quantity: Number(it.quantity),
             costPrice: Number(it.costPrice),
+            // Gửi lại đúng số đã chốt: PUT tạo lại dòng, thiếu trường này là server điền VAT danh mục.
+            vatPercent: it.vatPercent != null ? Number(it.vatPercent) : null,
             note: it.note ?? "",
           })),
         }
@@ -111,7 +116,7 @@ export function StockImportForm({ existing }: { existing?: StockImport }) {
           warehouseId: "",
           supplierId: "",
           note: "",
-          items: [{ productId: "", quantity: 1, costPrice: 0, note: "" }],
+          items: [{ productId: "", quantity: 1, costPrice: 0, vatPercent: null, note: "" }],
         },
   });
 
@@ -121,7 +126,9 @@ export function StockImportForm({ existing }: { existing?: StockImport }) {
   // Chỉ còn đúng một kho chọn được thì điền sẵn — quán nào cũng chỉ có một kho.
   if (!isEdit && !warehouseId && warehouses.length === 1) setValue("warehouseId", warehouses[0].id);
   const supplierId = watch("supplierId");
-  const total = items.reduce((sum, it) => sum + (Number(it.quantity) || 0) * (Number(it.costPrice) || 0), 0);
+  const lineAmount = (it: FormValues["items"][number]) => (Number(it.quantity) || 0) * (Number(it.costPrice) || 0);
+  const total = items.reduce((sum, it) => sum + lineAmount(it), 0);
+  const totalVat = items.reduce((sum, it) => sum + withVat(lineAmount(it), it.vatPercent), 0);
 
   function onSubmit(values: FormValues) {
     setError(null);
@@ -246,7 +253,7 @@ export function StockImportForm({ existing }: { existing?: StockImport }) {
               type="button"
               variant="secondary"
               size="sm"
-              onClick={() => append({ productId: "", quantity: 1, costPrice: 0, note: "" })}
+              onClick={() => append({ productId: "", quantity: 1, costPrice: 0, vatPercent: null, note: "" })}
             >
               <Plus size={14} />
               Thêm dòng
@@ -256,7 +263,7 @@ export function StockImportForm({ existing }: { existing?: StockImport }) {
             {fields.map((field, index) => {
               const productRegister = register(`items.${index}.productId` as const);
               return (
-                <div key={field.id} className="grid grid-cols-1 items-end gap-3 md:grid-cols-[1fr_120px_140px_1fr_40px]">
+                <div key={field.id} className="grid grid-cols-1 items-end gap-3 md:grid-cols-[1fr_110px_130px_100px_1fr_40px]">
                   <div className="flex flex-col gap-1">
                     <label className="text-xs font-medium text-slate-500">Hàng hoá</label>
                     <Select
@@ -268,6 +275,9 @@ export function StockImportForm({ existing }: { existing?: StockImport }) {
                         // giá vốn danh mục: giá 0 là dấu "chưa có giá", đoán một con số là mất dấu đó.
                         const price = prices.find((p) => p.productId === e.target.value && p.supplierId === supplierId);
                         if (price) setValue(`items.${index}.costPrice`, Number(price.importPrice));
+                        // VAT điền sẵn theo danh mục, người dùng vẫn sửa được (hoá đơn có lúc khác mức danh mục).
+                        const product = products.find((p) => p.id === e.target.value);
+                        setValue(`items.${index}.vatPercent`, product?.vatPercent != null ? Number(product.vatPercent) : null);
                       }}
                     >
                       <option value="">Chọn hàng hoá</option>
@@ -289,6 +299,21 @@ export function StockImportForm({ existing }: { existing?: StockImport }) {
                     <Input type="number" step="0.01" {...register(`items.${index}.costPrice` as const, { valueAsNumber: true })} />
                   </div>
                   <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-slate-500">VAT (%)</label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="0"
+                      {...register(`items.${index}.vatPercent` as const, {
+                        // Ô rỗng → null chứ không phải NaN (valueAsNumber) hay 0: rỗng nghĩa là "không VAT".
+                        setValueAs: (v) => (v === "" || v == null ? null : Number(v)),
+                      })}
+                    />
+                    {errors.items?.[index]?.vatPercent && (
+                      <p className="text-xs text-red-600">{errors.items[index]?.vatPercent?.message}</p>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-1">
                     <label className="text-xs font-medium text-slate-500">Ghi chú dòng</label>
                     <Input {...register(`items.${index}.note` as const)} placeholder="(không bắt buộc)" />
                   </div>
@@ -306,6 +331,8 @@ export function StockImportForm({ existing }: { existing?: StockImport }) {
             {errors.items?.message && <p className="text-xs text-red-600">{errors.items.message}</p>}
             <div className="flex justify-end text-sm text-slate-600">
               Tổng tiền vốn: <span className="ml-2 font-semibold text-slate-800">{formatCurrency(total)}</span>
+              <span className="mx-3 text-slate-300">|</span>
+              Tổng tiền có VAT: <span className="ml-2 font-semibold text-slate-800">{formatCurrency(totalVat)}</span>
             </div>
           </CardBody>
         </Card>

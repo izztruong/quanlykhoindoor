@@ -7,6 +7,7 @@ import { findCostChecksUsingPeriodRecords, type AffectedCostCheck } from "../../
 import { deleteImages, isStorageConfigured, putImage, signedImageUrl } from "../../utils/objectStorage";
 import { parseDateRange, parsePagination } from "../../utils/pagination";
 import { HttpError } from "../../utils/httpError";
+import { withCatalogVat } from "../../utils/vat";
 import {
   MAX_IMAGES_PER_IMPORT,
   stockImportByCodesSchema,
@@ -118,6 +119,7 @@ stockImportsRouter.post("/", requirePermission("STOCK_IMPORTS"), async (req, res
   });
   if (!warehouse) throw new HttpError(404, "Không tìm thấy kho hàng");
 
+  const lines = await withCatalogVat(prisma, data.items);
   const item = await prisma.stockImport.create({
     data: {
       // Form tạo tay không có ô nhập mã nên luôn tự sinh; vẫn tôn trọng `code` nếu ai đó gửi lên, để
@@ -133,11 +135,12 @@ stockImportsRouter.post("/", requirePermission("STOCK_IMPORTS"), async (req, res
       supplierId: data.supplierId,
       createdById: req.user?.id,
       items: {
-        create: data.items.map((it) => ({
+        create: lines.map((it) => ({
           productId: it.productId,
           quantity: it.quantity,
           costPrice: it.costPrice,
           costAmount: it.quantity * it.costPrice,
+          vatPercent: it.vatPercent,
           note: it.note,
         })),
       },
@@ -256,17 +259,20 @@ stockImportsRouter.post("/bulk-import", requirePermission("STOCK_IMPORTS"), asyn
       }
       const idByCode = new Map(created.map((row) => [row.code, row.id]));
 
+      const lines = await withCatalogVat(
+        tx,
+        items.flatMap((it, index) => it.items.map((line) => ({ ...line, stockImportId: idByCode.get(codes[index]!)! }))),
+      );
       await tx.stockImportItem.createMany({
-        data: items.flatMap((it, index) =>
-          it.items.map((line) => ({
-            stockImportId: idByCode.get(codes[index]!)!,
-            productId: line.productId,
-            quantity: line.quantity,
-            costPrice: line.costPrice,
-            costAmount: line.quantity * line.costPrice,
-            note: line.note,
-          })),
-        ),
+        data: lines.map((line) => ({
+          stockImportId: line.stockImportId,
+          productId: line.productId,
+          quantity: line.quantity,
+          costPrice: line.costPrice,
+          costAmount: line.quantity * line.costPrice,
+          vatPercent: line.vatPercent,
+          note: line.note,
+        })),
       });
     },
     { timeout: 30000 },
@@ -310,6 +316,8 @@ stockImportsRouter.put("/:id", requirePermission("STOCK_IMPORTS"), async (req, r
     throw new HttpError(400, "Không đổi được kho của phiếu đã lưu — hãy xoá phiếu và tạo lại");
   }
 
+  // PUT xoá rồi tạo lại dòng, nên dòng không gửi `vatPercent` sẽ về VAT danh mục — form sửa phải gửi lại số cũ.
+  const lines = await withCatalogVat(prisma, data.items);
   const updated = await prisma.$transaction(async (tx) => {
     await tx.stockImportItem.deleteMany({ where: { stockImportId: id } });
     return tx.stockImport.update({
@@ -323,11 +331,12 @@ stockImportsRouter.put("/:id", requirePermission("STOCK_IMPORTS"), async (req, r
         note: data.note,
         supplierId: data.supplierId,
         items: {
-          create: data.items.map((it) => ({
+          create: lines.map((it) => ({
             productId: it.productId,
             quantity: it.quantity,
             costPrice: it.costPrice,
             costAmount: it.quantity * it.costPrice,
+            vatPercent: it.vatPercent,
             note: it.note,
           })),
         },

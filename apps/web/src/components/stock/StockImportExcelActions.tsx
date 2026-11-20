@@ -7,6 +7,7 @@ import { useProductSupplierPrices } from "@/hooks/useProductSupplierPrices";
 import { useBulkImportStockImports, type StockImportInput, type StockImportDuplicate } from "@/hooks/useStockImports";
 import { ApiError, api } from "@/lib/api-client";
 import { formatDateTime } from "@/lib/format";
+import { withVat } from "@/lib/vat";
 import { useCan } from "@/lib/permissions";
 import {
   DONG_HANG_COL,
@@ -133,8 +134,8 @@ export function StockImportExcelActions({ filter, scopeAll }: Props) {
             name: SHEET.phieu,
             // Cột tham khảo luôn nối SAU khối cột mẫu: phần nhập chỉ đọc đúng `PHIEU_HEADER.length`
             // ô đầu, nên chèn vào giữa (vd cạnh "Mã NCC") là file xuất ra không nhập lại được nữa.
-            header: [...PHIEU_HEADER, "Tên NCC", "Người tạo", "Tổng tiền vốn"],
-            widths: [18, 14, 14, 20, 14, 16, 28, 24, 18, 16],
+            header: [...PHIEU_HEADER, "Tên NCC", "Người tạo", "Tổng tiền vốn", "Tổng tiền VAT"],
+            widths: [18, 14, 14, 20, 14, 16, 28, 24, 18, 16, 16],
             rows: data.items.map((row) => [
               row.code,
               row.warehouse.code,
@@ -147,14 +148,17 @@ export function StockImportExcelActions({ filter, scopeAll }: Props) {
               row.supplier?.name ?? "",
               scopeAll ? (row.createdBy?.name ?? "") : "",
               row.items.reduce((sum, line) => sum + Number(line.costAmount), 0),
+              row.items.reduce((sum, line) => sum + withVat(line.costAmount, line.vatPercent), 0),
             ]),
           },
           {
             // NCC là của cả PHIẾU chứ không theo từng dòng, nên tên NCC lặp lại ở mọi dòng của cùng
             // một phiếu — nhìn qua dễ tưởng lỗi, nhưng đó đúng là hình dạng dữ liệu.
             name: SHEET.dongHang,
-            header: [...DONG_HANG_HEADER, "Tên NCC", "Tên hàng hoá"],
-            widths: [18, 18, 12, 14, 28, 24, 30],
+            // VAT% là số CHỐT trên dòng phiếu, không phải VAT danh mục hiện hành. Các cột này chỉ để
+            // đọc: phần nhập bỏ qua chúng (dòng nhập Excel lấy VAT danh mục qua server).
+            header: [...DONG_HANG_HEADER, "Tên NCC", "Tên hàng hoá", "VAT (%)", "Giá VAT", "Thành tiền", "Thành tiền VAT"],
+            widths: [18, 18, 12, 14, 28, 24, 30, 10, 14, 16, 16],
             rows: data.items.flatMap((row) =>
               row.items.map((line) => [
                 row.code,
@@ -164,6 +168,10 @@ export function StockImportExcelActions({ filter, scopeAll }: Props) {
                 line.note ?? "",
                 row.supplier?.name ?? "",
                 line.product.name,
+                line.vatPercent != null ? Number(line.vatPercent) : "",
+                withVat(line.costPrice, line.vatPercent),
+                Number(line.costAmount),
+                withVat(line.costAmount, line.vatPercent),
               ]),
             ),
           },
@@ -465,6 +473,7 @@ export function StockImportExcelActions({ filter, scopeAll }: Props) {
             <p className="text-slate-600">
               Thời gian nhập <b>phải có giờ</b> (vd 15/08/2026 08:30) vì đó là mốc kỳ Check Cost. Giá vốn để trống thì lấy giá
               nhập của NCC; NCC chưa khai giá cho hàng đó thì <b>phải gõ rõ giá</b> — gõ <b>0</b> nếu chưa có giá.
+              VAT của từng dòng lấy theo <b>VAT (%) trong danh mục hàng hoá</b>; cần mức khác thì sửa phiếu sau khi nhập.
             </p>
             <p className="text-slate-600">
               Số thập phân dùng dấu phẩy (<b>0,5</b>); dấu chấm là dấu thập phân kiểu máy, nên <b>8.000</b> đọc thành 8 chứ

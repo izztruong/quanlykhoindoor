@@ -144,6 +144,8 @@ export interface StockImportLine {
   quantity: string | number;
   costPrice: string | number;
   costAmount: string | number;
+  /** VAT% chốt vào dòng lúc lập phiếu (8 = 8%). null = không VAT. */
+  vatPercent?: string | number | null;
   note?: string | null;
 }
 

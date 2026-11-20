@@ -7,6 +7,9 @@ export const stockItemSchema = z.object({
   productId: z.string().min(1),
   quantity: z.coerce.number().positive(),
   costPrice: z.coerce.number().nonnegative(),
+  // Phần trăm (8 = 8%). Không gửi = lấy VAT danh mục (`withCatalogVat`); `null` = cố ý không VAT.
+  // KHÔNG dùng z.coerce: coerce biến `null` thành 0, mất phân biệt "để trống" với "0%".
+  vatPercent: z.number().min(0, "VAT phải ≥ 0").max(100, "VAT tối đa 100%").nullable().optional(),
   note: z.string().optional(),
 });
 

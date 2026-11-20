@@ -47,6 +47,11 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
+### Phiếu nhập kho: VAT% chốt từng dòng + Giá VAT / Thành tiền VAT — CHỈ ở `dev`, CHƯA bấm thử trên trình duyệt/máy
+Form tạo/sửa (web), form tạo (app), chi tiết (web + app), Excel xuất. Có migration (backfill VAT danh mục vào dòng cũ).
+Đã kiểm: typecheck 3 app, lint web, `expo export`; migrate DB trắng + `kho_db` + `kho_dev_copy`, drift rỗng; curl trên
+`kho_dev_copy` (POST/PUT/bulk-import/order bánh, chặn >100%, đổi VAT danh mục không đổi phiếu cũ). Đã dọn. Mobile cần OTA.
+
 ### Check Cost: bấm ô Nhận/Xuất/Đã huỷ xem phiếu gốc + xoá hẳn phiếu — ĐÃ lên `staging` + `main`, CHƯA bấm thử trên trình duyệt
 Web, quán + tiệm bánh; mobile chưa làm. Xem phiếu gốc chỉ quản trị viên (`isSystem`). Đã kiểm: typecheck + lint, refactor bộ lọc
 ra kết quả giống hệt bản cũ (12 phiếu), drill-down khớp số báo cáo 310/310 dòng, curl quyền/phạm vi/xoá trên `kho_dev_copy`.

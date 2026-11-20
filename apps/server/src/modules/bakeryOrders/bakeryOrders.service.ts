@@ -7,6 +7,7 @@ import { findCostChecksUsingPeriodRecords, type AffectedCostCheck } from "../../
 import { HttpError } from "../../utils/httpError";
 import { assertProductsInShopList, productShopWhere } from "../../utils/shopMenu";
 import { resolveTargetUserId } from "../../utils/targetUser";
+import { withCatalogVat } from "../../utils/vat";
 import { parseDateOnly } from "../../utils/vnTime";
 import type {
   bakeryOrderCreateSchema,
@@ -131,7 +132,7 @@ function importLines(order: ScopedOrder, received: Map<string, number>) {
 }
 
 /** Phiếu nhập kho tự sinh của một đơn bánh — một chỗ duy nhất, để bước nhận và bước admin sửa không lệch nhau. */
-function createOrderImport(
+async function createOrderImport(
   tx: Prisma.TransactionClient,
   order: ScopedOrder,
   warehouseId: string,
@@ -152,7 +153,7 @@ function createOrderImport(
       supplierId: order.supplierId,
       createdById,
       bakeryOrderId: order.id,
-      items: { create: lines },
+      items: { create: await withCatalogVat(tx, lines) },
     },
   });
 }
@@ -368,7 +369,7 @@ export async function editReceivedBakeryOrder(
       await tx.stockImportItem.deleteMany({ where: { stockImportId: order.stockImport.id } });
       await tx.stockImport.update({
         where: { id: order.stockImport.id },
-        data: { transactionAt: data.receivedAt, items: { create: lines } },
+        data: { transactionAt: data.receivedAt, items: { create: await withCatalogVat(tx, lines) } },
       });
     } else if (lines.length > 0 && warehouseId) {
       await createOrderImport(tx, order, warehouseId, data.receivedAt, lines, user?.id);

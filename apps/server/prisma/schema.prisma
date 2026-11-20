@@ -542,6 +542,10 @@ model StockImportItem {
   quantity      Decimal     @db.Decimal(18, 3)
   costPrice     Decimal     @db.Decimal(18, 2)
   costAmount    Decimal     @db.Decimal(18, 2)
+  // VAT theo PHẦN TRĂM (8 = 8%) CHỐT lúc lập phiếu — mặc định lấy `Product.vatPercent`, cho sửa tay.
+  // Chốt vào dòng để đổi VAT ở danh mục về sau không làm đổi phiếu cũ. Chỉ để hiển thị giá/thành tiền
+  // có VAT; Check Cost không đọc cột này. NULL = không VAT.
+  vatPercent    Decimal?    @db.Decimal(5, 2)
   note          String?
 
   @@index([productId])

@@ -17,6 +17,8 @@ export interface StockImportItemInput {
   productId: string;
   quantity: number;
   costPrice: number;
+  /** Phần trăm (8 = 8%). Không gửi = server lấy VAT danh mục; `null` = cố ý không VAT. */
+  vatPercent?: number | null;
   note?: string;
 }
 
