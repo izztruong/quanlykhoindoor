@@ -47,7 +47,7 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
-### Phiếu nhập kho: VAT% chốt từng dòng + Giá VAT / Thành tiền VAT — CHỈ ở `dev`, CHƯA bấm thử trên trình duyệt/máy
+### Phiếu nhập kho: VAT% chốt từng dòng + Giá VAT / Thành tiền VAT — ĐÃ lên `staging` + `main` (20/11, migration đã chạy trên prod: 487/1445 dòng nhận 8%), CHƯA OTA, CHƯA bấm thử
 Form tạo/sửa (web), form tạo (app), chi tiết (web + app), Excel xuất, tool MCP `order_lines` (vatPercent,
 unitPriceVat, amountVat, totalAmountVat — đã chạy thử trên `kho_dev_copy`). Có migration (backfill VAT danh mục vào dòng cũ).
 Đã kiểm: typecheck 3 app, lint web, `expo export`; migrate DB trắng + `kho_db` + `kho_dev_copy`, drift rỗng; curl trên
