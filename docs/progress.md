@@ -58,6 +58,11 @@ Web, quán + tiệm bánh; mobile chưa làm. Xem phiếu gốc chỉ quản tr�
 ra kết quả giống hệt bản cũ (12 phiếu), drill-down khớp số báo cáo 310/310 dòng, curl quyền/phạm vi/xoá trên `kho_dev_copy`.
 Quyền `COST_CHECKS.DELETE` + `BAKERY_COST_CHECKS.DELETE` chưa tick trên prod — ngoài admin chưa ai thấy nút Xoá.
 
+### Công thức + giá Mĩ Đình từ 01/11/2026 — ĐÃ nạp vào DB production (20/11), CHƯA bấm thử
+Từ file "công thức đổi ra gram Indoor mỹ đình": 22 món + 9 TP có sẵn nhận công thức/giá RIÊNG Mĩ Đình; 21 món mới
+`M080`–`M100` + 9 TP mới `TP0022`–`TP0030` công thức CHUNG; giá đồ uống = giá menu ÷ 1,08; giá TP = giá vốn/g từ công
+thức. Gán thêm 68 NVL cho Mĩ Đình. Giá vốn 0 ở `VT02`/`VT03`/`VT05`/`VT09` làm giá TP0010/0013/0025 thấp hơn thật.
+
 ### Giá VAT riêng cho Vũ Ngọc Phan và Xuân La từ 01/11/2026 — ĐÃ nạp vào DB production, CHƯA bấm thử
 77 món TRA/THANH_PHAM mã `M`/`TP`+số: giá bán riêng = giá chung × 1,08 làm tròn đồng (vẫn giữ).
 **20/11: đã xoá hết 78 hàng hoá mã đuôi `VAT` trên prod** — công thức riêng (703 dòng), phiếu kiểm `KT261117909720035`
