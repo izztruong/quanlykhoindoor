@@ -52,12 +52,12 @@ Web, quán + tiệm bánh; mobile chưa làm. Xem phiếu gốc chỉ quản tr�
 ra kết quả giống hệt bản cũ (12 phiếu), drill-down khớp số báo cáo 310/310 dòng, curl quyền/phạm vi/xoá trên `kho_dev_copy`.
 Quyền `COST_CHECKS.DELETE` + `BAKERY_COST_CHECKS.DELETE` chưa tick trên prod — ngoài admin chưa ai thấy nút Xoá.
 
-### Giá + công thức VAT riêng cho Vũ Ngọc Phan và Xuân La từ 01/11/2026 — ĐÃ nạp vào DB production, CHƯA bấm thử
-77 món TRA/THANH_PHAM mã `M`/`TP`+số: giá riêng = giá chung × 1,08 làm tròn đồng; công thức riêng đổi NVL sang bản cùng tên
-mã đuôi `VAT`. 49 dòng/quán giữ NVL cũ vì chưa có bản VAT — tạo mã VAT cho 45 NVL đó thì phải sửa tay bản riêng của 2 quán.
-Từ 01/11 phiếu kiểm của 2 quán phải đếm mã `…VAT`, không thì Check Cost lệch.
-18/11: đã xoá bản VAT của nhóm Cốc thủy tinh, Đồ khô, `VT02VAT` (cùng `buoidaxanh`, `mohonglam*`) trên prod — công thức riêng
-và phiếu kiểm chuyển về mã thường, nên các NVL đó KHÔNG còn bản VAT.
+### Giá VAT riêng cho Vũ Ngọc Phan và Xuân La từ 01/11/2026 — ĐÃ nạp vào DB production, CHƯA bấm thử
+77 món TRA/THANH_PHAM mã `M`/`TP`+số: giá bán riêng = giá chung × 1,08 làm tròn đồng (vẫn giữ).
+**20/11: đã xoá hết 78 hàng hoá mã đuôi `VAT` trên prod** — công thức riêng (703 dòng), phiếu kiểm `KT261117909720035`
+(41 dòng) và đơn `DH261116905310028` (8 dòng) chuyển sang mã thường cùng tên; 78 mã thường đặt VAT 8%; mã thường được
+gán thêm đúng quán mà bản VAT từng gán (VNP/Xuân La); `NL25` bật lại "Đang dùng" và giờ chỉ gán VNP + Xuân La.
+Giá vốn có VAT của 2 quán nay đi qua nút "Dùng VAT" ở Check Cost. Bản sao lưu trước khi xoá chỉ nằm ở scratchpad máy dev.
 
 ### Đồ thành phẩm có cờ "Đang dùng" + ẩn khỏi phiếu kiểm/huỷ, Menu theo quán — ĐÃ lên `staging` + `main`, CHƯA bấm thử, CHƯA OTA
 Cột Trạng thái ở danh mục + Excel; trang Menu theo quán ẩn cả hàng hoá ngừng dùng; lưu menu với id đã bị xoá báo rõ thay vì
