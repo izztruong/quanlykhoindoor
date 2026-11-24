@@ -81,12 +81,14 @@ async function affectedCostChecks(shopUserId: string | null, ...moments: (Date |
 }
 
 stockImportsRouter.get("/", requirePermission("STOCK_IMPORTS"), async (req, res) => {
-  const { warehouseId, type } = req.query as Record<string, string>;
+  const { warehouseId, supplierId, type } = req.query as Record<string, string>;
   const { from, to } = parseDateRange(req);
   const { skip, take, page, pageSize } = parsePagination(req, 20);
 
   const where = {
     warehouse: warehouseScope(req.user, warehouseId || undefined),
+    // NCC là danh mục chung nên lọc thẳng; phạm vi vẫn do `warehouseScope` khoá theo chủ kho.
+    supplierId: supplierId || undefined,
     type: (type || undefined) as any,
     transactionAt: from || to ? { gte: from, lte: to } : undefined,
   };

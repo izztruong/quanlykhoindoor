@@ -6,7 +6,7 @@ import { DateRangeFilter } from "@/components/filters/DateRangeFilter";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Select } from "@/components/ui/Select";
-import { useWarehouses } from "@/hooks/useCatalog";
+import { useSuppliers, useWarehouses } from "@/hooks/useCatalog";
 import { StockImportExcelActions } from "@/components/stock/StockImportExcelActions";
 import { StockImportImageActions } from "@/components/stock/StockImportImageActions";
 import { useStockImports } from "@/hooks/useStockImports";
@@ -27,8 +27,10 @@ export default function StockImportsPage() {
   // nghĩa với tài khoản thấy dữ liệu mọi quán.
   const scopeAll = hasScopeAll(currentUser);
   const { data: warehouses = [] } = useWarehouses();
-  const { values, update } = useListUrlState({ warehouseId: "", from: "", to: "", page: "1", pageSize: "20" });
+  const { data: suppliers = [] } = useSuppliers();
+  const { values, update } = useListUrlState({ warehouseId: "", supplierId: "", from: "", to: "", page: "1", pageSize: "20" });
   const warehouseId = values.warehouseId;
+  const supplierId = values.supplierId;
   const dateRange = { from: values.from, to: values.to };
   const page = parsePage(values.page);
   const pageSize = parsePageSize(values.pageSize);
@@ -39,12 +41,16 @@ export default function StockImportsPage() {
   function changeWarehouse(value: string) {
     update({ warehouseId: value, page: "1" });
   }
+  function changeSupplier(value: string) {
+    update({ supplierId: value, page: "1" });
+  }
   function changeDateRange(value: { from: string; to: string }) {
     update({ from: value.from, to: value.to, page: "1" });
   }
 
   const { data, isLoading } = useStockImports({
     warehouseId: scopeAll ? warehouseId || undefined : undefined,
+    supplierId: supplierId || undefined,
     from: dateRange.from || undefined,
     to: dateRange.to || undefined,
     page,
@@ -104,6 +110,7 @@ export default function StockImportsPage() {
             <StockImportExcelActions
               filter={{
                 warehouseId: scopeAll ? warehouseId || undefined : undefined,
+                supplierId: supplierId || undefined,
                 from: dateRange.from || undefined,
                 to: dateRange.to || undefined,
               }}
@@ -142,6 +149,20 @@ export default function StockImportsPage() {
               </div>
             </div>
           )}
+          {/* Hiện cho mọi tài khoản: một quán mua từ nhiều NCC. */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-slate-500">Nhà cung cấp</label>
+            <div className="w-56">
+              <Select value={supplierId} onChange={(e) => changeSupplier(e.target.value)}>
+                <option value="">Tất cả NCC</option>
+                {suppliers.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          </div>
           <DateRangeFilter value={dateRange} onChange={changeDateRange} label="Thời gian nhập" />
         </CardBody>
       </Card>

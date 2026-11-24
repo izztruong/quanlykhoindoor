@@ -8,7 +8,7 @@ import { DataList } from "@/components/ui/DataList";
 import { ErrorState, Screen } from "@/components/ui/Screen";
 import { ListRowCard } from "@/components/ui/ListRowCard";
 import { Select } from "@/components/ui/Select";
-import { useWarehouses } from "@/hooks/useCatalog";
+import { useSuppliers, useWarehouses } from "@/hooks/useCatalog";
 import { useFilterSheet } from "@/hooks/useFilterSheet";
 import { useInfiniteList } from "@/hooks/useInfiniteList";
 import type { StockImportFilter } from "@/hooks/useStockImports";
@@ -29,9 +29,14 @@ export function StockImportList() {
   const { can, scopeAll } = useCan();
   const router = useRouter();
   const warehouses = useWarehouses();
-  const filter = useFilterSheet(() => ({ range: currentMonthRange(), warehouseId: "" }));
+  const suppliers = useSuppliers();
+  const filter = useFilterSheet(() => ({ range: currentMonthRange(), warehouseId: "", supplierId: "" }));
   const f = filter.applied;
-  const params: StockImportFilter = { ...f.range, warehouseId: f.warehouseId || undefined };
+  const params: StockImportFilter = {
+    ...f.range,
+    warehouseId: f.warehouseId || undefined,
+    supplierId: f.supplierId || undefined,
+  };
   const list = useInfiniteList<StockImport>(["stock-imports"], "/stock-imports", { ...params }, { enabled: can("STOCK_IMPORTS") });
 
   return (
@@ -46,9 +51,11 @@ export function StockImportList() {
               <FilterBar
                 activeCount={filter.activeCount}
                 onOpen={filter.openSheet}
-                summary={[formatRangeLabel(f.range), warehouses.data?.find((w) => w.id === f.warehouseId)?.name].filter(
-                  (s): s is string => !!s,
-                )}
+                summary={[
+                  formatRangeLabel(f.range),
+                  warehouses.data?.find((w) => w.id === f.warehouseId)?.name,
+                  suppliers.data?.find((s) => s.id === f.supplierId)?.name,
+                ].filter((s): s is string => !!s)}
               />
               {can("STOCK_IMPORTS", "ADD") && <Button title="Tạo phiếu" onPress={() => router.push("/stock/imports/new")} />}
             </View>
@@ -87,6 +94,15 @@ export function StockImportList() {
                   onChange={(warehouseId) => filter.patchDraft({ warehouseId })}
                 />
               ) : null}
+              {/* Hiện cho mọi tài khoản: một quán mua từ nhiều NCC. */}
+              {suppliers.error && <ErrorState message={suppliers.error.message} />}
+              <Select
+                label="Nhà cung cấp"
+                emptyLabel="Tất cả NCC"
+                value={filter.draft.supplierId}
+                options={(suppliers.data ?? []).map((s) => ({ value: s.id, label: s.name }))}
+                onChange={(supplierId) => filter.patchDraft({ supplierId })}
+              />
             </FilterSheet>
           </>
         )}

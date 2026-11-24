@@ -33,7 +33,7 @@ export interface StockImportInput {
 type WithAffected<T> = T & { affectedCostChecks: AffectedCostCheck[] };
 
 export function useStockImports(
-  filter: { warehouseId?: string; type?: string; from?: string; to?: string; page?: number; pageSize?: number } = {},
+  filter: { warehouseId?: string; supplierId?: string; type?: string; from?: string; to?: string; page?: number; pageSize?: number } = {},
 ) {
   return useQuery({
     queryKey: [KEY, filter],

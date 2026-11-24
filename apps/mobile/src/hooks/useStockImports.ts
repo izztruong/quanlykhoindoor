@@ -9,6 +9,7 @@ import type { AffectedCostCheck, StockImport } from "@/types";
  */
 export interface StockImportFilter {
   warehouseId?: string;
+  supplierId?: string;
   from?: string;
   to?: string;
 }

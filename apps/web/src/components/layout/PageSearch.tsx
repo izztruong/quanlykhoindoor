@@ -6,12 +6,8 @@ import type { AuthUser } from "@/types";
 import { CornerDownLeft, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { fold } from "@/lib/textSearch";
 import { navSections } from "./nav-config";
-
-/** Bỏ dấu để gõ "phieu nhap" vẫn ra "Phiếu nhập kho". "đ" không tách dấu được nên đổi tay. */
-function fold(text: string) {
-  return text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/đ/g, "d");
-}
 
 /**
  * Ô tìm trang ở thanh trên: lọc các mục menu tài khoản được thấy (cùng luật ẩn với Sidebar) rồi

@@ -34,7 +34,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 interface Props {
   /** Bộ lọc đang áp trên trang danh sách — file xuất đi theo đúng bộ lọc này. */
-  filter: { warehouseId?: string; from?: string; to?: string };
+  filter: { warehouseId?: string; supplierId?: string; from?: string; to?: string };
   scopeAll: boolean;
 }
 

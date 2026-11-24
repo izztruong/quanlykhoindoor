@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
+import { SearchSelect, type SearchSelectOption } from "@/components/ui/SearchSelect";
 import { Select } from "@/components/ui/Select";
 import { useProducts, useSuppliers, useWarehouses } from "@/hooks/useCatalog";
 import { useProductSupplierPrices } from "@/hooks/useProductSupplierPrices";
@@ -17,7 +18,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { useFieldArray, useForm } from "react-hook-form";
+import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 
 const TYPE_OPTIONS = [
@@ -129,6 +130,31 @@ export function StockImportForm({ existing }: { existing?: StockImport }) {
   const lineAmount = (it: FormValues["items"][number]) => (Number(it.quantity) || 0) * (Number(it.costPrice) || 0);
   const total = items.reduce((sum, it) => sum + lineAmount(it), 0);
   const totalVat = items.reduce((sum, it) => sum + withVat(lineAmount(it), it.vatPercent), 0);
+
+  // `products` chỉ có hàng đang dùng. Phiếu cũ có thể chứa hàng đã ngừng dùng, nên gộp hàng của phiếu
+  // vào để ô chọn vẫn hiện đúng tên thay vì trông như trống (giá trị vẫn giữ, chỉ mất nhãn).
+  const productOptions = useMemo<SearchSelectOption[]>(() => {
+    const list = [...products];
+    const known = new Set(list.map((p) => p.id));
+    for (const it of existing?.items ?? []) {
+      if (!known.has(it.productId)) {
+        list.push(it.product);
+        known.add(it.productId);
+      }
+    }
+    return list.map((p) => ({ value: p.id, label: `${p.name} (${p.code})`, sublabel: p.unit?.name }));
+  }, [products, existing]);
+
+  /** Đổi hàng trên một dòng: điền sẵn giá và VAT — người dùng vẫn sửa được cả hai. */
+  function pickProduct(index: number, productId: string) {
+    // NCC chưa khai giá cho hàng này thì để nguyên giá đang có (0 với dòng mới), KHÔNG đoán theo giá
+    // vốn danh mục: giá 0 là dấu "chưa có giá", đoán một con số là mất dấu đó.
+    const price = prices.find((p) => p.productId === productId && p.supplierId === supplierId);
+    if (price) setValue(`items.${index}.costPrice`, Number(price.importPrice));
+    // VAT điền sẵn theo danh mục (hoá đơn có lúc khác mức danh mục nên vẫn sửa tay được).
+    const product = products.find((p) => p.id === productId);
+    setValue(`items.${index}.vatPercent`, product?.vatPercent != null ? Number(product.vatPercent) : null);
+  }
 
   function onSubmit(values: FormValues) {
     setError(null);
@@ -261,34 +287,30 @@ export function StockImportForm({ existing }: { existing?: StockImport }) {
           </CardHeader>
           <CardBody className="flex flex-col gap-3">
             {fields.map((field, index) => {
-              const productRegister = register(`items.${index}.productId` as const);
               return (
                 <div key={field.id} className="grid grid-cols-1 items-end gap-3 md:grid-cols-[1fr_110px_130px_100px_1fr_40px]">
                   <div className="flex flex-col gap-1">
                     <label className="text-xs font-medium text-slate-500">Hàng hoá</label>
-                    <Select
-                      {...productRegister}
-                      onChange={(e) => {
-                        productRegister.onChange(e);
-                        // Tự điền giá nhập của NCC đã chọn — người dùng vẫn sửa được. NCC chưa khai
-                        // giá cho hàng này thì để nguyên 0 (mặc định của dòng mới), KHÔNG đoán theo
-                        // giá vốn danh mục: giá 0 là dấu "chưa có giá", đoán một con số là mất dấu đó.
-                        const price = prices.find((p) => p.productId === e.target.value && p.supplierId === supplierId);
-                        if (price) setValue(`items.${index}.costPrice`, Number(price.importPrice));
-                        // VAT điền sẵn theo danh mục, người dùng vẫn sửa được (hoá đơn có lúc khác mức danh mục).
-                        const product = products.find((p) => p.id === e.target.value);
-                        setValue(`items.${index}.vatPercent`, product?.vatPercent != null ? Number(product.vatPercent) : null);
-                      }}
-                    >
-                      <option value="">Chọn hàng hoá</option>
-                      {/* Tên đứng TRƯỚC mã: <select> gốc nhảy theo chữ đầu của nhãn khi gõ phím, đưa mã lên
-                          trước thì gõ tên hàng không nhảy tới được nữa. */}
-                      {products.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} ({p.code})
-                        </option>
-                      ))}
-                    </Select>
+                    <Controller
+                      control={control}
+                      name={`items.${index}.productId` as const}
+                      render={({ field: productField }) => (
+                        <SearchSelect
+                          options={productOptions}
+                          value={productField.value}
+                          onChange={(productId) => {
+                            productField.onChange(productId);
+                            pickProduct(index, productId);
+                          }}
+                          placeholder="Gõ tên hoặc mã hàng..."
+                          emptyText="Không có hàng nào khớp"
+                          invalid={Boolean(errors.items?.[index]?.productId)}
+                        />
+                      )}
+                    />
+                    {errors.items?.[index]?.productId && (
+                      <p className="text-xs text-red-600">{errors.items[index]?.productId?.message}</p>
+                    )}
                   </div>
                   <div className="flex flex-col gap-1">
                     <label className="text-xs font-medium text-slate-500">Số lượng</label>
