@@ -133,6 +133,7 @@ export default function StockImportsPage() {
 
       <Card>
         <CardBody className="flex flex-wrap items-end gap-3">
+          <DateRangeFilter value={dateRange} onChange={changeDateRange} label="Thời gian nhập" />
           {scopeAll && (
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-slate-500">Kho</label>
@@ -163,7 +164,6 @@ export default function StockImportsPage() {
               </Select>
             </div>
           </div>
-          <DateRangeFilter value={dateRange} onChange={changeDateRange} label="Thời gian nhập" />
         </CardBody>
       </Card>
 
