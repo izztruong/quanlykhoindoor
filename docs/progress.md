@@ -47,9 +47,9 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
-### Phiếu nhập kho: lọc theo NCC (web + app) + ô chọn hàng gõ tìm được (web) — CHỈ ở `dev`, CHƯA bấm thử, CHƯA curl
+### Phiếu nhập kho: lọc theo NCC (web + app) + ô chọn hàng gõ tìm được (web) — CHỈ ở `dev`, CHƯA bấm thử
 Ô tìm là component chung `ui/SearchSelect` (không dấu, theo từ, ↑/↓/Enter). Đã kiểm: typecheck 3 app, lint, build web,
-`expo export`. Chưa curl `?supplierId=` vì Docker tắt lúc làm. Mobile cần OTA.
+`expo export`; curl `?supplierId=` trên `kho_dev_copy` khớp SQL, tài khoản quán chỉ ra phiếu kho mình. Mobile cần OTA.
 
 ### Phiếu nhập kho: VAT% chốt từng dòng + Giá VAT / Thành tiền VAT — ĐÃ lên `staging` + `main` (20/11, migration đã chạy trên prod: 487/1445 dòng nhận 8%), CHƯA OTA, CHƯA bấm thử
 Form tạo/sửa (web), form tạo (app), chi tiết (web + app), Excel xuất, tool MCP `order_lines` (vatPercent,
