@@ -47,9 +47,11 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 
 ## Đang dở
 
-### Loại hàng hoá "Nguyên vật liệu tiêu hao" (`NVL_TIEU_HAO`) — CHƯA bấm thử
+### Loại hàng hoá "Nguyên vật liệu tiêu hao" (`NVL_TIEU_HAO`) — ĐÃ lên `staging` + `main` (26/11), CHƯA OTA, CHƯA bấm thử
 Không tính vào Check Cost (như Dụng cụ/Khác). Có migration; web + mobile có nhãn và nhóm trong phiếu kiểm/huỷ (mobile cần OTA).
 Đã kiểm: typecheck 3 app, lint web, `expo export`; migrate DB trắng + `kho_db` + `kho_dev_copy`, drift rỗng.
+**26/11 đã nạp prod** 130 NVL (`NVLBANH01–49` → Tiệm bánh; `NVLBEP…` → Bếp nóng TS + MD; Bột mì 11/13, Trứng gà dùng mã
+bánh gán cả 3; Táo dùng `NL83` có sẵn), 12 nhóm, 2 đơn vị, 6 NCC, 52 giá NCC; giá vốn = giá file ÷ 1,08, VAT trống.
 
 ### Phiếu nhập kho: lọc theo NCC (web + app) + ô chọn hàng gõ tìm được (web) — CHỈ ở `dev`, CHƯA bấm thử
 Ô tìm là component chung `ui/SearchSelect` (không dấu, theo từ, ↑/↓/Enter). Đã kiểm: typecheck 3 app, lint, build web,
