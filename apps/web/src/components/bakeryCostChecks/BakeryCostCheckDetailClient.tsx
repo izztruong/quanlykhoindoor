@@ -22,6 +22,7 @@ const head = "border border-slate-200 px-3 py-2 text-left text-xs font-medium up
 
 const TYPE_LABELS: Record<ProductType, string> = {
   NVL: "Nguyên vật liệu",
+  NVL_TIEU_HAO: "Nguyên vật liệu tiêu hao",
   COC_TAKE: "Cốc & ống hút",
   BANH: "Bánh",
   DUNG_CU: "Dụng cụ",

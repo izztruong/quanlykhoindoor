@@ -22,6 +22,7 @@ import { useMemo, useState } from "react";
 
 const TYPE_LABELS: Record<ProductType, string> = {
   NVL: "Nguyên vật liệu",
+  NVL_TIEU_HAO: "Nguyên vật liệu tiêu hao",
   COC_TAKE: "Cốc & ống hút",
   BANH: "Bánh",
   DUNG_CU: "Dụng cụ",

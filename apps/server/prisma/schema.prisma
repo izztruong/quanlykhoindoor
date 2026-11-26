@@ -322,12 +322,15 @@ model FinishedGoodPrice {
   @@index([shopUserId])
 }
 
-// Loại hàng hoá — 5 giá trị cố định trong code, dùng để gộp chi phí cho Check Cost
+// Loại hàng hoá — 6 giá trị cố định trong code, dùng để gộp chi phí cho Check Cost
 // (NVL -> chi phí NVL Trà; COC_TAKE -> cốc & ống hút riêng; BANH -> chi phí ĐAV qua công thức
-// 1 dòng; DUNG_CU/KHAC -> không tính vào Check Cost). Sửa được bình thường trên từng hàng hoá,
-// chỉ 5 tên loại là cố định, không thêm loại mới qua giao diện.
+// 1 dòng; NVL_TIEU_HAO/DUNG_CU/KHAC -> không tính vào Check Cost). Sửa được bình thường trên từng
+// hàng hoá, chỉ tên loại là cố định, không thêm loại mới qua giao diện. Thêm loại = sửa cả nhãn và
+// nhóm phiếu kiểm/huỷ ở web lẫn mobile (PRODUCT_TYPE_GROUPS) — thiếu nhóm là hàng không hiện trên phiếu.
 enum ProductType {
   NVL
+  // Nguyên vật liệu tiêu hao (rau thơm, lá…): vẫn kiểm kê/nhập kho nhưng KHÔNG vào chi phí Check Cost.
+  NVL_TIEU_HAO
   COC_TAKE
   BANH
   DUNG_CU

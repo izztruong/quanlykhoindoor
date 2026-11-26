@@ -101,7 +101,7 @@ export interface Unit {
   name: string;
 }
 
-export type ProductType = "NVL" | "COC_TAKE" | "BANH" | "DUNG_CU" | "KHAC";
+export type ProductType = "NVL" | "NVL_TIEU_HAO" | "COC_TAKE" | "BANH" | "DUNG_CU" | "KHAC";
 
 export interface Product {
   id: string;

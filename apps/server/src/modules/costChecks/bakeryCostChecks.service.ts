@@ -60,7 +60,7 @@ export interface BakeryFinancialSummary {
 }
 
 /**
- * Loại hàng hoá được tính vào chi phí của tiệm bánh. `DUNG_CU`/`KHAC` bỏ ra, cùng luật với Check Cost
+ * Loại hàng hoá được tính vào chi phí của tiệm bánh. `NVL_TIEU_HAO`/`DUNG_CU`/`KHAC` bỏ ra, cùng luật với Check Cost
  * của quán — dụng cụ không phải nguyên liệu làm ra cái bánh.
  */
 const COSTED_TYPES = new Set(["NVL", "COC_TAKE", "BANH"]);

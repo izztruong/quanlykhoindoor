@@ -40,6 +40,7 @@ const EMPTY_FINISHED: FinishedEntry = { quantity: "", note: "", deductInCostChec
 
 const PRODUCT_TYPE_GROUPS: { key: ProductType; label: string }[] = [
   { key: "NVL", label: "Nguyên vật liệu" },
+  { key: "NVL_TIEU_HAO", label: "Nguyên vật liệu tiêu hao" },
   { key: "COC_TAKE", label: "Cốc & ống hút" },
   { key: "BANH", label: "Bánh" },
   { key: "DUNG_CU", label: "Dụng cụ" },

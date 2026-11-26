@@ -16,8 +16,8 @@ const schema = z.object({
   // Quy đổi cho công thức Check Cost: 1 đơn vị chính = recipeUnitsPerBaseUnit recipeUnit (vd 1 Hộp = 1000 Gram).
   recipeUnitId: z.string().optional(),
   recipeUnitsPerBaseUnit: z.coerce.number().positive().optional(),
-  // Dùng để gộp chi phí Check Cost — 5 giá trị cố định.
-  type: z.enum(["NVL", "COC_TAKE", "BANH", "DUNG_CU", "KHAC"]).default("NVL"),
+  // Dùng để gộp chi phí Check Cost — giá trị cố định, khớp enum ProductType.
+  type: z.enum(["NVL", "NVL_TIEU_HAO", "COC_TAKE", "BANH", "DUNG_CU", "KHAC"]).default("NVL"),
   // SL lẻ nhập lúc kiểm kê/huỷ/điều chuyển được coi là cân cả vỏ và tự trừ số này (theo recipeUnit).
   tareWeight: z.coerce.number().nonnegative().optional(),
   // Hàng hoá ngừng dùng (active=false) bị ẩn khỏi ô chọn hàng hoá khi tạo phiếu/đơn hàng mới.

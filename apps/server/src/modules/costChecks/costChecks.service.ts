@@ -320,7 +320,7 @@ function formatVnDateTime(instant: Date): string {
 }
 
 /** Thứ tự hiển thị Loại hàng hoá, khớp enum ProductType trong schema và productTypeLabel bên web. */
-export const PRODUCT_TYPE_ORDER: ProductType[] = ["NVL", "COC_TAKE", "BANH", "DUNG_CU", "KHAC"];
+export const PRODUCT_TYPE_ORDER: ProductType[] = ["NVL", "NVL_TIEU_HAO", "COC_TAKE", "BANH", "DUNG_CU", "KHAC"];
 
 /** Loại lạ (dữ liệu cũ, hàng hoá đã xoá) xếp xuống cuối thay vì lên đầu. */
 export function productTypeRank(type: ProductType | null | undefined): number {
@@ -604,7 +604,7 @@ export async function computeCostCheckReport(
 
   // Chi phí quy ra tiền, gộp theo Loại hàng hoá: NVL -> chi phí NVL Trà, COC_TAKE -> cốc &
   // ống hút, BANH -> chi phí ĐAV (qua công thức 1 dòng trỏ tới đúng hàng hoá Bánh đó).
-  // DUNG_CU/KHAC không tính vào Check Cost.
+  // NVL_TIEU_HAO/DUNG_CU/KHAC không tính vào Check Cost — cố ý rơi khỏi chuỗi if dưới đây.
   let expectedNvlTra = 0;
   let actualNvlTra = 0;
   let wasteNvlValue = 0;
