@@ -1,4 +1,5 @@
 import { combineDateAndHour } from "@/lib/posSaleDate";
+import { splitPosNameToppings, type PosTopping } from "@/lib/posToppings";
 import type ExcelJS from "exceljs";
 
 /**
@@ -8,6 +9,10 @@ import type ExcelJS from "exceljs";
  * - Ngày và Giờ là HAI cột riêng.
  * - Mỗi dòng là một **thao tác trên đơn** (Loại log / Loại thao tác), không phải một món đã bán. Nên
  *   cộng mù cả file là tính luôn cả những món khách đã huỷ.
+ * - **Tên món chứa cả TOPPING gọi thêm**: `Non ngàn (Kem Mặn (1))`. Một dòng file vì vậy ra NHIỀU
+ *   `PosOrderLogRow` — món gốc và từng topping, xem `lib/posToppings.ts`. Phải tách ở đây chứ không
+ *   ở server: `aggregateSoldCells` trừ lượt "Bỏ món" theo khoá `(Mã đơn, Tên món)`, tách sau khi
+ *   gộp là mất khả năng trừ đó.
  *
  * Vì là format của bên thứ ba, cột được tìm theo **TÊN tiêu đề** chứ không theo chỉ số cố định: POS
  * đổi thứ tự cột hay chèn thêm cột thì vẫn đọc đúng, còn đọc theo chỉ số sẽ lấy nhầm cột mà file
@@ -34,6 +39,16 @@ export interface PosOrderLogActionGroup {
   quantity: number;
 }
 
+/** Một tên món đã được bóc topping, gom theo tên gốc trên file — để người dùng soát lại luật tách. */
+export interface PosToppingSplit {
+  /** Tên nguyên văn trên file, vd `Non ngàn (Kem Mặn (1))`. */
+  raw: string;
+  base: string;
+  toppings: PosTopping[];
+  /** Số dòng file mang đúng tên này. */
+  rowCount: number;
+}
+
 export interface PosOrderLogParseResult {
   rows: PosOrderLogRow[];
   /** Dòng đọc được nhưng thiếu/sai dữ liệu — liệt kê ra chứ không đoán. */
@@ -41,6 +56,8 @@ export interface PosOrderLogParseResult {
   groups: PosOrderLogActionGroup[];
   /** Dòng tiêu đề của file, giữ để hiển thị lại cho người dùng đối chiếu ngày và cửa hàng. */
   title: string;
+  /** Các tên món đã bị tách topping. Rỗng = file không có dòng nào kèm topping. */
+  toppingSplits: PosToppingSplit[];
 }
 
 /** Bỏ dấu, hạ chữ thường, gộp khoảng trắng — để so tên cột không phụ thuộc dấu và cách viết hoa. */
@@ -115,6 +132,7 @@ export function parsePosOrderLog(sheet: ExcelJS.Worksheet): PosOrderLogParseResu
       errors: [`Không tìm thấy hàng tiêu đề trong ${HEADER_SCAN_ROWS} dòng đầu. File POS phải có đủ các cột ${missing}.`],
       groups: [],
       title,
+      toppingSplits: [],
     };
   }
 
@@ -122,6 +140,7 @@ export function parsePosOrderLog(sheet: ExcelJS.Worksheet): PosOrderLogParseResu
   const rows: PosOrderLogRow[] = [];
   const errors: string[] = [];
   const groupByKey = new Map<string, PosOrderLogActionGroup>();
+  const splitByRaw = new Map<string, PosToppingSplit>();
 
   for (let rowNumber = header.rowNumber + 1; rowNumber <= sheet.rowCount; rowNumber++) {
     const row = sheet.getRow(rowNumber);
@@ -153,7 +172,20 @@ export function parsePosOrderLog(sheet: ExcelJS.Worksheet): PosOrderLogParseResu
     const logType = cellText(row, columns.logType);
     const actionType = cellText(row, columns.actionType);
     const orderCode = cellText(row, columns.orderCode);
-    rows.push({ soldOn: soldAt.soldOn, hour: soldAt.hour, posName, quantity, logType, actionType, orderCode });
+    const common = { soldOn: soldAt.soldOn, hour: soldAt.hour, logType, actionType, orderCode };
+
+    // Một dòng file ra NHIỀU dòng khi có topping. SL topping lấy nguyên số trong ngoặc (không nhân
+    // với SL của món), nhưng mang DẤU của dòng để lượt "Bỏ món" vẫn trừ ra được.
+    const { base, toppings } = splitPosNameToppings(posName);
+    rows.push({ ...common, posName: base, quantity });
+    for (const topping of toppings) {
+      rows.push({ ...common, posName: topping.name, quantity: Math.sign(quantity) * topping.quantity });
+    }
+    if (toppings.length > 0) {
+      const split = splitByRaw.get(posName);
+      if (split) split.rowCount += 1;
+      else splitByRaw.set(posName, { raw: posName, base, toppings, rowCount: 1 });
+    }
 
     const key = `${logType}|${actionType}`;
     const group = groupByKey.get(key);
@@ -166,7 +198,8 @@ export function parsePosOrderLog(sheet: ExcelJS.Worksheet): PosOrderLogParseResu
   }
 
   const groups = [...groupByKey.values()].sort((a, b) => b.rowCount - a.rowCount);
-  return { rows, errors, groups, title };
+  const toppingSplits = [...splitByRaw.values()].sort((a, b) => b.rowCount - a.rowCount || a.raw.localeCompare(b.raw));
+  return { rows, errors, groups, title, toppingSplits };
 }
 
 /** Khoá định danh một tổ hợp (Loại log, Loại thao tác), dùng cho ô tích trên giao diện. */

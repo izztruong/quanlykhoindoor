@@ -25,6 +25,7 @@ import {
   parsePosOrderLog,
   type PosOrderLogParseResult,
 } from "@/lib/posOrderLog";
+import { splitPosNameToppings } from "@/lib/posToppings";
 import { parseSoldAt } from "@/lib/posSaleDate";
 import { formatNumber } from "@/lib/format";
 import ExcelJS from "exceljs";
@@ -170,10 +171,15 @@ export default function PosSalesPage() {
         }
 
         const { soldOn, hour } = soldAt;
-        const key = `${soldOn}|${hour}|${posName}`;
-        const current = byCell.get(key);
-        if (current) current.quantity += quantity;
-        else byCell.set(key, { soldOn, hour, posName, quantity });
+        // Tên dán từ POS có thể kèm topping gọi thêm — tách y như đường nhật ký order, dùng CHUNG
+        // một helper để hai đường không lệch luật. SL topping lấy nguyên số trong ngoặc.
+        const { base, toppings } = splitPosNameToppings(posName);
+        for (const part of [{ name: base, quantity }, ...toppings.map((t) => ({ name: t.name, quantity: t.quantity }))]) {
+          const key = `${soldOn}|${hour}|${part.name}`;
+          const current = byCell.get(key);
+          if (current) current.quantity += part.quantity;
+          else byCell.set(key, { soldOn, hour, posName: part.name, quantity: part.quantity });
+        }
       });
 
       setParseErrors(errors);
@@ -523,7 +529,7 @@ export default function PosSalesPage() {
                 </table>
                 <p className="text-sm text-slate-600">
                   Sẽ nhập <strong>{formatNumber(posLogPickedQuantity)}</strong> đơn vị từ {formatNumber(posLog.rows.length)}{" "}
-                  dòng đọc được. Số lượng mang dấu, nên thao tác bỏ món tự trừ ra.
+                  dòng sẽ gửi lên. Số lượng mang dấu, nên thao tác bỏ món tự trừ ra.
                 </p>
                 {posLog.groups.some((g) => !posLogPicked.has(actionGroupKey(g))) && (
                   <p className="text-xs text-amber-700">
@@ -535,6 +541,41 @@ export default function PosSalesPage() {
                     . Nếu loại đó cũng làm đổi số món trên đơn thì phải tích, không thì số sẽ lệch.
                   </p>
                 )}
+              </div>
+            )}
+
+            {posLog && posLog.toppingSplits.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <p className="text-sm font-medium text-slate-700">
+                  Đã tách topping gọi thêm ở {formatNumber(posLog.toppingSplits.reduce((sum, s) => sum + s.rowCount, 0))} dòng
+                </p>
+                <p className="text-xs text-slate-500">
+                  POS ghi topping vào trong tên món. Món gốc được tính như một ly bình thường; mỗi topping thành một{" "}
+                  <strong>tên POS riêng</strong>, khai ánh xạ hoặc tích &quot;bỏ qua&quot; một lần rồi dùng mãi. SL topping lấy
+                  nguyên số trong ngoặc, không nhân với SL của món. Tên có size như &quot;Bạc Xỉu (L)&quot; cố ý KHÔNG bị tách.
+                </p>
+                <table className="w-full border-collapse text-sm">
+                  <thead>
+                    <tr>
+                      <th className={headClass}>Tên trên file</th>
+                      <th className={headClass}>Món gốc</th>
+                      <th className={headClass}>Topping tách ra</th>
+                      <th className={`${headClass} text-right`}>Số dòng</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {posLog.toppingSplits.map((split) => (
+                      <tr key={split.raw}>
+                        <td className={cellClass}>{split.raw}</td>
+                        <td className={cellClass}>{split.base}</td>
+                        <td className={cellClass}>
+                          {split.toppings.map((t) => `${t.name} × ${formatNumber(t.quantity)}`).join(", ")}
+                        </td>
+                        <td className={`${cellClass} text-right`}>{formatNumber(split.rowCount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
 

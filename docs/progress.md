@@ -1,6 +1,6 @@
 # Tiến độ dự án
 
-Cập nhật: 2026-11-20
+Cập nhật: 2026-11-26
 
 Ghi **đúng những gì git không tự trả lời được**. Lý do thiết kế đã nằm trong commit message, đừng
 chép lại vào đây. Mỗi mục "Đang dở" tối đa 3–4 dòng, và dòng quan trọng nhất luôn là: *đã kiểm thử
@@ -46,6 +46,14 @@ Mục "Còn lại" chỉ gồm việc đã nêu ra rồi chủ động gác lạ
 ---
 
 ## Đang dở
+
+### Nhập doanh số POS: tách topping gọi thêm khỏi tên món — CHỈ ở `dev`, CHƯA bấm thử trên trình duyệt
+POS ghi `Non ngàn (Kem Mặn (1))`; trước đây tên gộp không có ánh xạ nên CẢ FILE không nhập được dòng nào. Giờ tách ở
+`lib/posToppings.ts` thành món gốc + topping (tên POS riêng, tự khai "bỏ qua" nếu là đồ pha sẵn); SL topping lấy nguyên
+số trong ngoặc. Tên có size `(L)` cố ý không tách. Server không đổi. Đã kiểm: typecheck + lint web; parse file thật
+`sale_change_log (15)` ra đúng 2 dòng tách, file không topping giữ nguyên 184 dòng, "Bỏ món" SL âm trừ đúng cả topping;
+curl import trên `kho_dev_copy` ghi được 18 ô, `ignoredNames` nêu đúng topping khai bỏ qua, topping "Trân châu đen" trùng
+ánh xạ CÓ SẴN nên tự vào món M069. Đã dọn. Còn lại: bấm thử trên trình duyệt.
 
 ### Loại hàng hoá "Nguyên vật liệu tiêu hao" (`NVL_TIEU_HAO`) — ĐÃ lên `staging` + `main` (26/11), CHƯA OTA, CHƯA bấm thử
 Không tính vào Check Cost (như Dụng cụ/Khác). Có migration; web + mobile có nhãn và nhóm trong phiếu kiểm/huỷ (mobile cần OTA).
